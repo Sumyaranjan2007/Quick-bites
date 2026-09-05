@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Quick Bite",
+    "slug": "quick-bite",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#E23744"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E23744"
+      }
+    }
+  }
+}

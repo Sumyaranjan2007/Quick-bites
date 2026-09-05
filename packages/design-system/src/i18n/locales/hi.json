@@ -1,0 +1,62 @@
+{
+  "common": {
+    "appName": "क्विक बाइट",
+    "loading": "लोड हो रहा है...",
+    "errorTitle": "कुछ गलत हो गया",
+    "errorRetry": "पुनः प्रयास करें",
+    "emptyTitle": "कोई आइटम नहीं मिला",
+    "emptyDescription": "आपकी खोज के अनुसार कोई परिणाम नहीं मिला।",
+    "emptyCta": "कैटलॉग देखें",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "back": "वापस",
+    "continue": "आगे बढ़ें",
+    "close": "बंद करें",
+    "veg": "शुद्ध शाकाहारी",
+    "nonVeg": "मांसाहारी",
+    "goldMember": "गोल्ड सदस्य",
+    "demoMode": "डेमो मोड सक्रिय"
+  },
+  "customer": {
+    "searchPlaceholder": "व्यंजन, रेस्तरां या प्रकार खोजें...",
+    "deliveryIn": "{{minutes}} मिनट में डिलीवरी",
+    "pureVegToggle": "शुद्ध शाकाहारी",
+    "freeDelivery": "गोल्ड के साथ मुफ्त डिलीवरी",
+    "cart": "कार्ट",
+    "emptyCart": "आपकी कार्ट खाली है",
+    "addItemToCart": "कार्ट में जोड़ें",
+    "checkout": "चेकआउट के लिए आगे बढ़ें",
+    "billDetails": "बिल विवरण",
+    "itemTotal": "आइटम का कुल मूल्य",
+    "gstAndRestaurantCharges": "कर और रेस्तरां शुल्क",
+    "deliveryPartnerFee": "डिलीवरी पार्टनर शुल्क",
+    "platformFee": "प्लेटफ़ॉर्म शुल्क",
+    "discount": "छूट",
+    "toPay": "कुल भुगतान",
+    "orderPlaced": "ऑर्डर सफलतापूर्वक दर्ज किया गया",
+    "otpPrompt": "यह ओटीपी अपने डिलीवरी पार्टनर के साथ साझा करें:",
+    "trackOrder": "ऑर्डर ट्रैक करें"
+  },
+  "partner": {
+    "portalTitle": "रेस्तरां पार्टनर हब",
+    "activeOrders": "लाइव ऑर्डर",
+    "acceptOrder": "ऑर्डर स्वीकार करें",
+    "prepTime": "तैयारी का समय (मिनट)",
+    "markReady": "पिकअप के लिए तैयार",
+    "menuInventory": "मेनू इन्वेंटरी",
+    "inStock": "उपलब्ध",
+    "outOfStock": "समाप्त",
+    "todayPayout": "आज का शुद्ध भुगतान",
+    "orderHistory": "ऑर्डर इतिहास"
+  },
+  "admin": {
+    "portalTitle": "मास्टर संचालन डैशबोर्ड",
+    "platformGmv": "सकल व्यापारिक मूल्य (GMV)",
+    "activeRestaurants": "सक्रिय रेस्तरां",
+    "pendingKyc": "लंबित केवाईसी अनुमोदन",
+    "approvePartner": "रेस्तरां स्वीकृत करें",
+    "rejectPartner": "अस्वीकृत करें",
+    "liveOrders": "लाइव प्लेटफ़ॉर्म ऑर्डर",
+    "auditLogs": "सुरक्षा और ऑडिट लॉग"
+  }
+}

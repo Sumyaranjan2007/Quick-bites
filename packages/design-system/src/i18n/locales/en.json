@@ -1,0 +1,62 @@
+{
+  "common": {
+    "appName": "Quick Bite",
+    "loading": "Loading...",
+    "errorTitle": "Something went wrong",
+    "errorRetry": "Try Again",
+    "emptyTitle": "No items found",
+    "emptyDescription": "We couldn't find anything matching your criteria.",
+    "emptyCta": "Explore Catalog",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "continue": "Continue",
+    "close": "Close",
+    "veg": "Pure Veg",
+    "nonVeg": "Non-Veg",
+    "goldMember": "Gold Member",
+    "demoMode": "Demo Mode Active"
+  },
+  "customer": {
+    "searchPlaceholder": "Search dishes, restaurants or cuisines...",
+    "deliveryIn": "Delivery in {{minutes}} mins",
+    "pureVegToggle": "Pure Veg",
+    "freeDelivery": "Free Delivery with Gold",
+    "cart": "Cart",
+    "emptyCart": "Your cart is empty",
+    "addItemToCart": "Add to Cart",
+    "checkout": "Proceed to Checkout",
+    "billDetails": "Bill Details",
+    "itemTotal": "Item Total",
+    "gstAndRestaurantCharges": "Taxes and Restaurant Charges",
+    "deliveryPartnerFee": "Delivery Partner Fee",
+    "platformFee": "Platform Fee",
+    "discount": "Discount",
+    "toPay": "To Pay",
+    "orderPlaced": "Order Placed Successfully",
+    "otpPrompt": "Share this OTP with your delivery partner:",
+    "trackOrder": "Track Order"
+  },
+  "partner": {
+    "portalTitle": "Restaurant Partner Hub",
+    "activeOrders": "Live Orders",
+    "acceptOrder": "Accept Order",
+    "prepTime": "Prep Time (mins)",
+    "markReady": "Food Ready for Pickup",
+    "menuInventory": "Menu Inventory",
+    "inStock": "In Stock",
+    "outOfStock": "Sold Out",
+    "todayPayout": "Today's Net Payout",
+    "orderHistory": "Order History"
+  },
+  "admin": {
+    "portalTitle": "Master Operations Dashboard",
+    "platformGmv": "Gross Merchandise Value (GMV)",
+    "activeRestaurants": "Active Restaurants",
+    "pendingKyc": "Pending KYC Approvals",
+    "approvePartner": "Approve Restaurant",
+    "rejectPartner": "Reject",
+    "liveOrders": "Live Platform Orders",
+    "auditLogs": "Security & Audit Logs"
+  }
+}

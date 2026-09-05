@@ -1,0 +1,224 @@
+// Prisma Schema for Quick Bite Platform
+// Database: Supabase PostgreSQL 15 with PostGIS Extension
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  customer
+  restaurant_owner
+  rider
+  super_admin
+}
+
+enum PreferredLanguage {
+  en
+  hi
+  kn
+}
+
+enum RestaurantStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum AddressLabel {
+  Home
+  Work
+  Other
+}
+
+enum OrderStatus {
+  PAYMENT_PENDING
+  ORDER_PLACED
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  RAZORPAY_SANDBOX
+  CASH_ON_DELIVERY
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model User {
+  id                String            @id @default(uuid()) @db.Uuid
+  email             String            @unique @db.VarChar(255)
+  phone             String?           @unique @db.VarChar(20)
+  fullName          String            @map("full_name") @db.VarChar(100)
+  role              UserRole          @default(customer)
+  isGold            Boolean           @default(false) @map("is_gold")
+  goldExpiresAt     DateTime?         @map("gold_expires_at") @db.Timestamptz
+  preferredLanguage PreferredLanguage @default(en) @map("preferred_language")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  restaurants       Restaurant[]
+  addresses         Address[]
+  orders            Order[]
+
+  @@map("users")
+}
+
+model Restaurant {
+  id                 String           @id @default(uuid()) @db.Uuid
+  ownerId            String           @map("owner_id") @db.Uuid
+  name               String           @db.VarChar(150)
+  slug               String           @unique @db.VarChar(180)
+  phone              String           @db.VarChar(20)
+  addressLine        String           @map("address_line")
+  city               String           @db.VarChar(50)
+  pincode            String           @db.VarChar(10)
+  latitude           Float
+  longitude          Float
+  fssaiLicenseNumber String           @map("fssai_license_number") @db.VarChar(14)
+  gstin              String?          @db.VarChar(15)
+  isPureVeg          Boolean          @default(false) @map("is_pure_veg")
+  packagingFee       Decimal          @default(20.00) @map("packaging_fee") @db.Decimal(10, 2)
+  status             RestaurantStatus @default(PENDING_APPROVAL)
+  ratingAverage      Decimal          @default(4.00) @map("rating_average") @db.Decimal(3, 2)
+  ratingCount        Int              @default(0) @map("rating_count")
+  cuisineTags        String[]         @default([]) @map("cuisine_tags")
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner              User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  orders             Order[]
+  payouts            RestaurantPayout[]
+
+  @@index([status])
+  @@index([ownerId])
+  @@map("restaurants")
+}
+
+model Address {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  label       AddressLabel @default(Home)
+  addressLine String       @map("address_line")
+  landmark    String?      @db.VarChar(100)
+  latitude    Float
+  longitude   Float
+  isDefault   Boolean      @default(false) @map("is_default")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model Order {
+  id                  String        @id @default(uuid()) @db.Uuid
+  idempotencyKey      String        @unique @map("idempotency_key") @db.Uuid
+  orderNumber         String        @unique @map("order_number") @db.VarChar(20)
+  customerId          String        @map("customer_id") @db.Uuid
+  restaurantId        String        @map("restaurant_id") @db.Uuid
+  deliveryAddressId   String        @map("delivery_address_id") @db.Uuid
+  status              OrderStatus   @default(PAYMENT_PENDING)
+  paymentStatus       PaymentStatus @default(PENDING) @map("payment_status")
+  paymentMethod       PaymentMethod @map("payment_method")
+  razorpayOrderId     String?       @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId   String?       @map("razorpay_payment_id") @db.VarChar(100)
+  itemsTotal          Decimal       @map("items_total") @db.Decimal(10, 2)
+  gstAmount           Decimal       @map("gst_amount") @db.Decimal(10, 2)
+  packagingFee        Decimal       @map("packaging_fee") @db.Decimal(10, 2)
+  deliveryFee         Decimal       @map("delivery_fee") @db.Decimal(10, 2)
+  platformFee         Decimal       @default(5.00) @map("platform_fee") @db.Decimal(10, 2)
+  couponDiscount      Decimal       @default(0.00) @map("coupon_discount") @db.Decimal(10, 2)
+  totalAmount         Decimal       @map("total_amount") @db.Decimal(10, 2)
+  restaurantNetPayout Decimal       @map("restaurant_net_payout") @db.Decimal(10, 2)
+  preparationMinutes  Int?          @map("preparation_minutes")
+  deliveryOtp         String?       @map("delivery_otp") @db.VarChar(4)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer            User          @relation(fields: [customerId], references: [id])
+  restaurant          Restaurant    @relation(fields: [restaurantId], references: [id])
+  deliveryAddress     Address       @relation(fields: [deliveryAddressId], references: [id])
+  items               OrderItem[]
+
+  @@index([customerId])
+  @@index([restaurantId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                   String   @id @default(uuid()) @db.Uuid
+  orderId              String   @map("order_id") @db.Uuid
+  mongoDishId          String   @map("mongo_dish_id") @db.VarChar(50)
+  itemName             String   @map("item_name") @db.VarChar(150)
+  unitPrice            Decimal  @map("unit_price") @db.Decimal(10, 2)
+  quantity             Int
+  customizationDetails Json?    @map("customization_details")
+  totalPrice           Decimal  @map("total_price") @db.Decimal(10, 2)
+
+  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model RestaurantPayout {
+  id                    String       @id @default(uuid()) @db.Uuid
+  restaurantId          String       @map("restaurant_id") @db.Uuid
+  settlementPeriodStart DateTime     @map("settlement_period_start") @db.Date
+  settlementPeriodEnd   DateTime     @map("settlement_period_end") @db.Date
+  grossOrderValue       Decimal      @map("gross_order_value") @db.Decimal(12, 2)
+  commissionDeducted    Decimal      @map("commission_deducted") @db.Decimal(12, 2)
+  tdsDeducted           Decimal      @map("tds_deducted") @db.Decimal(12, 2)
+  netPayable            Decimal      @map("net_payable") @db.Decimal(12, 2)
+  status                PayoutStatus @default(PENDING)
+  bankUtrNumber         String?      @map("bank_utr_number") @db.VarChar(50)
+  processedAt           DateTime?    @map("processed_at") @db.Timestamptz
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  restaurant            Restaurant   @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId])
+  @@map("restaurant_payouts")
+}
+
+model Coupon {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @unique @db.VarChar(30)
+  discountType   String   @map("discount_type") @db.VarChar(20) // PERCENTAGE, FLAT, FREE_DELIVERY
+  discountValue  Decimal  @map("discount_value") @db.Decimal(10, 2)
+  maxDiscountCap Decimal? @map("max_discount_cap") @db.Decimal(10, 2)
+  minOrderValue  Decimal  @default(0.00) @map("min_order_value") @db.Decimal(10, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([code])
+  @@index([isActive])
+  @@map("coupons")
+}

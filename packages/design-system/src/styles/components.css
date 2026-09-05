@@ -1,0 +1,309 @@
+/* ==========================================================================
+   QUICK BITE PLATFORM - SHARED COMPONENT STYLES
+   Adhering to: 100% CSS Custom Properties, Zero-Emoji Visual Hierarchy
+   ========================================================================== */
+
+/* Button Primitives */
+.qb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--anim-duration-fast) var(--anim-ease-standard);
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.qb-btn:disabled,
+.qb-btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.qb-btn-sm {
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.qb-btn-md {
+  height: 40px;
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-base);
+}
+
+.qb-btn-lg {
+  height: 48px;
+  padding: 0 var(--space-6);
+  font-size: var(--font-size-md);
+}
+
+/* Button Variants */
+.qb-btn-primary {
+  background-color: var(--color-primary-500);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow-sm);
+}
+
+.qb-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-600);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.qb-btn-primary:active:not(:disabled) {
+  background-color: var(--color-primary-700);
+  transform: translateY(0);
+}
+
+.qb-btn-secondary {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-600);
+}
+
+.qb-btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-primary-100);
+}
+
+.qb-btn-outline {
+  background-color: transparent;
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.qb-btn-outline:hover:not(:disabled) {
+  background-color: var(--bg-surface-elevated);
+  border-color: var(--border-strong);
+}
+
+.qb-btn-ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+}
+
+.qb-btn-ghost:hover:not(:disabled) {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+}
+
+.qb-btn-veg {
+  background-color: var(--color-veg-bg);
+  border-color: var(--color-veg);
+  color: var(--color-veg);
+}
+
+.qb-btn-veg:hover:not(:disabled) {
+  background-color: var(--color-veg);
+  color: var(--text-inverse);
+}
+
+.qb-btn-danger {
+  background-color: var(--color-error);
+  color: var(--text-inverse);
+}
+
+/* Zero-Emoji Dietary & Status Badges */
+.qb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+/* Pure CSS Indian Standard Dietary Symbols */
+.qb-dietary-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.qb-dietary-icon-veg {
+  border-color: var(--color-veg);
+  background-color: transparent;
+}
+
+.qb-dietary-icon-veg::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-veg);
+}
+
+.qb-dietary-icon-nonveg {
+  border-color: var(--color-nonveg);
+  background-color: transparent;
+}
+
+.qb-dietary-icon-nonveg::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-bottom: 6px solid var(--color-nonveg);
+}
+
+.qb-badge-veg {
+  background-color: var(--color-veg-bg);
+  color: var(--color-veg);
+  border: 1px solid var(--color-veg);
+}
+
+.qb-badge-nonveg {
+  background-color: var(--color-nonveg-bg);
+  color: var(--color-nonveg);
+  border: 1px solid var(--color-nonveg);
+}
+
+.qb-badge-gold {
+  background-color: var(--color-gold-bg);
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+.qb-badge-rating {
+  background-color: var(--color-veg);
+  color: var(--text-inverse);
+  padding: 2px 6px;
+  font-weight: var(--font-weight-bold);
+}
+
+.qb-badge-status-active {
+  background-color: var(--color-veg-bg);
+  color: var(--color-veg);
+}
+
+.qb-badge-status-pending {
+  background-color: var(--color-gold-bg);
+  color: var(--color-gold);
+}
+
+.qb-badge-status-error {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-500);
+}
+
+/* Card Containers */
+.qb-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--anim-duration-fast) var(--anim-ease-standard);
+}
+
+.qb-card-interactive:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Form Input Primitives */
+.qb-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.qb-input-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
+.qb-input-field {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--space-3);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  transition: border-color var(--anim-duration-fast);
+  outline: none;
+}
+
+.qb-input-field:focus {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.qb-input-field.error {
+  border-color: var(--color-error);
+}
+
+.qb-input-error-msg {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+}
+
+/* 4-State UI Components */
+.qb-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.qb-state-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-3);
+  color: var(--text-muted);
+}
+
+.qb-state-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.qb-state-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  max-width: 400px;
+  margin-bottom: var(--space-4);
+}
+
+/* Shimmer Loading Animations */
+@keyframes qb-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.qb-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--border-subtle) 25%,
+    var(--bg-surface-elevated) 50%,
+    var(--border-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: qb-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}

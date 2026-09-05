@@ -1,0 +1,247 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Switch
+} from 'react-native';
+import { tokens } from '@quick-bites/design-system';
+import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft } from 'lucide-react-native';
+
+interface Props {
+  onBack: () => void;
+}
+
+export const ProfileScreen: React.FC<Props> = ({ onBack }) => {
+  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi' | 'kn'>('kn');
+  const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <ArrowLeft size={20} color="#0F172A" />
+        <Text style={styles.backText}>Back</Text>
+      </TouchableOpacity>
+
+      {/* User Card */}
+      <View style={styles.userCard}>
+        <View style={styles.avatar}>
+          <User size={28} color="#FFFFFF" />
+        </View>
+        <View style={{ flex: 1, marginLeft: 14 }}>
+          <Text style={styles.userName}>Rahul Sharma</Text>
+          <Text style={styles.userContact}>+91-98765-43210 • rahul.sharma@quickbite.app</Text>
+          <View style={styles.goldBadge}>
+            <Sparkles size={12} color="#D97706" />
+            <Text style={styles.goldText}>QUICK BITE GOLD ACTIVE</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Preferences Section */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionHeader}>Preferences & Localization</Text>
+
+        {/* Language Selection */}
+        <View style={styles.row}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Globe size={18} color="#64748B" />
+            <Text style={styles.rowLabel}>App Language</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {(['en', 'hi', 'kn'] as const).map(lang => (
+              <TouchableOpacity
+                key={lang}
+                style={[styles.langChip, selectedLanguage === lang && styles.langChipActive]}
+                onPress={() => setSelectedLanguage(lang)}
+              >
+                <Text style={[styles.langChipText, selectedLanguage === lang && styles.langChipTextActive]}>
+                  {lang === 'en' ? 'EN' : lang === 'hi' ? 'HI' : 'KN'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Veg-Only Mode Switch */}
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, marginTop: 12 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.vegDot} />
+            <Text style={styles.rowLabel}>Always Show Pure Veg First</Text>
+          </View>
+          <Switch
+            value={vegOnlyDefault}
+            onValueChange={setVegOnlyDefault}
+            trackColor={{ false: '#CBD5E1', true: tokens.colors.dietary.veg }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      </View>
+
+      {/* Saved Addresses */}
+      <View style={styles.sectionCard}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <MapPin size={18} color="#64748B" />
+          <Text style={styles.sectionHeader}>Saved Addresses</Text>
+        </View>
+        <View style={styles.addressBox}>
+          <Text style={styles.addressTitle}>Home</Text>
+          <Text style={styles.addressText}>100 Feet Road, Indiranagar, Bengaluru, 560038</Text>
+        </View>
+      </View>
+
+      {/* Security & Regulatory Compliance */}
+      <View style={styles.sectionCard}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <Shield size={18} color="#64748B" />
+          <Text style={styles.sectionHeader}>Security & Compliance</Text>
+        </View>
+        <Text style={styles.complianceText}>
+          FSSAI Compliant Food Delivery Partner Network. Digital Personal Data Protection (DPDP) Act 2023 certified.
+        </Text>
+      </View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC'
+  },
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16
+  },
+  backText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600'
+  },
+  userCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: tokens.colors.primary[500],
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A'
+  },
+  userContact: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2
+  },
+  goldBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 8
+  },
+  goldText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#D97706'
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A'
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12
+  },
+  rowLabel: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500'
+  },
+  langChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC'
+  },
+  langChipActive: {
+    borderColor: tokens.colors.primary[500],
+    backgroundColor: tokens.colors.primary[50]
+  },
+  langChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B'
+  },
+  langChipTextActive: {
+    color: tokens.colors.primary[500]
+  },
+  vegDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: tokens.colors.dietary.veg
+  },
+  addressBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9'
+  },
+  addressTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A'
+  },
+  addressText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2
+  },
+  complianceText: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16
+  }
+});

@@ -1,0 +1,20 @@
+{
+  "name": "@quick-bites/pricing-engine",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-strip-types src/index.test.ts"
+  },
+  "dependencies": {
+    "@quick-bites/shared-types": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2"
+  }
+}
