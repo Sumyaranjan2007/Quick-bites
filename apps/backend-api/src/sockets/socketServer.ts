@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { config } from '../config/env.ts';
@@ -31,9 +32,31 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   io.use((socket: Socket, next) => {
     const auth = socket.handshake.auth as SocketUserContext;
     const query = socket.handshake.query as Record<string, string>;
+    const token = auth?.token || (query?.token as string);
 
-    const userId = auth?.userId || query?.userId || `anon_${socket.id.slice(0, 8)}`;
-    const role = auth?.role || (query?.role as any) || 'CUSTOMER';
+    let userId = auth?.userId || query?.userId || `anon_${socket.id.slice(0, 8)}`;
+    let role = auth?.role || (query?.role as any) || 'CUSTOMER';
+
+    if (token) {
+      try {
+        const payload = jwt.verify(token, config.JWT_SECRET) as any;
+        userId = payload.sub || userId;
+        const mappedRole = payload.role?.toUpperCase();
+        if (mappedRole === 'ADMIN' || mappedRole === 'SUPER_ADMIN') {
+          role = 'ADMIN';
+        } else if (mappedRole === 'RESTAURANT_OWNER') {
+          role = 'RESTAURANT_PARTNER';
+        } else if (mappedRole === 'RIDER') {
+          role = 'DELIVERY_PARTNER';
+        } else {
+          role = 'CUSTOMER';
+        }
+      } catch (err: any) {
+        return next(new Error('INVALID_SOCKET_TOKEN: Authentication token is invalid or expired.'));
+      }
+    } else if (!config.DEMO_MODE) {
+      return next(new Error('AUTH_REQUIRED: Authentication token required for real-time WebSocket connection.'));
+    }
 
     socket.data = {
       userId,

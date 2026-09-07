@@ -1,9 +1,9 @@
 /**
  * Quick Bite - Shared Universal Types
- * Version 1.0.0
+ * Version 2.0.0
  */
 
-export type UserRole = 'customer' | 'restaurant_owner' | 'rider' | 'super_admin';
+export type UserRole = 'customer' | 'restaurant_owner' | 'rider' | 'admin' | 'super_admin';
 
 export type LanguageCode = 'en' | 'hi' | 'kn';
 
@@ -20,6 +20,7 @@ export interface UserProfile {
 }
 
 export type RestaurantStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
+export type KycStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
 
 export interface Coordinates {
   latitude: number;
@@ -41,9 +42,12 @@ export interface Restaurant {
   isPureVeg: boolean;
   packagingFee: number;
   status: RestaurantStatus;
+  kycStatus: KycStatus;
   ratingAverage: number;
   ratingCount: number;
   cuisineTags: string[];
+  bannerUrl?: string;
+  isOpen: boolean;
 }
 
 export interface OptionItem {
@@ -90,13 +94,14 @@ export type OrderStatus =
   | 'ACCEPTED'
   | 'PREPARING'
   | 'READY_FOR_PICKUP'
+  | 'RIDER_ASSIGNED'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
   | 'CANCELLED'
   | 'REFUNDED';
 
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
-export type PaymentMethod = 'RAZORPAY_SANDBOX' | 'CASH_ON_DELIVERY';
+export type PaymentMethod = 'RAZORPAY_SANDBOX' | 'CASH_ON_DELIVERY' | 'WALLET' | 'SPLIT';
 
 export interface OrderItemPayload {
   dishId: string;
@@ -115,6 +120,7 @@ export interface OrderBillBreakdown {
   platformFee: number;
   couponDiscount: number;
   totalAmount: number;
+  walletAmountUsed?: number;
   restaurantNetPayout: number;
 }
 
@@ -123,17 +129,72 @@ export interface Order {
   idempotencyKey: string;
   orderNumber: string;
   customerId: string;
+  customerName?: string;
+  customerPhone?: string;
   restaurantId: string;
+  restaurantName?: string;
+  riderId?: string;
+  riderName?: string;
+  riderPhone?: string;
   deliveryAddressId: string;
+  deliveryAddressText?: string;
+  deliveryCoordinates?: Coordinates;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
   items: OrderItemPayload[];
   bill: OrderBillBreakdown;
   preparationMinutes?: number;
+  pickupCode?: string;
   deliveryOtp?: string;
   createdAt: string;
   updatedAt: string;
+  deliveredAt?: string;
+}
+
+export interface DeliveryRider {
+  id: string;
+  userId: string;
+  fullName: string;
+  phone: string;
+  vehicleType: 'BIKE' | 'EV' | 'CYCLE';
+  licenseNumber: string;
+  vehicleRcNumber?: string;
+  kycStatus: KycStatus;
+  isOnline: boolean;
+  currentCoordinates?: Coordinates;
+  lastPingAt?: string;
+}
+
+export interface KycDocument {
+  id: string;
+  entityType: 'RESTAURANT' | 'RIDER';
+  entityId: string;
+  entityName?: string;
+  documentType: 'FSSAI' | 'GSTIN' | 'DRIVING_LICENSE' | 'PAN' | 'VEHICLE_RC';
+  fileUrl: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejectionReason?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
+export interface Wallet {
+  id: string;
+  userId: string;
+  balance: number;
+  currency: string;
+  updatedAt: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  walletId: string;
+  orderId?: string;
+  amount: number;
+  type: 'CREDIT' | 'DEBIT';
+  description: string;
+  createdAt: string;
 }
 
 export interface ApiResponse<T = any> {

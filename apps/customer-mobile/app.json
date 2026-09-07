@@ -5,16 +5,22 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "scheme": "quickbite",
     "splash": {
-      "backgroundColor": "#E23744"
+      "backgroundColor": "#E23744",
+      "resizeMode": "contain"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quickbite.app"
     },
     "android": {
+      "package": "com.quickbite.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E23744"
       }
-    }
+    },
+    "newArchEnabled": false
   }
 }

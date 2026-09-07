@@ -12,7 +12,8 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 export const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.PORT || '5000', 10),
-  DEMO_MODE: process.env.DEMO_MODE !== 'false', // Default true for free tier / offline testing
+  DEMO_MODE: process.env.DEMO_MODE === 'true' || (process.env.NODE_ENV !== 'production' && process.env.DEMO_MODE !== 'false'),
+  JWT_SECRET: process.env.JWT_SECRET || 'quickbites_production_jwt_super_secret_key_2026_x89f',
   
   // Supabase
   SUPABASE_URL: process.env.SUPABASE_URL || 'https://mock.supabase.co',

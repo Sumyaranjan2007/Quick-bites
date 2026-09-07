@@ -1,8 +1,9 @@
 # Quick Bite Platform -- AI Recovery Protocols (AI_RECOVERY)
 
-**Version:** 1.0.0  
-**Date:** September 5, 2026  
+**Version:** 2.0.0  
+**Date:** September 6, 2026  
 **Status:** Approved / Active  
+**Project:** Quick Bite (Multi-Portal Native Mobile Food Delivery Ecosystem)  
 **Target Audience:** Human Supervisors & AI Agents  
 
 Use these standardized prompt interventions whenever an AI assistant exhibits hallucination, context drift, unauthorized tech stack deviations, or build loops.

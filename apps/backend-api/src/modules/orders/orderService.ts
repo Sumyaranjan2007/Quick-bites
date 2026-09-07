@@ -144,8 +144,8 @@ export const orderService = {
     });
 
     // 7. Generate Delivery OTP (Rule 40)
-    const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    const orderNumber = 'QB-' + Math.floor(100000 + Math.random() * 900000);
+    const deliveryOtp = crypto.randomInt(1000, 10000).toString();
+    const orderNumber = 'QB-' + crypto.randomInt(100000, 1000000).toString();
     const orderId = 'ord_' + crypto.randomUUID();
 
     const order: Order = {

@@ -63,5 +63,13 @@ export const restaurantRepository = {
 
   async list(): Promise<Restaurant[]> {
     return Array.from(memoryStore.restaurants.values());
+  },
+
+  async listActive(): Promise<Restaurant[]> {
+    return Array.from(memoryStore.restaurants.values()).filter(r => r.status === 'ACTIVE');
+  },
+
+  async listAll(): Promise<Restaurant[]> {
+    return Array.from(memoryStore.restaurants.values());
   }
 };

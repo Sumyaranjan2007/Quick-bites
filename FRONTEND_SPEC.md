@@ -1,119 +1,79 @@
 # Quick Bite Platform -- Frontend Engineering Specification (FRONTEND_SPEC)
 
-**Version:** 1.0.0  
-**Date:** September 5, 2026  
+**Version:** 2.0.0  
+**Date:** September 6, 2026  
 **Status:** Approved / Active  
-**Project:** Quick Bite (Multi-Portal Food Delivery Platform)  
-**Author:** Quick Bite Frontend Architecture Team  
+**Project:** Quick Bite (Multi-Portal Native Mobile Food Delivery Ecosystem)  
+**Author:** Quick Bite Frontend Architecture & UX Engineering Team  
 
 ---
 
-## 1. The 4-State Component Rule & Inventory
+## 1. Multi-Device Native Architecture
 
-Every data-dependent component across the Customer App, Restaurant Portal, and Admin Dashboard must explicitly implement all four UI states:
+The frontend consists of **4 distinct native mobile applications** engineered with React Native and compiled with Hermes bytecode for high-performance physical device execution:
 
-| Component Name | 1. Loading State (Skeleton) | 2. Success State | 3. Error State (With Retry) | 4. Empty State (With CTA) |
-|----------------|-----------------------------|------------------|-----------------------------|---------------------------|
-| **RestaurantCard** | Shimmer rectangle for image + 2 lines for title/rating | High-res food photo, title, cuisine tags, distance, rating badge | Card border turns subtle red with "Failed to load. [Retry]" | "No restaurant found in this area. [Change Location]" |
-| **MenuSection** | Shimmer list with 4 dish card placeholders | Categorized dish list with Add buttons, price, and veg icons | Red banner at top: "Unable to load menu. [Tap to Reload]" | "No dishes listed under this category." |
-| **CartSheet** | Shimmer rows for items and fee breakdown | Itemized list, price tally, delivery note, and Checkout CTA | "Error recalculating prices. [Retry Calculation]" | Empty cart graphic with "Your cart is empty. [Explore Food]" |
-| **OrderTerminalCard** | Pulsing border skeleton with placeholder lines | Order ID, items list, customer name, prep timer buttons | "Unable to fetch order details. [Reconnect]" | "No incoming orders right now. [View Past Orders]" |
-| **TrackingMap** | Gray map placeholder with animated radar pulse | Interactive Leaflet/RN map with polyline and rider pin | "GPS signal interrupted. [Retry Map Connection]" | "Delivery partner not yet assigned." |
-| **AnalyticsChart** | Pulsing SVG skeleton outline of bar/line chart | Populated SVG chart with tooltips and trend line | "Analytics data unavailable. [Refresh Dashboard]" | "No order volume recorded for this period." |
-
-### Skeleton Loader Shimmer CSS
-```css
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--bg-surface-elevated) 25%,
-    var(--border-subtle) 37%,
-    var(--bg-surface-elevated) 63%
-  );
-  background-size: 400% 100%;
-  animation: shimmer 1.4s ease infinite;
-  border-radius: var(--radius-md);
-}
-```
+1. **Customer Mobile App (`apps/customer-mobile`):** Consumer discovery, ordering, and live delivery tracking.
+2. **Restaurant Mobile App (`apps/restaurant-mobile`):** Kitchen terminal, 120s order timer, KOT tickets, and menu stock manager.
+3. **Delivery Mobile App (`apps/delivery-mobile`):** Shift toggling, 15s broadcast card, 3s GPS telemetry streamer, and doorstep OTP verification.
+4. **Admin Mobile App (`apps/admin-mobile`):** Marketplace pulse, real-time GMV metrics, KYC verification queues, and instant dispute refunds.
 
 ---
 
-## 2. Optimistic UI Rendering & Rollback Protocol
+## 2. Design System & Stitch UI Tokens
 
-To make the app feel instantaneous, certain user actions must render the expected state immediately before server confirmation:
+All 4 mobile applications strictly adhere to the Stitch UI design tokens defined in `packages/design-system`:
 
-1. **Cart Item Increment / Decrement:**
-   - **Optimistic Action:** Quantity updates in UI instantly; total price adjusts immediately on client.
-   - **Server Call:** Dispatches `POST /api/v1/cart/validate` in background.
-   - **Rollback Policy:** If server responds with an error (e.g. max quantity exceeded or price changed), quantity reverts with an inline alert: *"Item price updated by restaurant."*
-2. **Restaurant Stock Toggle:**
-   - **Optimistic Action:** Toggle switch flips to "Out of Stock" immediately on click.
-   - **Server Call:** `PUT /api/v1/restaurant/menu/stock`.
-   - **Rollback Policy:** If server fails, toggle reverts with toast: *"Failed to update stock. Check connection."*
-3. **Veg Mode Global Switch:**
-   - **Optimistic Action:** Non-veg items disappear instantly using client-side memory filtering.
-   - **Server Call:** Saves preference to user profile in background. Zero rollback needed.
+### Color Tokens
+- **Brand Primary:** `#FF4F18` (Saffron / Crimson Accent)
+- **Brand Primary 50:** `#FFF7ED` (Subtle Tint / Selected Chips)
+- **Surface Dark:** `#0F172A` (Deep Slate / Header Backgrounds)
+- **Surface Light:** `#FFFFFF` (Card Surfaces)
+- **Surface Muted:** `#F8FAFC` (Canvas Background)
+- **Dietary Veg:** `#16A34A` (FSSAI Pure Veg Green)
+- **Dietary Non-Veg:** `#DC2626` (Red Triangle Marker)
+- **Gold Accent:** `#D97706` (Quick Bite Gold Badge & Highlights)
+- **Border Subtle:** `#E2E8F0` (Card Borders)
+- **Text Primary:** `#0F172A` (Headings & High Contrast Text)
+- **Text Secondary:** `#64748B` (Descriptions & Metadata)
 
----
-
-## 3. Error Boundary Architecture
-
-```
-[Global Error Boundary (Root)]
-  |-- Catches fatal bootstrap crashes
-  |-- Displays full-screen recovery screen: "Something went wrong. [Restart Quick Bite]"
-  |
-  +---> [Route-Level Error Boundary]
-  |       |-- Wraps each individual page/screen (e.g. RestaurantDetail, Checkout, Terminal)
-  |       |-- Fallback: Displays standard card with error explanation and "Go Back" button
-  |
-  +---> [Component-Level Error Boundary]
-          |-- Wraps high-risk dynamic components (e.g. Tracking Map, SVG Charts)
-          |-- Fallback: Isolates crash to the widget; rest of page remains fully usable
-```
+### Iconography Rules
+- **Zero Emojis:** Strictly prohibited across all documentation and production code.
+- **Lucide Icons:** Uniformly powered by `lucide-react-native` (e.g. `Utensils`, `ShoppingBag`, `ChefHat`, `Bike`, `Activity`, `CheckCircle2`).
 
 ---
 
-## 4. Form Data Persistence Strategy
+## 3. The 4-State Component Rule & Mobile Inventory
 
-To guarantee that users never lose data due to accidental tab refreshes or network drops:
-- **Storage Target:** `AsyncStorage` (React Native) / `localStorage` (Web).
-- **Key Convention:** `draft:<form_name>:<user_id_or_guest>`.
-- **Save Trigger:** Every `onChange` event, debounced by 300ms.
-- **Restore Trigger:** On component mount (`useEffect`), if draft key exists, form pre-populates and notifies user via subtle pill: *"Restored unsaved draft."*
-- **Purge Trigger:** Removed strictly upon verified HTTP 200/201 response from server.
+Every data-dependent component across all 4 applications must explicitly implement all four UI states:
 
----
-
-## 5. Timing, Debounce & Throttle Specifications
-
-| Event / Action | Technique | Delay | Purpose |
-|----------------|-----------|-------|---------|
-| **Search Input** | Debounce | 300ms | Prevents firing excessive Meilisearch API requests on each keystroke |
-| **Form Auto-Save** | Debounce | 500ms | Batches local storage writes to minimize disk I/O |
-| **Map Pan & Zoom** | Throttle | 100ms | Smooth coordinate updates without freezing UI thread |
-| **Rider GPS Emitter** | Throttle | 5000ms | Conserves mobile battery and limits WebSocket packet flood |
-| **Window Resize** | Throttle | 150ms | Recalculates chart dimensions efficiently |
+| Component | 1. Loading State (Skeleton) | 2. Success State | 3. Error State (With Retry) | 4. Empty State (With CTA) |
+|-----------|-----------------------------|------------------|-----------------------------|---------------------------|
+| **RestaurantCard** (`customer-mobile`) | Shimmer rectangle + text placeholders | Food photography, title, cuisine tags, distance, rating | Red border with "Failed to load. [Retry]" | "No restaurants within 10km. [Change Location]" |
+| **CartSheet** (`customer-mobile`) | Shimmer item rows + price placeholders | Itemized list, pricing engine tally, Gold free delivery, Checkout button | "Error calculating pricing. [Retry]" | Empty bag graphic with "Cart is empty. [Browse Menu]" |
+| **LiveKitchenCard** (`restaurant-mobile`) | Pulsing border placeholder card | Order number, KOT dishes, 120s timer, Accept/Reject buttons | "Connection lost to kitchen socket. [Reconnect]" | "Kitchen queue empty. [View Past Orders]" |
+| **BroadcastJobCard** (`delivery-mobile`) | Radial pulsing ring | 15s countdown, restaurant name, distance, payout, Accept button | "Broadcast expired or taken. [Refresh Shift]" | "No orders in your zone. Stay online." |
+| **KycReviewCard** (`admin-mobile`) | Gray document outline skeleton | FSSAI / Driving license details, document photo, 1-tap Approve/Reject | "Unable to load document. [Reload Queue]" | "All partner KYC applications cleared." |
 
 ---
 
-## 6. Design System Tokens & Responsive Breakpoints
+## 4. Hardware & Telemetry Specifications
 
-### Responsive Breakpoints
-- **Mobile (sm):** < 640px (Default for Customer Mobile App)
-- **Tablet (md):** 640px - 768px (Optimized for kitchen iPad terminals)
-- **Laptop (lg):** 768px - 1024px (Standard desktop web portal)
-- **Desktop (xl):** > 1024px (Admin control tower high-density views)
+| Action / Stream | Frequency / Timing | Implementation Details |
+|-----------------|--------------------|------------------------|
+| **Rider GPS Telemetry** | Every 3000ms | Emits `{ orderId, lat, lng, bearing }` via `POST /api/riders/telemetry`. Relayed over Socket.IO to customer order room and admin tower. |
+| **Kitchen Acceptance Timer** | 120-second countdown | Ticks down on Kitchen Terminal. If 0 reached without action, triggers automatic escalation or reassignment. |
+| **Rider Broadcast Expiry** | 15-second countdown | Flash broadcast to the nearest 3 active riders. First to accept locks the dispatch contract. |
+| **Search Keystroke Input** | Debounced 300ms | Queries Meilisearch / PostgreSQL with sub-millisecond execution times. |
+| **Doorstep OTP Handshake** | Synchronous | 4-digit secret OTP displayed on Customer App (`apps/customer-mobile`) and validated on Rider App (`apps/delivery-mobile`) against `/api/orders/:id/verify-otp`. |
 
-### Typography Scale
-- **Display 1:** 36px / Line Height: 44px / Bold (800)
-- **Heading 1:** 28px / Line Height: 36px / Bold (700)
-- **Heading 2:** 22px / Line Height: 28px / Semi-Bold (600)
-- **Body Large:** 16px / Line Height: 24px / Regular (400)
-- **Body Regular:** 14px / Line Height: 20px / Regular (400)
-- **Caption / Meta:** 12px / Line Height: 16px / Medium (500)
+---
+
+## 5. Universal Cloud Tunnel & Server Switcher
+
+All 4 mobile apps feature an integrated **Server / Cloud Tunnel URL** input on the login view and profile screen:
+- **Default Emulator Endpoint:** `http://10.0.2.2:4000/api`
+- **Default Localhost Endpoint:** `http://127.0.0.1:4000/api`
+- **Cloudflare Public Tunnel:** `https://*.trycloudflare.com/api` (launched via `scripts/start-tunnel.ps1`)
+- **LAN Wi-Fi IP:** `http://192.168.x.x:4000/api`
+
+This guarantees that any mobile phone running on 4G/5G/Wi-Fi connects seamlessly to the backend without hardcoded IP dependencies.

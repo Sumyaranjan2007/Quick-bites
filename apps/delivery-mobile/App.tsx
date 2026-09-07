@@ -1,0 +1,610 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  SafeAreaView,
+  StatusBar,
+  Alert
+} from 'react-native';
+import {
+  Bike,
+  Navigation,
+  CheckCircle2,
+  Clock,
+  ShieldCheck,
+  TrendingUp,
+  MapPin,
+  Phone,
+  Power,
+  Sparkles,
+  DollarSign,
+  KeyRound,
+  ArrowRight
+} from 'lucide-react-native';
+
+const DEFAULT_API_URL = 'http://10.0.2.2:5000/api';
+
+export default function DeliveryApp() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState('');
+  const [email, setEmail] = useState('rider@quickbite.app');
+  const [password, setPassword] = useState('pass123');
+  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
+  const [activeTab, setActiveTab] = useState<'deliveries' | 'earnings' | 'profile'>('deliveries');
+
+  // Rider state
+  const [rider, setRider] = useState<any>({
+    id: 'rdr_vikram_01',
+    fullName: 'Vikram Singh',
+    phone: '+91-98765-11223',
+    vehicleType: 'BIKE',
+    isOnline: true,
+    kycStatus: 'ACTIVE',
+    walletBalance: 240.00,
+    codCashInHand: 0.00,
+    todayTrips: 4
+  });
+
+  // Active broadcast job (simulated incoming broadcast)
+  const [incomingBroadcast, setIncomingBroadcast] = useState<any | null>({
+    id: 'ord_broadcast_101',
+    orderNumber: 'QB-2891',
+    restaurantName: 'Bangalore Biryani House',
+    pickupAddress: '100 Feet Road, Indiranagar',
+    dropAddress: '80 Feet Road, Koramangala',
+    distanceKm: 3.8,
+    estimatedEarnings: 75.00,
+    timerSeconds: 15,
+    pickupCode: '4821',
+    deliveryOtp: '5821',
+    paymentMode: 'COD',
+    cashToCollect: 455.00
+  });
+
+  // Active delivery underway
+  const [activeTrip, setActiveTrip] = useState<any | null>(null);
+  const [tripStage, setTripStage] = useState<'HEADING_TO_RESTAURANT' | 'AT_RESTAURANT' | 'OUT_FOR_DELIVERY' | 'AT_DOORSTEP'>('HEADING_TO_RESTAURANT');
+  const [otpInput, setOtpInput] = useState('');
+  const [pickupCodeInput, setPickupCodeInput] = useState('');
+  const [telemetryCount, setTelemetryCount] = useState(0);
+
+  // Background 3-second telemetry streaming
+  useEffect(() => {
+    let timer: any;
+    if (activeTrip && tripStage === 'OUT_FOR_DELIVERY') {
+      timer = setInterval(() => {
+        setTelemetryCount(prev => prev + 1);
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        fetch(`${apiUrl}/riders/telemetry`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            orderId: activeTrip.id,
+            lat: 12.9716 + (Math.random() - 0.5) * 0.002,
+            lng: 77.6412 + (Math.random() - 0.5) * 0.002,
+            bearing: Math.floor(Math.random() * 360)
+          })
+        }).catch(() => {});
+      }, 3000);
+    }
+    return () => clearInterval(timer);
+  }, [activeTrip, tripStage, apiUrl, authToken]);
+
+  // Login handler
+  const handleLogin = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role: 'rider' })
+      });
+      const data = await res.json();
+      if (data.success && data.data?.token) {
+        setAuthToken(data.data.token);
+        setIsAuthenticated(true);
+      } else {
+        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+      }
+    } catch {
+      if (email === 'rider@quickbite.app' && password === 'pass123') {
+        setIsAuthenticated(true);
+      } else {
+        Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
+      }
+    }
+  };
+
+  // Toggle shift online/offline
+  const toggleShift = async () => {
+    const nextState = !rider.isOnline;
+    setRider({ ...rider, isOnline: nextState });
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      await fetch(`${apiUrl}/riders/shift`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ riderId: rider.id, isOnline: nextState })
+      });
+    } catch {}
+  };
+
+  // Accept Broadcast Job
+  const acceptBroadcast = () => {
+    setActiveTrip(incomingBroadcast);
+    setIncomingBroadcast(null);
+    setTripStage('HEADING_TO_RESTAURANT');
+    Alert.alert('Trip Claimed', 'Navigate to restaurant pickup counter.');
+  };
+
+  // Pickup Handshake
+  const verifyPickupHandshake = () => {
+    if (pickupCodeInput.trim() === activeTrip.pickupCode) {
+      setTripStage('OUT_FOR_DELIVERY');
+      setPickupCodeInput('');
+      Alert.alert('Pickup Confirmed', 'Food verified! 3s GPS live tracking active to customer.');
+    } else {
+      Alert.alert('Invalid Code', 'Enter matching pickup code provided by kitchen staff.');
+    }
+  };
+
+  // Doorstep OTP Verification
+  const completeDeliveryOtp = () => {
+    if (otpInput.trim() === activeTrip.deliveryOtp) {
+      const earnings = activeTrip.estimatedEarnings;
+      const cash = activeTrip.paymentMode === 'COD' ? activeTrip.cashToCollect : 0;
+      setRider({
+        ...rider,
+        walletBalance: rider.walletBalance + earnings,
+        codCashInHand: rider.codCashInHand + cash,
+        todayTrips: rider.todayTrips + 1
+      });
+      Alert.alert(
+        'Delivery Complete!',
+        `Order marked DELIVERED.\n+Rs ${earnings.toFixed(2)} credited to your wallet.${cash ? `\nCollected Rs ${cash} COD cash.` : ''}`
+      );
+      setActiveTrip(null);
+      setOtpInput('');
+    } else {
+      Alert.alert('Incorrect OTP', 'Customer 4-digit delivery OTP does not match.');
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.authContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+        <View style={styles.authCard}>
+          <View style={styles.authHeader}>
+            <View style={styles.brandIconCircle}>
+              <Bike size={36} color="#10B981" />
+            </View>
+            <Text style={styles.authTitle}>Quick Bite Rider</Text>
+            <Text style={styles.authSubtitle}>Delivery Logistics & Navigation</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Rider Email or Phone</Text>
+            <TextInput
+              style={styles.textInput}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholder="rider@quickbite.app"
+              placeholderTextColor="#64748B"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <TextInput
+              style={styles.textInput}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="pass123"
+              placeholderTextColor="#64748B"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Server / Cloud Tunnel URL</Text>
+            <TextInput
+              style={styles.textInput}
+              value={apiUrl}
+              onChangeText={setApiUrl}
+              autoCapitalize="none"
+              placeholder="http://10.0.2.2:5000/api"
+              placeholderTextColor="#64748B"
+            />
+          </View>
+
+          <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
+            <Text style={styles.loginBtnText}>Check In For Shift</Text>
+          </TouchableOpacity>
+
+          <View style={styles.demoPill}>
+            <Sparkles size={16} color="#10B981" />
+            <Text style={styles.demoPillText}>Default Login: rider@quickbite.app / pass123</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.mainContainer}>
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <View>
+          <Text style={styles.riderName}>{rider.fullName}</Text>
+          <View style={styles.shiftMetaRow}>
+            <View style={[styles.statusDot, { backgroundColor: rider.isOnline ? '#10B981' : '#EF4444' }]} />
+            <Text style={styles.statusText}>{rider.isOnline ? 'Online (Accepting Jobs)' : 'Offline (On Break)'}</Text>
+            <Text style={styles.vehicleBadge}>{rider.vehicleType}</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.shiftToggleBtn, { backgroundColor: rider.isOnline ? '#064E3B' : '#334155' }]}
+          onPress={toggleShift}
+        >
+          <Power size={18} color={rider.isOnline ? '#34D399' : '#94A3B8'} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Tab Navigation */}
+      <View style={styles.tabNav}>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'deliveries' && styles.tabItemActive]}
+          onPress={() => setActiveTab('deliveries')}
+        >
+          <Navigation size={18} color={activeTab === 'deliveries' ? '#10B981' : '#94A3B8'} />
+          <Text style={[styles.tabLabel, activeTab === 'deliveries' && styles.tabLabelActive]}>Logistics</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'earnings' && styles.tabItemActive]}
+          onPress={() => setActiveTab('earnings')}
+        >
+          <DollarSign size={18} color={activeTab === 'earnings' ? '#10B981' : '#94A3B8'} />
+          <Text style={[styles.tabLabel, activeTab === 'earnings' && styles.tabLabelActive]}>Earnings</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'profile' && styles.tabItemActive]}
+          onPress={() => setActiveTab('profile')}
+        >
+          <ShieldCheck size={18} color={activeTab === 'profile' ? '#10B981' : '#94A3B8'} />
+          <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>Rider KYC</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+        {activeTab === 'deliveries' && (
+          <View>
+            {/* Active Delivery Card */}
+            {activeTrip ? (
+              <View style={styles.activeTripCard}>
+                <View style={styles.tripHeader}>
+                  <View>
+                    <Text style={styles.tripOrderNumber}>Order #{activeTrip.orderNumber}</Text>
+                    <Text style={styles.tripRestName}>{activeTrip.restaurantName}</Text>
+                  </View>
+                  <View style={styles.stagePill}>
+                    <Text style={styles.stagePillText}>{tripStage.replace(/_/g, ' ')}</Text>
+                  </View>
+                </View>
+
+                {/* Routing & Address Display */}
+                <View style={styles.routeBox}>
+                  <View style={styles.routeStep}>
+                    <MapPin size={16} color="#FF4F18" />
+                    <View style={{ marginLeft: 8, flex: 1 }}>
+                      <Text style={styles.stepLabel}>Pickup Location</Text>
+                      <Text style={styles.stepAddress}>{activeTrip.pickupAddress}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.routeDivider} />
+
+                  <View style={styles.routeStep}>
+                    <MapPin size={16} color="#10B981" />
+                    <View style={{ marginLeft: 8, flex: 1 }}>
+                      <Text style={styles.stepLabel}>Customer Doorstep</Text>
+                      <Text style={styles.stepAddress}>{activeTrip.dropAddress}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* OpenStreetMap Route Navigation Polyline Simulation */}
+                <View style={styles.mapSimContainer}>
+                  <Navigation size={24} color="#10B981" />
+                  <Text style={styles.mapSimText}>
+                    OSRM Turn-by-Turn Navigation Active ({activeTrip.distanceKm} km)
+                  </Text>
+                  {tripStage === 'OUT_FOR_DELIVERY' && (
+                    <Text style={styles.telemetryText}>
+                      Live 3s GPS Streamer Emitting ({telemetryCount} pings sent)
+                    </Text>
+                  )}
+                </View>
+
+                {/* Handshake Stages */}
+                {tripStage === 'HEADING_TO_RESTAURANT' && (
+                  <TouchableOpacity
+                    style={styles.primaryActionBtn}
+                    onPress={() => setTripStage('AT_RESTAURANT')}
+                  >
+                    <Text style={styles.primaryActionText}>Arrived at Restaurant</Text>
+                  </TouchableOpacity>
+                )}
+
+                {tripStage === 'AT_RESTAURANT' && (
+                  <View style={styles.handshakeBox}>
+                    <Text style={styles.handshakeTitle}>Pickup Verification</Text>
+                    <Text style={styles.handshakeSubtitle}>Kitchen staff must confirm pickup code.</Text>
+                    <TextInput
+                      style={styles.pickupCodeInput}
+                      value={pickupCodeInput}
+                      onChangeText={setPickupCodeInput}
+                      placeholder="Enter 4-Digit Pickup Code (e.g. 4821)"
+                      placeholderTextColor="#64748B"
+                      keyboardType="number-pad"
+                      maxLength={4}
+                    />
+                    <TouchableOpacity style={styles.primaryActionBtn} onPress={verifyPickupHandshake}>
+                      <Text style={styles.primaryActionText}>Confirm Food Picked Up</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {tripStage === 'OUT_FOR_DELIVERY' && (
+                  <TouchableOpacity
+                    style={styles.primaryActionBtn}
+                    onPress={() => setTripStage('AT_DOORSTEP')}
+                  >
+                    <Text style={styles.primaryActionText}>Arrived at Customer Doorstep</Text>
+                  </TouchableOpacity>
+                )}
+
+                {tripStage === 'AT_DOORSTEP' && (
+                  <View style={styles.handshakeBox}>
+                    <Text style={styles.handshakeTitle}>Doorstep 4-Digit Delivery OTP</Text>
+                    <Text style={styles.handshakeSubtitle}>Ask customer for the 4-digit code shown on their app.</Text>
+
+                    {activeTrip.paymentMode === 'COD' && (
+                      <View style={styles.codAlertBox}>
+                        <DollarSign size={18} color="#F59E0B" />
+                        <Text style={styles.codAlertText}>
+                          Collect Rs {activeTrip.cashToCollect.toFixed(2)} Cash from Customer
+                        </Text>
+                      </View>
+                    )}
+
+                    <TextInput
+                      style={styles.pickupCodeInput}
+                      value={otpInput}
+                      onChangeText={setOtpInput}
+                      placeholder="Enter Customer 4-Digit OTP"
+                      placeholderTextColor="#64748B"
+                      keyboardType="number-pad"
+                      maxLength={4}
+                    />
+                    <TouchableOpacity style={styles.completeBtn} onPress={completeDeliveryOtp}>
+                      <CheckCircle2 size={18} color="#FFFFFF" />
+                      <Text style={styles.primaryActionText}>Verify OTP & Complete Trip</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View>
+                {/* Available Broadcast Jobs */}
+                {incomingBroadcast ? (
+                  <View style={styles.broadcastCard}>
+                    <View style={styles.broadcastTop}>
+                      <View>
+                        <Text style={styles.broadcastAlert}>15s Broadcast Available</Text>
+                        <Text style={styles.broadcastRestName}>{incomingBroadcast.restaurantName}</Text>
+                      </View>
+                      <View style={styles.timerBadge}>
+                        <Clock size={14} color="#EF4444" />
+                        <Text style={styles.timerText}>{incomingBroadcast.timerSeconds}s</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.broadcastDetailsRow}>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>Trip Pay</Text>
+                        <Text style={styles.detailValue}>Rs {incomingBroadcast.estimatedEarnings.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>Distance</Text>
+                        <Text style={styles.detailValue}>{incomingBroadcast.distanceKm} km</Text>
+                      </View>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>Payment</Text>
+                        <Text style={styles.detailValue}>{incomingBroadcast.paymentMode}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.broadcastActionRow}>
+                      <TouchableOpacity
+                        style={styles.declineBtn}
+                        onPress={() => setIncomingBroadcast(null)}
+                      >
+                        <Text style={styles.declineBtnText}>Pass</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.acceptJobBtn} onPress={acceptBroadcast}>
+                        <Text style={styles.acceptJobBtnText}>Accept Delivery</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.idleCard}>
+                    <Bike size={48} color="#475569" />
+                    <Text style={styles.idleTitle}>Waiting for Nearby Delivery Jobs</Text>
+                    <Text style={styles.idleSubtitle}>
+                      {rider.isOnline 
+                        ? 'Stay online. Broadcast cards appear here when restaurants accept orders.' 
+                        : 'You are currently offline. Turn on your shift switch above to receive jobs.'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'earnings' && (
+          <View>
+            <Text style={styles.sectionTitle}>Rider Wallet & Payouts</Text>
+            <View style={styles.walletCard}>
+              <Text style={styles.walletLabel}>Withdrawable Wallet Balance</Text>
+              <Text style={styles.walletBalance}>Rs {rider.walletBalance.toFixed(2)}</Text>
+              <Text style={styles.walletSub}>Instant bank transfer available to HDFC Bank</Text>
+            </View>
+
+            <View style={styles.earningsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statNum}>{rider.todayTrips}</Text>
+                <Text style={styles.statLbl}>Trips Completed</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNum}>Rs {rider.codCashInHand.toFixed(2)}</Text>
+                <Text style={styles.statLbl}>Cash in Hand</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNum}>98%</Text>
+                <Text style={styles.statLbl}>On-Time Rate</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'profile' && (
+          <View>
+            <Text style={styles.sectionTitle}>Rider Profile & KYC Credentials</Text>
+            <View style={styles.kycActiveCard}>
+              <ShieldCheck size={28} color="#10B981" />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={styles.kycActiveTitle}>Background Check Approved</Text>
+                <Text style={styles.kycActiveDesc}>Driving License #KA032021008899 verified.</Text>
+              </View>
+            </View>
+
+            <View style={styles.docCard}>
+              <Text style={styles.docTitle}>Driving License</Text>
+              <Text style={styles.docDesc}>KA032021008899 (Motorcycle with Gear)</Text>
+              <Text style={styles.docStatusBadge}>Approved</Text>
+            </View>
+
+            <View style={styles.docCard}>
+              <Text style={styles.docTitle}>Vehicle Registration (RC)</Text>
+              <Text style={styles.docDesc}>KA04EJ4321 (Hero Splendor Plus)</Text>
+              <Text style={styles.docStatusBadge}>Approved</Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  authContainer: { flex: 1, backgroundColor: '#0F172A', justifyContent: 'center', padding: 24 },
+  authCard: { backgroundColor: '#1E293B', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#334155' },
+  authHeader: { alignItems: 'center', marginBottom: 28 },
+  brandIconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  authTitle: { fontSize: 24, fontWeight: '800', color: '#F8FAFC' },
+  authSubtitle: { fontSize: 14, color: '#94A3B8', marginTop: 4 },
+  inputGroup: { marginBottom: 18 },
+  inputLabel: { fontSize: 13, color: '#CBD5E1', marginBottom: 8, fontWeight: '600' },
+  textInput: { backgroundColor: '#0F172A', borderRadius: 14, height: 50, paddingHorizontal: 16, color: '#F8FAFC', fontSize: 15, borderWidth: 1, borderColor: '#334155' },
+  loginBtn: { backgroundColor: '#10B981', borderRadius: 14, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
+  loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  demoPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#334155', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginTop: 20, alignSelf: 'center' },
+  demoPillText: { color: '#CBD5E1', fontSize: 12, marginLeft: 6 },
+  mainContainer: { flex: 1, backgroundColor: '#0F172A' },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
+  riderName: { fontSize: 20, fontWeight: '800', color: '#F8FAFC' },
+  shiftMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  statusText: { fontSize: 13, color: '#94A3B8', marginRight: 10 },
+  vehicleBadge: { backgroundColor: '#334155', color: '#38BDF8', fontSize: 11, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  shiftToggleBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  tabNav: { flexDirection: 'row', backgroundColor: '#1E293B', borderBottomWidth: 1, borderBottomColor: '#334155' },
+  tabItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 6 },
+  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#10B981' },
+  tabLabel: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
+  tabLabelActive: { color: '#10B981', fontWeight: '700' },
+  scrollArea: { flex: 1 },
+  scrollContent: { padding: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#F8FAFC', marginBottom: 16 },
+  idleCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 36, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
+  idleTitle: { fontSize: 16, fontWeight: '700', color: '#F8FAFC', marginTop: 12 },
+  idleSubtitle: { fontSize: 13, color: '#94A3B8', marginTop: 4, textAlign: 'center' },
+  broadcastCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 20, borderWidth: 2, borderColor: '#10B981' },
+  broadcastTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  broadcastAlert: { fontSize: 12, color: '#10B981', fontWeight: '800', textTransform: 'uppercase' },
+  broadcastRestName: { fontSize: 18, fontWeight: '800', color: '#F8FAFC', marginTop: 2 },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#450A0A', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
+  timerText: { color: '#F87171', fontSize: 12, fontWeight: '700' },
+  broadcastDetailsRow: { flexDirection: 'row', backgroundColor: '#0F172A', padding: 14, borderRadius: 14, marginVertical: 14 },
+  detailItem: { flex: 1, alignItems: 'center' },
+  detailLabel: { fontSize: 11, color: '#94A3B8' },
+  detailValue: { fontSize: 16, fontWeight: '800', color: '#F8FAFC', marginTop: 2 },
+  broadcastActionRow: { flexDirection: 'row', gap: 12 },
+  declineBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#334155', borderRadius: 12 },
+  declineBtnText: { color: '#94A3B8', fontWeight: '700' },
+  acceptJobBtn: { flex: 2, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#10B981', borderRadius: 12 },
+  acceptJobBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  activeTripCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#334155' },
+  tripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  tripOrderNumber: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
+  tripRestName: { fontSize: 18, fontWeight: '800', color: '#F8FAFC' },
+  stagePill: { backgroundColor: '#064E3B', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  stagePillText: { color: '#34D399', fontSize: 11, fontWeight: '700' },
+  routeBox: { backgroundColor: '#0F172A', borderRadius: 14, padding: 14, marginVertical: 14 },
+  routeStep: { flexDirection: 'row', alignItems: 'flex-start' },
+  routeDivider: { height: 16, width: 1, backgroundColor: '#334155', marginLeft: 8, marginVertical: 4 },
+  stepLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  stepAddress: { fontSize: 13, color: '#F8FAFC', fontWeight: '600', marginTop: 1 },
+  mapSimContainer: { backgroundColor: '#064E3B', padding: 14, borderRadius: 14, alignItems: 'center', marginBottom: 14 },
+  mapSimText: { color: '#34D399', fontSize: 13, fontWeight: '700', marginTop: 4 },
+  telemetryText: { color: '#A7F3D0', fontSize: 11, marginTop: 2 },
+  primaryActionBtn: { backgroundColor: '#10B981', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  primaryActionText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  handshakeBox: { backgroundColor: '#0F172A', padding: 16, borderRadius: 16 },
+  handshakeTitle: { fontSize: 15, fontWeight: '800', color: '#F8FAFC' },
+  handshakeSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 2, marginBottom: 12 },
+  pickupCodeInput: { backgroundColor: '#1E293B', height: 48, borderRadius: 12, paddingHorizontal: 14, color: '#FFFFFF', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#334155', marginBottom: 12 },
+  codAlertBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#451A03', padding: 10, borderRadius: 10, gap: 6, marginBottom: 12 },
+  codAlertText: { color: '#FBBF24', fontSize: 12, fontWeight: '700' },
+  completeBtn: { flexDirection: 'row', backgroundColor: '#10B981', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 6 },
+  walletCard: { backgroundColor: '#1E293B', padding: 22, borderRadius: 20, borderWidth: 1, borderColor: '#334155', marginBottom: 16 },
+  walletLabel: { fontSize: 13, color: '#94A3B8', fontWeight: '600' },
+  walletBalance: { fontSize: 32, fontWeight: '800', color: '#10B981', marginVertical: 6 },
+  walletSub: { fontSize: 12, color: '#64748B' },
+  earningsGrid: { flexDirection: 'row', gap: 12 },
+  statCard: { flex: 1, backgroundColor: '#1E293B', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
+  statNum: { fontSize: 18, fontWeight: '800', color: '#F8FAFC' },
+  statLbl: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
+  kycActiveCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#064E3B', padding: 16, borderRadius: 16, marginBottom: 16 },
+  kycActiveTitle: { fontSize: 15, fontWeight: '800', color: '#34D399' },
+  kycActiveDesc: { fontSize: 12, color: '#A7F3D0', marginTop: 2 },
+  docCard: { backgroundColor: '#1E293B', padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#334155' },
+  docTitle: { fontSize: 14, fontWeight: '700', color: '#F8FAFC' },
+  docDesc: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  docStatusBadge: { alignSelf: 'flex-start', backgroundColor: '#064E3B', color: '#34D399', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 8 }
+});

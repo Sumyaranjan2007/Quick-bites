@@ -9,3 +9,5 @@ dist/
 .DS_Store
 coverage/
 scratch/
+apps/customer-mobile/android/
+apps/customer-mobile/ios/

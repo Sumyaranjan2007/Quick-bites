@@ -25,8 +25,8 @@ export const razorpayAdapter = {
   },
 
   verifySignature(params: VerifySignatureParams): boolean {
-    if (config.DEMO_MODE) {
-      // In Demo Mode, permit simulated test signatures
+    if (config.DEMO_MODE && config.NODE_ENV !== 'production') {
+      // In Demo/Dev Mode only, permit simulated test signatures
       if (params.razorpaySignature.startsWith('sig_test_') || params.razorpaySignature === 'simulated_valid_signature') {
         return true;
       }
@@ -38,7 +38,14 @@ export const razorpayAdapter = {
       .update(payload)
       .digest('hex');
 
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(params.razorpaySignature));
+    const expectedBuffer = Buffer.from(expected);
+    const signatureBuffer = Buffer.from(params.razorpaySignature);
+
+    if (expectedBuffer.length !== signatureBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
   },
 
   generateSimulatedSignature(razorpayOrderId: string, razorpayPaymentId: string): string {

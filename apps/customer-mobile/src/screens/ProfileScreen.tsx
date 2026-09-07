@@ -2,21 +2,43 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
   Switch
 } from 'react-native';
 import { tokens } from '@quick-bites/design-system';
-import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft } from 'lucide-react-native';
+import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft, CreditCard, Cloud } from 'lucide-react-native';
 
 interface Props {
   onBack: () => void;
+  apiUrl?: string;
+  token?: string;
+  onUpdateApiUrl?: (url: string) => void;
+  onLogout?: () => void;
 }
 
-export const ProfileScreen: React.FC<Props> = ({ onBack }) => {
+export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdateApiUrl, onLogout }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi' | 'kn'>('kn');
   const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number>(500.00);
+  const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'http://10.0.2.2:5000/api');
+
+  React.useEffect(() => {
+    if (!apiUrl) return;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(`${apiUrl}/wallets/usr_customer_01`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data?.wallet?.balance !== undefined) {
+          setWalletBalance(data.data.wallet.balance);
+        }
+      })
+      .catch(() => {});
+  }, [apiUrl, token]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -32,11 +54,49 @@ export const ProfileScreen: React.FC<Props> = ({ onBack }) => {
         </View>
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={styles.userName}>Rahul Sharma</Text>
-          <Text style={styles.userContact}>+91-98765-43210 • rahul.sharma@quickbite.app</Text>
+          <Text style={styles.userContact}>+91-98765-43210 • customer@quickbite.app</Text>
           <View style={styles.goldBadge}>
             <Sparkles size={12} color="#D97706" />
             <Text style={styles.goldText}>QUICK BITE GOLD ACTIVE</Text>
           </View>
+        </View>
+      </View>
+
+      {/* Quick Bite Cash Wallet Card */}
+      <View style={styles.walletCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <CreditCard size={18} color="#16A34A" />
+            <Text style={styles.walletHeader}>QUICK BITE CASH WALLET</Text>
+          </View>
+          <Text style={styles.walletBalance}>Rs {walletBalance.toFixed(2)}</Text>
+        </View>
+        <Text style={styles.walletSubtitle}>Preloaded instant checkout balance. Fast 1-tap ordering.</Text>
+      </View>
+
+      {/* Cloud & Public Tunnel Configuration */}
+      <View style={styles.sectionCard}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Cloud size={18} color={tokens.colors.primary[500]} />
+          <Text style={styles.sectionHeader}>Backend Server & Tunnel URL</Text>
+        </View>
+        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
+          Connects to your local or public Cloudflare tunnel endpoint across 4 physical devices.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TextInput
+            style={styles.serverInput}
+            value={customServerUrl}
+            onChangeText={setCustomServerUrl}
+            placeholder="http://10.0.2.2:5000/api"
+            autoCapitalize="none"
+          />
+          <TouchableOpacity
+            style={styles.saveServerBtn}
+            onPress={() => onUpdateApiUrl && onUpdateApiUrl(customServerUrl)}
+          >
+            <Text style={styles.saveServerText}>SAVE</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -92,16 +152,12 @@ export const ProfileScreen: React.FC<Props> = ({ onBack }) => {
         </View>
       </View>
 
-      {/* Security & Regulatory Compliance */}
-      <View style={styles.sectionCard}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <Shield size={18} color="#64748B" />
-          <Text style={styles.sectionHeader}>Security & Compliance</Text>
-        </View>
-        <Text style={styles.complianceText}>
-          FSSAI Compliant Food Delivery Partner Network. Digital Personal Data Protection (DPDP) Act 2023 certified.
-        </Text>
-      </View>
+      {/* Log Out Button */}
+      {onLogout && (
+        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+          <Text style={styles.logoutButtonText}>Log Out of Quick Bite</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 };
@@ -243,5 +299,67 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     lineHeight: 16
+  },
+  walletCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16
+  },
+  walletHeader: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#166534',
+    letterSpacing: 0.5
+  },
+  walletBalance: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#166534'
+  },
+  walletSubtitle: {
+    fontSize: 11,
+    color: '#15803D',
+    marginTop: 2
+  },
+  serverInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: '#0F172A'
+  },
+  saveServerBtn: {
+    backgroundColor: tokens.colors.primary[500],
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  saveServerText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12
+  },
+  logoutButton: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 20
+  },
+  logoutButtonText: {
+    color: '#DC2626',
+    fontWeight: '800',
+    fontSize: 14
   }
 });

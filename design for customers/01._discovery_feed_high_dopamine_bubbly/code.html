@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quick Bites - Discovery &amp; Restaurant Feed</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-dim": "#d3daef",
+            "inverse-primary": "#ffb5a0",
+            "on-tertiary-fixed": "#002109",
+            "on-secondary-fixed": "#410007",
+            "on-secondary-container": "#fffbff",
+            "secondary": "#b7122a",
+            "tertiary-fixed": "#7ffc97",
+            "inverse-surface": "#293040",
+            "on-primary": "#ffffff",
+            "surface-container-low": "#f1f3ff",
+            "inverse-on-surface": "#edf0ff",
+            "on-secondary-fixed-variant": "#92001c",
+            "on-primary-fixed": "#3b0900",
+            "on-surface": "#141b2b",
+            "on-primary-fixed-variant": "#872000",
+            "surface-container": "#e9edff",
+            "surface-variant": "#dce2f7",
+            "on-error-container": "#93000a",
+            "secondary-container": "#db313f",
+            "error-container": "#ffdad6",
+            "tertiary": "#006b2c",
+            "surface-container-highest": "#dce2f7",
+            "on-tertiary-container": "#f7fff2",
+            "surface-tint": "#b12d00",
+            "outline-variant": "#e5beb3",
+            "tertiary-container": "#00873a",
+            "on-primary-container": "#fffbff",
+            "secondary-fixed-dim": "#ffb3b1",
+            "on-background": "#141b2b",
+            "on-error": "#ffffff",
+            "primary": "#ad2c00",
+            "on-tertiary": "#ffffff",
+            "secondary-fixed": "#ffdad8",
+            "tertiary-fixed-dim": "#62df7d",
+            "primary-container": "#d83900",
+            "primary-fixed": "#ffdbd1",
+            "error": "#ba1a1a",
+            "primary-fixed-dim": "#ffb5a0",
+            "surface-container-high": "#e1e8fd",
+            "surface-bright": "#f9f9ff",
+            "on-tertiary-fixed-variant": "#005320",
+            "surface": "#f9f9ff",
+            "on-secondary": "#ffffff",
+            "outline": "#916f67",
+            "on-surface-variant": "#5c4038",
+            "background": "#f9f9ff",
+            "surface-container-lowest": "#ffffff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-3xl": "3rem",
+            "space-lg": "1.25rem",
+            "space-2xl": "2rem",
+            "space-base": "1rem",
+            "gutter-desktop": "1.5rem",
+            "space-xl": "1.5rem",
+            "gutter-mobile": "0.75rem",
+            "space-2xs": "0.125rem",
+            "screen-padding-mobile": "1rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-md": "0.75rem",
+            "screen-padding-tablet": "1.5rem"
+          },
+          "fontFamily": {
+            "display-mobile": ["Plus Jakarta Sans"],
+            "label-lg": ["Plus Jakarta Sans"],
+            "headline-md": ["Plus Jakarta Sans"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "label-sm": ["Plus Jakarta Sans"],
+            "display-lg": ["Plus Jakarta Sans"],
+            "headline-lg": ["Plus Jakarta Sans"],
+            "body-sm": ["Plus Jakarta Sans"],
+            "label-md": ["Plus Jakarta Sans"],
+            "body-md": ["Plus Jakarta Sans"],
+            "body-lg": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "display-mobile": ["26px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+            "label-lg": ["14px", {"lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "700"}],
+            "headline-md": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+            "headline-sm": ["16px", {"lineHeight": "22px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "label-sm": ["10px", {"lineHeight": "12px", "letterSpacing": "0.04em", "fontWeight": "700"}],
+            "display-lg": ["34px", {"lineHeight": "40px", "letterSpacing": "-0.03em", "fontWeight": "800"}],
+            "headline-lg": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "body-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400"}],
+            "body-lg": ["15px", {"lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "500"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased selection:bg-primary-fixed selection:text-on-primary-fixed min-h-screen pb-28">
+<!-- TOP APP BAR (Shared Components JSON Anchor) -->
+<header class="fixed top-0 left-0 w-full z-40 flex items-center justify-between px-screen-padding-mobile h-16 bg-surface/90 dark:bg-inverse-surface/90 backdrop-blur-md shadow-sm"><div class="flex items-center gap-2 max-w-[58%] cursor-pointer active:scale-95 transition-transform duration-150"><div class="relative flex items-center justify-center"><div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">location_on</span></div><span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white animate-pulse"></span></div><div class="flex flex-col truncate"><div class="flex items-center gap-1"><span class="font-headline-sm text-sm sm:text-headline-sm text-on-surface font-extrabold truncate tracking-tight">Indiranagar, 100ft Rd</span><span class="material-symbols-outlined text-base text-primary font-bold">expand_more</span></div><span class="font-body-sm text-[11px] text-on-surface-variant truncate font-medium">HAL 2nd Stage, Bengaluru</span></div></div><div class="flex items-center gap-2"><div class="hidden sm:flex items-center gap-1 bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-red-500/15 border border-amber-400/40 px-2 py-1 rounded-full text-xs font-bold text-amber-800 shadow-xs active:scale-95 transition-transform"><span class="text-xs">🔥</span><span>4d Streak</span><span class="text-[9px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-extrabold">₹80 off next</span></div><button class="flex items-center gap-0.5 bg-surface-container-low border border-outline-variant/40 px-2 py-1 rounded-full text-on-surface font-bold text-xs hover:bg-surface-container active:scale-95 transition-all"><span class="material-symbols-outlined text-xs text-primary">translate</span><span>EN</span></button><button class="relative w-9 h-9 rounded-full overflow-hidden border-2 border-primary/40 hover:ring-2 hover:ring-primary/40 active:scale-95 transition-all shadow-sm shrink-0"><img class="w-full h-full object-cover" data-alt="Customer profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPISyEDUAH6yphDy3w0Web9bN69ea92JHiwb7MgU08eTewCzcZlMTHPDK9JELWWv3UGWzcsq75tP90cRsXD6GZJjwmY__jlvPgrbsNxASXosQ9omVSizWmJi79XtG2fgNnTyfOf9Bp2c8UvEfmB2by1tWeVP9aWuTCFN_j7qpuzrVVsL4VG4VqSeBj5N_7ijLwxU7O7AS-jzyMiSIVoxMu6vScCsks1oFODUQ7Kea5PiEYj2jB--Vc"/><span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-white rounded-full"></span></button></div></header>
+<!-- MAIN CANVAS -->
+<main class="pt-16 max-w-lg mx-auto w-full flex flex-col">
+<!-- STICKY SEARCH & VEG TOGGLE ZONE -->
+<section class="sticky top-16 z-30 bg-surface/95 backdrop-blur-md px-screen-padding-mobile pt-3 pb-3 space-y-2.5 shadow-sm"><div class="relative flex items-center w-full bg-surface-container-lowest border border-outline-variant/50 rounded-2xl px-3.5 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/30 transition-all"><span class="material-symbols-outlined text-primary text-xl mr-2">search</span><input class="w-full bg-transparent border-0 p-0 text-on-surface placeholder:text-outline text-body-md font-body-md focus:ring-0 focus:outline-none" placeholder="Craving buttery pav bhaji, dum biryani, pizza..." type="text"/><div class="flex items-center gap-1 text-on-surface-variant"><button class="flex items-center justify-center p-1 rounded-full hover:bg-surface-container text-primary transition-transform active:scale-90" title="Voice Search"><span class="material-symbols-outlined text-lg">mic</span></button><button class="flex items-center justify-center p-1 rounded-full hover:bg-surface-container text-primary transition-transform active:scale-90" title="Visual Dish Search"><span class="material-symbols-outlined text-lg">photo_camera</span></button></div></div><div class="flex items-center justify-between gap-2 pt-0.5"><label class="flex items-center gap-1.5 cursor-pointer select-none bg-surface-container-low/80 border border-outline-variant/40 px-2.5 py-1 rounded-full shrink-0 active:scale-95 transition-all"><div class="w-3.5 h-3.5 border-[1.5px] border-tertiary rounded-sm flex items-center justify-center bg-white p-[1px]"><div class="w-2 h-2 rounded-full bg-tertiary"></div></div><span class="text-[11px] font-extrabold text-on-surface tracking-wider">VEG ONLY</span><div class="relative inline-block w-7 h-4 align-middle ml-0.5"><input class="sr-only peer" id="veg-toggle" type="checkbox"/><div class="w-7 h-3.5 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-tertiary"></div></div></label><div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth"><button class="flex items-center gap-1 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-primary/30 text-primary px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap active:scale-95 transition-all"><span class="text-xs">⚡</span><span>&lt;20m Express</span></button><button class="flex items-center gap-1 bg-surface-container-low border border-outline-variant/40 text-on-surface px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap active:scale-95 transition-all"><span>🌧️ Warm &amp; Cozy</span></button><button class="flex items-center gap-1 bg-surface-container-low border border-outline-variant/40 text-on-surface px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap active:scale-95 transition-all"><span>🔥 Spicy Craving</span></button><button class="flex items-center gap-1 bg-surface-container-low border border-outline-variant/40 text-on-surface px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap active:scale-95 transition-all"><span>🥗 Guilt-Free</span></button></div></div></section>
+<!-- FOOD CATEGORY STORY / BUBBLE CAROUSEL ('What's on your mind?') -->
+<section class="mt-4 px-screen-padding-mobile"><div class="flex items-center justify-between mb-3"><div class="flex items-center gap-1.5"><h2 class="font-headline-sm text-headline-sm text-on-surface font-extrabold tracking-tight">Live Sizzle Cravings</h2><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span></span></div><span class="font-label-md text-label-md text-primary font-extrabold cursor-pointer hover:underline flex items-center gap-0.5">Explore all <span class="material-symbols-outlined text-xs">arrow_forward_ios</span></span></div><div class="flex items-start gap-3.5 overflow-x-auto no-scrollbar py-1 -mx-screen-padding-mobile px-screen-padding-mobile scroll-smooth"><div class="flex flex-col items-center flex-shrink-0 w-20 text-center group cursor-pointer active:scale-95 transition-transform"><div class="relative p-0.5 rounded-full bg-gradient-to-tr from-amber-500 via-primary to-pink-500 shadow-sm"><div class="w-18 h-18 rounded-full overflow-hidden bg-white p-0.5"><img class="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-300" data-alt="Steaming Biryani handi" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAeg1BrEDfHVu4pYTlMo84LTGCnxY-iaEgIsgG2Cj2Y1W3Yj_g8g9I96F5VTkc7uDU62vMakwk5ssMxM7iChDumhbDyQh7zs9ms9Zjjeh6VE3qO6oZCOB1rkOTzcYWXiJx_-UBadQTRfbjQfldxfBH3AXMsOa6UGH_iRl3tB330YyzLtghHqoSjm2GeQSaDFVEWDl97beCnJQWzM4E8DwG_b02lcYoZo2vtiManldHry9nBbR-TeQEg"/></div><span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-red-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shadow-xs">Sizzling 🔥</span></div><span class="mt-2 font-label-md text-xs font-bold text-on-surface group-hover:text-primary transition-colors">Biryani Handi</span></div><div class="flex flex-col items-center flex-shrink-0 w-20 text-center group cursor-pointer active:scale-95 transition-transform"><div class="relative p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-orange-400 to-yellow-500 shadow-sm"><div class="w-18 h-18 rounded-full overflow-hidden bg-white p-0.5"><img class="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-300" data-alt="Crispy Masala Dosa" src="https://lh3.googleusercontent.com/aida-public/AB6AXuALHu_v6pxOyZZRpkX4IWvJRYBvdZGYne51Wpf--Cfm4hhfNo6uko0U71hK2yIBryPxLeNZ4H_GONTLscaUHcVyF8qiamnaOw6pvdFA1MB-ZzDwXKGc76U1LuatKRyU9WOyPcSjJqDVsm237xiTbURgk7nkYAz-nJjTdh10NP8d3tknh4prOeAjECp6jA9oMScgNvbfPus9YeYenVy2c9vkjBAp0GGizeF78ZXXvnDYhCFJVi3JtVyq"/></div><span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-amber-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shadow-xs">Hot ♨️</span></div><span class="mt-2 font-label-md text-xs font-bold text-on-surface group-hover:text-primary transition-colors">Crispy Dosa</span></div><div class="flex flex-col items-center flex-shrink-0 w-20 text-center group cursor-pointer active:scale-95 transition-transform"><div class="relative p-0.5 rounded-full bg-gradient-to-tr from-primary to-orange-400 shadow-sm"><div class="w-18 h-18 rounded-full overflow-hidden bg-white p-0.5"><img class="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-300" data-alt="Juicy Smash Burger" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAuyLs9KQACZBp6DmbZa3gpCXIsjgLvzad6gsUnUTegabm5TEGeNswAYduzLs0bur9ZwWJOzLnMti8vMKTjzUVwNIzOVrG8e6Q_ivNHdcYrC3wysEzvw2e_JLJtYoVkEBhWXDwpJziQteh8hH0GvB4d8QvqlNaNJZBww7dx2Ynin1nWOeaZailgzXOBRZ2KP4PBDC5-mUZHo0G304YolFDLwWf-N48MIubrAgis2oRNwBsesEAZXJCu"/></div><span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-orange-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shadow-xs">Trending 🚀</span></div><span class="mt-2 font-label-md text-xs font-bold text-on-surface group-hover:text-primary transition-colors">Juicy Burgers</span></div><div class="flex flex-col items-center flex-shrink-0 w-20 text-center group cursor-pointer active:scale-95 transition-transform"><div class="relative p-0.5 rounded-full bg-gradient-to-tr from-rose-500 to-amber-500 shadow-sm"><div class="w-18 h-18 rounded-full overflow-hidden bg-white p-0.5"><img class="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-300" data-alt="Woodfire Pizza" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbgswTTL-FFajd1cNJ7PzuVj5o8fdXepjRxoRII2Csij9Bz7fWrVt7jllfUITO1SibuGsHPKoJZ0EsjsIhYW6uYtvXtWxRgL8Ydo-rJ3wb4O5QRKl7gBsx1WV3ASrf0esmr3hiK4TOxG20TgJuJNsgDvevQZRu0DNlwQ66tlRLOsN_Ofpp9cdvs_jSRdzXAwIhB4s8DZDEAYby47zOfh9aqBHnbTWAUka1s8QcDG5HQoRPhdmMt3uc"/></div><span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-rose-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shadow-xs">Cheesy 🧀</span></div><span class="mt-2 font-label-md text-xs font-bold text-on-surface group-hover:text-primary transition-colors">Woodfire Pizza</span></div><div class="flex flex-col items-center flex-shrink-0 w-20 text-center group cursor-pointer active:scale-95 transition-transform"><div class="relative p-0.5 rounded-full bg-gradient-to-tr from-amber-500 to-emerald-500 shadow-sm"><div class="w-18 h-18 rounded-full overflow-hidden bg-white p-0.5"><img class="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-300" data-alt="Kolkata Kathi Roll" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYQp1npcvbAi9CO84EZC8ZT4b7RHRJ1Lox46X4MQpfC3Sc0Buy-WXre8PVbxXQZrOH48AOn4D8wxE3pF5V9H7Mpz34ic0rhq38_osZaoT5Ml4xRl5JN7pq-7MXCUqPiLTbMwPD-zKx0PbBfjdjHQ1Ex0BT0FwUExDIRQngnnMuwcSdR5NJCW1Rtsg859hBUBVBLxSlle6zB5MtYReug3YLzF5fBjcsBjl7RNShqZbEmvpTaHE0ezyA"/></div><span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shadow-xs">Street Eats</span></div><span class="mt-2 font-label-md text-xs font-bold text-on-surface group-hover:text-primary transition-colors">Rolls &amp; Kebabs</span></div><div class="flex flex-col items-center flex-shrink-0 w-20 text-center group cursor-pointer active:scale-95 transition-transform"><div class="relative p-0.5 rounded-full bg-gradient-to-tr from-pink-500 to-purple-500 shadow-sm"><div class="w-18 h-18 rounded-full overflow-hidden bg-white p-0.5"><img class="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform duration-300" data-alt="Chocolate lava cake dessert" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqGiOxzRel3DQ6m_GCyHSOW6zgitoKl0tkiK9aYkIsqXLe-YWVu0zwgO6XdfxvENLchwKmKGd9a_msQyFPb_2hsOgnXl3fIay3MypXx81fW-3JQ6K46cAe_1oHImdVa5HvWmlqRvAFj_uqjoghYLiUEJoXjFvAagiJLnA07sNu1vQaup_3PBiR5dHsC4EDrzpWzqaJ-OQuyd7sJJWij3iJQD1i95dVMDkC8FiqgZDI465kSjy6S2Gm"/></div><span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-purple-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shadow-xs">Sweet Rush 🍩</span></div><span class="mt-2 font-label-md text-xs font-bold text-on-surface group-hover:text-primary transition-colors">Desserts</span></div></div></section>
+<!-- VIP GOLD PASS COMPONENT -->
+<section class="mt-4 px-screen-padding-mobile"><div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1E1B4B] via-[#311042] to-[#450A0A] p-3.5 text-white shadow-md border border-purple-400/30"><div class="flex items-center justify-between mb-2"><div class="flex items-center gap-1.5"><span class="flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 text-black font-extrabold text-xs">⚡</span><span class="font-headline-sm text-xs font-extrabold tracking-wider text-amber-300 uppercase">Flash Craving Drop</span><span class="bg-red-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">Ends in 14m 28s</span></div><span class="text-[10px] text-amber-200 font-bold">Indiranagar Exclusive</span></div><div class="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/10"><div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-white/20"><img class="w-full h-full object-cover" data-alt="Sizzling Peri Peri Chicken Wings Combo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAg8FmjonDySgjWT956pvInpB6j5e9cwwyCI115VnAKvgtW_dzXHn53mSB9XLUMNj_0y5tOmGBMdVL0oru_S7M0ZDr4gwKFfvMXL2whCvOXwup9g6TutcVSxbHmzojOnC0nSxwLnTXqoqetI08BkA1XrPcKX43ovE5mLgzyj3DnLYO7KyDiQEUkW98Gv9F6ncQNzI0z5EigzXjC_GcVgpRNEkxllBie5-zsMZl8ziQkZ8eRzom7HfLQ"/></div><div class="flex-1 min-w-0"><div class="flex items-center gap-1.5"><span class="text-xs font-extrabold truncate text-white">Fiery Wings + Dip Combo</span><span class="text-[9px] bg-amber-400 text-black px-1.5 py-0.5 rounded-sm font-extrabold shrink-0">Only 3 Left!</span></div><p class="text-[11px] text-gray-300 truncate mt-0.5">Leon's Burgers • Guaranteed in 15 mins</p><div class="flex items-center gap-2 mt-1"><span class="text-sm font-extrabold text-amber-300">₹149</span><span class="text-[11px] line-through text-gray-400">₹299</span><span class="text-[10px] font-bold text-emerald-400">50% OFF</span></div></div><button class="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-extrabold text-xs px-3 py-2 rounded-xl active:scale-95 transition-all shadow-md shrink-0">Claim 1-Tap</button></div></div></section><section class="mt-5 px-screen-padding-mobile"><div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#D97706] via-[#F59E0B] to-[#B45309] p-4 text-[#3B1902] shadow-md border border-amber-300/80"><div class="absolute -right-6 -bottom-6 w-28 h-28 bg-white/25 rounded-full blur-xl pointer-events-none"></div><div class="flex items-center justify-between relative z-10"><div class="space-y-1"><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xl text-[#3B1902]" style="font-variation-settings: 'FILL' 1;">crown</span><span class="font-headline-sm text-sm font-extrabold tracking-wider text-[#3B1902] uppercase">Quick Bite Gold VIP</span><span class="bg-[#3B1902] text-amber-300 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">₹0 DELIVERY</span></div><p class="font-body-sm text-xs text-[#3B1902] font-bold leading-snug">Free delivery on all orders above ₹199 + Flat 20% Extra OFF</p></div><button class="bg-[#3B1902] text-amber-300 px-3.5 py-2 rounded-xl font-label-md text-xs font-extrabold shadow-sm active:scale-95 transition-all whitespace-nowrap hover:bg-black">Join ₹99</button></div></div></section>
+<!-- RESTAURANT FILTER & SORT CHIP BAR -->
+<section class="mt-5 px-screen-padding-mobile">
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -mx-screen-padding-mobile px-screen-padding-mobile">
+<!-- Sort Chip -->
+<button class="flex items-center gap-1 bg-on-surface text-white px-3 py-1.5 rounded-full font-label-md text-label-md shrink-0 shadow-sm">
+<span>Sort by: Rating</span>
+<span class="material-symbols-outlined text-sm text-primary">arrow_drop_down</span>
+</button>
+<!-- Fast Delivery -->
+<button class="flex items-center gap-1 bg-surface-container-lowest border border-outline-variant/50 text-on-surface px-3 py-1.5 rounded-full font-label-md text-label-md shrink-0 hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-sm text-primary">timer</span>
+<span>Fast Delivery (&lt;30 mins)</span>
+</button>
+<!-- Rating 4.0+ -->
+<button class="flex items-center gap-1 bg-surface-container-lowest border border-outline-variant/50 text-on-surface px-3 py-1.5 rounded-full font-label-md text-label-md shrink-0 hover:bg-surface-container active:scale-95 transition-all">
+<span>Rating 4.0+</span>
+</button>
+<!-- Pure Veg Filter -->
+<button class="flex items-center gap-1 bg-surface-container-lowest border border-outline-variant/50 text-on-surface px-3 py-1.5 rounded-full font-label-md text-label-md shrink-0 hover:bg-surface-container active:scale-95 transition-all">
+<div class="w-2.5 h-2.5 border border-tertiary rounded-xs flex items-center justify-center p-[1px]">
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div>
+</div>
+<span>Pure Veg</span>
+</button>
+<!-- Offers -->
+<button class="flex items-center gap-1 bg-surface-container-lowest border border-outline-variant/50 text-on-surface px-3 py-1.5 rounded-full font-label-md text-label-md shrink-0 hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-sm text-primary">local_offer</span>
+<span>Offers &amp; Discounts</span>
+</button>
+</div>
+</section>
+<!-- RESTAURANT FEED LIST -->
+<section class="mt-6 px-screen-padding-mobile space-y-4"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h3 class="font-headline-sm text-headline-sm text-on-surface font-extrabold">284 Best Spots in Indiranagar</h3><span class="bg-primary-fixed/50 text-primary text-[11px] font-extrabold px-2 py-0.5 rounded-full">Near you</span></div><button class="flex items-center gap-1 text-xs font-bold text-on-surface-variant bg-surface-container-low border border-outline-variant/40 px-2.5 py-1 rounded-full hover:bg-surface-container active:scale-95"><span class="material-symbols-outlined text-base">tune</span><span>Filters</span></button></div><!-- CARD 1: Bangalore Biryani House --><article class="bg-surface-container-lowest border border-[#F0EFEA] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all"><div class="relative w-full aspect-[16/9] overflow-hidden"><img class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" data-alt="Platter of royal fragrant Hyderabadi mutton and chicken biryani" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5BuZiaU2c6OrPx6upu8UX8DEWPFwMrKUFWH9Gn6OdJ23vLcwyb3yD6FMnvklqq3uz0DrLr_fmAQSdvVTGQ0TQbtFB0r2-WIBdXJaDBwdd4jhsB8IYGIpVRM-ZSej1NmOUGZeRIoU4aRCvqKHBViD-A6qnb6q42I_lprVnCsB1pFtU39roEmYvTdrBp0eOf8ZNzzbI73l6QvCa3rgirz11LB-53Rx-mQqvam4ZBaB3e0mJTZNzOGHm"/><div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20"></div><div class="absolute top-3 left-3 bg-surface/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1 font-label-md text-xs text-on-surface shadow-sm"><span class="material-symbols-outlined text-sm text-primary">schedule</span><span class="font-extrabold">22 mins</span><span class="text-on-surface-variant">• 1.8 km</span></div><button class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:text-red-500 active:scale-90 transition-all"><span class="material-symbols-outlined text-lg">favorite</span></button><div class="absolute bottom-3 left-3 flex items-center gap-1.5 bg-primary text-white font-label-md text-xs px-2.5 py-1 rounded-lg shadow-sm"><span class="material-symbols-outlined text-sm">local_offer</span><span class="font-extrabold">50% OFF UP TO ₹100</span></div></div><div class="p-3.5"><div class="flex items-start justify-between"><div><div class="flex items-center gap-1.5"><h4 class="font-headline-md text-base font-extrabold text-on-surface">Bangalore Biryani House</h4><span class="material-symbols-outlined text-tertiary text-base" title="FSSAI Verified">verified</span></div><p class="font-body-sm text-xs text-on-surface-variant mt-0.5">Biryani, Mughlai, North Indian • ₹450 for two</p></div><div class="flex items-center gap-0.5 bg-[#16A34A] text-white px-2 py-0.5 rounded-lg font-label-md text-xs font-bold shadow-xs shrink-0"><span>4.8</span><span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">star</span><span class="text-[10px] opacity-80">(2.1k)</span></div></div><div class="mt-2.5 flex items-center justify-between bg-surface-container-low rounded-xl p-2"><div class="flex items-center gap-2 truncate pr-2"><span class="w-2 h-2 rounded-full bg-primary shrink-0"></span><span class="text-xs text-on-surface font-semibold truncate">Must try: Hyderabadi Dum Biryani + Raita</span></div><button class="bg-white text-primary border border-primary/40 px-3 py-1 rounded-lg text-xs font-extrabold hover:bg-primary hover:text-white transition-colors active:scale-95 shadow-xs shrink-0">+ ADD</button></div><div class="mt-2.5 pt-2 border-t border-outline-variant/30 flex items-center justify-between text-xs text-on-surface-variant"><span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-tertiary">check_circle</span><span>Over 100+ orders this week</span></span><span class="text-primary font-bold">Indiranagar Legend</span></div></div></article><!-- CARD 2: The Rameshwaram Cafe --><article class="bg-surface-container-lowest border border-[#F0EFEA] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all"><div class="relative w-full aspect-[16/9] overflow-hidden"><img class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" data-alt="Piping hot ghee podi masala dosa" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDX2iutLMvUfzMMb7plAhYXCMVwDRH5R59bvSPLNC12AWjjksM7UhAzVUIe-Cbt1Y3b3VWw0pj31G-4ZfdcpH5kHhGGpc20Qz37ttJFxCr2LFK3XEpnu6Hs_okDmWMjclZ0oFWMABTmtwXXwK48VU78_R1M08mKKhEaYG2LledVcU3y3oXQYFGjzHn75xUTTJmy4xBKssJgvzLswBeZpGViHoCmTFVYZXor0nSKATgJZaRajdjOIxnV"/><div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20"></div><div class="absolute top-3 left-3 bg-surface/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1 font-label-md text-xs text-on-surface shadow-sm"><span class="material-symbols-outlined text-sm text-primary">schedule</span><span class="font-extrabold">18 mins</span><span class="text-on-surface-variant">• 1.2 km</span></div><div class="absolute top-3 right-3 bg-white/95 backdrop-blur-md px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm"><div class="w-3 h-3 border border-[#16A34A] rounded-xs flex items-center justify-center p-[1px]"><div class="w-1.5 h-1.5 rounded-full bg-[#16A34A]"></div></div><span class="text-[10px] font-extrabold text-[#16A34A]">PURE VEG</span></div><div class="absolute bottom-3 left-3 flex items-center gap-1.5 bg-tertiary text-white font-label-md text-xs px-2.5 py-1 rounded-lg shadow-sm"><span class="material-symbols-outlined text-sm">redeem</span><span class="font-extrabold">FLAT ₹50 OFF</span></div></div><div class="p-3.5"><div class="flex items-start justify-between"><div><h4 class="font-headline-md text-base font-extrabold text-on-surface">The Rameshwaram Cafe</h4><p class="font-body-sm text-xs text-on-surface-variant mt-0.5">South Indian, Filter Coffee, Ghee Dosa • ₹250 for two</p></div><div class="flex items-center gap-0.5 bg-[#16A34A] text-white px-2 py-0.5 rounded-lg font-label-md text-xs font-bold shadow-xs shrink-0"><span>4.9</span><span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">star</span><span class="text-[10px] opacity-80">(15k+)</span></div></div><div class="mt-2.5 flex items-center justify-between bg-surface-container-low rounded-xl p-2"><div class="flex items-center gap-2 truncate pr-2"><span class="w-2 h-2 rounded-full bg-tertiary shrink-0"></span><span class="text-xs text-on-surface font-semibold truncate">Must try: Ghee Podi Masala Dosa + Filter Coffee</span></div><button class="bg-white text-tertiary border border-tertiary/40 px-3 py-1 rounded-lg text-xs font-extrabold hover:bg-tertiary hover:text-white transition-colors active:scale-95 shadow-xs shrink-0">+ ADD</button></div><div class="mt-2.5 pt-2 border-t border-outline-variant/30 flex items-center justify-between text-xs text-on-surface-variant"><span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-tertiary">trending_up</span><span>15k ratings • Most Ordered</span></span><span class="text-tertiary font-bold">Authentic Ghee Flavours</span></div></div></article><!-- CARD 3: Leon's Burgers & Wings --><article class="bg-surface-container-lowest border border-[#F0EFEA] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all"><div class="relative w-full aspect-[16/9] overflow-hidden"><img class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" data-alt="Crispy peri peri wings and towering chicken burger" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAg8FmjonDySgjWT956pvInpB6j5e9cwwyCI115VnAKvgtW_dzXHn53mSB9XLUMNj_0y5tOmGBMdVL0oru_S7M0ZDr4gwKFfvMXL2whCvOXwup9g6TutcVSxbHmzojOnC0nSxwLnTXqoqetI08BkA1XrPcKX43ovE5mLgzyj3DnLYO7KyDiQEUkW98Gv9F6ncQNzI0z5EigzXjC_GcVgpRNEkxllBie5-zsMZl8ziQkZ8eRzom7HfLQ"/><div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20"></div><div class="absolute top-3 left-3 bg-surface/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1 font-label-md text-xs text-on-surface shadow-sm"><span class="material-symbols-outlined text-sm text-primary">schedule</span><span class="font-extrabold">28 mins</span><span class="text-on-surface-variant">• 3.2 km</span></div><div class="absolute bottom-3 left-3 flex items-center gap-1.5 bg-surface-container-lowest text-on-surface font-label-md text-xs px-2.5 py-1 rounded-lg shadow-sm border border-outline-variant/30"><span class="material-symbols-outlined text-sm text-primary font-bold">two_wheeler</span><span class="font-extrabold text-primary">FREE DELIVERY</span></div></div><div class="p-3.5"><div class="flex items-start justify-between"><div><h4 class="font-headline-md text-base font-extrabold text-on-surface">Leon's Burgers &amp; Wings</h4><p class="font-body-sm text-xs text-on-surface-variant mt-0.5">Burgers, Fast Food, Shakes • ₹400 for two</p></div><div class="flex items-center gap-0.5 bg-[#16A34A] text-white px-2 py-0.5 rounded-lg font-label-md text-xs font-bold shadow-xs shrink-0"><span>4.6</span><span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">star</span><span class="text-[10px] opacity-80">(3.4k)</span></div></div><div class="mt-2.5 flex items-center justify-between bg-surface-container-low rounded-xl p-2"><div class="flex items-center gap-2 truncate pr-2"><span class="w-2 h-2 rounded-full bg-primary shrink-0"></span><span class="text-xs text-on-surface font-semibold truncate">Must try: Peri Peri Crispy Wings + Crinkle Fries</span></div><button class="bg-white text-primary border border-primary/40 px-3 py-1 rounded-lg text-xs font-extrabold hover:bg-primary hover:text-white transition-colors active:scale-95 shadow-xs shrink-0">+ ADD</button></div><div class="mt-2.5 pt-2 border-t border-outline-variant/30 flex items-center justify-between text-xs text-on-surface-variant"><span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-primary">local_fire_department</span><span>Trending Fast Food</span></span><span class="text-on-surface font-bold">Combo Saver Available</span></div></div></article></section>
+<!-- FLOATING CART PILL (Level 3 Elevation) -->
+<div class="fixed bottom-20 left-0 w-full z-40 px-screen-padding-mobile pointer-events-none"><div class="max-w-md mx-auto pointer-events-auto bg-[#0F172A] text-white rounded-2xl p-3 flex items-center justify-between shadow-2xl border border-slate-700"><div class="flex items-center gap-2.5"><div class="relative bg-gradient-to-tr from-primary to-orange-500 text-white w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shadow-sm"><span class="material-symbols-outlined text-base">shopping_basket</span><span class="absolute -top-1 -right-1 w-4 h-4 bg-white text-primary text-[10px] font-extrabold rounded-full flex items-center justify-center shadow-xs">2</span></div><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="text-sm font-extrabold text-white leading-tight">₹520</span><span class="text-slate-400 text-xs">• 2 items</span></div><div class="flex items-center gap-1 text-[11px] text-emerald-400 font-bold"><span>🛵 Free Delivery Unlocked!</span><span>🎁</span></div></div></div><button class="flex items-center gap-1 bg-gradient-to-r from-primary to-orange-600 hover:from-primary hover:to-orange-500 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold active:scale-95 transition-all shadow-md group"><span>View Cart</span><span class="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">arrow_forward</span></button></div></div>
+</main>
+<!-- BOTTOM NAVIGATION BAR (Shared Components JSON Anchor) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-gutter-mobile py-space-xs bg-surface/95 dark:bg-inverse-surface/95 backdrop-blur-md shadow-md">
+<!-- Destination 1: Delivery (ACTIVE) -->
+<button class="flex flex-col items-center justify-center text-primary dark:text-inverse-primary font-bold active:scale-90 transition-transform duration-150 py-1 flex-1">
+<div class="relative">
+<span class="material-symbols-outlined text-2xl">lunch_dining</span>
+<!-- Red indicator dot for active state -->
+<span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary ring-2 ring-surface"></span>
+</div>
+<span class="text-label-sm font-label-sm mt-0.5">Delivery</span>
+</button>
+<!-- Destination 2: Cart (INACTIVE with badge '2') -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors active:scale-90 transition-transform duration-150 py-1 flex-1">
+<div class="relative">
+<span class="material-symbols-outlined text-2xl">shopping_bag</span>
+<!-- Badge '2' -->
+<span class="absolute -top-1 -right-2 bg-primary text-white text-[10px] font-bold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center">2</span>
+</div>
+<span class="text-label-sm font-label-sm mt-0.5">Cart</span>
+</button>
+<!-- Destination 3: Profile (INACTIVE) -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-inverse-primary transition-colors active:scale-90 transition-transform duration-150 py-1 flex-1">
+<span class="material-symbols-outlined text-2xl">person</span>
+<span class="text-label-sm font-label-sm mt-0.5">Profile</span>
+</button>
+</nav>
+</body></html>

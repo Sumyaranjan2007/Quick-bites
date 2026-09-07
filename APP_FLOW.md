@@ -1,282 +1,275 @@
 # Quick Bite Platform -- Application Flow (APP_FLOW)
 
-**Version:** 1.0.0  
-**Date:** September 5, 2026  
+**Version:** 2.0.0  
+**Date:** September 2026  
 **Status:** Approved / Active  
-**Project:** Quick Bite (Multi-Portal Food Delivery Platform)  
-**Author:** Quick Bite Product & UX Engineering Team  
+**Project:** Quick Bite (Multi-Device Native Food Delivery Ecosystem)  
+**Devices:** 4 Independent Mobile Applications across 4 Physical Smartphones/Tablets  
 
 ---
 
-## 1. Customer Mobile App Flow (React Native + Expo)
+## 1. Device 1: Customer Mobile App Flow (`apps/customer-mobile`)
 
-### 1.1 First-Time User Experience (FTUX) & Onboarding
 ```
 [App Launch / Splash Screen]
          |
          v
-[Language Selection Screen]
-  - Options: English | Hindi (हिंदी) | Kannada (ಕನ್ನಡ)
-  - Selection stored in AsyncStorage
+[Bubbly Onboarding & Language Selection]
+   - English | Hindi (हिंदी) | Kannada (ಕನ್ನಡ)
+   - Bubbly interactive cards with smooth page indicator
          |
          v
-[Location Permission Modal]
-  +---> Granted ------> Reverse Geocode GPS via Nominatim -> Set Default Location
-  +---> Denied -------> Open Manual Address Search Screen -> User pins address
+[Authentication Screen]
+   - Email/Password Sign In or Register
+   - Google / Apple OAuth Button
+   - Role enforced: 'customer' (auto-assigned)
          |
          v
-[Auth Prompt Screen]
-  +---> Option 1: "Continue with Google" -> OAuth Flow via Supabase
-  +---> Option 2: "Continue with Email OTP" -> Enter Email -> 6-Digit Code -> Verified
-  +---> Option 3: "Skip for Now" (Guest Mode) -> Limited to Browsing
+[Location Permission & Geofencing]
+   - GPS Auto-Detection via OpenStreetMap Nominatim
+   - Sets Delivery Address (Lat/Lng)
          |
          v
 [Home Discovery Feed]
-```
-
-### 1.2 Core Discovery & Ordering Journey
-```
-[Home Discovery Feed]
-  |-- Header: Current Address Selector (Tap opens Saved Addresses Modal)
-  |-- Quick Toggles: Veg Mode Switch, Cuisines Scroll, Sort by Rating / Distance
-  |-- Banners: Top Offers & Quick Bite Gold Promotion
-  |-- Restaurant Feed: Infinite Scroll cards with delivery time, ratings, tags
+   - Header: Address Selector + Veg Mode Switch + QuickBite Wallet balance badge
+   - Banners: Promo codes & Quick Bite Gold perks
+   - Category Circles: Biryani, Pizza, North Indian, Desserts, Chinese
+   - Restaurant Cards: Distance (<= 10km), Rating, Prep Time, Tags
          |
-         | (Tap Restaurant Card)
+         | (Tap Restaurant)
          v
-[Restaurant Detail Screen]
-  |-- Header: Banner Image, FSSAI Badge, Rating, Veg/Non-Veg icons, Prep time
-  |-- Category Tabs: Bestsellers, Starters, Main Course, Desserts, Beverages
-  |-- Dish Card: Title, Description, Price, Veg badge, Food Photo
+[Restaurant Menu Screen]
+   - Cover photo, FSSAI badge, Veg/Non-Veg indicators
+   - Categorized Menu Items (Starters, Main Course, Breads, Beverages)
          |
-         | (Tap "ADD" Button)
+         | (Tap "ADD" on Dish)
          v
-+-------------------------------------------------------------+
-| Item Customization Modal (if variants/addons exist)          |
-|  - Portion Size (Radio): Regular / Medium / Large           |
-|  - Add-ons (Checkboxes): Extra Cheese, Dips, Toppings       |
-|  - Spice Level (Radio): Mild / Medium / Hot                 |
-|  - Cooking Notes (Text Input): Max 150 chars                |
-|  - Bottom CTA: "Add Item Rs [Calculated Total]"             |
-+-------------------------------------------------------------+
-         |
-         v
-[Floating Cart Bar appears at bottom of screen]
-  - Shows item count, total price, and "View Cart" CTA
+[Dish Customization Modal (if applicable)]
+   - Portion Variant: Regular (+Rs 0) / Large (+Rs 70)
+   - Add-on Toppings: Extra Cheese, Dips (Checkboxes)
+   - Spice Level: Mild / Medium / Hot (Radio)
+   - Special Cooking Instructions (Text Input)
+   - CTA: "Add Item Rs [Price]"
          |
          | (Tap "View Cart")
          v
-[Cart & Bill Screen]
-  |-- Delivery Address Card (with "Change" button)
-  |-- Itemized List with Stepper (+ / -) controls
-  |-- Apply Coupon Section: Input box + List of active promo codes
-  |-- Bill Summary:
-  |     Item Total:                Rs 450.00
-  |     Restaurant Packaging:      Rs  25.00
-  |     Delivery Partner Fee:      Rs  35.00 (Rs 0 if Gold)
-  |     Platform Fee:              Rs   5.00
-  |     GST & Restaurant Taxes:    Rs  24.00
-  |     Coupon Discount:         - Rs  50.00
-  |     -------------------------------------
-  |     To Pay:                    Rs 489.00
-  |-- Bottom CTA: "Select Payment Method"
+[Cart & Bill Breakdown Screen]
+   - Item list with quantity steppers (+ / -)
+   - Apply Coupon (e.g. WELCOME50) -> Instant server discount calculation
+   - Transparent Bill Breakdown:
+     * Item Total
+     * 5% Food GST
+     * Packaging Fee (Rs 20)
+     * Delivery Fee (Rs 30 base + Rs 10/km beyond 3km)
+     * Platform Fee (Rs 5)
+     * Coupon Discount (- Rs 50)
+     * Total To Pay
+   - Payment Selection:
+     * QuickBite Wallet (Split payment option enabled)
+     * Cash on Delivery (COD)
+     * Razorpay Sandbox Test UPI
          |
+         | (Tap "Place Order")
          v
-[Payment Selection Screen]
-  |-- Saved UPI / Test UPI Options (Razorpay Sandbox)
-  |-- Credit / Debit Cards (Simulated)
-  |-- Netbanking (Simulated)
-  |-- Cash on Delivery (COD)
-         |
-         | (Tap "Pay & Place Order")
-         v
-[Order Confirmation & Live Tracking Screen]
-  - State 1: Order Placed (Waiting for restaurant acceptance)
-  - State 2: Order Accepted (Kitchen is preparing your food)
-  - State 3: Food Ready / Out for Delivery (Rider en route)
-  - State 4: Order Arrived & Delivered (Enter OTP confirmation)
+[Live Order Tracking Screen (OpenStreetMap)]
+   - State 1: Order Placed (Waiting for kitchen)
+   - State 2: Preparing in Kitchen (ETA countdown)
+   - State 3: Rider Assigned (Rider details, photo, phone)
+   - State 4: Out for Delivery (Live OSM Map shows delivery bike moving every 3 seconds)
+   - Doorstep Handshake: Displays secret **4-Digit Delivery OTP** (e.g. 8421)
+   - State 5: Delivered -> Prompts for Verified Star Review
 ```
 
 ---
 
-## 2. Restaurant Partner Web Portal Flow (React 18 + Vite)
+## 2. Device 2: Restaurant Partner Mobile App (`apps/restaurant-mobile`)
 
-### 2.1 Onboarding & KYC Pipeline
 ```
-[Partner Portal Login]
+[App Launch]
          |
          v
-[Auth Screen: Email OTP / Google OAuth]
+[Partner Authentication Screen]
+   - Email & Password Login / Register
+   - Role enforced: 'restaurant_owner'
          |
          v
-[Check Restaurant Profile in DB]
-  +---> Exists & Approved --------> [Live Order Terminal / Dashboard]
-  +---> Exists & Pending ---------> [KYC In-Review Status Screen]
-  +---> No Profile Found ---------> [Multi-Step Onboarding Wizard]
-                                           |
-                   +-----------------------+-----------------------+
-                   | Step 1: Restaurant Basic Info (Name, Phone, Address, Lat/Lng)
-                   | Step 2: Legal Documents (FSSAI 14-digit, GSTIN, PAN Card)
-                   | Step 3: Bank Account Verification (Account Number, IFSC)
-                   | Step 4: Initial Menu Upload (PDF or Manual Entry)
-                   +-----------------------------------------------+
-                                           |
-                                           v
-                              [Submit for Admin Verification]
-```
-
-### 2.2 Live Order Terminal Lifecycle
-```
-[Live Order Terminal Screen]
-  - WebSockets Active Room: `restaurant:<restaurantId>`
-  - Audio Chime loop enabled
-         |
-         | (Incoming WebSocket Event: `order:created`)
-         v
-[Incoming Order Modal / Alert Card]
-  - Displays Order ID, Items ordered, Customization notes, Customer Name
-  - Actions:
-      +---> [ACCEPT ORDER]
-      |        |
-      |        v
-      |     Prompt: Select Preparation Time (15 min / 25 min / 40 min)
-      |        |
-      |        v
-      |     Order moves to "PREPARING" column
-      |     WebSocket emits `order:status_update` with prep time
-      |
-      +---> [REJECT ORDER]
-               |
-               v
-            Prompt: Select Reason (Out of Stock / Kitchen Overloaded / Closing)
-               |
-               v
-            WebSocket emits `order:cancelled`, triggers customer refund
-         |
-         v
-[Food Packaged & Ready]
-  - Partner clicks "FOOD READY FOR PICKUP"
-  - Order moves to "READY" column
-  - Live alert dispatched to assigned delivery rider
+[KYC Onboarding Check]
+   +---> If KYC Not Submitted:
+   |        - Enter Restaurant Name, Address, Phone, Pincode
+   |        - Input 14-Digit FSSAI License Number
+   |        - Input GSTIN
+   |        - Upload FSSAI License Image & Storefront Photo (to Cloudflare R2)
+   |        - Enter Bank Payout Details (Account Number, IFSC)
+   |        - Submit -> Transitions to "PENDING_APPROVAL"
+   |
+   +---> If Status == "PENDING_APPROVAL":
+   |        - Renders "KYC Under Verification" Screen
+   |        - "Your documents are currently under review by Quick Bite Operations. 
+   |           Approval takes 2-4 hours. Terminal will activate automatically."
+   |
+   +---> If Status == "ACTIVE":
+            |
+            v
+[Live Kitchen Terminal]
+   - Store Status Toggle: Online (Accepting Orders) / Offline
+   - Menu Stock Manager: 1-tap In-Stock / Out-of-Stock switch for all dishes
+   - Incoming Order Flow:
+     * Plays loud looping kitchen audio chime
+     * 120-second visual acceptance countdown timer
+     * Displays KOT (Kitchen Order Ticket): Table/Order #, dishes, portion sizes, notes
+     * Buttons: "Reject Order" | "Accept Order (Select Prep Time: 15m / 25m / 40m)"
+   - Active Prep Queue:
+     * List of orders currently cooking
+     * When ready, kitchen staff taps "Food Ready for Pickup"
+   - Rider Pickup Handshake:
+     * Verifies Rider ID & checks 4-digit pickup code
+     * Marks order as Handed Over
+   - Daily Revenue & Settlement Ledger tab
 ```
 
 ---
 
-## 3. Admin Dashboard Operations Flow
+## 3. Device 3: Delivery Partner Mobile App (`apps/delivery-mobile`)
 
 ```
-[Admin Secure Login] (/admin/login)
-  - Requires Admin Role in Supabase JWT
+[App Launch]
          |
          v
-[Platform Overview Dashboard]
-  |-- Live Counters: Active Orders, Daily GMV, Registered Restaurants, Active Riders
-  |-- Real-Time System Health Indicator (DB connection, Redis latency, WebSocket count)
-  |-- Quick Navigation Sidebar:
-        |-- 1. Restaurant Approvals (/admin/restaurants/kyc)
-        |-- 2. Live Order Monitor (/admin/orders)
-        |-- 3. Menu & Content Moderation (/admin/moderation)
-        |-- 4. Fraud & Cancellation Radar (/admin/fraud)
-        |-- 5. Test Data Generator (/admin/demo-tools)
+[Rider Authentication Screen]
+   - Phone / Email Login or Registration
+   - Role enforced: 'rider'
          |
-         +---> (Demo Tool Selected: "Generate Test Restaurant")
-         |        |
-         |        v
-         |     Admin enters: Name, Cuisine, City
-         |     Clicks "Generate 15 Dishes with Images"
-         |     Database populated in < 3 seconds -> Immediately visible in Customer App
+         v
+[Rider KYC Onboarding Check]
+   +---> If KYC Not Submitted:
+   |        - Select Vehicle Type: Motorcycle / Electric Vehicle / Bicycle
+   |        - Input Driving License Number & Vehicle RC Number
+   |        - Upload Driving License Photo & Selfie (to Cloudflare R2)
+   |        - Enter Bank Account for Daily Payouts
+   |        - Submit -> Transitions to "PENDING_APPROVAL"
+   |
+   +---> If Status == "PENDING_APPROVAL":
+   |        - Renders "Background Verification in Progress" Screen
+   |
+   +---> If Status == "ACTIVE":
+            |
+            v
+[Rider Logistics Terminal]
+   - Shift Status: "Go Online" / "Go Offline" Toggle
+   - Incoming Order Broadcast:
+     * Urgent 15-second broadcast audio alert
+     * Modal shows: Restaurant Name, Pickup Distance, Drop Distance, Estimated Earnings
+     * CTA: "Accept Delivery" (First rider to tap wins atomic dispatch lock)
+   - Pickup Leg:
+     * Turn-by-turn navigation via OpenStreetMap & OSRM to restaurant
+     * Taps "Reached Restaurant" upon arrival
+     * Provides 4-digit Pickup Code to restaurant staff
+     * Taps "Confirm Food Picked Up"
+   - Delivery Leg:
+     * 3-second background GPS telemetry activates (streams lat/lng to server)
+     * Turn-by-turn navigation via OpenStreetMap to customer doorstep
+     * Taps "Arrived at Customer"
+   - Doorstep Handshake:
+     * Asks customer for the 4-digit Delivery OTP
+     * Enters OTP into rider keypad -> Server validates code
+     * If COD: Confirms cash amount collected
+     * Taps "Complete Delivery" -> Trip earnings credited to Rider Wallet
+   - Earnings & Touchpoints Dashboard tab
+```
+
+---
+
+## 4. Device 4: Admin & Operations Mobile App (`apps/admin-mobile`)
+
+```
+[App Launch]
          |
-         +---> (Dispute Triggered: Order Refund Request)
-                  |
-                  v
-               Admin inspects order timeline and chat logs
-               Clicks "Authorize Full Refund"
-               Backend calls Razorpay Refund API & updates PostgreSQL ledger
+         v
+[Admin Secure Login]
+   - Email & Master Password
+   - Role enforced: 'admin'
+         |
+         v
+[Operations Command Center]
+   - Real-Time Platform KPI Cards:
+     * Active Orders in Transit
+     * Online Delivery Fleet
+     * Today's GMV (Gross Merchandise Value)
+     * System Uptime & Socket Health
+   - Partner KYC Verification Hub:
+     * Tab 1: Restaurant KYC Queue
+       - View restaurant profile, FSSAI number, GSTIN
+       - Tap to inspect uploaded license image (from Cloudflare R2)
+       - Action: "Approve Restaurant" (instantly sets ACTIVE) or "Reject with Reason"
+     * Tab 2: Rider KYC Queue
+       - View rider profile, vehicle type, driving license number
+       - Inspect driving license image
+       - Action: "Approve Rider" or "Reject"
+   - Live Order Control Center:
+     * List all live platform orders across all 8 states
+     * Inspect order timeline logs (Placed at 18:30 -> Accepted at 18:31 -> Picked up at 18:42)
+     * Emergency actions: "Re-assign Order to Another Rider" | "Force Cancel"
+   - Dispute & Instant Refund Panel:
+     * Review customer complaints (missing dish / delayed delivery)
+     * 1-tap partial or full refund credited to customer's QuickBite Wallet
+     * Automatically records immutable financial audit record
+   - Security & Suspension Radar:
+     * 1-tap emergency suspension toggle for fraudulent restaurants or abusive riders
+     * Instantly terminates active WebSocket sessions
 ```
 
 ---
 
-## 4. UI State Transitions & The 4-State Rule
-
-Every data-fetching component in Quick Bite strictly implements the 4 standard UI states to guarantee zero blank screens:
+## 5. Sequence Diagram: The 4-Device Cross-Portal Handshake
 
 ```
-+------------------------------------------------------------------------------------+
-|                                COMPONENT DATA LIFECYCLE                            |
-|                                                                                    |
-|                   +-----------------------------------------+                      |
-|                   |           1. LOADING STATE              |                      |
-|                   | * Skeleton pulse placeholder            |                      |
-|                   | * Shapes match final content dimensions |                      |
-|                   | * User interaction disabled             |                      |
-|                   +--------------------+--------------------+                      |
-|                                        |                                           |
-|                  +---------------------+---------------------+                     |
-|                  |                                           |                     |
-|                  v (Data fetch resolved)                     v (Fetch throws error)|
-|    +-----------------------------+           +----------------------------------+  |
-|    |      2. SUCCESS STATE       |           |         3. ERROR STATE           |  |
-|    | * Data rendered in full UI  |           | * Friendly non-technical message |  |
-|    | * Micro-animations on load  |           | * Prominent "Try Again" CTA      |  |
-|    | * Interactive elements live |           | * Error logged to Sentry / audit |  |
-|    +--------------+--------------+           +----------------------------------+  |
-|                   |                                                                |
-|                   v (If returned array length === 0)                               |
-|    +-----------------------------+                                                 |
-|    |       4. EMPTY STATE        |                                                 |
-|    | * Relevant contextual icon  |                                                 |
-|    | * Descriptive empty message |                                                 |
-|    | * Direct actionable CTA     |                                                 |
-|    |   (e.g., "Explore Dishes")  |                                                 |
-|    +-----------------------------+                                                 |
-+------------------------------------------------------------------------------------+
+CUSTOMER (Dev 1)      BACKEND / DB       RESTAURANT (Dev 2)     RIDER (Dev 3)     ADMIN (Dev 4)
+      |                    |                     |                   |                  |
+   1. Place Order -------->|                     |                   |                  |
+      (Wallet/COD/UPI)     |-- Validate Geofence |                   |                  |
+                           |-- Create Order      |                   |                  |
+                           |                     |                   |                  |
+                           |-- WebSocket Chime ->|                   |                  |
+                           |   (120s Countdown)  |                   |                  |
+                           |                     |                   |                  |
+                           |<-- Accept Order ----|                   |                  |
+                           |    (Prep: 20 mins)  |                   |                  |
+                           |                     |                   |                  |
+                           |----------------------------------------------------------->|
+                           |                     |                   |            Log GMV / Order
+                           |                     |                   |                  |
+                           |-- 15s Broadcast ----------------------->|                  |
+                           |                                         |                  |
+                           |<-- Accept Broadcast --------------------|                  |
+                           |    (Wins Lock)                          |                  |
+                           |                                         |                  |
+   2. Status: RIDER_ASSIGN |                                         |                  |
+      Show Rider Details <-|                                         |                  |
+                           |                                         |                  |
+                           |<-- Reached Rest. -----------------------|                  |
+                           |-- Notify Rest. ---->|                   |                  |
+                           |                     |                   |                  |
+                           |<-- Confirm Pickup --|                   |                  |
+                           |                     |                   |                  |
+                           |<-- Mark Picked Up ----------------------|                  |
+                           |                                         |                  |
+   3. Status: OUT_FOR_DEL  |                                         |                  |
+      Show Delivery OTP <--|                                         |                  |
+                           |                                         |                  |
+                           |<-- 3s GPS Coords -----------------------|                  |
+   4. Live Marker Update <-|    (Every 3s)                           |                  |
+                           |                                         |                  |
+                           |<-- Arrived At Drop ---------------------|                  |
+                           |                                         |                  |
+   5. Give 4-Digit OTP --------------------------------------------->|                  |
+                           |                                         |                  |
+                           |<-- Submit OTP --------------------------|                  |
+                           |-- Verify OTP        |                   |                  |
+                           |-- Atomic Settlement |                   |                  |
+                           |   Credit Rest Payout|                   |                  |
+                           |   Credit Rider Pay  |                   |                  |
+                           |                     |                   |                  |
+   6. Order DELIVERED <----|                     |                   |                  |
+      Prompt Review        |----------------------------------------------------------->|
+                           |                                         |          Order Completed
 ```
-
----
-
-## 5. Decision Trees for Conditional Flows
-
-### 5.1 Cart & Multi-Restaurant Conflict
-```
-Customer taps "Add Item" from Restaurant B
-                 |
-                 v
-   Is Cart currently empty?
-   +--- YES ---> Add Item to Cart -> Open Floating Bar
-   +--- NO  ---> Does Cart belong to Restaurant B?
-                  +--- YES ---> Add Item to Cart
-                  +--- NO  ---> Show Alert Modal:
-                                "Replace items already in cart?"
-                                "Your cart contains dishes from [Restaurant A].
-                                 Do you want to discard them and start a new order?"
-                                 +---> [Keep Cart] ----> Dismiss modal
-                                 +---> [Discard Cart] -> Clear Cart -> Add Item from Rest B
-```
-
-### 5.2 Checkout Payment Fallback
-```
-Customer initiates Razorpay Sandbox Online Payment
-                 |
-                 v
-   Did Razorpay SDK return success payload?
-   +--- YES ---> Backend verifies HMAC signature -> Order Confirmed
-   +--- NO  ---> Reason for failure:
-                  +--- User Cancelled ---> Return to payment selector with message:
-                  |                        "Payment cancelled. You can choose COD or retry."
-                  +--- Gateway Timeout --> Keep order in PAYMENT_PENDING for 5 mins
-                  |                        Poll status / allow customer to retry
-                  +--- Payment Declined -> Prompt to select alternative UPI / Card / COD
-```
-
----
-
-## 6. Error Recovery & Offline Persistence Flows
-
-### Form Resilience Protocol
-- Every keystroke on sensitive forms (KYC Upload, Address Entry, Profile Settings, Restaurant Menu Creation) is automatically written to local storage (`AsyncStorage` on mobile, `localStorage` on web) under a scoped key (e.g. `draft:address:user_123`).
-- If network disconnects, tab is closed, or app crashes, the form automatically re-populates the user's input on reload.
-- Form draft is deleted only upon verified HTTP 200/201 response from the server.
-
-### Network Reconnection Handling
-- When connection drops, a top banner alerts: `[INFO] Offline Mode. Changes will sync once connected.`
-- When connection restores, background jobs re-validate cart pricing and synchronize any pending local mutations.

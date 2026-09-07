@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Quick Bite Operations",
+    "slug": "quick-bite-admin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "quickbiteadmin",
+    "splash": {
+      "backgroundColor": "#0F172A",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quickbite.admin"
+    },
+    "android": {
+      "package": "com.quickbite.admin",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "newArchEnabled": false
+  }
+}

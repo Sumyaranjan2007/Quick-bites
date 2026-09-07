@@ -1,10 +1,84 @@
 import { Router } from 'express';
 import { orderService } from '../modules/orders/orderService.ts';
+import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { z } from 'zod';
 
 export const orderRouter = Router();
+
+// GET /api/v1/orders - Order history for authenticated user
+orderRouter.get('/', authMiddleware(), async (req, res, next) => {
+  try {
+    const role = req.user?.role;
+    const userId = req.user?.id || '';
+
+    let orders;
+    if (role === 'customer') {
+      orders = await orderRepository.listByCustomerId(userId);
+    } else if (role === 'rider') {
+      orders = await orderRepository.listByRiderId(userId);
+    } else if (role === 'admin' || role === 'super_admin') {
+      orders = await orderRepository.listAll();
+    } else {
+      orders = await orderRepository.listByCustomerId(userId);
+    }
+
+    res.json({
+      success: true,
+      data: { orders },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/v1/orders/:id - Single order detail
+orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order not found' },
+        meta: {
+          timestamp: new Date().toISOString(),
+          correlationId: req.correlationId
+        }
+      });
+    }
+
+    const isCustomer = order.customerId === req.user?.id;
+    const isRider = order.riderId === req.user?.id;
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.role === 'restaurant_owner';
+
+    if (!isCustomer && !isRider && !isStaff) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Forbidden: You do not have permission to view this order.' },
+        meta: {
+          timestamp: new Date().toISOString(),
+          correlationId: req.correlationId
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { order },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 const CreateOrderSchema = z.object({
   restaurantId: z.string().min(1, 'Restaurant ID is required'),
@@ -19,7 +93,7 @@ const CreateOrderSchema = z.object({
   })).min(1, 'Order must contain at least one dish'),
   paymentMethod: z.enum(['RAZORPAY_SANDBOX', 'CASH_ON_DELIVERY']),
   couponCode: z.string().optional(),
-  idempotencyKey: z.string().uuid('Idempotency key must be a valid UUID'),
+  idempotencyKey: z.string().min(8, 'Idempotency key must be at least 8 characters'),
   distanceKm: z.number().positive().optional()
 });
 

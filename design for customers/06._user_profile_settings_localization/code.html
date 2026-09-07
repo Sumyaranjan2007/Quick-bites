@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>My Account - Quick Bites</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Design System Tailwind Configuration -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-dim": "#d3daef",
+            "inverse-primary": "#ffb5a0",
+            "on-tertiary-fixed": "#002109",
+            "on-secondary-fixed": "#410007",
+            "on-secondary-container": "#fffbff",
+            "secondary": "#b7122a",
+            "tertiary-fixed": "#7ffc97",
+            "inverse-surface": "#293040",
+            "on-primary": "#ffffff",
+            "surface-container-low": "#f1f3ff",
+            "inverse-on-surface": "#edf0ff",
+            "on-secondary-fixed-variant": "#92001c",
+            "on-primary-fixed": "#3b0900",
+            "on-surface": "#141b2b",
+            "on-primary-fixed-variant": "#872000",
+            "surface-container": "#e9edff",
+            "surface-variant": "#dce2f7",
+            "on-error-container": "#93000a",
+            "secondary-container": "#db313f",
+            "error-container": "#ffdad6",
+            "tertiary": "#006b2c",
+            "surface-container-highest": "#dce2f7",
+            "on-tertiary-container": "#f7fff2",
+            "surface-tint": "#b12d00",
+            "outline-variant": "#e5beb3",
+            "tertiary-container": "#00873a",
+            "on-primary-container": "#fffbff",
+            "secondary-fixed-dim": "#ffb3b1",
+            "on-background": "#141b2b",
+            "on-error": "#ffffff",
+            "primary": "#ad2c00",
+            "on-tertiary": "#ffffff",
+            "secondary-fixed": "#ffdad8",
+            "tertiary-fixed-dim": "#62df7d",
+            "primary-container": "#d83900",
+            "primary-fixed": "#ffdbd1",
+            "error": "#ba1a1a",
+            "primary-fixed-dim": "#ffb5a0",
+            "surface-container-high": "#e1e8fd",
+            "surface-bright": "#f9f9ff",
+            "on-tertiary-fixed-variant": "#005320",
+            "surface": "#f9f9ff",
+            "on-secondary": "#ffffff",
+            "outline": "#916f67",
+            "on-surface-variant": "#5c4038",
+            "background": "#f9f9ff",
+            "surface-container-lowest": "#ffffff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-3xl": "3rem",
+            "space-lg": "1.25rem",
+            "space-2xl": "2rem",
+            "space-base": "1rem",
+            "gutter-desktop": "1.5rem",
+            "space-xl": "1.5rem",
+            "gutter-mobile": "0.75rem",
+            "space-2xs": "0.125rem",
+            "screen-padding-mobile": "1rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-md": "0.75rem",
+            "screen-padding-tablet": "1.5rem"
+          },
+          "fontFamily": {
+            "display-mobile": ["Plus Jakarta Sans"],
+            "label-lg": ["Plus Jakarta Sans"],
+            "headline-md": ["Plus Jakarta Sans"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "label-sm": ["Plus Jakarta Sans"],
+            "display-lg": ["Plus Jakarta Sans"],
+            "headline-lg": ["Plus Jakarta Sans"],
+            "body-sm": ["Plus Jakarta Sans"],
+            "label-md": ["Plus Jakarta Sans"],
+            "body-md": ["Plus Jakarta Sans"],
+            "body-lg": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "display-mobile": ["26px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+            "label-lg": ["14px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "700" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+            "headline-sm": ["16px", { "lineHeight": "22px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-sm": ["10px", { "lineHeight": "12px", "letterSpacing": "0.04em", "fontWeight": "700" }],
+            "display-lg": ["34px", { "lineHeight": "40px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+            "headline-lg": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "body-lg": ["15px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "500" }]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .gold-shimmer {
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #B45309 100%);
+    }
+    .custom-shadow-lvl1 {
+      box-shadow: 0px 4px 16px -2px rgba(17, 24, 39, 0.04), 0px 1px 2px rgba(17, 24, 39, 0.02);
+    }
+    .custom-shadow-lvl2 {
+      box-shadow: 0px 8px 24px -4px rgba(255, 79, 24, 0.12), 0px 2px 6px rgba(17, 24, 39, 0.04);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased min-h-screen pb-28">
+<!-- Shared Component: TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-40 flex items-center justify-between px-screen-padding-mobile h-14 bg-surface/90 backdrop-blur-md shadow-sm">
+<div class="flex items-center gap-space-sm">
+<h1 class="text-headline-md font-headline-md font-bold text-on-surface">My Account</h1>
+</div>
+<div class="flex items-center gap-space-xs">
+<button aria-label="Settings" class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Scrollable Canvas -->
+<main class="max-w-[1180px] mx-auto pt-16 px-screen-padding-mobile space-y-space-lg">
+<!-- Profile Summary & VIP Gold Bento Box -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-space-md pt-space-xs">
+<!-- User Info Card -->
+<div class="md:col-span-6 bg-surface-container-lowest border border-[#F0EFEA] rounded-xl p-space-base custom-shadow-lvl1 flex items-center gap-space-base relative overflow-hidden">
+<div class="relative shrink-0">
+<img class="w-20 h-20 rounded-full object-cover border-2 border-primary" data-alt="Close-up portrait of Rahul Sharma, an attractive South Asian man in his late 20s with a sharp haircut and warm, confident smile. Soft cinematic warm indoor studio lighting highlights his friendly expression against a clean, warm-toned minimalist background reflecting a premium lifestyle app." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvYvXIIK-8ArGA9wtOrfVw43o2FcKZ6Zw6k8m1EDcsyni30BcS4QnWw_j5oj78HttC1OaumksOt2wPhOUtD575Z3ODApa5WUOm0vxbHL3iqi5yRwFFMwZNHT4Vd3S0_ahjTgqgBEMwHyTSR9YnDzPtDPrau72L2iNxmWusRkC3kcjYw6DVFGHvGqOxXU6vcSznBruaQdTsq1TOZYzszNNZfFlAdnI7OApf-KmZzuHy3qpjpxTqI4r1"/>
+<button aria-label="Edit Profile" class="absolute -bottom-1 -right-1 bg-primary text-on-primary w-7 h-7 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
+</button>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-space-xs mb-space-2xs">
+<h2 class="text-headline-md font-headline-md text-on-surface truncate">Rahul Sharma</h2>
+<span class="bg-tertiary-container/15 text-tertiary font-label-sm text-label-sm px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]" data-icon="verified" data-weight="fill" style="font-variation-settings: 'FILL' 1;">verified</span>
+              Verified
+            </span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="phone">phone</span>
+            +91 98765 43210
+          </p>
+<p class="text-body-sm font-body-sm text-on-surface-variant flex items-center gap-1 truncate">
+<span class="material-symbols-outlined text-[14px]" data-icon="mail">mail</span>
+            rahul.sharma@quickbite.app
+          </p>
+</div>
+</div>
+<!-- Quick Bite Gold VIP Membership Card -->
+<div class="md:col-span-6 gold-shimmer rounded-xl p-space-base text-[#451A03] shadow-md flex flex-col justify-between relative overflow-hidden">
+<div class="absolute -right-6 -bottom-8 opacity-15 pointer-events-none">
+<span class="material-symbols-outlined text-[140px]" data-icon="crown" data-weight="fill" style="font-variation-settings: 'FILL' 1;">crown</span>
+</div>
+<div>
+<div class="flex items-center justify-between mb-space-xs">
+<div class="flex items-center gap-1.5 bg-[#451A03]/10 px-2.5 py-1 rounded-full backdrop-blur-sm">
+<span class="material-symbols-outlined text-[18px] text-[#451A03]" data-icon="crown" data-weight="fill" style="font-variation-settings: 'FILL' 1;">crown</span>
+<span class="font-headline-sm text-headline-sm tracking-tight text-[#451A03]">Quick Bite Gold</span>
+</div>
+<span class="bg-[#451A03] text-on-tertiary-container font-label-sm text-label-sm px-2 py-0.5 rounded-full font-bold">VIP PASS</span>
+</div>
+<p class="text-label-md font-label-md font-semibold text-[#451A03]/90 mt-1">Gold Member • Active until Dec 2026</p>
+<p class="text-body-sm font-body-sm text-[#451A03]/80 mt-0.5">Benefits: Unlimited Free Delivery &amp; Extra 20% off at 1,200+ partner diners</p>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center justify-between border-t border-[#451A03]/15">
+<span class="text-label-sm font-label-sm font-bold tracking-wider">SAVED ₹4,820 THIS YEAR</span>
+<a class="inline-flex items-center gap-1 font-label-md text-label-md font-bold text-[#451A03] hover:underline" href="#">
+            Manage Membership
+            <span class="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+<!-- Preferences & Localization Section -->
+<section class="bg-surface-container-lowest border border-[#F0EFEA] rounded-xl p-space-base custom-shadow-lvl1">
+<div class="flex items-center gap-space-xs mb-space-base pb-space-xs border-b border-surface-container">
+<span class="material-symbols-outlined text-primary" data-icon="tune">tune</span>
+<h3 class="text-headline-sm font-headline-sm text-on-surface">Preferences &amp; Localization</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+<!-- App Language Segmented Picker -->
+<div>
+<div class="flex items-center gap-1.5 mb-space-xs">
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]" data-icon="language">language</span>
+<label class="font-headline-sm text-headline-sm text-on-surface">App Language</label>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant mb-space-sm">Select your primary language for dishes and notifications</p>
+<div class="flex flex-wrap gap-space-xs">
+<!-- Active Selected Language -->
+<button aria-pressed="true" class="h-9 px-4 rounded-full bg-on-surface text-surface font-label-md text-label-md flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[16px] text-primary" data-icon="check">check</span>
+<span>English (EN)</span>
+</button>
+<!-- Inactive Options -->
+<button aria-pressed="false" class="h-9 px-4 rounded-full bg-surface border border-outline-variant/50 text-on-surface-variant hover:border-outline font-label-md text-label-md flex items-center gap-1.5 active:scale-95 transition-transform">
+<span>हिन्दी (HI)</span>
+</button>
+<button aria-pressed="false" class="h-9 px-4 rounded-full bg-surface border border-outline-variant/50 text-on-surface-variant hover:border-outline font-label-md text-label-md flex items-center gap-1.5 active:scale-95 transition-transform">
+<span>ಕನ್ನಡ (KN)</span>
+</button>
+</div>
+</div>
+<!-- Dietary Preference Pure Veg Mode -->
+<div class="flex items-center justify-between p-space-sm bg-surface rounded-xl border border-surface-container">
+<div class="flex items-start gap-space-sm">
+<!-- Pure Veg Indicator as per Component Specs -->
+<div class="w-4 h-4 mt-0.5 rounded-[2px] bg-white border-[1.5px] border-[#16A34A] flex items-center justify-center shrink-0">
+<div class="w-1.5 h-1.5 rounded-full bg-[#16A34A]"></div>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm text-on-surface block">Pure Veg Mode</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant leading-tight block">Always prioritize pure vegetarian restaurants &amp; hide meat dishes</span>
+</div>
+</div>
+<!-- Active Toggle Switch -->
+<label class="relative inline-flex items-center cursor-pointer shrink-0 ml-space-sm">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tertiary-container"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Saved Addresses Management -->
+<section class="bg-surface-container-lowest border border-[#F0EFEA] rounded-xl p-space-base custom-shadow-lvl1">
+<div class="flex items-center justify-between mb-space-base pb-space-xs border-b border-surface-container">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary" data-icon="home_pin">home_pin</span>
+<h3 class="text-headline-sm font-headline-sm text-on-surface">Saved Addresses</h3>
+</div>
+<button class="inline-flex items-center gap-1 text-primary font-label-md text-label-md hover:underline">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+          Add New Address
+        </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-base">
+<!-- Address 1: Home (Default) -->
+<div class="p-space-base rounded-xl border border-primary/40 bg-primary-fixed/20 relative flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="home" data-weight="fill" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Home</span>
+<span class="bg-primary text-on-primary font-label-sm text-label-sm px-2 py-0.5 rounded-full">Default</span>
+</div>
+<button aria-label="Address Options" class="text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined text-[20px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<p class="text-body-md font-body-md text-on-surface mt-2 font-medium">Flat 402, Green Glen Towers</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Indiranagar 100ft Road, Bengaluru, 560038</p>
+</div>
+<div class="mt-space-md flex gap-space-sm">
+<button class="text-body-sm font-body-sm font-bold text-primary hover:underline">Edit</button>
+<span class="text-outline-variant">•</span>
+<button class="text-body-sm font-body-sm font-bold text-on-surface-variant hover:underline">Share Location</button>
+</div>
+</div>
+<!-- Address 2: Work -->
+<div class="p-space-base rounded-xl border border-surface-container hover:border-outline-variant/60 bg-surface transition-colors flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="apartment">apartment</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Work</span>
+</div>
+<button aria-label="Address Options" class="text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined text-[20px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<p class="text-body-md font-body-md text-on-surface mt-2 font-medium">Prestige Tech Park, Outer Ring Rd</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Building 3B, 4th Floor, Marathahalli, Bengaluru, 560103</p>
+</div>
+<div class="mt-space-md flex gap-space-sm">
+<button class="text-body-sm font-body-sm font-bold text-primary hover:underline">Set as Default</button>
+<span class="text-outline-variant">•</span>
+<button class="text-body-sm font-body-sm font-bold text-on-surface-variant hover:underline">Edit</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Orders & Quick Reorder -->
+<section class="bg-surface-container-lowest border border-[#F0EFEA] rounded-xl p-space-base custom-shadow-lvl1">
+<div class="flex items-center justify-between mb-space-base pb-space-xs border-b border-surface-container">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary" data-icon="receipt_long">receipt_long</span>
+<h3 class="text-headline-sm font-headline-sm text-on-surface">Recent Order</h3>
+</div>
+<a class="font-label-md text-label-md text-primary font-bold hover:underline" href="#">View All Orders →</a>
+</div>
+<!-- Order Card -->
+<div class="border border-surface-container rounded-xl p-space-base flex flex-col md:flex-row md:items-center justify-between gap-space-base bg-surface-container-lowest hover:border-outline-variant/60 transition-colors">
+<div class="flex items-start gap-space-base">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-surface-container">
+<img class="w-full h-full object-cover" data-alt="A piping hot ceramic bowl of authentic Hyderabadi chicken dum biryani, decorated with fried onions and fresh mint sprigs, flanked by succulent charcoal-grilled mutton seekh kebabs on an artisan wooden platter. Soft overhead culinary studio lighting highlights the aromatic textures and saffron colors." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNIepYDdZzs7ybHcLQXznrA8ujvNtBHtegPNBAQ4bAqKHAHK2fIG8Svoktxc0RtHd_XsHCJ6QE5bOtXK3DAW4hJ0HX3VCnomnZVoVQVVHp-4V9Xdhm-nbTpV7thnMm0VgaU2qF6vqFGHOKXnfr3L2L6guQ0-n0yGcSJFPqohoSoYD5EoNOUj6pi3v26-AlWH90PYugSs92I5HJsXJB14VvKd8jd2oIYtZlAMQSoOzW_DA6ZCEnk4RM"/>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-headline-md text-headline-md text-on-surface">Bangalore Biryani House</h4>
+<span class="bg-tertiary-container/10 text-tertiary font-label-sm text-label-sm px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]" data-icon="check_circle">check_circle</span>
+                Delivered
+              </span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Yesterday, 8:30 PM • ₹703.75 • 2 items</p>
+<p class="text-body-md font-body-md text-on-surface mt-1">Special Chicken Dum Biryani, Mutton Seekh Kebab</p>
+</div>
+</div>
+<div class="flex items-center gap-space-sm self-end md:self-center shrink-0 w-full md:w-auto">
+<button class="flex-1 md:flex-initial h-10 px-4 rounded-xl border border-outline-variant text-on-surface hover:bg-surface-container font-label-md text-label-md flex items-center justify-center gap-1 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="receipt">receipt</span>
+<span>View Receipt</span>
+</button>
+<button class="flex-1 md:flex-initial h-10 px-5 rounded-xl bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center gap-1.5 shadow-sm hover:bg-primary-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="replay">replay</span>
+<span>Reorder</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Compliance, Legal & App Info -->
+<section class="rounded-xl border border-[#F0EFEA] bg-surface-container-lowest p-space-base space-y-space-md">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]" data-icon="verified_user">verified_user</span>
+<p class="text-body-sm font-body-sm font-semibold">FSSAI Central Food Safety License No: <span class="font-mono text-on-surface">11223344556677</span></p>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-space-xs border-y border-surface-container py-space-sm text-body-sm font-body-sm">
+<a class="text-on-surface hover:text-primary transition-colors flex items-center justify-between py-1" href="#">
+<span>Terms &amp; Conditions</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" data-icon="chevron_right">chevron_right</span>
+</a>
+<a class="text-on-surface hover:text-primary transition-colors flex items-center justify-between py-1" href="#">
+<span>Privacy Policy</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" data-icon="chevron_right">chevron_right</span>
+</a>
+<a class="text-on-surface hover:text-primary transition-colors flex items-center justify-between py-1" href="#">
+<span>Grievance Officer</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" data-icon="chevron_right">chevron_right</span>
+</a>
+</div>
+<div class="flex flex-col sm:flex-row items-center justify-between gap-space-base pt-space-xs">
+<span class="text-body-sm font-body-sm text-on-surface-variant font-mono">Quick Bites v2.4.0 (Native Android &amp; iOS)</span>
+<!-- Log Out Action Button -->
+<button class="w-full sm:w-auto h-10 px-5 rounded-xl bg-error-container/40 text-error hover:bg-error-container font-label-md text-label-md flex items-center justify-center gap-2 transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[18px]" data-icon="logout">logout</span>
+<span>Log Out</span>
+</button>
+</div>
+</section>
+</main>
+<!-- Shared Component: BottomNavBar -->
+<!-- Contextual State: User is currently on Profile screen, so destination 'Profile' MUST be styled with style_active_navigation -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-gutter-mobile py-space-xs bg-surface/95 backdrop-blur-md shadow-md">
+<!-- Delivery (Inactive) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-150 py-1 px-4" href="#">
+<span class="material-symbols-outlined text-[24px]" data-icon="lunch_dining">lunch_dining</span>
+<span class="text-label-sm font-label-sm mt-0.5">Delivery</span>
+</a>
+<!-- Cart (Inactive) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 duration-150 py-1 px-4 relative" href="#">
+<div class="relative">
+<span class="material-symbols-outlined text-[24px]" data-icon="shopping_bag">shopping_bag</span>
+<span class="absolute -top-1 -right-1 bg-primary text-on-primary text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">2</span>
+</div>
+<span class="text-label-sm font-label-sm mt-0.5">Cart</span>
+</a>
+<!-- Profile (Active: mapped precisely from page intent) -->
+<a class="flex flex-col items-center justify-center text-primary font-bold active:scale-90 transition-transform duration-150 py-1 px-4" href="#">
+<span class="material-symbols-outlined text-[24px]" data-icon="person" data-weight="fill" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="text-label-sm font-label-sm mt-0.5">Profile</span>
+</a>
+</nav>
+</body></html>

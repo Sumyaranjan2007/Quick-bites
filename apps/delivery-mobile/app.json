@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Quick Bite Rider",
+    "slug": "quick-bite-rider",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "quickbiterider",
+    "splash": {
+      "backgroundColor": "#0F172A",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quickbite.rider"
+    },
+    "android": {
+      "package": "com.quickbite.rider",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "newArchEnabled": false
+  }
+}

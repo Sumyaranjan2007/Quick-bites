@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quick Bites - Customization Sheet</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-dim": "#d3daef",
+            "inverse-primary": "#ffb5a0",
+            "on-tertiary-fixed": "#002109",
+            "on-secondary-fixed": "#410007",
+            "on-secondary-container": "#fffbff",
+            "secondary": "#b7122a",
+            "tertiary-fixed": "#7ffc97",
+            "inverse-surface": "#293040",
+            "on-primary": "#ffffff",
+            "surface-container-low": "#f1f3ff",
+            "inverse-on-surface": "#edf0ff",
+            "on-secondary-fixed-variant": "#92001c",
+            "on-primary-fixed": "#3b0900",
+            "on-surface": "#141b2b",
+            "on-primary-fixed-variant": "#872000",
+            "surface-container": "#e9edff",
+            "surface-variant": "#dce2f7",
+            "on-error-container": "#93000a",
+            "secondary-container": "#db313f",
+            "error-container": "#ffdad6",
+            "tertiary": "#006b2c",
+            "surface-container-highest": "#dce2f7",
+            "on-tertiary-container": "#f7fff2",
+            "surface-tint": "#b12d00",
+            "outline-variant": "#e5beb3",
+            "tertiary-container": "#00873a",
+            "on-primary-container": "#fffbff",
+            "secondary-fixed-dim": "#ffb3b1",
+            "on-background": "#141b2b",
+            "on-error": "#ffffff",
+            "primary": "#ad2c00",
+            "on-tertiary": "#ffffff",
+            "secondary-fixed": "#ffdad8",
+            "tertiary-fixed-dim": "#62df7d",
+            "primary-container": "#d83900",
+            "primary-fixed": "#ffdbd1",
+            "error": "#ba1a1a",
+            "primary-fixed-dim": "#ffb5a0",
+            "surface-container-high": "#e1e8fd",
+            "surface-bright": "#f9f9ff",
+            "on-tertiary-fixed-variant": "#005320",
+            "surface": "#f9f9ff",
+            "on-secondary": "#ffffff",
+            "outline": "#916f67",
+            "on-surface-variant": "#5c4038",
+            "background": "#f9f9ff",
+            "surface-container-lowest": "#ffffff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-3xl": "3rem",
+            "space-lg": "1.25rem",
+            "space-2xl": "2rem",
+            "space-base": "1rem",
+            "gutter-desktop": "1.5rem",
+            "space-xl": "1.5rem",
+            "gutter-mobile": "0.75rem",
+            "space-2xs": "0.125rem",
+            "screen-padding-mobile": "1rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-md": "0.75rem",
+            "screen-padding-tablet": "1.5rem"
+          },
+          "fontFamily": {
+            "display-mobile": ["Plus Jakarta Sans"],
+            "label-lg": ["Plus Jakarta Sans"],
+            "headline-md": ["Plus Jakarta Sans"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "label-sm": ["Plus Jakarta Sans"],
+            "display-lg": ["Plus Jakarta Sans"],
+            "headline-lg": ["Plus Jakarta Sans"],
+            "body-sm": ["Plus Jakarta Sans"],
+            "label-md": ["Plus Jakarta Sans"],
+            "body-md": ["Plus Jakarta Sans"],
+            "body-lg": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "display-mobile": ["26px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+            "label-lg": ["14px", {"lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "700"}],
+            "headline-md": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+            "headline-sm": ["16px", {"lineHeight": "22px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "label-sm": ["10px", {"lineHeight": "12px", "letterSpacing": "0.04em", "fontWeight": "700"}],
+            "display-lg": ["34px", {"lineHeight": "40px", "letterSpacing": "-0.03em", "fontWeight": "800"}],
+            "headline-lg": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "body-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400"}],
+            "body-lg": ["15px", {"lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "500"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-surface font-body-md text-on-surface antialiased select-none overflow-x-hidden relative min-h-screen">
+<!-- Background App Shell (Simulated Active Menu Screen Under Modal Overlay) -->
+<div class="filter brightness-50 contrast-95 blur-[1px] pointer-events-none max-w-md mx-auto min-h-screen bg-background pb-32">
+<!-- Mock Top Bar -->
+<header class="h-14 px-screen-padding-mobile flex items-center justify-between border-b border-outline-variant/30 bg-surface/90">
+<div class="flex items-center gap-space-xs text-primary font-headline-sm">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+<span class="font-bold text-on-surface">The Royal Biryani Co.</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="search">search</span>
+</header>
+<!-- Mock Background Dish Card -->
+<div class="p-screen-padding-mobile space-y-space-md">
+<div class="p-space-base bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 flex gap-space-md">
+<div class="flex-1">
+<div class="w-3.5 h-3.5 border border-secondary flex items-center justify-center mb-1">
+<span class="w-2 h-2 bg-secondary rounded-full"></span>
+</div>
+<h3 class="text-headline-sm font-headline-sm font-bold text-on-surface">Special Chicken Dum Biryani</h3>
+<p class="text-label-lg font-label-lg text-primary font-bold mt-1">₹320.00</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant mt-2">Slow cooked fragrant basmati rice layered with marinated tender chicken and whole spices.</p>
+</div>
+<div class="relative w-24 h-24 rounded-lg bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A mouthwatering brass pot overflowing with fragrant golden saffron chicken biryani, garnished with golden fried onions and fresh mint leaves, captured under warm cinematic culinary photography lighting in a modern restaurant setup." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWCMuNnNsHc2AHF0mDFi_MvA5NdDtSp3s8x9FsIUVcm0EzYj91t7vx1DlCMOrz-BmaXckyhuUSF2S9_-pvWPSN-8Qiw34rlwQBYIAlf9Q5ytWRggVnJRU1dIhGLP5MJ6LZIuPsA0GpbxJc69ZlJ0fdstlunBtyQ-bW0tQ58PtdzmamWjSvIJybmKC_o_6VDHN-eC-VIflQQ8jdm_7wGBVhBqtMK5Cyu9EiYL3sxe3t8FALNZT3kaIa"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Backdrop Layer -->
+<div class="fixed inset-0 bg-inverse-surface/60 backdrop-blur-sm z-40 transition-opacity"></div>
+<!-- Dish Customization Bottom Sheet Modal -->
+<div class="fixed inset-x-0 bottom-0 z-50 max-w-md mx-auto w-full flex flex-col bg-surface-container-lowest rounded-t-[28px] shadow-2xl overflow-hidden max-h-[88vh] border-t border-outline-variant/20 animate-in slide-in-from-bottom duration-300">
+<!-- Top Drag Handle & Close Anchor -->
+<div class="relative pt-3 pb-2 flex flex-col items-center justify-center border-b border-outline-variant/20">
+<div class="w-10 h-1 rounded-full bg-outline-variant/70"></div>
+<button aria-label="Close modal" class="absolute right-4 top-3 w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm font-bold" data-icon="close">close</span>
+</button>
+</div>
+<!-- Sheet Header / Dish Summary Card -->
+<div class="px-space-base pt-space-base pb-space-md border-b border-outline-variant/20 bg-surface/50">
+<div class="flex items-start justify-between gap-space-md">
+<div class="flex items-start gap-space-sm">
+<!-- Non-Veg Emblem Indicator -->
+<div class="w-4 h-4 rounded-[2px] border-[1.5px] border-secondary flex items-center justify-center mt-1 flex-shrink-0 bg-surface-container-lowest">
+<span class="w-2 h-2 bg-secondary rounded-[1px] transform rotate-45"></span>
+</div>
+<div>
+<h1 class="text-headline-md font-headline-md font-bold text-on-surface tracking-tight">Special Chicken Dum Biryani</h1>
+<p class="text-body-sm font-body-sm text-on-surface-variant mt-0.5">Customize as per your taste</p>
+</div>
+</div>
+<div class="text-right flex-shrink-0">
+<span class="text-body-sm font-body-sm text-on-surface-variant">Base</span>
+<div class="text-headline-md font-headline-md font-bold text-primary">₹320.00</div>
+</div>
+</div>
+</div>
+<!-- Scrollable Customization Content Area -->
+<div class="flex-1 overflow-y-auto px-space-base py-space-md space-y-space-xl scrollbar-thin scrollbar-thumb-surface-container-high">
+<!-- Option Group 1: Portion Size (Mandatory) -->
+<section class="space-y-space-md">
+<div class="flex items-center justify-between">
+<div>
+<h2 class="text-headline-sm font-headline-sm font-bold text-on-surface flex items-center gap-space-xs">
+              Choose Portion Size
+              <span class="text-label-sm font-label-sm uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">Required</span>
+</h2>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Select 1 option</p>
+</div>
+</div>
+<div class="space-y-space-sm">
+<!-- Radio Option 1 (Selected) -->
+<label class="flex items-center justify-between p-space-md rounded-xl border-2 border-primary bg-primary-fixed/20 cursor-pointer transition-all shadow-sm">
+<div class="flex items-center gap-space-md">
+<!-- Radio Graphic -->
+<div class="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center bg-surface-container-lowest">
+<div class="w-2.5 h-2.5 rounded-full bg-primary shadow-sm"></div>
+</div>
+<div>
+<p class="text-body-lg font-body-lg font-bold text-on-surface">Regular Portion (Serves 1-2 • 500g)</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Standard aromatic handi portion</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-on-surface">+ ₹0.00</span>
+</label>
+<!-- Radio Option 2 -->
+<label class="flex items-center justify-between p-space-md rounded-xl border border-outline-variant/40 bg-surface-container-lowest hover:bg-surface-container-low cursor-pointer transition-all">
+<div class="flex items-center gap-space-md">
+<div class="w-5 h-5 rounded-full border-2 border-outline flex items-center justify-center bg-surface-container-lowest">
+</div>
+<div>
+<p class="text-body-lg font-body-lg font-bold text-on-surface">Large Portion / Family Pack (Serves 3 • 900g)</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Includes 4 tender chicken cuts</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-on-surface">+ ₹150.00</span>
+</label>
+<!-- Radio Option 3 -->
+<label class="flex items-center justify-between p-space-md rounded-xl border border-outline-variant/40 bg-surface-container-lowest hover:bg-surface-container-low cursor-pointer transition-all">
+<div class="flex items-center gap-space-md">
+<div class="w-5 h-5 rounded-full border-2 border-outline flex items-center justify-center bg-surface-container-lowest">
+</div>
+<div>
+<p class="text-body-lg font-body-lg font-bold text-on-surface">Jumbo Handi with Salan (Serves 4 • 1.2kg)</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Feast size, 6 cuts + extra eggs</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-on-surface">+ ₹280.00</span>
+</label>
+</div>
+</section>
+<!-- Option Group 2: Accompaniments (Optional) -->
+<section class="space-y-space-md pt-2 border-t border-outline-variant/20">
+<div class="flex items-center justify-between">
+<div>
+<h2 class="text-headline-sm font-headline-sm font-bold text-on-surface flex items-center gap-space-xs">
+              Add-on Accompaniments
+              <span class="text-label-sm font-label-sm uppercase px-1.5 py-0.5 rounded bg-surface-variant text-on-surface-variant font-semibold">Optional</span>
+</h2>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Elevate your biryani feast</p>
+</div>
+<span class="text-label-sm font-label-sm text-primary font-bold">2 Selected</span>
+</div>
+<div class="grid grid-cols-1 gap-space-sm">
+<!-- Checkbox Item 1 (Checked) -->
+<label class="flex items-center justify-between p-space-md rounded-xl border-2 border-primary/60 bg-primary-fixed/10 cursor-pointer transition-all">
+<div class="flex items-center gap-space-md">
+<div class="w-5 h-5 rounded-[6px] bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-base font-bold" data-icon="check">check</span>
+</div>
+<div>
+<p class="text-body-md font-body-md font-bold text-on-surface">Extra Boondi Raita (200ml)</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Cool spiced curd with crisp boondi</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-primary">+ ₹40.00</span>
+</label>
+<!-- Checkbox Item 2 (Checked) -->
+<label class="flex items-center justify-between p-space-md rounded-xl border-2 border-primary/60 bg-primary-fixed/10 cursor-pointer transition-all">
+<div class="flex items-center gap-space-md">
+<div class="w-5 h-5 rounded-[6px] bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-base font-bold" data-icon="check">check</span>
+</div>
+<div>
+<p class="text-body-md font-body-md font-bold text-on-surface">Double Mirchi Ka Salan Gravy</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Rich peanut &amp; sesame hyderabadi curry</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-primary">+ ₹35.00</span>
+</label>
+<!-- Checkbox Item 3 -->
+<label class="flex items-center justify-between p-space-md rounded-xl border border-outline-variant/40 bg-surface-container-lowest hover:bg-surface-container-low cursor-pointer transition-all">
+<div class="flex items-center gap-space-md">
+<div class="w-5 h-5 rounded-[6px] border-2 border-outline bg-surface-container-lowest"></div>
+<div>
+<p class="text-body-md font-body-md font-bold text-on-surface">Roasted Gulab Jamun (2 pcs)</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Warm milk-solid sweets in cardamom syrup</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-on-surface">+ ₹60.00</span>
+</label>
+<!-- Checkbox Item 4 -->
+<label class="flex items-center justify-between p-space-md rounded-xl border border-outline-variant/40 bg-surface-container-lowest hover:bg-surface-container-low cursor-pointer transition-all">
+<div class="flex items-center gap-space-md">
+<div class="w-5 h-5 rounded-[6px] border-2 border-outline bg-surface-container-lowest"></div>
+<div>
+<p class="text-body-md font-body-md font-bold text-on-surface">Extra Boiled Egg (1 pc)</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Tossed in biryani masala spices</p>
+</div>
+</div>
+<span class="text-label-md font-label-md font-bold text-on-surface">+ ₹25.00</span>
+</label>
+</div>
+</section>
+<!-- Option Group 3: Cooking Instructions -->
+<section class="space-y-space-xs pt-2 border-t border-outline-variant/20 pb-4">
+<div class="flex items-center justify-between">
+<label class="text-headline-sm font-headline-sm font-bold text-on-surface flex items-center gap-space-xs" for="instructions">
+<span class="material-symbols-outlined text-primary text-lg" data-icon="restaurant">restaurant</span>
+            Cooking Instructions
+          </label>
+<span class="text-body-sm font-body-sm text-on-surface-variant">0/150</span>
+</div>
+<div class="relative mt-2">
+<textarea class="w-full text-body-md font-body-md rounded-xl border border-outline-variant bg-surface p-space-md text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none" id="instructions" placeholder="e.g., Make it spicy, send extra lime, no onions" rows="2"></textarea>
+</div>
+</section>
+</div>
+<!-- Fixed Sticky Modal Footer -->
+<div class="p-space-base bg-surface-container-lowest border-t border-outline-variant/30 flex items-center justify-between gap-space-md shadow-lg">
+<!-- Calculated Total Section -->
+<div class="flex flex-col">
+<span class="text-label-sm font-label-sm uppercase tracking-wider text-on-surface-variant font-bold">Total Price</span>
+<div class="flex items-baseline gap-1">
+<span class="text-headline-lg font-headline-lg font-bold text-on-surface">₹395.00</span>
+</div>
+<span class="text-label-sm font-label-sm text-tertiary font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs" data-icon="check_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          Items selected
+        </span>
+</div>
+<!-- Main Action CTA Button -->
+<button class="flex-1 h-12 bg-primary-container hover:bg-primary text-on-primary rounded-full px-space-lg flex items-center justify-between font-label-lg text-label-lg shadow-md hover:shadow-lg active:scale-95 transition-all duration-150">
+<span class="font-bold tracking-tight">Add Item to Cart — ₹395</span>
+<span class="material-symbols-outlined text-lg" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

@@ -14,12 +14,17 @@ import { RestaurantDetailScreen, CartItem } from './src/screens/RestaurantDetail
 import { CartAndCheckoutScreen } from './src/screens/CartAndCheckoutScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentScreen, setCurrentScreen] = useState<'feed' | 'detail' | 'cart' | 'tracking' | 'profile'>('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string } | null>(null);
+  const [apiUrl, setApiUrl] = useState<string>('http://10.0.2.2:5000/api');
+  const [authToken, setAuthToken] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
 
   const handleSelectRestaurant = (restaurant: RestaurantItem) => {
     setSelectedRestaurant(restaurant);
@@ -56,6 +61,32 @@ export default function App() {
     setCurrentScreen('tracking');
   };
 
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setAuthToken('');
+    setCurrentUser(null);
+    setCurrentScreen('feed');
+    setCart([]);
+  };
+
+  // If unauthenticated, present the Quick Bite Customer Login Screen
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <LoginScreen
+          initialApiUrl={apiUrl}
+          onLoginSuccess={(token, user, url) => {
+            setAuthToken(token);
+            setCurrentUser(user);
+            setApiUrl(url);
+            setIsAuthenticated(true);
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -65,7 +96,10 @@ export default function App() {
       {/* Primary Screen View */}
       <View style={styles.mainContent}>
         {currentScreen === 'feed' && (
-          <DiscoveryFeedScreen onSelectRestaurant={handleSelectRestaurant} />
+          <DiscoveryFeedScreen
+            onSelectRestaurant={handleSelectRestaurant}
+            apiUrl={apiUrl}
+          />
         )}
 
         {currentScreen === 'detail' && selectedRestaurant && (
@@ -84,6 +118,9 @@ export default function App() {
             onUpdateQuantity={handleUpdateQuantity}
             onBack={() => setCurrentScreen(selectedRestaurant ? 'detail' : 'feed')}
             onOrderPlaced={handleOrderPlaced}
+            restaurantId={selectedRestaurant?.id}
+            apiUrl={apiUrl}
+            token={authToken}
           />
         )}
 
@@ -97,7 +134,13 @@ export default function App() {
         )}
 
         {currentScreen === 'profile' && (
-          <ProfileScreen onBack={() => setCurrentScreen('feed')} />
+          <ProfileScreen
+            onBack={() => setCurrentScreen('feed')}
+            apiUrl={apiUrl}
+            token={authToken}
+            onUpdateApiUrl={(newUrl) => setApiUrl(newUrl)}
+            onLogout={handleLogout}
+          />
         )}
       </View>
 
@@ -169,39 +212,45 @@ const styles = StyleSheet.create({
     flex: 1
   },
   bottomNav: {
-    height: 60,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around'
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingBottom: 16,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4
   },
   navItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4
+    paddingVertical: 4
   },
   navText: {
     fontSize: 11,
+    fontWeight: '600',
     color: '#64748B',
-    fontWeight: '500'
+    marginTop: 3
   },
   navBadge: {
     position: 'absolute',
     top: -4,
     right: -8,
     backgroundColor: tokens.colors.primary[500],
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: 'center',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
-    paddingHorizontal: 3
+    alignItems: 'center',
+    paddingHorizontal: 4
   },
   navBadgeText: {
     color: '#FFFFFF',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800'
   }
 });

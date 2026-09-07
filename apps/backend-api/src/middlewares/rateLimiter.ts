@@ -9,6 +9,23 @@ const buckets = new Map<string, TokenBucket>();
 const CAPACITY = 100; // max requests
 const REFILL_RATE = 100 / 60; // 100 req per 60 seconds
 
+// Periodic cleanup of stale rate limiter buckets (idle > 5 minutes)
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const STALE_THRESHOLD_SEC = 5 * 60;
+
+const cleanupTimer = setInterval(() => {
+  const currentNow = Date.now() / 1000;
+  for (const [ip, b] of buckets.entries()) {
+    if (currentNow - b.lastRefill > STALE_THRESHOLD_SEC) {
+      buckets.delete(ip);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
+
+if (cleanupTimer.unref) {
+  cleanupTimer.unref();
+}
+
 export function rateLimiterMiddleware(req: Request, res: Response, next: NextFunction): void {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now() / 1000;

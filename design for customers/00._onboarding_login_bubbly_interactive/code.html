@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quick Bites - Onboarding &amp; Login</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-dim": "#d3daef",
+            "inverse-primary": "#ffb5a0",
+            "on-tertiary-fixed": "#002109",
+            "on-secondary-fixed": "#410007",
+            "on-secondary-container": "#fffbff",
+            "secondary": "#b7122a",
+            "tertiary-fixed": "#7ffc97",
+            "inverse-surface": "#293040",
+            "on-primary": "#ffffff",
+            "surface-container-low": "#f1f3ff",
+            "inverse-on-surface": "#edf0ff",
+            "on-secondary-fixed-variant": "#92001c",
+            "on-primary-fixed": "#3b0900",
+            "on-surface": "#141b2b",
+            "on-primary-fixed-variant": "#872000",
+            "surface-container": "#e9edff",
+            "surface-variant": "#dce2f7",
+            "on-error-container": "#93000a",
+            "secondary-container": "#db313f",
+            "error-container": "#ffdad6",
+            "tertiary": "#006b2c",
+            "surface-container-highest": "#dce2f7",
+            "on-tertiary-container": "#f7fff2",
+            "surface-tint": "#b12d00",
+            "outline-variant": "#e5beb3",
+            "tertiary-container": "#00873a",
+            "on-primary-container": "#fffbff",
+            "secondary-fixed-dim": "#ffb3b1",
+            "on-background": "#141b2b",
+            "on-error": "#ffffff",
+            "primary": "#ad2c00",
+            "on-tertiary": "#ffffff",
+            "secondary-fixed": "#ffdad8",
+            "tertiary-fixed-dim": "#62df7d",
+            "primary-container": "#d83900",
+            "primary-fixed": "#ffdbd1",
+            "error": "#ba1a1a",
+            "primary-fixed-dim": "#ffb5a0",
+            "surface-container-high": "#e1e8fd",
+            "surface-bright": "#f9f9ff",
+            "on-tertiary-fixed-variant": "#005320",
+            "surface": "#f9f9ff",
+            "on-secondary": "#ffffff",
+            "outline": "#916f67",
+            "on-surface-variant": "#5c4038",
+            "background": "#f9f9ff",
+            "surface-container-lowest": "#ffffff"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "2xl": "1rem",
+            "3xl": "1.5rem",
+            "4xl": "2rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            sans: ["Plus Jakarta Sans", "sans-serif"],
+            "display-mobile": ["Plus Jakarta Sans", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .hero-gradient-overlay {
+      background: linear-gradient(180deg, rgba(20, 27, 43, 0.55) 0%, rgba(20, 27, 43, 0.1) 40%, rgba(249, 249, 255, 0.85) 75%, #f9f9ff 100%);
+    }
+    .bubbly-shadow {
+      box-shadow: 0 12px 30px -8px rgba(173, 44, 0, 0.32), 0 4px 10px -2px rgba(173, 44, 0, 0.15);
+    }
+    .soft-card-shadow {
+      box-shadow: 0 14px 36px -10px rgba(20, 27, 43, 0.08), 0 2px 8px -2px rgba(20, 27, 43, 0.04);
+    }
+    .badge-float {
+      animation: floatBadge 3.5s ease-in-out infinite alternate;
+    }
+    .flame-bounce {
+      animation: squishFlame 2.5s ease-in-out infinite;
+    }
+    @keyframes floatBadge {
+      0% { transform: translateY(0px) rotate(0deg); }
+      100% { transform: translateY(-5px) rotate(1.5deg); }
+    }
+    @keyframes squishFlame {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08) rotate(3deg); }
+    }
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.95) translateY(12px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .animate-pop-in {
+      animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-[#f0f3fa] text-on-surface antialiased min-h-screen flex items-center justify-center p-0 sm:p-4 select-none font-sans">
+<!-- Mobile Screen Canvas Wrapper -->
+<main class="w-full max-w-[430px] min-h-screen bg-background relative flex flex-col justify-between overflow-hidden sm:rounded-[36px] sm:shadow-[0_24px_70px_-15px_rgba(20,27,43,0.22)] sm:border sm:border-outline-variant/30">
+<!-- Top Floating Simulated SMS Push Toast (Interactive OTP Notification) -->
+<div class="absolute top-3 left-4 right-4 z-50 bg-inverse-surface/95 backdrop-blur-md text-inverse-on-surface px-4 py-3 rounded-2xl shadow-xl flex items-start gap-3 transform -translate-y-24 opacity-0 transition-all duration-500 pointer-events-none border border-white/10" id="otp-toast">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white flex-shrink-0 text-sm shadow-md">
+      💬
+    </div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="text-xs font-bold text-primary-fixed tracking-wide">QUICK BITES SMS</span>
+<span class="text-[10px] text-surface-dim">Just now</span>
+</div>
+<p class="text-xs text-white/95 mt-0.5 leading-snug">
+        Your instant login OTP is <span class="font-extrabold text-amber-300 tracking-widest text-sm bg-white/10 px-1.5 py-0.5 rounded-md">482190</span>. Valid for 10 mins.
+      </p>
+</div>
+</div>
+<!-- Top Hero Section with Ambient Appetite Appeal -->
+<header class="relative w-full h-[290px] flex-shrink-0 overflow-hidden">
+<!-- Culinary Visual Montage Image with strict compliance data-alt -->
+<img class="w-full h-full object-cover object-center scale-105" data-alt="A mouth-watering high definition food montage featuring an artisan brioche burger with dripping melted cheese, fragrant aromatic saffron chicken dum biryani in a traditional clay handi, and a steaming rustic wood-fired pizza with bubbling mozzarella and fresh basil leaves. The culinary composition is captured in warm, high-key ambient restaurant lighting, showcasing rich chromatic contrast and intense appetite appeal in deep golden ambers and vibrant spicy reds against a warm backdrop." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRWhlwVmRS_fX7iN5yNHbImSmgCftWxhH5jXRm4tTvdYx9ezrs_C07yQpYbJjov1W7jB9UZGIkFzuhhGGCVnBTT9KYW6YxOhdYYh4HRBCy_2agcXPpuek7ZhL8cuIqLFutw-4wp8pFnItn-flCtt_Wj-rpwXzW-ZRH2d7hwVpXglePGEzfCmvwB_fKYJurSyz08bcIcWmxhqSUPoCp5CpWGCJ5ChPOPbsKByWKfd__SVcJDIT3QcX9"/>
+<!-- Soft gradient fade into page canvas -->
+<div class="absolute inset-0 hero-gradient-overlay"></div>
+<!-- Top Floating Badges & Language Selector -->
+<div class="absolute top-0 left-0 right-0 pt-4 px-4 flex items-center justify-between z-20">
+<!-- 20-min express floating pill -->
+<div class="badge-float flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest/90 backdrop-blur-md rounded-full shadow-md border border-outline-variant/30">
+<span class="material-symbols-outlined text-primary text-[15px]" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="text-[11px] font-bold text-on-surface tracking-tight" id="badge-express">20-min express</span>
+</div>
+<!-- Playful Kannada / English Pill Toggle Switcher -->
+<div class="relative bg-surface-container-lowest/95 backdrop-blur-md p-1 rounded-full border border-outline-variant/40 shadow-md flex items-center gap-0.5">
+<button class="px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 bg-primary text-on-primary shadow-sm" id="lang-en" onclick="setLanguage('en')">
+          English
+        </button>
+<button class="px-3 py-1 rounded-full text-xs font-medium text-on-surface-variant hover:text-on-surface transition-all duration-200" id="lang-kn" onclick="setLanguage('kn')">
+          ಕನ್ನಡ
+        </button>
+</div>
+</div>
+<!-- Floating Offer Sticker Badge -->
+<div class="absolute top-16 left-4 z-10 badge-float" style="animation-delay: -1.5s;">
+<div class="bg-gradient-to-r from-amber-400 to-orange-500 text-white font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1 border border-white/40">
+<span>✨</span> <span id="badge-promo">50% off 1st order</span>
+</div>
+</div>
+<!-- Brand Identity Lockup inside Hero Base -->
+<div class="absolute bottom-1 left-0 right-0 px-4 flex flex-col items-center text-center z-10">
+<!-- Flame Spoon Icon Badge -->
+<div class="w-14 h-14 rounded-3xl bg-gradient-to-tr from-primary via-primary-container to-amber-500 flex items-center justify-center text-on-primary bubbly-shadow mb-1.5 flame-bounce border-2 border-white/60">
+<span class="material-symbols-outlined text-[30px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+</div>
+<!-- Brand Name -->
+<h1 class="text-2xl font-black text-on-surface tracking-tight flex items-center gap-1.5 font-display-mobile">
+<span>Quick</span><span class="text-primary">Bites</span>
+<span class="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Express</span>
+</h1>
+<p class="text-xs font-semibold text-on-surface-variant mt-0.5" id="hero-tagline">
+        Craving happiness delivered in 20 mins 🛵💨
+      </p>
+</div>
+</header>
+<!-- Interactive Authentication & Onboarding Card -->
+<div class="flex-1 px-5 pt-2 pb-5 flex flex-col justify-between z-10">
+<div class="space-y-3.5">
+<!-- Dynamic Notice Card if Google/Apple Clicked -->
+<div class="hidden animate-pop-in bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2.5 rounded-2xl text-xs flex items-center gap-2.5 shadow-sm" id="social-link-banner">
+<span class="text-base flex-shrink-0">🚀</span>
+<span class="flex-1 leading-snug" id="social-link-text">
+          Account connected! Verify your mobile number below to claim <strong>50% off</strong> &amp; 20-min delivery.
+        </span>
+<button class="text-amber-700 hover:text-amber-900 text-sm font-bold" onclick="dismissSocialBanner()">×</button>
+</div>
+<!-- Section Header -->
+<div class="text-center">
+<h2 class="text-lg font-extrabold text-on-surface tracking-tight" id="title-main">
+          Enter your phone number to get started
+        </h2>
+<p class="text-xs text-on-surface-variant mt-0.5 font-medium" id="subtitle-main">
+          We will send an OTP code for instant delicious access
+        </p>
+</div>
+<!-- Phone Number Input Group -->
+<div class="relative">
+<div class="flex items-center w-full h-[54px] bg-white rounded-2xl border-2 border-outline-variant/50 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15 soft-card-shadow transition-all px-3.5">
+<!-- Country Selector Pill -->
+<div class="flex items-center gap-1.5 pr-2.5 border-r border-outline-variant/30 py-1">
+<span class="text-lg leading-none">🇮🇳</span>
+<span class="text-sm font-bold text-on-surface">+91</span>
+<span class="material-symbols-outlined text-outline text-[16px]">expand_more</span>
+</div>
+<!-- Numeric Phone Input -->
+<div class="relative flex-1 ml-3">
+<input class="w-full h-full bg-transparent border-none p-0 text-base font-bold text-on-surface placeholder:text-outline/40 focus:ring-0 tracking-wider font-sans" id="phone-input" maxlength="10" placeholder="Enter 10-digit number" type="tel" value="9876543210"/>
+</div>
+<!-- Validation Check Icon -->
+<div class="w-6 h-6 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed flex-shrink-0 shadow-sm" id="phone-check-badge">
+<span class="material-symbols-outlined text-[16px] font-bold">check</span>
+</div>
+</div>
+</div>
+<!-- OTP Verification Card (State toggled by Send OTP or Google/Apple) -->
+<div class="bg-surface-container-lowest border-2 border-primary/20 rounded-3xl p-3.5 soft-card-shadow transition-all animate-pop-in relative overflow-hidden" id="otp-section">
+<!-- Cute decorative background bubble -->
+<div class="absolute -right-6 -bottom-6 w-20 h-20 bg-primary/5 rounded-full pointer-events-none"></div>
+<div class="flex items-center justify-between mb-2">
+<span class="text-xs text-on-surface font-bold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[17px]" style="font-variation-settings: 'FILL' 1;">sms</span>
+<span id="label-enter-otp">Enter 6-digit OTP</span>
+</span>
+<!-- Live OTP Countdown State & Resend Button -->
+<button class="text-[11px] font-extrabold text-primary bg-primary/10 hover:bg-primary/20 active:scale-95 px-2.5 py-1 rounded-full transition-all" id="resend-otp-btn" onclick="triggerResend()">
+            Resend OTP in <span id="timer-count">24</span>s
+          </button>
+</div>
+<!-- 6 Bubbly Rounded OTP Input Digit Boxes -->
+<div class="grid grid-cols-6 gap-2">
+<input class="otp-box w-full h-11 text-center rounded-xl bg-surface-container-lowest border-2 border-primary text-primary font-black text-lg shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all p-0" maxlength="1" type="text" value="4"/>
+<input class="otp-box w-full h-11 text-center rounded-xl bg-surface-container-lowest border-2 border-primary text-primary font-black text-lg shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all p-0" maxlength="1" type="text" value="8"/>
+<input class="otp-box w-full h-11 text-center rounded-xl bg-surface-container-lowest border-2 border-primary text-primary font-black text-lg shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all p-0" maxlength="1" type="text" value="2"/>
+<input class="otp-box w-full h-11 text-center rounded-xl bg-surface-container-low border-2 border-outline-variant/70 text-on-surface font-black text-lg shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all p-0" maxlength="1" type="text" value="1"/>
+<input class="otp-box w-full h-11 text-center rounded-xl bg-surface-container-low border-2 border-outline-variant/70 text-on-surface font-black text-lg shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all p-0" maxlength="1" type="text" value="9"/>
+<input class="otp-box w-full h-11 text-center rounded-xl bg-surface-container-low border-2 border-outline-variant/70 text-on-surface font-black text-lg shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all p-0" maxlength="1" type="text" value="0"/>
+</div>
+</div>
+<!-- Primary Action CTA Button -->
+<button class="w-full h-13 py-3.5 px-4 bg-gradient-to-r from-primary-container via-primary to-orange-600 text-on-primary rounded-2xl font-bold text-sm tracking-wide bubbly-shadow hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2" id="main-cta-btn" onclick="handlePrimaryCta()">
+<span id="cta-btn-text">Verify &amp; Start Eating 🍔 →</span>
+</button>
+<!-- Modern Bubbly Divider -->
+<div class="relative flex items-center justify-center my-2">
+<div class="w-full border-t border-outline-variant/40"></div>
+<span class="absolute px-3 bg-background text-[11px] font-bold text-on-surface-variant uppercase tracking-wider" id="divider-text">
+          or continue with
+        </span>
+</div>
+<!-- Social Quick Actions (Google & Apple) -->
+<div class="grid grid-cols-2 gap-3">
+<!-- Google Button -->
+<button class="h-12 bg-white hover:bg-surface-container-low border-2 border-outline-variant/40 rounded-2xl flex items-center justify-center gap-2 soft-card-shadow active:scale-95 transition-all" onclick="handleSocialAuth('Google')" type="button">
+<svg class="w-4 h-4" viewbox="0 0 24 24">
+<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"></path>
+<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"></path>
+</svg>
+<span class="text-xs text-on-surface font-bold">Google</span>
+</button>
+<!-- Apple Button -->
+<button class="h-12 bg-white hover:bg-surface-container-low border-2 border-outline-variant/40 rounded-2xl flex items-center justify-center gap-2 soft-card-shadow active:scale-95 transition-all" onclick="handleSocialAuth('Apple')" type="button">
+<svg class="w-4 h-4 fill-on-surface" viewbox="0 0 24 24">
+<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.38c.62-.75 1.04-1.8 0.93-2.85-.9.04-1.98.6-2.62 1.35-.57.65-1.07 1.72-.94 2.74 1 .08 2.01-.49 2.63-1.24z"></path>
+</svg>
+<span class="text-xs text-on-surface font-bold">Apple</span>
+</button>
+</div>
+</div>
+<!-- Micro-Trust & Compliance Footer -->
+<footer class="mt-3 text-center">
+<!-- Live Guarantee Badge -->
+<div class="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-container-low rounded-full border border-outline-variant/30 mb-2">
+<span class="text-tertiary font-bold text-xs">⚡</span>
+<span class="text-[11px] text-on-surface-variant font-medium" id="delivery-guarantee">Average delivery time: <strong class="text-on-surface font-bold">24 mins</strong></span>
+</div>
+<!-- Legal Disclaimer text -->
+<p class="text-[10px] leading-relaxed text-on-surface-variant/80 px-2 font-medium" id="legal-disclaimer">
+        By continuing, you agree to Quick Bites 
+        <a class="text-primary font-bold hover:underline" href="#">Terms of Service</a>, 
+        <a class="text-primary font-bold hover:underline" href="#">Privacy Policy</a> &amp; 
+        <a class="text-primary font-bold hover:underline" href="#">Content Policies</a>.
+      </p>
+</footer>
+</div>
+</main>
+<script>
+  let currentLang = 'en';
+  let isOtpActive = true;
+  let countdown = 24;
+  let timerInterval = null;
+
+  const copy = {
+    en: {
+      badgeExpress: "20-min express",
+      badgePromo: "50% off 1st order",
+      heroTagline: "Craving happiness delivered in 20 mins 🛵💨",
+      titleMain: "Enter your phone number to get started",
+      subtitleMain: "We will send an OTP code for instant delicious access",
+      labelEnterOtp: "Enter 6-digit OTP",
+      ctaVerify: "Verify & Start Eating 🍔 →",
+      ctaSend: "Send OTP Code 🚀",
+      divider: "or continue with",
+      deliveryGuarantee: 'Average delivery time: <strong class="text-on-surface font-bold">24 mins</strong>',
+      legalDisclaimer: 'By continuing, you agree to Quick Bites <a class="text-primary font-bold hover:underline" href="#">Terms of Service</a>, <a class="text-primary font-bold hover:underline" href="#">Privacy Policy</a> &amp; <a class="text-primary font-bold hover:underline" href="#">Content Policies</a>.',
+      socialNotice: (provider) => `${provider} account linked! Verify phone number below for seamless 20-min delivery.`
+    },
+    kn: {
+      badgeExpress: "೨೦-ನಿಮಿಷ ಎಕ್ಸ್‌ಪ್ರೆಸ್",
+      badgePromo: "ಮೊದಲ ಆರ್ಡರ್‌ಗೆ ೫೦% ರಿಯಾಯಿತಿ",
+      heroTagline: "೨೦ ನಿಮಿಷಗಳಲ್ಲಿ ನಿಮ್ಮಿಷ್ಟದ ರುಚಿಕರ ಊಟ 🛵💨",
+      titleMain: "ಪ್ರಾರಂಭಿಸಲು ನಿಮ್ಮ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ",
+      subtitleMain: "ತಕ್ಷಣದ ಲಾಗಿನ್‌ಗಾಗಿ ನಾವು OTP ಕಳುಹಿಸುತ್ತೇವೆ",
+      labelEnterOtp: "೬-ಅಂಕಿಯ OTP ನಮೂದಿಸಿ",
+      ctaVerify: "ದೃಢೀಕರಿಸಿ ಮತ್ತು ಸವಿಯಿರಿ 🍔 →",
+      ctaSend: "OTP ಕೋಡ್ ಕಳುಹಿಸಿ 🚀",
+      divider: "ಅಥವಾ ಇದರೊಂದಿಗೆ ಮುಂದುವರಿಯಿರಿ",
+      deliveryGuarantee: 'ಸರಾಸರಿ ಡೆಲಿವರಿ ಸಮಯ: <strong class="text-on-surface font-bold">೨೪ ನಿಮಿಷಗಳು</strong>',
+      legalDisclaimer: 'ಮುಂದುವರಿಯುವ ಮೂಲಕ, ನೀವು Quick Bites <a class="text-primary font-bold hover:underline" href="#">ಸೇವಾ ನಿಯಮಗಳು</a>, <a class="text-primary font-bold hover:underline" href="#">ಗೌಪ್ಯತೆ ನೀತಿ</a> ಅನ್ನು ಒಪ್ಪುತ್ತೀರಿ.',
+      socialNotice: (provider) => `${provider} ಖಾತೆ ಸಂಪರ್ಕಗೊಂಡಿದೆ! ೨೦ ನಿಮಿಷಗಳ ಎಕ್ಸ್‌ಪ್ರೆಸ್ ವಿತರಣೆಗಾಗಿ ಮೊಬೈಲ್ ದೃಢೀಕರಿಸಿ.`
+    }
+  };
+
+  function setLanguage(lang) {
+    currentLang = lang;
+    const btnEn = document.getElementById('lang-en');
+    const btnKn = document.getElementById('lang-kn');
+
+    if (lang === 'en') {
+      btnEn.className = "px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 bg-primary text-on-primary shadow-sm";
+      btnKn.className = "px-3 py-1 rounded-full text-xs font-medium text-on-surface-variant hover:text-on-surface transition-all duration-200";
+    } else {
+      btnKn.className = "px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 bg-primary text-on-primary shadow-sm";
+      btnEn.className = "px-3 py-1 rounded-full text-xs font-medium text-on-surface-variant hover:text-on-surface transition-all duration-200";
+    }
+
+    const t = copy[lang];
+    document.getElementById('badge-express').innerText = t.badgeExpress;
+    document.getElementById('badge-promo').innerText = t.badgePromo;
+    document.getElementById('hero-tagline').innerText = t.heroTagline;
+    document.getElementById('title-main').innerText = t.titleMain;
+    document.getElementById('subtitle-main').innerText = t.subtitleMain;
+    document.getElementById('label-enter-otp').innerText = t.labelEnterOtp;
+    document.getElementById('cta-btn-text').innerText = isOtpActive ? t.ctaVerify : t.ctaSend;
+    document.getElementById('divider-text').innerText = t.divider;
+    document.getElementById('deliveryGuarantee').innerHTML = t.deliveryGuarantee;
+    document.getElementById('legal-disclaimer').innerHTML = t.legalDisclaimer;
+  }
+
+  function showOtpToast() {
+    const toast = document.getElementById('otp-toast');
+    toast.classList.remove('-translate-y-24', 'opacity-0');
+    toast.classList.add('translate-y-0', 'opacity-100');
+
+    setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('-translate-y-24', 'opacity-0');
+    }, 4500);
+  }
+
+  function startCountdown() {
+    clearInterval(timerInterval);
+    countdown = 24;
+    const countEl = document.getElementById('timer-count');
+    if (countEl) countEl.innerText = countdown;
+
+    timerInterval = setInterval(() => {
+      countdown--;
+      if (countEl) countEl.innerText = countdown;
+      if (countdown <= 0) {
+        clearInterval(timerInterval);
+        const resendBtn = document.getElementById('resend-otp-btn');
+        if (resendBtn) {
+          resendBtn.innerText = currentLang === 'kn' ? 'ಮತ್ತೆ OTP ಕಳುಹಿಸಿ' : 'Resend OTP now';
+        }
+      }
+    }, 1000);
+  }
+
+  function triggerResend() {
+    showOtpToast();
+    startCountdown();
+  }
+
+  function handlePrimaryCta() {
+    if (!isOtpActive) {
+      isOtpActive = true;
+      document.getElementById('otp-section').classList.remove('hidden');
+      document.getElementById('cta-btn-text').innerText = copy[currentLang].ctaVerify;
+      showOtpToast();
+      startCountdown();
+    } else {
+      // Simulate successful verification
+      const ctaBtn = document.getElementById('main-cta-btn');
+      ctaBtn.classList.add('bg-tertiary', 'from-tertiary', 'to-emerald-600');
+      document.getElementById('cta-btn-text').innerText = currentLang === 'kn' ? 'ಸ್ವಾಗತ! 🛵 ರುಚಿಕರ ಊಟ ಬರುತ್ತಿದೆ...' : 'Welcome! Loading delicious bites... 🍕';
+      setTimeout(() => {
+        ctaBtn.classList.remove('bg-tertiary', 'from-tertiary', 'to-emerald-600');
+        document.getElementById('cta-btn-text').innerText = copy[currentLang].ctaVerify;
+      }, 2000);
+    }
+  }
+
+  function handleSocialAuth(provider) {
+    const banner = document.getElementById('social-link-banner');
+    const text = document.getElementById('social-link-text');
+    banner.classList.remove('hidden');
+    text.innerHTML = copy[currentLang].socialNotice(provider);
+
+    isOtpActive = true;
+    document.getElementById('otp-section').classList.remove('hidden');
+    document.getElementById('cta-btn-text').innerText = copy[currentLang].ctaVerify;
+    showOtpToast();
+    startCountdown();
+  }
+
+  function dismissSocialBanner() {
+    document.getElementById('social-link-banner').classList.add('hidden');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const phoneInput = document.getElementById('phone-input');
+    if (phoneInput) {
+      phoneInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '');
+      });
+    }
+
+    // Auto-advance between OTP boxes
+    const otpBoxes = document.querySelectorAll('.otp-box');
+    otpBoxes.forEach((box, index) => {
+      box.addEventListener('input', (e) => {
+        if (e.target.value.length === 1 && index < otpBoxes.length - 1) {
+          otpBoxes[index + 1].focus();
+        }
+      });
+      box.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !e.target.value && index > 0) {
+          otpBoxes[index - 1].focus();
+        }
+      });
+    });
+
+    // Start timer on load & show toast once
+    startCountdown();
+    setTimeout(() => {
+      showOtpToast();
+    }, 800);
+  });
+</script>
+</body></html>

@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Quick Bite Partner",
+    "slug": "quick-bite-partner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "quickbitepartner",
+    "splash": {
+      "backgroundColor": "#0F172A",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quickbite.partner"
+    },
+    "android": {
+      "package": "com.quickbite.partner",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "newArchEnabled": false
+  }
+}

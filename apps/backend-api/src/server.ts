@@ -1,6 +1,18 @@
 import { createApp } from './app.ts';
 import { config } from './config/env.ts';
 import { initSocketServer, closeSocketServer } from './sockets/socketServer.ts';
+import { loadStoreFromFile, saveStoreToFile } from './db/client.ts';
+import { seedDatabase } from './db/seed.ts';
+
+// Hydrate database from disk persistence or initialize with seed data
+if (!loadStoreFromFile()) {
+  console.log('[INFO] No existing persistent store found on disk. Initializing and seeding database...');
+  await seedDatabase();
+  saveStoreToFile();
+  console.log('[INFO] Seed data initialized and persisted to data/store.json.');
+} else {
+  console.log('[INFO] Persistent database hydrated successfully from disk.');
+}
 
 const app = createApp();
 
@@ -22,9 +34,10 @@ initSocketServer(server);
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
   console.log(`\nReceived ${signal}. Gracefully closing Quick Bite HTTP and Socket servers...`);
+  saveStoreToFile();
   await closeSocketServer();
   server.close(() => {
-    console.log('[SUCCESS] HTTP server closed cleanly. Exiting process.');
+    console.log('[SUCCESS] HTTP server closed cleanly and data persisted. Exiting process.');
     process.exit(0);
   });
 
@@ -37,4 +50,3 @@ async function handleShutdown(signal: string) {
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
-

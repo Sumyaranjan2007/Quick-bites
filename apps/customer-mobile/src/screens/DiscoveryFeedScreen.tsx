@@ -57,14 +57,39 @@ const SAMPLE_RESTAURANTS: RestaurantItem[] = [
 
 interface Props {
   onSelectRestaurant: (restaurant: RestaurantItem) => void;
+  apiUrl?: string;
 }
 
-export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant }) => {
+export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUrl }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPureVegOnly, setIsPureVegOnly] = useState(false);
-  const [state, setState] = useState<'loading' | 'success' | 'error' | 'empty'>('success');
+  const [restaurants, setRestaurants] = useState<RestaurantItem[]>(SAMPLE_RESTAURANTS);
 
-  const filteredRestaurants = SAMPLE_RESTAURANTS.filter(r => {
+  React.useEffect(() => {
+    if (!apiUrl) return;
+    fetch(`${apiUrl}/restaurants`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data?.restaurants) && data.data.restaurants.length > 0) {
+          const mapped: RestaurantItem[] = data.data.restaurants.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            cuisine: Array.isArray(r.cuisineTags) ? r.cuisineTags.join(', ') : 'Indian & Mughlai',
+            rating: r.ratingAverage || 4.7,
+            deliveryTimeMins: r.estimatedDeliveryMinutes || 25,
+            distanceKm: r.distanceKm || 2.2,
+            isPureVeg: !!r.isPureVeg,
+            priceForTwo: 450
+          }));
+          setRestaurants(mapped);
+        }
+      })
+      .catch(() => {
+        // Fallback to sample restaurants
+      });
+  }, [apiUrl]);
+
+  const filteredRestaurants = restaurants.filter(r => {
     if (isPureVegOnly && !r.isPureVeg) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();

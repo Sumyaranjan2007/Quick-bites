@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Bite - Ultra Fast Food Delivery Platform</title>
+  <meta name="description" content="Quick Bite is an ultra-fast, transparent, multi-portal food delivery ecosystem. Download the Android apps and experience real-time ordering across 4 connected devices.">
+  <meta name="keywords" content="quick bite, food delivery, android app, restaurant, delivery partner, admin panel">
+  <meta property="og:title" content="Quick Bite - Ultra Fast Food Delivery Platform">
+  <meta property="og:description" content="Download the Quick Bite Android apps. A complete 4-device food delivery ecosystem with real-time ordering, kitchen terminals, delivery tracking, and admin operations.">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #E23744;
+      --primary-glow: rgba(226, 55, 68, 0.25);
+      --accent-orange: #FF6B35;
+      --accent-saffron: #FF9933;
+      --bg-deep: #050A18;
+      --bg-surface: #0C1425;
+      --bg-card: #111D35;
+      --bg-card-hover: #162240;
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-active: rgba(226, 55, 68, 0.3);
+      --text-primary: #F0F4FC;
+      --text-secondary: #8899B8;
+      --text-muted: #5A6B8A;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --info: #3B82F6;
+      --purple: #8B5CF6;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
+      --shadow-glow: 0 0 40px var(--primary-glow);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background gradient */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 20% 20%, rgba(226, 55, 68, 0.08) 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+                  radial-gradient(ellipse at 50% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+      z-index: 0;
+      pointer-events: none;
+      animation: bgPulse 12s ease-in-out infinite alternate;
+    }
+    @keyframes bgPulse {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-2%, -1%) scale(1.05); }
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 80px 0 60px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(226, 55, 68, 0.1);
+      border: 1px solid rgba(226, 55, 68, 0.2);
+      color: var(--primary);
+      padding: 6px 18px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.5); }
+    }
+
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero h1 .gradient-text {
+      background: linear-gradient(135deg, var(--primary), var(--accent-orange), var(--accent-saffron));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-subtitle {
+      font-size: clamp(16px, 2.5vw, 20px);
+      color: var(--text-secondary);
+      max-width: 640px;
+      margin: 0 auto 36px;
+      font-weight: 400;
+      line-height: 1.7;
+    }
+
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    /* Section Titles */
+    .section-title {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .section-title h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+    .section-title p {
+      color: var(--text-secondary);
+      font-size: 16px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* App Cards */
+    .apps-section { padding: 40px 0 80px; }
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .app-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px 24px;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .app-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+    .app-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-active);
+      box-shadow: var(--shadow-card);
+    }
+
+    .app-card:nth-child(1)::before { background: linear-gradient(90deg, var(--primary), var(--accent-orange)); }
+    .app-card:nth-child(2)::before { background: linear-gradient(90deg, var(--warning), #EAB308); }
+    .app-card:nth-child(3)::before { background: linear-gradient(90deg, var(--success), #34D399); }
+    .app-card:nth-child(4)::before { background: linear-gradient(90deg, var(--purple), #A78BFA); }
+
+    .app-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .app-card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      color: #FFF;
+    }
+    .app-card:nth-child(1) .app-card-icon { background: linear-gradient(135deg, var(--primary), var(--accent-orange)); }
+    .app-card:nth-child(2) .app-card-icon { background: linear-gradient(135deg, var(--warning), #EAB308); }
+    .app-card:nth-child(3) .app-card-icon { background: linear-gradient(135deg, var(--success), #34D399); }
+    .app-card:nth-child(4) .app-card-icon { background: linear-gradient(135deg, var(--purple), #A78BFA); }
+
+    .device-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.5px;
+    }
+    .app-card:nth-child(1) .device-badge { background: rgba(226, 55, 68, 0.15); color: var(--primary); }
+    .app-card:nth-child(2) .device-badge { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .app-card:nth-child(3) .device-badge { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+    .app-card:nth-child(4) .device-badge { background: rgba(139, 92, 246, 0.15); color: var(--purple); }
+
+    .app-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .app-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .app-features {
+      list-style: none;
+      margin-bottom: 20px;
+    }
+    .app-features li {
+      font-size: 12px;
+      color: var(--text-secondary);
+      padding: 4px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+    .app-features li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 2px solid var(--success);
+    }
+
+    .creds-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+    .creds-box span { color: var(--accent-saffron); }
+
+    .btn-download {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      color: #FFF;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.15s ease;
+    }
+    .btn-download:hover { opacity: 0.9; transform: scale(1.01); }
+    .btn-download:active { transform: scale(0.98); }
+
+    .app-card:nth-child(1) .btn-download { background: linear-gradient(135deg, var(--primary), var(--accent-orange)); }
+    .app-card:nth-child(2) .btn-download { background: linear-gradient(135deg, var(--warning), #D97706); }
+    .app-card:nth-child(3) .btn-download { background: linear-gradient(135deg, var(--success), #059669); }
+    .app-card:nth-child(4) .btn-download { background: linear-gradient(135deg, var(--purple), #7C3AED); }
+
+    .btn-secondary {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      margin-top: 10px;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-primary); }
+
+    /* Web Portals Section */
+    .web-section { padding: 40px 0 80px; }
+    .web-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+    .web-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      text-align: center;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+    .web-card:hover { transform: translateY(-3px); border-color: var(--border-active); }
+    .web-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .web-card p { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; }
+    .web-card .btn-download { display: inline-block; width: auto; padding: 12px 32px; }
+
+    /* Tech Stack */
+    .tech-section { padding: 40px 0 80px; }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+    }
+    .tech-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      text-align: center;
+      transition: border-color 0.3s ease;
+    }
+    .tech-pill:hover { border-color: var(--border-active); }
+    .tech-pill-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .tech-pill-role { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .tech-pill-free {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Setup Section */
+    .setup-section { padding: 40px 0 80px; }
+    .setup-steps {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .setup-step {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 16px;
+      position: relative;
+      padding-left: 72px;
+    }
+    .step-number {
+      position: absolute;
+      left: 24px;
+      top: 24px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--accent-orange));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 800;
+      color: #FFF;
+    }
+    .setup-step h4 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .setup-step p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+    .setup-step code {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--accent-saffron);
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 40px 0;
+      text-align: center;
+    }
+    .footer p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.8;
+    }
+    .footer a { color: var(--primary); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .hero { padding: 48px 0 40px; }
+      .hero-stats { gap: 24px; }
+      .app-grid { grid-template-columns: 1fr; }
+      .web-grid { grid-template-columns: 1fr; }
+      .tech-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        LIVE PLATFORM
+      </div>
+      <h1><span class="gradient-text">Quick Bite</span><br>Ultra Fast Food Delivery</h1>
+      <p class="hero-subtitle">A complete 4-device food delivery ecosystem with real-time ordering, kitchen terminals, live delivery tracking, and admin operations. Built for speed, transparency, and zero cost.</p>
+
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-value">4</div>
+          <div class="stat-label">Native Apps</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">44</div>
+          <div class="stat-label">Features</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">54+</div>
+          <div class="stat-label">Tests Passing</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">$0</div>
+          <div class="stat-label">Monthly Cost</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mobile Apps -->
+    <section class="apps-section">
+      <div class="section-title">
+        <h2>Download Android Apps</h2>
+        <p>Install on your phone, log in with demo credentials, and experience the full ecosystem.</p>
+      </div>
+
+      <div class="app-grid">
+        <!-- Customer -->
+        <div class="app-card">
+          <div class="app-card-header">
+            <div class="app-card-icon">C</div>
+            <span class="device-badge">Device 1</span>
+          </div>
+          <h3>Customer App</h3>
+          <p>Discover restaurants, customize dishes, order food, track deliveries in real-time, and verify with a secret 4-digit OTP.</p>
+          <ul class="app-features">
+            <li>Geofenced restaurant feed (&lt;10km)</li>
+            <li>Dynamic pricing with Gold discounts</li>
+            <li>Live order tracking timeline</li>
+            <li>Rs 500 preloaded wallet</li>
+          </ul>
+          <div class="creds-box">Login: <span>customer@quickbite.app</span> / <span>pass123</span></div>
+          <a href="https://github.com/Sumyaranjan2007/Quick-bites/releases/latest" class="btn-download">Download Customer APK</a>
+        </div>
+
+        <!-- Restaurant -->
+        <div class="app-card">
+          <div class="app-card-header">
+            <div class="app-card-icon">R</div>
+            <span class="device-badge">Device 2</span>
+          </div>
+          <h3>Restaurant Partner</h3>
+          <p>Live kitchen order terminal with audio alerts, countdown timers, menu management, and pickup code verification.</p>
+          <ul class="app-features">
+            <li>120s countdown accept/reject timer</li>
+            <li>Kitchen Order Ticket (KOT) display</li>
+            <li>Real-time menu stock toggle</li>
+            <li>4-digit pickup code handshake</li>
+          </ul>
+          <div class="creds-box">Login: <span>partner@quickbite.app</span> / <span>pass123</span></div>
+          <a href="https://github.com/Sumyaranjan2007/Quick-bites/releases/latest" class="btn-download">Download Restaurant APK</a>
+        </div>
+
+        <!-- Delivery -->
+        <div class="app-card">
+          <div class="app-card-header">
+            <div class="app-card-icon">D</div>
+            <span class="device-badge">Device 3</span>
+          </div>
+          <h3>Delivery Partner</h3>
+          <p>Shift management, incoming order broadcasts, turn-by-turn navigation, GPS telemetry, and doorstep OTP verification.</p>
+          <ul class="app-features">
+            <li>Shift check-in/out toggle</li>
+            <li>15s incoming broadcast card</li>
+            <li>Background 3s GPS streaming</li>
+            <li>COD cash collection ledger</li>
+          </ul>
+          <div class="creds-box">Login: <span>rider@quickbite.app</span> / <span>pass123</span></div>
+          <a href="https://github.com/Sumyaranjan2007/Quick-bites/releases/latest" class="btn-download">Download Delivery APK</a>
+        </div>
+
+        <!-- Admin -->
+        <div class="app-card">
+          <div class="app-card-header">
+            <div class="app-card-icon">A</div>
+            <span class="device-badge">Device 4</span>
+          </div>
+          <h3>Admin Operations</h3>
+          <p>Platform pulse tower with GMV metrics, real-time order maps, KYC verification queues, and instant wallet refunds.</p>
+          <ul class="app-features">
+            <li>Live GMV and active order counters</li>
+            <li>1-tap KYC Approve/Reject</li>
+            <li>Dispute resolution console</li>
+            <li>Instant wallet refund crediting</li>
+          </ul>
+          <div class="creds-box">Login: <span>admin@quickbite.app</span> / <span>pass123</span></div>
+          <a href="https://github.com/Sumyaranjan2007/Quick-bites/releases/latest" class="btn-download">Download Admin APK</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Web Portals -->
+    <section class="web-section">
+      <div class="section-title">
+        <h2>Web Portals</h2>
+        <p>Access the Restaurant and Admin dashboards from any browser.</p>
+      </div>
+
+      <div class="web-grid">
+        <div class="web-card">
+          <h3>Restaurant Dashboard</h3>
+          <p>Kitchen order management, menu catalog editing, payout ledger, and real-time order acceptance from your desktop browser.</p>
+          <a href="https://quickbite-restaurant.onrender.com" class="btn-download" style="background: linear-gradient(135deg, var(--warning), #D97706);">Open Restaurant Portal</a>
+        </div>
+        <div class="web-card">
+          <h3>Admin Control Tower</h3>
+          <p>Platform operations dashboard with marketplace telemetry, KYC verification pipelines, and dispute resolution arbitration.</p>
+          <a href="https://quickbite-admin.onrender.com" class="btn-download" style="background: linear-gradient(135deg, var(--purple), #7C3AED);">Open Admin Portal</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="tech-section">
+      <div class="section-title">
+        <h2>Technology Stack</h2>
+        <p>Production-grade engineering. Zero monthly cost.</p>
+      </div>
+
+      <div class="tech-grid">
+        <div class="tech-pill">
+          <div class="tech-pill-name">React Native</div>
+          <div class="tech-pill-role">Mobile Apps</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Node.js</div>
+          <div class="tech-pill-role">Backend API</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Express</div>
+          <div class="tech-pill-role">HTTP Server</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Socket.IO</div>
+          <div class="tech-pill-role">Real-Time Engine</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">TypeScript</div>
+          <div class="tech-pill-role">Type Safety</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Turborepo</div>
+          <div class="tech-pill-role">Monorepo Build</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Zod</div>
+          <div class="tech-pill-role">Validation</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">bcrypt + JWT</div>
+          <div class="tech-pill-role">Auth Security</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Vite + React</div>
+          <div class="tech-pill-role">Web Portals</div>
+          <div class="tech-pill-free">FREE</div>
+        </div>
+        <div class="tech-pill">
+          <div class="tech-pill-name">Render.com</div>
+          <div class="tech-pill-role">Cloud Hosting</div>
+          <div class="tech-pill-free">FREE TIER</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Setup -->
+    <section class="setup-section">
+      <div class="section-title">
+        <h2>Quick Setup</h2>
+        <p>Get the full ecosystem running in under 5 minutes.</p>
+      </div>
+
+      <div class="setup-steps">
+        <div class="setup-step">
+          <div class="step-number">1</div>
+          <h4>Download an APK</h4>
+          <p>Tap any download button above on your Android phone. Enable "Install from Unknown Sources" if prompted.</p>
+        </div>
+        <div class="setup-step">
+          <div class="step-number">2</div>
+          <h4>Enter Backend URL</h4>
+          <p>On the login screen, enter the backend URL: <code>https://quickbite-api.onrender.com</code></p>
+        </div>
+        <div class="setup-step">
+          <div class="step-number">3</div>
+          <h4>Log In with Demo Credentials</h4>
+          <p>Use the credentials shown on each app card above. All accounts are pre-loaded with realistic data.</p>
+        </div>
+        <div class="setup-step">
+          <div class="step-number">4</div>
+          <h4>Experience Real-Time</h4>
+          <p>Open multiple apps simultaneously. Place an order on Customer, see it appear on Restaurant and Admin in real-time.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>
+        Quick Bite Platform v2.0.0<br>
+        Built with production-grade engineering. Zero cost. Open source.<br>
+        <a href="https://github.com/Sumyaranjan2007/Quick-bites">View Source on GitHub</a>
+      </p>
+    </footer>
+
+  </div>
+
+</body>
+</html>
