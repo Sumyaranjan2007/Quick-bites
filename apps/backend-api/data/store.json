@@ -5,12 +5,12 @@
       {
         "id": "usr_admin_01",
         "email": "admin@quickbite.app",
-        "passwordHash": "$2b$10$wI0V53ERabW1FGQFCBFnduGMX3mHjRnEfZUR3xC9GOFODwRSV/Upa",
+        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
         "fullName": "Ananya Iyer",
         "role": "admin",
         "isGold": true,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-07T12:38:51.208Z"
+        "createdAt": "2026-09-08T16:43:49.687Z"
       }
     ],
     [
@@ -18,12 +18,12 @@
       {
         "id": "usr_partner_01",
         "email": "partner@quickbite.app",
-        "passwordHash": "$2b$10$wI0V53ERabW1FGQFCBFnduGMX3mHjRnEfZUR3xC9GOFODwRSV/Upa",
+        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
         "fullName": "Sunita Deshmukh",
         "role": "restaurant_owner",
         "isGold": false,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-07T12:38:51.209Z"
+        "createdAt": "2026-09-08T16:43:49.688Z"
       }
     ],
     [
@@ -31,12 +31,12 @@
       {
         "id": "usr_partner_legacy",
         "email": "sunita.partner@quickbite.app",
-        "passwordHash": "$2b$10$wI0V53ERabW1FGQFCBFnduGMX3mHjRnEfZUR3xC9GOFODwRSV/Upa",
+        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
         "fullName": "Sunita Deshmukh",
         "role": "restaurant_owner",
         "isGold": false,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-07T12:38:51.209Z"
+        "createdAt": "2026-09-08T16:43:49.688Z"
       }
     ],
     [
@@ -44,12 +44,12 @@
       {
         "id": "usr_rider_01",
         "email": "rider@quickbite.app",
-        "passwordHash": "$2b$10$wI0V53ERabW1FGQFCBFnduGMX3mHjRnEfZUR3xC9GOFODwRSV/Upa",
+        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
         "fullName": "Vikram Singh",
         "role": "rider",
         "isGold": false,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-07T12:38:51.209Z"
+        "createdAt": "2026-09-08T16:43:49.688Z"
       }
     ],
     [
@@ -57,12 +57,12 @@
       {
         "id": "usr_customer_01",
         "email": "customer@quickbite.app",
-        "passwordHash": "$2b$10$wI0V53ERabW1FGQFCBFnduGMX3mHjRnEfZUR3xC9GOFODwRSV/Upa",
+        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
         "fullName": "Rahul Sharma",
         "role": "customer",
         "isGold": true,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-07T12:38:51.209Z"
+        "createdAt": "2026-09-08T16:43:49.688Z"
       }
     ],
     [
@@ -70,26 +70,12 @@
       {
         "id": "usr_customer_legacy",
         "email": "rahul.sharma@quickbite.app",
-        "passwordHash": "$2b$10$wI0V53ERabW1FGQFCBFnduGMX3mHjRnEfZUR3xC9GOFODwRSV/Upa",
+        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
         "fullName": "Rahul Sharma",
         "role": "customer",
         "isGold": true,
         "preferredLanguage": "kn",
-        "createdAt": "2026-09-07T12:38:51.209Z"
-      }
-    ],
-    [
-      "usr_1788784731443_808t73",
-      {
-        "id": "usr_1788784731443_808t73",
-        "email": "newuser@quickbite.app",
-        "passwordHash": "$2b$10$sjecLwIX.yV1VOZ7lNWH5.U0uDRYhzEm9Ypgmy6JOARJkw/ya5HYy",
-        "fullName": "New Secure User",
-        "phone": "9876543210",
-        "role": "customer",
-        "isGold": false,
-        "preferredLanguage": "en",
-        "createdAt": "2026-09-07T12:38:51.443Z"
+        "createdAt": "2026-09-08T16:43:49.688Z"
       }
     ]
   ],
@@ -221,7 +207,64 @@
     ]
   ],
   "addresses": [],
-  "orders": [],
+  "orders": [
+    [
+      "ord_f767ded2-e73c-43b4-ab56-f3407a156bd3",
+      {
+        "id": "ord_f767ded2-e73c-43b4-ab56-f3407a156bd3",
+        "idempotencyKey": "a5455e05-e05f-4977-a9c3-3e5b940cc087",
+        "orderNumber": "QB-332445",
+        "customerId": "usr_customer_01",
+        "restaurantId": "rst_bbh_01",
+        "deliveryAddressId": "addr_sample_01",
+        "status": "DELIVERED",
+        "paymentStatus": "PAID",
+        "paymentMethod": "RAZORPAY_SANDBOX",
+        "items": [
+          {
+            "dishId": "dish_ck_biryani",
+            "name": "Special Chicken Dum Biryani",
+            "unitPrice": 320,
+            "quantity": 1,
+            "addonsTotal": 180,
+            "selectedOptions": [
+              {
+                "groupId": "grp_portion",
+                "groupTitle": "Portion Size",
+                "optionId": "opt_large",
+                "optionName": "Large (Serves 2-3)",
+                "priceDelta": 150
+              },
+              {
+                "groupId": "grp_extras",
+                "groupTitle": "Add-ons & Sides",
+                "optionId": "opt_extra_raita",
+                "optionName": "Extra Boondi Raita",
+                "priceDelta": 30
+              }
+            ],
+            "totalPrice": 500
+          }
+        ],
+        "bill": {
+          "itemsTotal": 500,
+          "gstAmount": 25,
+          "packagingFee": 25,
+          "deliveryFee": 0,
+          "platformFee": 5.9,
+          "couponDiscount": 100,
+          "totalAmount": 455.9,
+          "restaurantNetPayout": 445
+        },
+        "deliveryOtp": "9946",
+        "createdAt": "2026-09-08T16:43:49.691Z",
+        "updatedAt": "2026-09-08T16:43:49.733Z",
+        "pickupCode": "5869",
+        "preparationMinutes": 20,
+        "deliveredAt": "2026-09-08T16:43:49.733Z"
+      }
+    ]
+  ],
   "menus": [
     [
       "rst_bbh_01",
@@ -484,7 +527,7 @@
         "userId": "usr_customer_01",
         "balance": 500,
         "currency": "INR",
-        "updatedAt": "2026-09-07T12:38:51.210Z"
+        "updatedAt": "2026-09-08T16:43:49.689Z"
       }
     ],
     [
@@ -494,80 +537,59 @@
         "userId": "usr_rider_01",
         "balance": 240,
         "currency": "INR",
-        "updatedAt": "2026-09-07T12:38:51.210Z"
-      }
-    ],
-    [
-      "usr_1788784731443_808t73",
-      {
-        "id": "wlt_usr_1788784731443_808t73",
-        "userId": "usr_1788784731443_808t73",
-        "balance": 100,
-        "currency": "INR",
-        "updatedAt": "2026-09-07T12:38:51.443Z"
+        "updatedAt": "2026-09-08T16:43:49.689Z"
       }
     ]
   ],
   "walletTransactions": [
     [
-      "tx_1788784731210_hqpt6a",
+      "tx_1788885829689_38jrv7",
       {
-        "id": "tx_1788784731210_hqpt6a",
+        "id": "tx_1788885829689_38jrv7",
         "walletId": "wlt_usr_customer_01",
         "amount": 500,
         "type": "CREDIT",
         "description": "Welcome Promotional Wallet Balance",
-        "createdAt": "2026-09-07T12:38:51.210Z"
+        "createdAt": "2026-09-08T16:43:49.689Z"
       }
     ],
     [
-      "tx_1788784731210_f8632o",
+      "tx_1788885829689_oaffeh",
       {
-        "id": "tx_1788784731210_f8632o",
+        "id": "tx_1788885829689_oaffeh",
         "walletId": "wlt_usr_rider_01",
         "amount": 240,
         "type": "CREDIT",
         "description": "Shift Earnings Balance",
-        "createdAt": "2026-09-07T12:38:51.210Z"
-      }
-    ],
-    [
-      "tx_1788784731443_2jesyk",
-      {
-        "id": "tx_1788784731443_2jesyk",
-        "walletId": "wlt_usr_1788784731443_808t73",
-        "amount": 100,
-        "type": "CREDIT",
-        "description": "Sign-up Bonus Balance",
-        "createdAt": "2026-09-07T12:38:51.443Z"
+        "createdAt": "2026-09-08T16:43:49.689Z"
       }
     ]
   ],
   "kycDocuments": [
     [
-      "kyc_1788784731211_wv609j",
+      "kyc_1788885829689_dykolh",
       {
-        "id": "kyc_1788784731211_wv609j",
+        "id": "kyc_1788885829689_dykolh",
         "entityType": "RESTAURANT",
         "entityId": "rst_bbh_01",
         "entityName": "Bangalore Biryani House",
         "documentType": "FSSAI",
         "fileUrl": "https://assets.quickbite.app/kyc/fssai-sample-license.jpg",
         "status": "PENDING",
-        "submittedAt": "2026-09-07T12:38:51.211Z"
+        "submittedAt": "2026-09-08T16:43:49.689Z"
       }
     ],
     [
-      "kyc_1788784731211_me12tf",
+      "kyc_1788885829689_aqvzff",
       {
-        "id": "kyc_1788784731211_me12tf",
+        "id": "kyc_1788885829689_aqvzff",
         "entityType": "RIDER",
         "entityId": "rdr_vikram_01",
         "entityName": "Vikram Singh",
         "documentType": "DRIVING_LICENSE",
         "fileUrl": "https://assets.quickbite.app/kyc/dl-sample-license.jpg",
         "status": "PENDING",
-        "submittedAt": "2026-09-07T12:38:51.211Z"
+        "submittedAt": "2026-09-08T16:43:49.689Z"
       }
     ]
   ]
