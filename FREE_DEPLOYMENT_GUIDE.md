@@ -63,9 +63,10 @@ apps/customer-mobile      apps/restaurant-mobile apps/delivery-mobile  apps/admi
    - Root welcome route `GET /` and universal `/api` & `/api/v1` routes active.
 3. **Mobile Apps Configured**:
    - All 4 mobile apps updated to point to `https://quick-bites-production-9f45.up.railway.app/api`.
-4. **Customer Mobile APK Compiled**:
-   - Output binary: `build/apk/QuickBite-Customer.apk` (55.1 MB).
-   - Bundled Hermes bytecode targeting Android SDK 34+.
+4. **Customer Mobile APK Compiled & Hardened**:
+   - Output binary: `build/apk/QuickBite-Customer.apk` (33.0 MB).
+   - Dual-ABI architecture support: `armeabi-v7a` (32-bit) + `arm64-v8a` (64-bit).
+   - Bundled clean Hermes bytecode targeting Android SDK 34+ with isolated React Native tokens (no web DOM conflicts).
 
 ---
 
