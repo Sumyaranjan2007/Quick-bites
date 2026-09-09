@@ -16,7 +16,7 @@ if (!loadStoreFromFile()) {
 
 const app = createApp();
 
-const server = app.listen(config.PORT, () => {
+const server = app.listen(config.PORT, '0.0.0.0', () => {
   console.log('====================================================');
   console.log('       QUICK BITE API SERVER STARTED                ');
   console.log('====================================================');

@@ -1,6 +1,6 @@
 # Multi-Stage Dockerfile for Quick Bite Backend API
 # Stage 1: Build & Dependencies
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ COPY packages/pricing-engine ./packages/pricing-engine
 COPY apps/backend-api ./apps/backend-api
 
 # Stage 2: Production Runner
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
@@ -48,8 +48,8 @@ USER node
 
 EXPOSE 5000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD sh -c 'wget --no-verbose --tries=1 --spider http://localhost:${PORT:-5000}/health || exit 1'
 
 # Use node with experimental-strip-types for TypeScript execution in production
 CMD ["node", "--experimental-strip-types", "apps/backend-api/src/server.ts"]
