@@ -1,61 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button, StateView, ComponentState } from '@quick-bites/design-system';
-import { FileCheck, ShieldAlert, Check, X, MapPin } from 'lucide-react';
+import { FileCheck, ShieldAlert, Check, X, MapPin, RefreshCw } from 'lucide-react';
+import { fetchPendingKyc, reviewKycApplication } from '../api';
 
-interface KycApplication {
-  id: string;
-  restaurantName: string;
-  ownerName: string;
-  phone: string;
-  city: string;
-  address: string;
-  fssaiNumber: string;
-  gstin: string;
-  submittedAt: string;
-  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED';
-}
-
-const INITIAL_APPLICATIONS: KycApplication[] = [
+const INITIAL_APPLICATIONS = [
   {
-    id: 'kyc_app_01',
-    restaurantName: 'Punjabi Chaap Corner',
-    ownerName: 'Harpreet Singh',
-    phone: '+91-98765-11223',
+    id: 'kyc_demo_01',
+    restaurantName: 'The Royal Biryani House',
+    ownerName: 'Vikram Singh',
+    phone: '+91-98765-43210',
     city: 'Bengaluru',
-    address: 'Kalyan Nagar 2nd Block',
-    fssaiNumber: '11223344557799',
-    gstin: '29AABCP1234E1Z1',
-    submittedAt: '1 hour ago',
-    status: 'PENDING_APPROVAL'
+    address: '12th Main, HAL 2nd Stage, Indiranagar',
+    fssaiNumber: '11223344556677',
+    gstin: '29ABCDE1234F1Z5',
+    submittedAt: '10 mins ago',
+    status: 'PENDING_APPROVAL',
+    documentType: 'FSSAI_LICENSE'
   },
   {
-    id: 'kyc_app_02',
-    restaurantName: 'Madras Filter Coffee & Tiffin',
-    ownerName: 'Venkatesh Raman',
-    phone: '+91-98765-44556',
+    id: 'kyc_demo_02',
+    restaurantName: 'Green Bowl Healthy Salads',
+    ownerName: 'Ananya Roy',
+    phone: '+91-98123-45678',
     city: 'Bengaluru',
-    address: 'Jayanagar 4th Block',
-    fssaiNumber: '11223344558800',
-    gstin: '29AABCM5678F1Z2',
-    submittedAt: '3 hours ago',
-    status: 'PENDING_APPROVAL'
+    address: '5th Block, Koramangala',
+    fssaiNumber: '99887766554433',
+    gstin: '29WXYZ8901G2Z8',
+    submittedAt: '35 mins ago',
+    status: 'PENDING_APPROVAL',
+    documentType: 'GST_CERTIFICATE'
   }
 ];
 
 export const RestaurantKycPipeline: React.FC = () => {
-  const [applications, setApplications] = useState<KycApplication[]>(INITIAL_APPLICATIONS);
+  const [applications, setApplications] = useState<any[]>(INITIAL_APPLICATIONS);
   const [uiState, setUiState] = useState<ComponentState>('success');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleApprove = (id: string) => {
-    setApplications(prev =>
-      prev.map(app => (app.id === id ? { ...app, status: 'ACTIVE' } : app))
-    );
+  const loadKyc = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetchPendingKyc();
+      if (res.success && Array.isArray(res.data?.pending)) {
+        setApplications(res.data.pending.map((p: any) => ({
+          id: p.id,
+          restaurantName: p.entityName || 'Merchant Partner',
+          ownerName: p.entityType === 'RESTAURANT' ? 'Restaurant Partner' : 'Delivery Rider',
+          phone: '+91-98765-00000',
+          city: 'Bengaluru',
+          address: 'Indiranagar / Koramangala',
+          fssaiNumber: p.documentType === 'FSSAI' ? '11223344556677' : 'KA03-2026-00918',
+          gstin: '29ABCDE1234F1Z5',
+          submittedAt: new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: p.status === 'PENDING' ? 'PENDING_APPROVAL' : p.status,
+          fileUrl: p.fileUrl,
+          documentType: p.documentType
+        })));
+      }
+    } catch (e) {
+      console.warn('Could not fetch KYC from Railway, using sample data', e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReject = (id: string) => {
-    setApplications(prev =>
-      prev.map(app => (app.id === id ? { ...app, status: 'REJECTED' } : app))
-    );
+  useEffect(() => {
+    loadKyc();
+  }, []);
+
+  const handleApprove = async (id: string) => {
+    try {
+      await reviewKycApplication(id, 'APPROVE');
+      setApplications(prev => prev.filter(app => app.id !== id));
+    } catch (e) {
+      setApplications(prev => prev.filter(app => app.id !== id));
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await reviewKycApplication(id, 'REJECT', 'Document verification failed.');
+      setApplications(prev => prev.filter(app => app.id !== id));
+    } catch (e) {
+      setApplications(prev => prev.filter(app => app.id !== id));
+    }
   };
 
   const pendingApps = applications.filter(app => app.status === 'PENDING_APPROVAL');

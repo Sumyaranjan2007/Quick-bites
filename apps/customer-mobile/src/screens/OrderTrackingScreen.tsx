@@ -6,7 +6,7 @@ import {
   ScrollView,
   StyleSheet
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from '../theme/tokens';
 import { CheckCircle2, Clock, Bike, ShieldCheck, Phone, ArrowLeft } from 'lucide-react-native';
 
 interface Props {

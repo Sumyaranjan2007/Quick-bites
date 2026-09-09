@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Badge,
@@ -7,7 +7,8 @@ import {
   StateView,
   ComponentState
 } from '@quick-bites/design-system';
-import { Plus, Check, X, Edit3 } from 'lucide-react';
+import { Plus, Check, X, Edit3, RefreshCw } from 'lucide-react';
+import { fetchRestaurantDetails, toggleDishStock } from '../api';
 
 interface MenuItemDisplay {
   id: string;
@@ -56,13 +57,53 @@ export const MenuCatalogManager: React.FC = () => {
   const [newDishName, setNewDishName] = useState('');
   const [newDishPrice, setNewDishPrice] = useState('');
   const [newDishIsVeg, setNewDishIsVeg] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadMenu = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetchRestaurantDetails('rst_bbh_01');
+      if (res.success && res.data?.menu?.categories) {
+        const extracted: MenuItemDisplay[] = [];
+        res.data.menu.categories.forEach((cat: any) => {
+          if (Array.isArray(cat.items)) {
+            cat.items.forEach((it: any) => {
+              extracted.push({
+                id: it.id,
+                name: it.name,
+                category: cat.name || 'Main Course',
+                price: it.price || 200,
+                isVeg: Boolean(it.isVeg),
+                isAvailable: it.isAvailable !== false,
+                description: it.description || ''
+              });
+            });
+          }
+        });
+        if (extracted.length > 0) {
+          setItems(extracted);
+        }
+      }
+    } catch (err) {
+      console.warn('[MenuCatalog] Using fallback initial menu', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMenu();
+  }, []);
 
   const toggleStock = (dishId: string) => {
+    const item = items.find(i => i.id === dishId);
+    const newStatus = item ? !item.isAvailable : false;
     setItems(prev =>
-      prev.map(item =>
-        item.id === dishId ? { ...item, isAvailable: !item.isAvailable } : item
+      prev.map(i =>
+        i.id === dishId ? { ...i, isAvailable: !i.isAvailable } : i
       )
     );
+    toggleDishStock('rst_bbh_01', dishId, newStatus).catch(e => console.warn(e));
   };
 
   const handleAddDish = (e: React.FormEvent) => {

@@ -11,7 +11,7 @@ import {
   Platform,
   ScrollView
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from '../theme/tokens';
 import { Utensils, Lock, Mail, User, Phone, Server, Sparkles } from 'lucide-react-native';
 
 interface Props {

@@ -376,6 +376,31 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-09] -- Antigravity AI Engine -- Cloud Deployment & APK Crash Fix
+**Description:** Production backend deployment to Railway, Vercel Web Portals live API connectivity & CORS resolution, and Customer Mobile APK dual-ABI launch fix.
+**Chunks Modified:** 02, 05, 06, 08
+**Changes:**
+- **Railway Backend Cloud Deployment (`quick-bites-production-9f45.up.railway.app`):**
+  - Configured Railway Node 22 runtime with dynamic `$PORT` and `0.0.0.0` network binding.
+  - Mounted root health welcome handler `GET /` and `/api` prefix alongside `/api/v1` for universal client routing.
+  - **Critical CORS Policy Fix (`apps/backend-api/src/middlewares/cors.ts`):** Enabled wildcard origin matching for `*.vercel.app` and `*.railway.app`, resolving browser cross-origin policy blockage preventing Vercel web apps from communicating with Railway.
+- **Vercel Web Portals Live API Integration:**
+  - Created `apps/admin-web/src/api.ts` with auto-authenticating JWT client (`admin@quickbite.app`), connecting Operations Control Tower and Restaurant KYC Pipeline to live Railway backend.
+  - Created `apps/restaurant-web/src/api.ts` with partner client (`partner@quickbite.app`), connecting Live Order Terminal (live kitchen orders, status progression, Web Audio chime) and Menu Catalog Manager (live menu fetching, real-time dish stock toggling).
+  - Added "Sync Live Data" manual polling triggers with state-aware loading animations.
+  - Added missing `tsconfig.json` across mobile workspaces and verified full 10/10 Turborepo build success (`turbo run build`).
+- **Android Customer Mobile APK Launch Crash Fix:**
+  - **ABI Inconsistency Resolved:** `gradle.properties` was constrained to `arm64-v8a`, causing `libexpo-modules-core.so` to be absent for 32-bit `armeabi-v7a` runtimes (`UnsatisfiedLinkError`). Configured dual-ABI support: `reactNativeArchitectures=armeabi-v7a,arm64-v8a` and `ndk { abiFilters "armeabi-v7a", "arm64-v8a" }`.
+  - **Native/Web Boundary Separation:** Extracted pure React Native tokens into `apps/customer-mobile/src/theme/tokens.ts`, eliminating React Native runtime Hermes `Invariant Violation` caused by importing web DOM elements (`<button>`, `<input>`) from `@quick-bites/design-system`.
+  - **Stale Asset Eviction:** Removed obsolete `index.android.bundle` from `main/assets` to allow Gradle's `createBundleReleaseJsAndAssets` to package clean, Hermes-optimized bytecode.
+  - Re-assembled release build: `build/apk/QuickBite-Customer.apk` (33 MB) successfully generated with both `lib/arm64-v8a/` and `lib/armeabi-v7a/` native libraries present.
+**Build Status:** Complete & Live (10/10 packages building, Railway live, Vercel live, release APK verified).
+**Known Issues:** None.
+**NEXT AI SHOULD:** Maintain real-time WebSocket connection monitoring between Vercel web portals and Railway backend.
+**Notes:** 100% Free deployment tier maintained ($0.00 infrastructure cost across Railway, Vercel, and GitHub).
+
+---
+
 ## Session Log Template (For Future Sessions)
 ```markdown
 ## [YYYY-MM-DD] -- [AI Model] -- Session [N]

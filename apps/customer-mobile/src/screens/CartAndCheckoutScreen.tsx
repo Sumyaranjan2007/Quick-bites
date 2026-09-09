@@ -7,7 +7,7 @@ import {
   ScrollView,
   StyleSheet
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from '../theme/tokens';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus } from 'lucide-react-native';
 import { CartItem } from './RestaurantDetailScreen';

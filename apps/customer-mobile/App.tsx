@@ -7,7 +7,7 @@ import {
   StyleSheet,
   StatusBar
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from './src/theme/tokens';
 import { Utensils, ShoppingBag, User } from 'lucide-react-native';
 import { DiscoveryFeedScreen, RestaurantItem } from './src/screens/DiscoveryFeedScreen';
 import { RestaurantDetailScreen, CartItem } from './src/screens/RestaurantDetailScreen';

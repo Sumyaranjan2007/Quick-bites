@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Switch
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from '../theme/tokens';
 import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft, CreditCard, Cloud } from 'lucide-react-native';
 
 interface Props {

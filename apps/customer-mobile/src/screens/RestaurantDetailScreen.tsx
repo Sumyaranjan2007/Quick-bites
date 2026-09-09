@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Modal
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from '../theme/tokens';
 import { ArrowLeft, Star, ShoppingBag, ShieldCheck, Plus, Check } from 'lucide-react-native';
 import { RestaurantItem } from './DiscoveryFeedScreen';
 

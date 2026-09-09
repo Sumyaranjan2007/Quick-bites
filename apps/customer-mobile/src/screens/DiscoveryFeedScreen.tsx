@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Switch
 } from 'react-native';
-import { tokens } from '@quick-bites/design-system';
+import { tokens } from '../theme/tokens';
 import { Search, MapPin, Star, Clock, Sparkles, RefreshCw } from 'lucide-react-native';
 
 export interface RestaurantItem {

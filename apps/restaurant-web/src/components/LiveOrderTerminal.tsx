@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Badge,
@@ -6,7 +6,8 @@ import {
   StateView,
   ComponentState
 } from '@quick-bites/design-system';
-import { Bell, Clock, CheckCircle2, PackageCheck, Bike } from 'lucide-react';
+import { Bell, Clock, CheckCircle2, PackageCheck, Bike, RefreshCw } from 'lucide-react';
+import { fetchRestaurantOrders, updateOrderStatus } from '../api';
 
 interface TerminalOrder {
   id: string;
@@ -52,6 +53,37 @@ export const LiveOrderTerminal: React.FC = () => {
   const [uiState, setUiState] = useState<ComponentState>('success');
   const [selectedPrepTime, setSelectedPrepTime] = useState<number>(20);
   const [lastChimeTime, setLastChimeTime] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadLiveOrders = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetchRestaurantOrders('rst_bbh_01');
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        const mapped: TerminalOrder[] = res.data.map((o: any) => ({
+          id: o.id,
+          orderNumber: o.orderNumber || o.id.slice(-6).toUpperCase(),
+          customerName: o.customerName || 'Customer',
+          items: Array.isArray(o.items) ? o.items : [
+            { name: 'Special Chicken Dum Biryani', quantity: 1, isVeg: false }
+          ],
+          totalAmount: typeof o.totalAmount === 'number' ? o.totalAmount : 350,
+          status: o.status || 'ORDER_PLACED',
+          prepTimeMinutes: o.prepTimeMinutes || 20,
+          placedAt: o.createdAt ? new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'
+        }));
+        setOrders(mapped);
+      }
+    } catch (err) {
+      console.warn('[Terminal] Using local orders fallback', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveOrders();
+  }, []);
 
   // Kitchen Chime Generator using standard Web Audio API
   const playKitchenChime = () => {
@@ -85,6 +117,7 @@ export const LiveOrderTerminal: React.FC = () => {
           : o
       )
     );
+    updateOrderStatus(orderId, 'PREPARING', selectedPrepTime).catch(e => console.warn(e));
   };
 
   const handleMarkReady = (orderId: string) => {
@@ -93,6 +126,7 @@ export const LiveOrderTerminal: React.FC = () => {
         o.id === orderId ? { ...o, status: 'READY_FOR_PICKUP' } : o
       )
     );
+    updateOrderStatus(orderId, 'READY_FOR_PICKUP').catch(e => console.warn(e));
   };
 
   const handleHandover = (orderId: string) => {
@@ -101,6 +135,7 @@ export const LiveOrderTerminal: React.FC = () => {
         o.id === orderId ? { ...o, status: 'OUT_FOR_DELIVERY' } : o
       )
     );
+    updateOrderStatus(orderId, 'OUT_FOR_DELIVERY').catch(e => console.warn(e));
   };
 
   const activeOrders = orders.filter(o => o.status !== 'OUT_FOR_DELIVERY');
@@ -118,6 +153,9 @@ export const LiveOrderTerminal: React.FC = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+          <Button variant="outline" size="sm" onClick={loadLiveOrders} leftIcon={<RefreshCw size={16} className={isLoading ? 'spin' : ''} />}>
+            {isLoading ? 'Syncing...' : 'Sync Live Orders'}
+          </Button>
           <Button variant="outline" size="sm" onClick={playKitchenChime} leftIcon={<Bell size={16} />}>
             Test Kitchen Chime {lastChimeTime ? `(${lastChimeTime})` : ''}
           </Button>
