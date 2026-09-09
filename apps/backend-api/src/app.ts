@@ -54,8 +54,9 @@ export function createApp(): Express {
     });
   });
 
-  // 8. API v1 Router
+  // 8. API Router (Universal support for /api/v1 and /api)
   app.use('/api/v1', apiRouter);
+  app.use('/api', apiRouter);
 
   // 9. 404 Route Handler
   app.use((req, res, next) => {

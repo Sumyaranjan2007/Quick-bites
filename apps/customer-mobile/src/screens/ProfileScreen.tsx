@@ -23,7 +23,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
   const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi' | 'kn'>('kn');
   const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number>(500.00);
-  const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'http://10.0.2.2:5000/api');
+  const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api');
 
   React.useEffect(() => {
     if (!apiUrl) return;

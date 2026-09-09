@@ -29,7 +29,7 @@ import {
   Sparkles
 } from 'lucide-react-native';
 
-const DEFAULT_API_URL = 'http://10.0.2.2:5000/api';
+const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
 export default function RestaurantApp() {
   // Auth state

@@ -22,7 +22,7 @@ export default function App() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string } | null>(null);
-  const [apiUrl, setApiUrl] = useState<string>('http://10.0.2.2:5000/api');
+  const [apiUrl, setApiUrl] = useState<string>('https://quick-bites-production-9f45.up.railway.app/api');
   const [authToken, setAuthToken] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
 

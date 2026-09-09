@@ -69,7 +69,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
   const handleCheckout = async () => {
     setIsProcessing(true);
-    const effectiveBase = apiUrl || 'http://10.0.2.2:5000/api';
+    const effectiveBase = apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api';
     try {
       const generatedUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0;
