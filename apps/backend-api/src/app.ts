@@ -33,6 +33,27 @@ export function createApp(): Express {
   // 7. Direct /health probe at root
   app.get('/health', getHealth);
 
+  // Root welcome & status endpoint
+  app.get('/', (req, res) => {
+    res.json({
+      success: true,
+      name: 'Quick Bite Platform API',
+      version: '2.0.0',
+      status: 'ONLINE',
+      endpoints: {
+        health: '/health',
+        restaurants: '/api/v1/restaurants',
+        search: '/api/v1/search',
+        auth: '/api/v1/auth',
+        orders: '/api/v1/orders'
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId
+      }
+    });
+  });
+
   // 8. API v1 Router
   app.use('/api/v1', apiRouter);
 
