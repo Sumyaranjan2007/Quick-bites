@@ -64,6 +64,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
   const [searchQuery, setSearchQuery] = useState('');
   const [isPureVegOnly, setIsPureVegOnly] = useState(false);
   const [restaurants, setRestaurants] = useState<RestaurantItem[]>(SAMPLE_RESTAURANTS);
+  const [state, setState] = useState<'loading' | 'success' | 'error'>('success');
 
   React.useEffect(() => {
     if (!apiUrl) return;

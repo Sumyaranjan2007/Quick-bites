@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: tokens.colors.primary[300],
+    borderColor: tokens.colors.primary[100],
     backgroundColor: tokens.colors.primary[50],
     borderRadius: 12,
     paddingVertical: 12,
