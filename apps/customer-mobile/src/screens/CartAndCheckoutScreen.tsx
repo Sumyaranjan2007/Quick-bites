@@ -100,7 +100,10 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           quantity: item.quantity,
           ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {})
         })),
-        paymentMethod: 'RAZORPAY_SANDBOX',
+        // Cash on delivery is the only method this build can honestly complete:
+        // there is no Razorpay SDK integrated, and the server (correctly) refuses
+        // simulated payment signatures outside demo mode.
+        paymentMethod: 'CASH_ON_DELIVERY',
         couponCode: appliedCoupon || undefined,
         idempotencyKey: generatedUUID,
         distanceKm: distanceKm ?? 2.5
@@ -310,7 +313,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         </View>
       )}
 
-      {/* Pay Now Button (Razorpay Simulated Flow) */}
+      {/* Place Order (Cash on Delivery) */}
       <TouchableOpacity
         style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
         onPress={handleCheckout}
@@ -318,7 +321,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       >
         <CreditCard size={18} color="#FFFFFF" />
         <Text style={styles.payButtonText}>
-          {isProcessing ? 'Verifying with Razorpay...' : `Pay Rs ${pricingResult.totalAmount.toFixed(2)} via UPI / Card`}
+          {isProcessing ? 'Placing your order...' : `Place Order • Rs ${pricingResult.totalAmount.toFixed(2)} (Cash on Delivery)`}
         </Text>
       </TouchableOpacity>
     </ScrollView>
