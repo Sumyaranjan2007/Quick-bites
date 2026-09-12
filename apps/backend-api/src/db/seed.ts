@@ -127,7 +127,10 @@ export async function seedDatabase() {
     isOpen: true,
     ratingAverage: 4.8,
     ratingCount: 520,
-    cuisineTags: ['Biryani', 'Mughlai', 'North Indian']
+    cuisineTags: ['Biryani', 'Mughlai', 'North Indian'],
+    bannerUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=1000&auto=format&fit=crop&q=80',
+    costForTwo: 400,
+    highlightTag: 'Best in Biryani'
   });
 
   const r2 = await restaurantRepository.create({
@@ -149,7 +152,10 @@ export async function seedDatabase() {
     isOpen: true,
     ratingAverage: 4.6,
     ratingCount: 840,
-    cuisineTags: ['South Indian', 'Pure Veg', 'Breakfast', 'Dosa']
+    cuisineTags: ['South Indian', 'Pure Veg', 'Breakfast', 'Dosa'],
+    bannerUrl: 'https://images.unsplash.com/photo-1630383249896-424e482df921?w=1000&auto=format&fit=crop&q=80',
+    costForTwo: 250,
+    highlightTag: 'Popular Choice'
   });
 
   const r3 = await restaurantRepository.create({
@@ -171,7 +177,10 @@ export async function seedDatabase() {
     isOpen: true,
     ratingAverage: 4.7,
     ratingCount: 430,
-    cuisineTags: ['North Indian', 'Tandoor', 'Curries']
+    cuisineTags: ['North Indian', 'Tandoor', 'Curries'],
+    bannerUrl: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=1000&auto=format&fit=crop&q=80',
+    costForTwo: 450,
+    highlightTag: 'Gourmet Pick'
   });
 
   const r4 = await restaurantRepository.create({
@@ -193,7 +202,10 @@ export async function seedDatabase() {
     isOpen: true,
     ratingAverage: 4.9,
     ratingCount: 680,
-    cuisineTags: ['Italian', 'Woodfired Pizza', 'Pasta']
+    cuisineTags: ['Italian', 'Woodfired Pizza', 'Pasta'],
+    bannerUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=1000&auto=format&fit=crop&q=80',
+    costForTwo: 500,
+    highlightTag: 'Trending Now'
   });
 
   // 5. Rich Menus with Customizations

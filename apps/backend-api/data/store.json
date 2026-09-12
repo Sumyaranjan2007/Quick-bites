@@ -5,12 +5,12 @@
       {
         "id": "usr_admin_01",
         "email": "admin@quickbite.app",
-        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
+        "passwordHash": "$2b$10$/D.DO57Kel6pIdMiRTzWnuWC9n6BvhFEYO2klhnBklaoMRSrJJvDW",
         "fullName": "Ananya Iyer",
         "role": "admin",
         "isGold": true,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-08T16:43:49.687Z"
+        "createdAt": "2026-09-12T13:51:54.047Z"
       }
     ],
     [
@@ -18,12 +18,12 @@
       {
         "id": "usr_partner_01",
         "email": "partner@quickbite.app",
-        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
+        "passwordHash": "$2b$10$/D.DO57Kel6pIdMiRTzWnuWC9n6BvhFEYO2klhnBklaoMRSrJJvDW",
         "fullName": "Sunita Deshmukh",
         "role": "restaurant_owner",
         "isGold": false,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-08T16:43:49.688Z"
+        "createdAt": "2026-09-12T13:51:54.049Z"
       }
     ],
     [
@@ -31,12 +31,12 @@
       {
         "id": "usr_partner_legacy",
         "email": "sunita.partner@quickbite.app",
-        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
+        "passwordHash": "$2b$10$/D.DO57Kel6pIdMiRTzWnuWC9n6BvhFEYO2klhnBklaoMRSrJJvDW",
         "fullName": "Sunita Deshmukh",
         "role": "restaurant_owner",
         "isGold": false,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-08T16:43:49.688Z"
+        "createdAt": "2026-09-12T13:51:54.050Z"
       }
     ],
     [
@@ -44,12 +44,12 @@
       {
         "id": "usr_rider_01",
         "email": "rider@quickbite.app",
-        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
+        "passwordHash": "$2b$10$/D.DO57Kel6pIdMiRTzWnuWC9n6BvhFEYO2klhnBklaoMRSrJJvDW",
         "fullName": "Vikram Singh",
         "role": "rider",
         "isGold": false,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-08T16:43:49.688Z"
+        "createdAt": "2026-09-12T13:51:54.050Z"
       }
     ],
     [
@@ -57,12 +57,12 @@
       {
         "id": "usr_customer_01",
         "email": "customer@quickbite.app",
-        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
+        "passwordHash": "$2b$10$/D.DO57Kel6pIdMiRTzWnuWC9n6BvhFEYO2klhnBklaoMRSrJJvDW",
         "fullName": "Rahul Sharma",
         "role": "customer",
         "isGold": true,
         "preferredLanguage": "en",
-        "createdAt": "2026-09-08T16:43:49.688Z"
+        "createdAt": "2026-09-12T13:51:54.050Z"
       }
     ],
     [
@@ -70,12 +70,12 @@
       {
         "id": "usr_customer_legacy",
         "email": "rahul.sharma@quickbite.app",
-        "passwordHash": "$2b$10$8Ol6J3/4Cx77x5w1qB4lpOz0IoF.cqtSMcwT990YkdD3okVAqPgEm",
+        "passwordHash": "$2b$10$/D.DO57Kel6pIdMiRTzWnuWC9n6BvhFEYO2klhnBklaoMRSrJJvDW",
         "fullName": "Rahul Sharma",
         "role": "customer",
         "isGold": true,
         "preferredLanguage": "kn",
-        "createdAt": "2026-09-08T16:43:49.688Z"
+        "createdAt": "2026-09-12T13:51:54.050Z"
       }
     ]
   ],
@@ -108,7 +108,10 @@
           "Biryani",
           "Mughlai",
           "North Indian"
-        ]
+        ],
+        "bannerUrl": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=1000&auto=format&fit=crop&q=80",
+        "costForTwo": 400,
+        "highlightTag": "Best in Biryani"
       }
     ],
     [
@@ -140,7 +143,10 @@
           "Pure Veg",
           "Breakfast",
           "Dosa"
-        ]
+        ],
+        "bannerUrl": "https://images.unsplash.com/photo-1630383249896-424e482df921?w=1000&auto=format&fit=crop&q=80",
+        "costForTwo": 250,
+        "highlightTag": "Popular Choice"
       }
     ],
     [
@@ -171,7 +177,10 @@
           "North Indian",
           "Tandoor",
           "Curries"
-        ]
+        ],
+        "bannerUrl": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=1000&auto=format&fit=crop&q=80",
+        "costForTwo": 450,
+        "highlightTag": "Gourmet Pick"
       }
     ],
     [
@@ -202,66 +211,55 @@
           "Italian",
           "Woodfired Pizza",
           "Pasta"
-        ]
+        ],
+        "bannerUrl": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=1000&auto=format&fit=crop&q=80",
+        "costForTwo": 500,
+        "highlightTag": "Trending Now"
       }
     ]
   ],
   "addresses": [],
   "orders": [
     [
-      "ord_f767ded2-e73c-43b4-ab56-f3407a156bd3",
+      "ord_dd78e5b5-68c9-4ef3-a5ba-f9d296ba2055",
       {
-        "id": "ord_f767ded2-e73c-43b4-ab56-f3407a156bd3",
-        "idempotencyKey": "a5455e05-e05f-4977-a9c3-3e5b940cc087",
-        "orderNumber": "QB-332445",
+        "id": "ord_dd78e5b5-68c9-4ef3-a5ba-f9d296ba2055",
+        "idempotencyKey": "6e9a8138-9e46-4ceb-af88-5b64f5cc7c16",
+        "orderNumber": "QB-610117",
         "customerId": "usr_customer_01",
-        "restaurantId": "rst_bbh_01",
-        "deliveryAddressId": "addr_sample_01",
-        "status": "DELIVERED",
-        "paymentStatus": "PAID",
-        "paymentMethod": "RAZORPAY_SANDBOX",
+        "customerName": "Rahul Sharma",
+        "restaurantId": "rst_skb_02",
+        "restaurantName": "Udupi Sri Krishna Bhavan",
+        "deliveryAddressId": "addr_indiranagar_01",
+        "status": "ORDER_PLACED",
+        "paymentStatus": "PENDING",
+        "paymentMethod": "CASH_ON_DELIVERY",
         "items": [
           {
-            "dishId": "dish_ck_biryani",
-            "name": "Special Chicken Dum Biryani",
-            "unitPrice": 320,
+            "dishId": "dish_masala_dosa",
+            "name": "Davangere Benne Masala Dosa",
+            "unitPrice": 110,
             "quantity": 1,
-            "addonsTotal": 180,
-            "selectedOptions": [
-              {
-                "groupId": "grp_portion",
-                "groupTitle": "Portion Size",
-                "optionId": "opt_large",
-                "optionName": "Large (Serves 2-3)",
-                "priceDelta": 150
-              },
-              {
-                "groupId": "grp_extras",
-                "groupTitle": "Add-ons & Sides",
-                "optionId": "opt_extra_raita",
-                "optionName": "Extra Boondi Raita",
-                "priceDelta": 30
-              }
-            ],
-            "totalPrice": 500
+            "isVeg": true,
+            "addonsTotal": 0,
+            "selectedOptions": [],
+            "totalPrice": 110
           }
         ],
         "bill": {
-          "itemsTotal": 500,
-          "gstAmount": 25,
-          "packagingFee": 25,
-          "deliveryFee": 0,
+          "itemsTotal": 110,
+          "gstAmount": 5.5,
+          "packagingFee": 15,
+          "deliveryFee": 30,
           "platformFee": 5.9,
-          "couponDiscount": 100,
-          "totalAmount": 455.9,
-          "restaurantNetPayout": 445
+          "couponDiscount": 0,
+          "totalAmount": 166.4,
+          "restaurantNetPayout": 107.4
         },
-        "deliveryOtp": "9946",
-        "createdAt": "2026-09-08T16:43:49.691Z",
-        "updatedAt": "2026-09-08T16:43:49.733Z",
-        "pickupCode": "5869",
-        "preparationMinutes": 20,
-        "deliveredAt": "2026-09-08T16:43:49.733Z"
+        "deliveryOtp": "5539",
+        "createdAt": "2026-09-12T14:03:53.665Z",
+        "updatedAt": "2026-09-12T14:03:53.665Z",
+        "pickupCode": "8933"
       }
     ]
   ],
@@ -527,7 +525,7 @@
         "userId": "usr_customer_01",
         "balance": 500,
         "currency": "INR",
-        "updatedAt": "2026-09-08T16:43:49.689Z"
+        "updatedAt": "2026-09-12T13:51:54.050Z"
       }
     ],
     [
@@ -537,59 +535,59 @@
         "userId": "usr_rider_01",
         "balance": 240,
         "currency": "INR",
-        "updatedAt": "2026-09-08T16:43:49.689Z"
+        "updatedAt": "2026-09-12T13:51:54.050Z"
       }
     ]
   ],
   "walletTransactions": [
     [
-      "tx_1788885829689_38jrv7",
+      "tx_1789221114050_yo6z16",
       {
-        "id": "tx_1788885829689_38jrv7",
+        "id": "tx_1789221114050_yo6z16",
         "walletId": "wlt_usr_customer_01",
         "amount": 500,
         "type": "CREDIT",
         "description": "Welcome Promotional Wallet Balance",
-        "createdAt": "2026-09-08T16:43:49.689Z"
+        "createdAt": "2026-09-12T13:51:54.050Z"
       }
     ],
     [
-      "tx_1788885829689_oaffeh",
+      "tx_1789221114050_h70hoy",
       {
-        "id": "tx_1788885829689_oaffeh",
+        "id": "tx_1789221114050_h70hoy",
         "walletId": "wlt_usr_rider_01",
         "amount": 240,
         "type": "CREDIT",
         "description": "Shift Earnings Balance",
-        "createdAt": "2026-09-08T16:43:49.689Z"
+        "createdAt": "2026-09-12T13:51:54.050Z"
       }
     ]
   ],
   "kycDocuments": [
     [
-      "kyc_1788885829689_dykolh",
+      "kyc_1789221114051_e917aq",
       {
-        "id": "kyc_1788885829689_dykolh",
+        "id": "kyc_1789221114051_e917aq",
         "entityType": "RESTAURANT",
         "entityId": "rst_bbh_01",
         "entityName": "Bangalore Biryani House",
         "documentType": "FSSAI",
         "fileUrl": "https://assets.quickbite.app/kyc/fssai-sample-license.jpg",
         "status": "PENDING",
-        "submittedAt": "2026-09-08T16:43:49.689Z"
+        "submittedAt": "2026-09-12T13:51:54.051Z"
       }
     ],
     [
-      "kyc_1788885829689_aqvzff",
+      "kyc_1789221114051_7n3hck",
       {
-        "id": "kyc_1788885829689_aqvzff",
+        "id": "kyc_1789221114051_7n3hck",
         "entityType": "RIDER",
         "entityId": "rdr_vikram_01",
         "entityName": "Vikram Singh",
         "documentType": "DRIVING_LICENSE",
         "fileUrl": "https://assets.quickbite.app/kyc/dl-sample-license.jpg",
         "status": "PENDING",
-        "submittedAt": "2026-09-08T16:43:49.689Z"
+        "submittedAt": "2026-09-12T13:51:54.051Z"
       }
     ]
   ]

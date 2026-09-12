@@ -7,7 +7,10 @@ import {
   StyleSheet
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { CheckCircle2, Clock, Bike, ShieldCheck, Phone, ArrowLeft } from 'lucide-react-native';
+import { Bike, Phone, ArrowLeft, Check } from 'lucide-react-native';
+import { Card } from '../components/ui';
+
+const c = tokens.colors;
 
 interface Props {
   orderNumber: string;
@@ -85,258 +88,262 @@ export const OrderTrackingScreen: React.FC<Props> = ({
     { title: 'Delivered', desc: 'Verify with 4-digit OTP upon arrival' }
   ];
 
+  const done = (i: number) => i < currentStep;
+  const active = (i: number) => i === currentStep;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Header */}
-      <TouchableOpacity style={styles.backButton} onPress={onHome}>
-        <ArrowLeft size={20} color="#0F172A" />
-        <Text style={styles.backText}>Return to Home</Text>
-      </TouchableOpacity>
-
-      {/* Hero Delivery Card */}
-      <View style={styles.heroCard}>
-        <Text style={styles.estimatedTime}>Estimated Arrival: 25 Mins</Text>
-        <Text style={styles.orderMeta}>Order ID: {orderNumber} • Paid: Rs {total.toFixed(2)}</Text>
-
-        {/* Secure 4-Digit OTP Badge */}
-        <View style={styles.otpContainer}>
-          <Text style={styles.otpLabel}>DELIVERY VERIFICATION OTP</Text>
-          <Text style={styles.otpValue}>{otp}</Text>
-          <Text style={styles.otpHelp}>
-            Do NOT share this OTP until you receive the sealed package.
-          </Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.topRow}>
+        <TouchableOpacity style={styles.backButton} onPress={onHome} activeOpacity={0.8}>
+          <ArrowLeft size={17} color={c.text.primary} />
+          <Text style={styles.backText}>Home</Text>
+        </TouchableOpacity>
+        <View style={styles.liveTag}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>LIVE TRACKING</Text>
         </View>
       </View>
 
-      {/* Live Order Journey Timeline */}
-      <View style={styles.timelineCard}>
-        <Text style={styles.timelineHeader}>Live Order Journey</Text>
+      {/* Status hero */}
+      <Card style={styles.heroCard}>
+        <View style={styles.heroTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.orderNo}>ORDER #{orderNumber}</Text>
+            <Text style={styles.statusTitle}>{steps[currentStep]?.title ?? 'Order Confirmed'}</Text>
+            <Text style={styles.statusSub}>{steps[currentStep]?.desc ?? ''}</Text>
+          </View>
+          <View style={styles.etaBox}>
+            <Text style={styles.etaLabel}>ARRIVING IN</Text>
+            <Text style={styles.etaValue}>~25 min</Text>
+          </View>
+        </View>
 
-        {steps.map((step, idx) => {
-          const isDone = idx <= currentStep;
-          const isCurrent = idx === currentStep;
-
-          return (
-            <View key={idx} style={styles.timelineItem}>
-              <View style={styles.timelineLeft}>
-                <View style={[styles.timelineDot, isDone && styles.timelineDotDone]}>
-                  {isDone && <CheckCircle2 size={12} color="#FFFFFF" />}
+        {/* Stepper */}
+        <View style={styles.stepper}>
+          {steps.map((s, i) => (
+            <View key={s.title} style={styles.stepItem}>
+              <View style={styles.stepTrack}>
+                {i > 0 && <View style={[styles.stepLine, done(i) || active(i) ? styles.stepLineOn : null]} />}
+                <View
+                  style={[
+                    styles.stepDot,
+                    done(i) && styles.stepDotDone,
+                    active(i) && styles.stepDotActive
+                  ]}
+                >
+                  {done(i) ? <Check size={11} color="#FFFFFF" /> : null}
                 </View>
-                {idx < steps.length - 1 && (
-                  <View style={[styles.timelineLine, idx < currentStep && styles.timelineLineDone]} />
-                )}
+                {i < steps.length - 1 && <View style={[styles.stepLine, done(i + 1) ? styles.stepLineOn : null]} />}
               </View>
-
-              <View style={styles.timelineRight}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={[styles.stepTitle, isCurrent && styles.stepTitleCurrent]}>
-                    {step.title}
-                  </Text>
-                </View>
-                <Text style={styles.stepDesc}>{step.desc}</Text>
-              </View>
+              <Text style={[styles.stepLabel, (done(i) || active(i)) && styles.stepLabelOn]} numberOfLines={2}>
+                {s.title}
+              </Text>
             </View>
-          );
-        })}
-      </View>
+          ))}
+        </View>
+      </Card>
 
-      {/* Delivery Partner Card — only once a rider has actually claimed the trip */}
-      {riderName && (
-        <View style={styles.riderCard}>
-          <View style={styles.riderAvatar}>
-            <Bike size={24} color="#FFFFFF" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.riderName}>{riderName} (Verified Partner)</Text>
-            {order?.riderPhone && <Text style={styles.riderVehicle}>{order.riderPhone}</Text>}
-          </View>
-          <View style={styles.callIcon}>
-            <Phone size={18} color={tokens.colors.primary[500]} />
-          </View>
+      {/* OTP */}
+      {!!otp && (
+        <View style={styles.otpCard}>
+          <Text style={styles.otpLabel}>DELIVERY VERIFICATION OTP</Text>
+          <Text style={styles.otpValue}>{otp.split('').join('  ')}</Text>
+          <Text style={styles.otpHint}>Share only when your order is handed over</Text>
         </View>
       )}
+
+      {/* Rider */}
+      {riderName ? (
+        <Card style={styles.block}>
+          <View style={styles.riderRow}>
+            <View style={styles.riderAvatar}>
+              <Bike size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.riderName}>{riderName}</Text>
+              <Text style={styles.riderMeta}>{order?.riderPhone || 'Verified delivery partner'}</Text>
+            </View>
+            <View style={styles.callBtn}>
+              <Phone size={17} color={c.dietary.veg} />
+            </View>
+          </View>
+        </Card>
+      ) : (
+        <Card style={styles.block}>
+          <Text style={styles.pendingRider}>A delivery partner will be assigned once your food is packed.</Text>
+        </Card>
+      )}
+
+      {/* Summary */}
+      <Card style={styles.block}>
+        <Text style={styles.blockTitle}>Order summary</Text>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Restaurant</Text>
+          <Text style={styles.summaryValue}>{restaurantName}</Text>
+        </View>
+        {order?.items?.map((it: any, i: number) => (
+          <View key={i} style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>
+              {it.quantity}× {it.name}
+            </Text>
+            <Text style={styles.summaryValue}>₹{(it.totalPrice ?? 0).toFixed(0)}</Text>
+          </View>
+        ))}
+        <View style={styles.summaryTotal}>
+          <Text style={styles.summaryTotalLabel}>Total paid</Text>
+          <Text style={styles.summaryTotalValue}>₹{total.toFixed(2)}</Text>
+        </View>
+      </Card>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC'
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 40
-  },
+  screen: { flex: 1, backgroundColor: c.surface.app },
+  content: { padding: 16, paddingBottom: 40 },
+
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16
-  },
-  backText: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '600'
-  },
-  heroCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16
-  },
-  estimatedTime: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF'
-  },
-  orderMeta: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 4,
-    fontFamily: 'monospace'
-  },
-  otpContainer: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    gap: 7,
+    backgroundColor: c.surface.card,
     borderWidth: 1,
-    borderColor: '#334155',
-    padding: 16,
+    borderColor: c.border.subtle,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: tokens.radii.full
+  },
+  backText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  liveTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.dietary.veg },
+  liveText: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.dietary.veg,
+    letterSpacing: 0.4
+  },
+
+  heroCard: { marginBottom: 14 },
+  heroTop: { flexDirection: 'row', gap: 12 },
+  orderNo: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.bold,
+    color: c.text.muted,
+    letterSpacing: 0.6
+  },
+  statusTitle: {
+    fontSize: tokens.font.size.xl,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.primary[500],
+    marginTop: 5,
+    letterSpacing: -0.4
+  },
+  statusSub: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4 },
+  etaBox: {
+    backgroundColor: c.accent[50],
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
     alignItems: 'center',
-    marginTop: 16,
-    width: '100%'
+    alignSelf: 'flex-start'
   },
-  otpLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#94A3B8',
-    letterSpacing: 1
+  etaLabel: { fontSize: 9, fontWeight: tokens.font.weight.extrabold, color: c.accent[600], letterSpacing: 0.4 },
+  etaValue: {
+    fontSize: tokens.font.size.md,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.accent[600],
+    marginTop: 2
   },
-  otpValue: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFA233',
-    letterSpacing: 8,
-    fontFamily: 'monospace',
-    marginVertical: 4
-  },
-  otpHelp: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textAlign: 'center'
-  },
-  timelineCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16
-  },
-  timelineHeader: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 16
-  },
-  timelineItem: {
-    flexDirection: 'row',
-    marginBottom: 16
-  },
-  timelineLeft: {
-    alignItems: 'center',
-    width: 24,
-    marginRight: 12
-  },
-  timelineDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#E2E8F0',
+
+  stepper: { flexDirection: 'row', marginTop: 22 },
+  stepItem: { flex: 1, alignItems: 'center' },
+  stepTrack: { flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center' },
+  stepLine: { flex: 1, height: 2, backgroundColor: c.border.medium },
+  stepLineOn: { backgroundColor: c.dietary.veg },
+  stepDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: c.surface.sunken,
+    borderWidth: 2,
+    borderColor: c.border.medium,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  timelineDotDone: {
-    backgroundColor: tokens.colors.dietary.veg
+  stepDotDone: { backgroundColor: c.dietary.veg, borderColor: c.dietary.veg },
+  stepDotActive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
+  stepLabel: {
+    fontSize: 9,
+    color: c.text.muted,
+    marginTop: 7,
+    textAlign: 'center',
+    fontWeight: tokens.font.weight.semibold
   },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: '#E2E8F0',
-    marginTop: 4
-  },
-  timelineLineDone: {
-    backgroundColor: tokens.colors.dietary.veg
-  },
-  timelineRight: {
-    flex: 1
-  },
-  stepTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569'
-  },
-  stepTitleCurrent: {
-    color: tokens.colors.primary[500],
-    fontWeight: '800'
-  },
-  stepTime: {
-    fontSize: 11,
-    color: '#94A3B8'
-  },
-  stepDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2
-  },
-  riderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
+  stepLabelOn: { color: c.text.primary },
+
+  otpCard: {
+    backgroundColor: c.primary[600],
+    borderRadius: tokens.radii.xl,
+    padding: 20,
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 14
   },
+  otpLabel: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.accent[400],
+    letterSpacing: 1.2
+  },
+  otpValue: {
+    fontSize: tokens.font.size['2xl'],
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.accent[500],
+    marginTop: 8,
+    letterSpacing: 2
+  },
+  otpHint: { fontSize: tokens.font.size.xs, color: '#D9C4BB', marginTop: 8 },
+
+  block: { marginBottom: 14 },
+  blockTitle: {
+    fontSize: tokens.font.size.base,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    marginBottom: 6
+  },
+
+  riderRow: { flexDirection: 'row', alignItems: 'center' },
   riderAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: tokens.colors.primary[500],
+    backgroundColor: c.primary[500],
     alignItems: 'center',
     justifyContent: 'center'
   },
-  riderName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A'
-  },
-  riderVehicle: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2
-  },
-  callIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: tokens.colors.primary[50],
+  riderName: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  riderMeta: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 2 },
+  callBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: c.dietary.vegBg,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  advanceButton: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#CBD5E1'
+  pendingRider: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 20 },
+
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9, gap: 12 },
+  summaryLabel: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.secondary },
+  summaryValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
+  summaryTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: c.border.subtle
   },
-  advanceButtonText: {
-    color: '#0F172A',
-    fontWeight: '700',
-    fontSize: 13
-  }
+  summaryTotalLabel: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  summaryTotalValue: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.extrabold, color: c.primary[500] }
 });

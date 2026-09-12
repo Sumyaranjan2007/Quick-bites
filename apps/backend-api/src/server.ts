@@ -33,7 +33,7 @@ initSocketServer(server);
 
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
-  console.log(`\nReceived ${signal}. Gracefully closing Quick Bite HTTP and Socket servers...`);
+  console.log(`\nReceived ${signal}. Gracefully closing Quick Bites HTTP and Socket servers...`);
   saveStoreToFile();
   await closeSocketServer();
   server.close(() => {

@@ -1,4 +1,4 @@
-# Multi-Stage Dockerfile for Quick Bite Backend API
+# Multi-Stage Dockerfile for Quick Bites Backend API
 # Stage 1: Build & Dependencies
 FROM node:22-alpine AS builder
 

@@ -1,4 +1,4 @@
-// Prisma Schema for Quick Bite Platform
+// Prisma Schema for Quick Bites Platform
 // Database: Supabase PostgreSQL 15 with PostGIS Extension
 
 generator client {

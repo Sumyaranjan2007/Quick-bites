@@ -1,5 +1,5 @@
 /**
- * Quick Bite - Shared Universal Types
+ * Quick Bites - Shared Universal Types
  * Version 2.0.0
  */
 
@@ -47,6 +47,8 @@ export interface Restaurant {
   ratingCount: number;
   cuisineTags: string[];
   bannerUrl?: string;
+  costForTwo?: number;
+  highlightTag?: string;
   isOpen: boolean;
 }
 

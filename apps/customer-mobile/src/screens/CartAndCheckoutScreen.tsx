@@ -8,6 +8,9 @@ import {
   StyleSheet
 } from 'react-native';
 import { tokens } from '../theme/tokens';
+import { Card, DietMark } from '../components/ui';
+
+const c = tokens.colors;
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus } from 'lucide-react-native';
 import { CartItem } from './RestaurantDetailScreen';
@@ -37,7 +40,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 }) => {
   const [couponCode, setCouponCode] = useState('WELCOME50');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>('WELCOME50');
-  const [isGoldMember] = useState(true); // Rahul Sharma is a Quick Bite Gold subscriber
+  const [isGoldMember] = useState(true); // Rahul Sharma is a Quick Bites Gold subscriber
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -157,7 +160,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
     } catch (err: any) {
       setCheckoutError(
         err?.message === 'Failed to fetch' || err?.name === 'TypeError'
-          ? 'Could not reach the Quick Bite server. Check your connection and try again.'
+          ? 'Could not reach the Quick Bites server. Check your connection and try again.'
           : err?.message || 'We could not place your order. Please try again.'
       );
     } finally {
@@ -178,390 +181,337 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Header */}
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <ArrowLeft size={20} color="#0F172A" />
-        <Text style={styles.backText}>Back to Restaurant</Text>
-      </TouchableOpacity>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
+          <ArrowLeft size={18} color={c.text.primary} />
+          <Text style={styles.backText}>Back to menu</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.pageTitle}>Order Summary & Checkout</Text>
+        <Text style={styles.pageTitle}>Your Order</Text>
+        <Text style={styles.pageSub}>Review items, apply a coupon and confirm.</Text>
 
-      {/* Cart Items List */}
-      <View style={styles.cardSection}>
-        <Text style={styles.sectionHeader}>Selected Items</Text>
-        {cart.map(item => (
-          <View key={item.id} style={styles.cartItemRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>Rs {(item.price * item.quantity).toFixed(2)}</Text>
+        {/* Items */}
+        <Card style={styles.block}>
+          <Text style={styles.blockTitle}>Items</Text>
+          {cart.map(item => (
+            <View key={item.id} style={styles.itemRow}>
+              <DietMark isVeg={item.isVeg} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemUnit}>₹{item.price.toFixed(0)} each</Text>
+              </View>
+              <View style={styles.stepper}>
+                <TouchableOpacity style={styles.stepBtn} onPress={() => onUpdateQuantity(item.id, -1)} activeOpacity={0.7}>
+                  <Minus size={13} color={c.primary[500]} />
+                </TouchableOpacity>
+                <Text style={styles.stepCount}>{item.quantity}</Text>
+                <TouchableOpacity style={styles.stepBtn} onPress={() => onUpdateQuantity(item.id, 1)} activeOpacity={0.7}>
+                  <Plus size={13} color={c.primary[500]} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.itemTotal}>₹{(item.price * item.quantity).toFixed(0)}</Text>
             </View>
+          ))}
+        </Card>
 
-            <View style={styles.stepperContainer}>
-              <TouchableOpacity
-                style={styles.stepperBtn}
-                onPress={() => onUpdateQuantity(item.id, -1)}
-              >
-                <Minus size={14} color={tokens.colors.primary[500]} />
-              </TouchableOpacity>
-              <Text style={styles.stepperCount}>{item.quantity}</Text>
-              <TouchableOpacity
-                style={styles.stepperBtn}
-                onPress={() => onUpdateQuantity(item.id, 1)}
-              >
-                <Plus size={14} color={tokens.colors.primary[500]} />
-              </TouchableOpacity>
-            </View>
+        {/* Address */}
+        <Card style={styles.block}>
+          <View style={styles.blockHead}>
+            <MapPin size={16} color={c.primary[500]} />
+            <Text style={styles.blockTitle}>Delivering to</Text>
           </View>
-        ))}
-      </View>
+          <Text style={styles.addressTitle}>Home • Indiranagar</Text>
+          <Text style={styles.addressDesc}>Flat 402, Green Glen Towers, 100 Feet Road, Bengaluru</Text>
+        </Card>
 
-      {/* Delivery Address */}
-      <View style={styles.cardSection}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <MapPin size={18} color={tokens.colors.primary[500]} />
-          <Text style={styles.sectionHeader}>Delivery Location</Text>
-        </View>
-        <Text style={styles.addressTitle}>Home • Indiranagar</Text>
-        <Text style={styles.addressDesc}>Flat 402, Green Glen Towers, 100 Feet Road, Bengaluru</Text>
-      </View>
+        {/* Coupon */}
+        <Card style={styles.block}>
+          <View style={styles.blockHead}>
+            <Tag size={16} color={c.primary[500]} />
+            <Text style={styles.blockTitle}>Coupons</Text>
+          </View>
+          <View style={styles.couponRow}>
+            <TextInput
+              style={styles.couponInput}
+              value={couponCode}
+              onChangeText={setCouponCode}
+              placeholder="Enter code"
+              placeholderTextColor={c.text.muted}
+              autoCapitalize="characters"
+            />
+            <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon} activeOpacity={0.85}>
+              <Text style={styles.applyBtnText}>APPLY</Text>
+            </TouchableOpacity>
+          </View>
+          {appliedCoupon ? (
+            <Text style={styles.couponSuccess}>'{appliedCoupon}' applied</Text>
+          ) : couponError ? (
+            <Text style={styles.couponError}>{couponError}</Text>
+          ) : null}
+        </Card>
 
-      {/* Coupon Box */}
-      <View style={styles.cardSection}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Tag size={18} color={tokens.colors.primary[500]} />
-          <Text style={styles.sectionHeader}>Apply Coupons</Text>
-        </View>
-        <View style={styles.couponRow}>
-          <TextInput
-            style={styles.couponInput}
-            value={couponCode}
-            onChangeText={setCouponCode}
-            placeholder="Enter coupon code (e.g. WELCOME50)"
-            autoCapitalize="characters"
-          />
-          <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon}>
-            <Text style={styles.applyBtnText}>APPLY</Text>
-          </TouchableOpacity>
-        </View>
-        {appliedCoupon ? (
-          <Text style={styles.couponSuccess}>Coupon '{appliedCoupon}' applied successfully!</Text>
-        ) : couponError ? (
-          <Text style={styles.couponError}>{couponError}</Text>
-        ) : null}
-      </View>
-
-      {/* Gold Member Highlight */}
-      {isGoldMember && (
-        <View style={styles.goldCard}>
-          <Sparkles size={18} color="#D97706" />
-          <Text style={styles.goldText}>
-            Quick Bite Gold applied: Rs {pricingResult.deliveryFee === 0 ? '40 Delivery Fee Waived' : 'Free Delivery'}
-          </Text>
-        </View>
-      )}
-
-      {/* Bill Breakdown Powered by @quick-bites/pricing-engine */}
-      <View style={styles.cardSection}>
-        <Text style={styles.sectionHeader}>Bill Details</Text>
-
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>Item Total</Text>
-          <Text style={styles.billValue}>Rs {pricingResult.itemsTotal.toFixed(2)}</Text>
-        </View>
-
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>GST on Food (5%)</Text>
-          <Text style={styles.billValue}>Rs {pricingResult.gstAmount.toFixed(2)}</Text>
-        </View>
-
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>Restaurant Packaging Charges</Text>
-          <Text style={styles.billValue}>Rs {pricingResult.packagingFee.toFixed(2)}</Text>
-        </View>
-
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>Delivery Partner Fee</Text>
-          <Text style={[styles.billValue, pricingResult.deliveryFee === 0 && { color: tokens.colors.dietary.veg }]}>
-            {pricingResult.deliveryFee === 0 ? 'FREE' : `Rs ${pricingResult.deliveryFee.toFixed(2)}`}
-          </Text>
-        </View>
-
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>Platform Fee (incl. 18% GST)</Text>
-          <Text style={styles.billValue}>Rs {pricingResult.platformFee.toFixed(2)}</Text>
-        </View>
-
-        {pricingResult.couponDiscount > 0 && (
-          <View style={styles.billRow}>
-            <Text style={[styles.billLabel, { color: tokens.colors.dietary.veg }]}>Coupon Discount</Text>
-            <Text style={[styles.billValue, { color: tokens.colors.dietary.veg }]}>
-              -Rs {pricingResult.couponDiscount.toFixed(2)}
+        {isGoldMember && (
+          <View style={styles.goldCard}>
+            <Sparkles size={16} color={c.dietary.gold} />
+            <Text style={styles.goldText}>
+              Gold applied — {pricingResult.deliveryFee === 0 ? 'delivery fee waived' : 'free delivery above ₹199'}
             </Text>
           </View>
         )}
 
-        <View style={styles.billTotalRow}>
-          <Text style={styles.billTotalLabel}>Grand Total To Pay</Text>
-          <Text style={styles.billTotalValue}>Rs {pricingResult.totalAmount.toFixed(2)}</Text>
+        {/* Bill */}
+        <Card style={styles.block}>
+          <Text style={styles.blockTitle}>Bill details</Text>
+
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Item total</Text>
+            <Text style={styles.billValue}>₹{pricingResult.itemsTotal.toFixed(2)}</Text>
+          </View>
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>GST on food (5%)</Text>
+            <Text style={styles.billValue}>₹{pricingResult.gstAmount.toFixed(2)}</Text>
+          </View>
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Packaging</Text>
+            <Text style={styles.billValue}>₹{pricingResult.packagingFee.toFixed(2)}</Text>
+          </View>
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Delivery fee</Text>
+            <Text style={[styles.billValue, pricingResult.deliveryFee === 0 && { color: c.dietary.veg }]}>
+              {pricingResult.deliveryFee === 0 ? 'FREE' : `₹${pricingResult.deliveryFee.toFixed(2)}`}
+            </Text>
+          </View>
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Platform fee</Text>
+            <Text style={styles.billValue}>₹{pricingResult.platformFee.toFixed(2)}</Text>
+          </View>
+          {pricingResult.couponDiscount > 0 && (
+            <View style={styles.billRow}>
+              <Text style={[styles.billLabel, { color: c.dietary.veg }]}>Coupon discount</Text>
+              <Text style={[styles.billValue, { color: c.dietary.veg }]}>
+                -₹{pricingResult.couponDiscount.toFixed(2)}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.billTotalRow}>
+            <Text style={styles.billTotalLabel}>To pay</Text>
+            <Text style={styles.billTotalValue}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
+          </View>
+        </Card>
+
+        {checkoutError && (
+          <View style={styles.checkoutErrorBox}>
+            <Text style={styles.checkoutErrorText}>{checkoutError}</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Sticky pay bar */}
+      <View style={styles.payBar}>
+        <View>
+          <Text style={styles.payBarAmount}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
+          <Text style={styles.payBarSub}>Cash on delivery</Text>
         </View>
+        <TouchableOpacity
+          style={[styles.payButton, isProcessing && { opacity: 0.6 }]}
+          onPress={handleCheckout}
+          disabled={isProcessing}
+          activeOpacity={0.88}
+        >
+          <CreditCard size={17} color={c.text.onAccent} />
+          <Text style={styles.payButtonText}>{isProcessing ? 'Placing…' : 'Place Order'}</Text>
+        </TouchableOpacity>
       </View>
-
-      {checkoutError && (
-        <View style={styles.checkoutErrorBox}>
-          <Text style={styles.checkoutErrorText}>{checkoutError}</Text>
-        </View>
-      )}
-
-      {/* Place Order (Cash on Delivery) */}
-      <TouchableOpacity
-        style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
-        onPress={handleCheckout}
-        disabled={isProcessing}
-      >
-        <CreditCard size={18} color="#FFFFFF" />
-        <Text style={styles.payButtonText}>
-          {isProcessing ? 'Placing your order...' : `Place Order • Rs ${pricingResult.totalAmount.toFixed(2)} (Cash on Delivery)`}
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC'
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 40
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16
-  },
-  backText: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '600'
-  },
+  screen: { flex: 1, backgroundColor: c.surface.app },
+  content: { padding: 16, paddingBottom: 130 },
+
+  backButton: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+  backText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.primary },
+
   pageTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 16
+    fontSize: tokens.font.size.xl,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    letterSpacing: -0.4
   },
-  cardSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 14
+  pageSub: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4, marginBottom: 18 },
+
+  block: { marginBottom: 14 },
+  blockHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  blockTitle: {
+    fontSize: tokens.font.size.base,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    marginBottom: 2
   },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 10
-  },
-  cartItemRow: {
+
+  itemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC'
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: c.border.subtle
   },
-  itemName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A'
-  },
-  itemPrice: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: tokens.colors.primary[500],
-    marginTop: 2
-  },
-  stepperContainer: {
+  itemName: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: c.text.primary },
+  itemUnit: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
+  stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: tokens.colors.primary[500],
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    gap: 8
+    borderColor: c.primary[100],
+    backgroundColor: c.primary[50],
+    borderRadius: tokens.radii.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    marginRight: 12
   },
-  stepperBtn: {
-    padding: 2
+  stepBtn: { paddingHorizontal: 7, paddingVertical: 3 },
+  stepCount: {
+    minWidth: 18,
+    textAlign: 'center',
+    fontSize: tokens.font.size.sm,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.primary[500]
   },
-  stepperCount: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: tokens.colors.primary[500]
+  itemTotal: {
+    minWidth: 54,
+    textAlign: 'right',
+    fontSize: tokens.font.size.base,
+    fontWeight: tokens.font.weight.bold,
+    color: c.text.primary
   },
-  addressTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A'
-  },
-  addressDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2
-  },
-  couponRow: {
-    flexDirection: 'row',
-    gap: 8
-  },
+
+  addressTitle: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  addressDesc: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 3, lineHeight: 19 },
+
+  couponRow: { flexDirection: 'row', gap: 10 },
   couponInput: {
     flex: 1,
+    height: 44,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
+    borderColor: c.border.medium,
+    borderRadius: tokens.radii.sm,
     paddingHorizontal: 12,
-    height: 40,
-    fontSize: 13,
-    fontWeight: '700'
+    fontSize: tokens.font.size.sm,
+    color: c.text.primary,
+    backgroundColor: c.surface.subtle
   },
   applyBtn: {
-    backgroundColor: tokens.colors.primary[50],
-    borderWidth: 1,
-    borderColor: tokens.colors.primary[500],
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
+    height: 44,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    borderRadius: tokens.radii.sm,
+    backgroundColor: c.primary[600]
   },
-  applyBtnText: {
-    color: tokens.colors.primary[500],
-    fontWeight: '800',
-    fontSize: 12
-  },
+  applyBtnText: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.xs },
   couponSuccess: {
-    fontSize: 11,
-    color: tokens.colors.dietary.veg,
-    fontWeight: '600',
-    marginTop: 6
+    fontSize: tokens.font.size.xs,
+    color: c.dietary.veg,
+    fontWeight: tokens.font.weight.semibold,
+    marginTop: 8
   },
   couponError: {
-    fontSize: 11,
-    color: '#DC2626',
-    fontWeight: '600',
-    marginTop: 6
+    fontSize: tokens.font.size.xs,
+    color: c.dietary.nonveg,
+    fontWeight: tokens.font.weight.semibold,
+    marginTop: 8
   },
+
   goldCard: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 12,
-    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 9,
+    backgroundColor: c.dietary.goldBg,
+    borderWidth: 1,
+    borderColor: '#F0DCA8',
+    borderRadius: tokens.radii.md,
+    padding: 13,
     marginBottom: 14
   },
-  goldText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#92400E',
-    flex: 1
-  },
-  billRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4
-  },
-  billLabel: {
-    fontSize: 13,
-    color: '#64748B'
-  },
-  billValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A'
-  },
+  goldText: { flex: 1, fontSize: tokens.font.size.sm, color: c.dietary.gold, fontWeight: tokens.font.weight.semibold },
+
+  billRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  billLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary },
+  billValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.medium },
   billTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0'
+    borderTopColor: c.border.subtle
   },
-  billTotalLabel: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A'
+  billTotalLabel: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  billTotalValue: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.extrabold, color: c.primary[500] },
+
+  checkoutErrorBox: {
+    backgroundColor: c.dietary.nonvegBg,
+    borderWidth: 1,
+    borderColor: '#F5C9C9',
+    borderRadius: tokens.radii.md,
+    padding: 13
   },
-  billTotalValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: tokens.colors.primary[500]
-  },
-  payButton: {
-    backgroundColor: tokens.colors.primary[500],
-    borderRadius: 12,
-    height: 50,
+  checkoutErrorText: { color: c.dietary.nonveg, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+
+  payBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 6
+    justifyContent: 'space-between',
+    backgroundColor: c.surface.card,
+    borderTopWidth: 1,
+    borderTopColor: c.border.subtle,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 22
   },
-  payButtonDisabled: {
-    opacity: 0.6
+  payBarAmount: { fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  payBarSub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
+  payButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: c.accent[500],
+    paddingHorizontal: 26,
+    height: 50,
+    borderRadius: tokens.radii.md,
+    justifyContent: 'center'
   },
-  payButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15
-  },
-  checkoutErrorBox: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 10
-  },
-  checkoutErrorText: {
-    color: '#DC2626',
-    fontSize: 13,
-    fontWeight: '600'
-  },
+  payButtonText: { color: c.text.onAccent, fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.base },
+
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32
+    padding: 32,
+    backgroundColor: c.surface.app
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 6
-  },
+  emptyTitle: { fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
   emptySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: tokens.font.size.sm,
+    color: c.text.secondary,
+    marginTop: 8,
     textAlign: 'center',
-    marginBottom: 20
+    lineHeight: 20
   },
   backToMenuBtn: {
-    backgroundColor: tokens.colors.primary[500],
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8
+    marginTop: 20,
+    backgroundColor: c.primary[600],
+    paddingHorizontal: 26,
+    height: 46,
+    borderRadius: tokens.radii.md,
+    justifyContent: 'center'
   },
-  backToMenuText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14
-  }
+  backToMenuText: { color: '#FFFFFF', fontWeight: tokens.font.weight.bold, fontSize: tokens.font.size.base }
 });

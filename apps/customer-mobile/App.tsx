@@ -69,11 +69,11 @@ export default function App() {
     setCart([]);
   };
 
-  // If unauthenticated, present the Quick Bite Customer Login Screen
+  // If unauthenticated, present the Quick Bites Customer Login Screen
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
         <LoginScreen
           initialApiUrl={apiUrl}
           onLoginSuccess={(token, user, url) => {
@@ -91,7 +91,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
 
       {/* Primary Screen View */}
       <View style={styles.mainContent}>
@@ -160,12 +160,12 @@ export default function App() {
           >
             <Utensils
               size={20}
-              color={currentScreen === 'feed' ? tokens.colors.primary[500] : '#64748B'}
+              color={currentScreen === 'feed' ? tokens.colors.primary[500] : tokens.colors.text.muted}
             />
             <Text
               style={[
                 styles.navText,
-                currentScreen === 'feed' && { color: tokens.colors.primary[500], fontWeight: '700' }
+                currentScreen === 'feed' && styles.navTextActive
               ]}
             >
               Delivery
@@ -177,7 +177,7 @@ export default function App() {
             onPress={() => setCurrentScreen('cart')}
           >
             <View>
-              <ShoppingBag size={20} color="#64748B" />
+              <ShoppingBag size={20} color={tokens.colors.text.muted} />
               {totalCartCount > 0 && (
                 <View style={styles.navBadge}>
                   <Text style={styles.navBadgeText}>{totalCartCount}</Text>
@@ -193,12 +193,12 @@ export default function App() {
           >
             <User
               size={20}
-              color={currentScreen === 'profile' ? tokens.colors.primary[500] : '#64748B'}
+              color={currentScreen === 'profile' ? tokens.colors.primary[500] : tokens.colors.text.muted}
             />
             <Text
               style={[
                 styles.navText,
-                currentScreen === 'profile' && { color: tokens.colors.primary[500], fontWeight: '700' }
+                currentScreen === 'profile' && styles.navTextActive
               ]}
             >
               Profile
@@ -213,7 +213,7 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: tokens.colors.surface.app
   },
   mainContent: {
     flex: 1
@@ -221,43 +221,40 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingBottom: 16,
-    elevation: 8,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4
+    borderTopColor: tokens.colors.border.subtle,
+    backgroundColor: tokens.colors.surface.card,
+    paddingVertical: 10,
+    paddingBottom: 18
   },
   navItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4
+    gap: 4
   },
   navText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 3
+    color: tokens.colors.text.muted,
+    fontWeight: '600'
+  },
+  navTextActive: {
+    color: tokens.colors.primary[500],
+    fontWeight: '800'
   },
   navBadge: {
     position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: tokens.colors.primary[500],
+    top: -5,
+    right: -9,
+    minWidth: 17,
+    height: 17,
     borderRadius: 9,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
+    paddingHorizontal: 4,
+    backgroundColor: tokens.colors.accent[500],
     alignItems: 'center',
-    paddingHorizontal: 4
+    justifyContent: 'center'
   },
   navBadgeText: {
-    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '800'
+    fontWeight: '800',
+    color: tokens.colors.text.onAccent
   }
 });

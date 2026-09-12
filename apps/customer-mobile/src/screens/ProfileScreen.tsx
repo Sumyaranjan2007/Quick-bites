@@ -9,6 +9,8 @@ import {
   Switch
 } from 'react-native';
 import { tokens } from '../theme/tokens';
+
+const c = tokens.colors;
 import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft, CreditCard, Cloud } from 'lucide-react-native';
 
 interface Props {
@@ -43,14 +45,14 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <ArrowLeft size={20} color="#0F172A" />
+        <ArrowLeft size={20} color={c.text.primary} />
         <Text style={styles.backText}>Back</Text>
       </TouchableOpacity>
 
       {/* User Card */}
       <View style={styles.userCard}>
         <View style={styles.avatar}>
-          <User size={28} color="#FFFFFF" />
+          <User size={28} color={c.surface.card} />
         </View>
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Text style={styles.userName}>Rahul Sharma</Text>
@@ -62,7 +64,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
         </View>
       </View>
 
-      {/* Quick Bite Cash Wallet Card */}
+      {/* Quick Bites Cash Wallet Card */}
       <View style={styles.walletCard}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -80,7 +82,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
           <Cloud size={18} color={tokens.colors.primary[500]} />
           <Text style={styles.sectionHeader}>Backend Server & Tunnel URL</Text>
         </View>
-        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
+        <Text style={{ fontSize: 12, color: c.text.secondary, marginBottom: 8 }}>
           Connects to your local or public Cloudflare tunnel endpoint across 4 physical devices.
         </Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -107,7 +109,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
         {/* Language Selection */}
         <View style={styles.row}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Globe size={18} color="#64748B" />
+            <Globe size={18} color={c.text.secondary} />
             <Text style={styles.rowLabel}>App Language</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -126,7 +128,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
         </View>
 
         {/* Veg-Only Mode Switch */}
-        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, marginTop: 12 }]}>
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: c.surface.sunken, paddingTop: 12, marginTop: 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={styles.vegDot} />
             <Text style={styles.rowLabel}>Always Show Pure Veg First</Text>
@@ -134,7 +136,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
           <Switch
             value={vegOnlyDefault}
             onValueChange={setVegOnlyDefault}
-            trackColor={{ false: '#CBD5E1', true: tokens.colors.dietary.veg }}
+            trackColor={{ false: c.border.medium, true: tokens.colors.dietary.veg }}
             thumbColor="#FFFFFF"
           />
         </View>
@@ -143,7 +145,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
       {/* Saved Addresses */}
       <View style={styles.sectionCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <MapPin size={18} color="#64748B" />
+          <MapPin size={18} color={c.text.secondary} />
           <Text style={styles.sectionHeader}>Saved Addresses</Text>
         </View>
         <View style={styles.addressBox}>
@@ -155,7 +157,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
       {/* Log Out Button */}
       {onLogout && (
         <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-          <Text style={styles.logoutButtonText}>Log Out of Quick Bite</Text>
+          <Text style={styles.logoutButtonText}>Log Out of Quick Bites</Text>
         </TouchableOpacity>
       )}
     </ScrollView>
@@ -165,7 +167,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC'
+    backgroundColor: c.surface.app
   },
   contentContainer: {
     padding: 16,
@@ -179,15 +181,15 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 14,
-    color: '#0F172A',
+    color: c.text.primary,
     fontWeight: '600'
   },
   userCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface.card,
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: c.border.subtle,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16
@@ -203,11 +205,11 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A'
+    color: c.text.primary
   },
   userContact: {
     fontSize: 12,
-    color: '#64748B',
+    color: c.text.secondary,
     marginTop: 2
   },
   goldBadge: {
@@ -229,17 +231,17 @@ const styles = StyleSheet.create({
     color: '#D97706'
   },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface.card,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: c.border.subtle,
     marginBottom: 14
   },
   sectionHeader: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A'
+    color: c.text.primary
   },
   row: {
     flexDirection: 'row',
@@ -249,7 +251,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 13,
-    color: '#0F172A',
+    color: c.text.primary,
     fontWeight: '500'
   },
   langChip: {
@@ -257,8 +259,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#F8FAFC'
+    borderColor: c.border.medium,
+    backgroundColor: c.surface.app
   },
   langChipActive: {
     borderColor: tokens.colors.primary[500],
@@ -267,7 +269,7 @@ const styles = StyleSheet.create({
   langChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B'
+    color: c.text.secondary
   },
   langChipTextActive: {
     color: tokens.colors.primary[500]
@@ -279,25 +281,25 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.colors.dietary.veg
   },
   addressBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: c.surface.app,
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9'
+    borderColor: c.surface.sunken
   },
   addressTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A'
+    color: c.text.primary
   },
   addressText: {
     fontSize: 12,
-    color: '#64748B',
+    color: c.text.secondary,
     marginTop: 2
   },
   complianceText: {
     fontSize: 12,
-    color: '#64748B',
+    color: c.text.secondary,
     lineHeight: 16
   },
   walletCard: {
@@ -326,14 +328,14 @@ const styles = StyleSheet.create({
   },
   serverInput: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: c.surface.app,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: c.border.medium,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 12,
-    color: '#0F172A'
+    color: c.text.primary
   },
   saveServerBtn: {
     backgroundColor: tokens.colors.primary[500],
@@ -343,7 +345,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   saveServerText: {
-    color: '#FFFFFF',
+    color: c.surface.card,
     fontWeight: '800',
     fontSize: 12
   },

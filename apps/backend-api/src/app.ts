@@ -37,7 +37,7 @@ export function createApp(): Express {
   app.get('/', (req, res) => {
     res.json({
       success: true,
-      name: 'Quick Bite Platform API',
+      name: 'Quick Bites Platform API',
       version: '2.0.0',
       status: 'ONLINE',
       endpoints: {

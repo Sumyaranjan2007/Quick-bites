@@ -1,14 +1,15 @@
 {
   "expo": {
-    "name": "Quick Bite",
+    "name": "Quick Bites",
     "slug": "quick-bite",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbite",
     "splash": {
-      "backgroundColor": "#E23744",
-      "resizeMode": "contain"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,9 +19,11 @@
       "package": "com.quickbite.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E23744"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
-    "newArchEnabled": false
+    "newArchEnabled": false,
+    "icon": "./assets/icon.png"
   }
 }

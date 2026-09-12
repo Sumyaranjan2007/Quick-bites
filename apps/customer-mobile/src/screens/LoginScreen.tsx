@@ -9,10 +9,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { Utensils, Lock, Mail, User, Phone, Server, Sparkles } from 'lucide-react-native';
+import { Lock, Mail, User, Phone, Server, Sparkles } from 'lucide-react-native';
+import { Card } from '../components/ui';
+
+const c = tokens.colors;
 
 interface Props {
   initialApiUrl: string;
@@ -78,32 +82,29 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Brand Header */}
-        <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Utensils size={36} color="#FFFFFF" />
-          </View>
-          <Text style={styles.title}>Quick Bite</Text>
-          <Text style={styles.subtitle}>Superfast food delivery to your doorstep</Text>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Brand */}
+        <View style={styles.brand}>
+          <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.brandName}>Quick Bites</Text>
+          <Text style={styles.brandTag}>Your craving, delivered fast.</Text>
         </View>
 
-        {/* Card */}
-        <View style={styles.card}>
-          <View style={styles.tabContainer}>
+        <Card style={styles.card}>
+          {/* Tabs */}
+          <View style={styles.tabs}>
             <TouchableOpacity
               style={[styles.tab, !isRegistering && styles.tabActive]}
               onPress={() => setIsRegistering(false)}
+              activeOpacity={0.85}
             >
               <Text style={[styles.tabText, !isRegistering && styles.tabTextActive]}>Sign In</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, isRegistering && styles.tabActive]}
               onPress={() => setIsRegistering(true)}
+              activeOpacity={0.85}
             >
               <Text style={[styles.tabText, isRegistering && styles.tabTextActive]}>Create Account</Text>
             </TouchableOpacity>
@@ -111,310 +112,184 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
           {isRegistering && (
             <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Full Name</Text>
-                <View style={styles.inputWrapper}>
-                  <User size={18} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. Rahul Sharma"
-                    value={fullName}
-                    onChangeText={setFullName}
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
+              <Text style={styles.label}>Full Name</Text>
+              <View style={styles.field}>
+                <User size={17} color={c.text.muted} />
+                <TextInput
+                  style={styles.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Your name"
+                  placeholderTextColor={c.text.muted}
+                />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Mobile Phone</Text>
-                <View style={styles.inputWrapper}>
-                  <Phone size={18} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="10-digit number"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
+              <Text style={styles.label}>Phone</Text>
+              <View style={styles.field}>
+                <Phone size={17} color={c.text.muted} />
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="10-digit mobile"
+                  placeholderTextColor={c.text.muted}
+                  keyboardType="phone-pad"
+                />
               </View>
             </>
           )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <View style={styles.inputWrapper}>
-              <Mail size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="customer@quickbite.app"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholderTextColor="#94A3B8"
-              />
-            </View>
+          <Text style={styles.label}>Email Address</Text>
+          <View style={styles.field}>
+            <Mail size={17} color={c.text.muted} />
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor={c.text.muted}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Lock size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                placeholderTextColor="#94A3B8"
-              />
-            </View>
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.field}>
+            <Lock size={17} color={c.text.muted} />
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••"
+              placeholderTextColor={c.text.muted}
+              secureTextEntry
+            />
           </View>
 
-          {/* Submit Button */}
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
             onPress={handleSubmit}
             disabled={loading}
+            activeOpacity={0.88}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.submitButtonText}>
-                {isRegistering ? 'Create Account & Claim ₹100' : 'Sign In'}
-              </Text>
+              <Text style={styles.primaryBtnText}>{isRegistering ? 'Create Account' : 'Sign In'}</Text>
             )}
           </TouchableOpacity>
 
-          {/* Quick Demo Button */}
-          <TouchableOpacity
-            style={styles.demoButton}
-            onPress={handleQuickDemoLogin}
-            disabled={loading}
-          >
-            <Sparkles size={16} color={tokens.colors.primary[500]} />
-            <Text style={styles.demoButtonText}>One-Tap Demo Login (Rahul Sharma)</Text>
+          <TouchableOpacity style={styles.demoBtn} onPress={handleQuickDemoLogin} activeOpacity={0.85}>
+            <Sparkles size={15} color={c.accent[600]} />
+            <Text style={styles.demoBtnText}>One-Tap Demo Login</Text>
           </TouchableOpacity>
 
-          {/* Server Config Toggle */}
           <TouchableOpacity
             style={styles.serverToggle}
             onPress={() => setShowServerConfig(!showServerConfig)}
+            activeOpacity={0.7}
           >
-            <Server size={14} color="#64748B" />
+            <Server size={13} color={c.text.muted} />
             <Text style={styles.serverToggleText}>
-              {showServerConfig ? 'Hide Server Configuration' : 'Configure Server Endpoint'}
+              {showServerConfig ? 'Hide server settings' : 'Server settings'}
             </Text>
           </TouchableOpacity>
 
           {showServerConfig && (
-            <View style={styles.serverConfigBox}>
-              <Text style={styles.serverConfigLabel}>Backend API Endpoint URL</Text>
-              <TextInput
-                style={styles.serverConfigInput}
-                value={apiUrl}
-                onChangeText={setApiUrl}
-                placeholder="http://10.0.2.2:5000/api"
-                autoCapitalize="none"
-                placeholderTextColor="#94A3B8"
-              />
-              <Text style={styles.serverConfigHint}>
-                Use http://10.0.2.2:5000/api for Android emulator or public tunnel for physical device.
-              </Text>
+            <View style={styles.serverBox}>
+              <Text style={styles.label}>Backend API URL</Text>
+              <View style={styles.field}>
+                <Server size={16} color={c.text.muted} />
+                <TextInput
+                  style={styles.input}
+                  value={apiUrl}
+                  onChangeText={setApiUrl}
+                  autoCapitalize="none"
+                  placeholderTextColor={c.text.muted}
+                />
+              </View>
             </View>
           )}
-        </View>
+        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC'
+  screen: { flex: 1, backgroundColor: c.surface.app },
+  content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
+
+  brand: { alignItems: 'center', marginBottom: 26 },
+  logo: { width: 128, height: 128 },
+  brandName: {
+    fontSize: tokens.font.size['2xl'],
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.primary[500],
+    marginTop: 10,
+    letterSpacing: -0.6
   },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
-    alignItems: 'center'
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 28
-  },
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: tokens.colors.primary[500],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    elevation: 4,
-    shadowColor: tokens.colors.primary[500],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: -0.5
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
-    textAlign: 'center'
-  },
-  card: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    elevation: 2,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6
-  },
-  tabContainer: {
+  brandTag: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 5 },
+
+  card: { padding: 20 },
+
+  tabs: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
+    backgroundColor: c.surface.sunken,
+    borderRadius: tokens.radii.md,
     padding: 4,
     marginBottom: 20
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8
-  },
-  tabActive: {
-    backgroundColor: '#FFFFFF',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B'
-  },
-  tabTextActive: {
-    color: tokens.colors.primary[500],
-    fontWeight: '800'
-  },
-  inputGroup: {
-    marginBottom: 14
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 6
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    paddingHorizontal: 12
-  },
-  inputIcon: {
-    marginRight: 8
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0F172A'
-  },
-  submitButton: {
-    backgroundColor: tokens.colors.primary[500],
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-    elevation: 2
-  },
-  submitButtonDisabled: {
-    opacity: 0.6
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800'
-  },
-  demoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: tokens.colors.primary[100],
-    backgroundColor: tokens.colors.primary[50],
-    borderRadius: 12,
-    paddingVertical: 12,
+  tab: { flex: 1, paddingVertical: 10, borderRadius: tokens.radii.sm, alignItems: 'center' },
+  tabActive: { backgroundColor: c.surface.card, ...tokens.shadow.card },
+  tabText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.muted },
+  tabTextActive: { color: c.primary[500], fontWeight: tokens.font.weight.extrabold },
+
+  label: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.bold,
+    color: c.text.secondary,
+    marginBottom: 6,
     marginTop: 12
   },
-  demoButtonText: {
-    color: tokens.colors.primary[600],
-    fontSize: 13,
-    fontWeight: '700'
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 48,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    backgroundColor: c.surface.subtle,
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 13
   },
-  serverToggle: {
+  input: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, padding: 0 },
+
+  primaryBtn: {
+    height: 52,
+    borderRadius: tokens.radii.md,
+    backgroundColor: c.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 22
+  },
+  primaryBtnText: { color: '#FFFFFF', fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.extrabold },
+
+  demoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 18,
-    paddingVertical: 6
-  },
-  serverToggleText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600'
-  },
-  serverConfigBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
+    gap: 8,
+    height: 48,
+    borderRadius: tokens.radii.md,
+    backgroundColor: c.accent[50],
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 12,
-    marginTop: 10
+    borderColor: c.accent[300],
+    marginTop: 12
   },
-  serverConfigLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    marginBottom: 4
-  },
-  serverConfigInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 12,
-    color: '#0F172A'
-  },
-  serverConfigHint: {
-    fontSize: 10,
-    color: '#94A3B8',
-    marginTop: 4
-  }
+  demoBtnText: { color: c.accent[600], fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
+
+  serverToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 18 },
+  serverToggleText: { fontSize: tokens.font.size.xs, color: c.text.muted, fontWeight: tokens.font.weight.semibold },
+  serverBox: { marginTop: 6 }
 });

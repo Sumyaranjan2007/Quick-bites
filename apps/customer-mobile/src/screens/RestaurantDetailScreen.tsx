@@ -6,11 +6,14 @@ import {
   ScrollView,
   StyleSheet,
   Modal,
-  ActivityIndicator
+  Image
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { ArrowLeft, Star, ShoppingBag, ShieldCheck, Plus, Check } from 'lucide-react-native';
+import { Card, DietMark, RatingBadge, Button, EmptyState, LoadingState, Skeleton } from '../components/ui';
+import { ArrowLeft, ShoppingBag, ShieldCheck, Heart, Share2, Timer, Tag } from 'lucide-react-native';
 import { RestaurantItem } from './DiscoveryFeedScreen';
+
+const c = tokens.colors;
 
 export interface CartItem {
   id: string;
@@ -40,6 +43,7 @@ interface Dish {
   hasCustomizations: boolean;
   optionGroups?: OptionGroup[];
   categoryName?: string;
+  imageUrl?: string;
 }
 
 interface Props {
@@ -52,6 +56,12 @@ interface Props {
   token?: string;
 }
 
+const OFFERS = [
+  { title: '50% OFF', sub: 'Use WELCOME50' },
+  { title: 'FREE DELIVERY', sub: 'Use FREEDEL' },
+  { title: 'Gold benefits', sub: 'On orders above ₹199' }
+];
+
 export const RestaurantDetailScreen: React.FC<Props> = ({
   restaurant,
   cart,
@@ -61,11 +71,12 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   apiUrl,
   token
 }) => {
-  const [selectedDishForCustomization, setSelectedDishForCustomization] = useState<Dish | null>(null);
+  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const loadMenu = async () => {
     setIsLoading(true);
@@ -75,13 +86,12 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers });
       const data = await res.json();
-      if (!data.success || !data.data?.menu?.categories) {
-        throw new Error('Menu unavailable for this restaurant.');
-      }
-      const flattened: Dish[] = [];
+      if (!data.success || !data.data?.menu?.categories) throw new Error('Menu unavailable for this restaurant.');
+
+      const flat: Dish[] = [];
       for (const cat of data.data.menu.categories) {
         for (const item of cat.items || []) {
-          flattened.push({
+          flat.push({
             id: item.id,
             name: item.name,
             description: item.description || '',
@@ -90,13 +100,15 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             isAvailable: item.isAvailable !== false,
             hasCustomizations: Array.isArray(item.optionGroups) && item.optionGroups.length > 0,
             optionGroups: item.optionGroups,
-            categoryName: cat.name
+            categoryName: cat.name,
+            imageUrl: item.imageUrl
           });
         }
       }
-      setDishes(flattened);
+      setDishes(flat);
+      setActiveCategory(flat[0]?.categoryName ?? null);
     } catch (err: any) {
-      setLoadError(err.message || 'Could not load the menu. Please check your connection.');
+      setLoadError(err.message || 'Could not load the menu. Check your connection.');
     } finally {
       setIsLoading(false);
     }
@@ -107,13 +119,14 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   }, [restaurant.id]);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const categories = Array.from(new Set(dishes.map(d => d.categoryName).filter(Boolean))) as string[];
+  const shown = activeCategory ? dishes.filter(d => d.categoryName === activeCategory) : dishes;
 
   const handleAddDish = (dish: Dish) => {
     if (!dish.isAvailable) return;
     if (dish.hasCustomizations) {
-      const firstGroup = dish.optionGroups?.[0];
-      setSelectedOptionId(firstGroup?.options?.[0]?.id ?? null);
-      setSelectedDishForCustomization(dish);
+      setSelectedOptionId(dish.optionGroups?.[0]?.options?.[0]?.id ?? null);
+      setSelectedDish(dish);
     } else {
       onAddToCart({
         id: `cart_${dish.id}_standard`,
@@ -127,175 +140,207 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   };
 
   const handleConfirmCustomization = () => {
-    if (!selectedDishForCustomization) return;
-    const group = selectedDishForCustomization.optionGroups?.[0];
+    if (!selectedDish) return;
+    const group = selectedDish.optionGroups?.[0];
     const option = group?.options?.find(o => o.id === selectedOptionId) ?? group?.options?.[0];
-    const priceDelta = option?.priceDelta ?? 0;
-    const variantName = option?.name ?? 'Standard';
+    const delta = option?.priceDelta ?? 0;
+    const variant = option?.name ?? 'Standard';
 
     onAddToCart({
-      id: `cart_${selectedDishForCustomization.id}_${option?.id ?? 'standard'}`,
-      dishId: selectedDishForCustomization.id,
-      name: `${selectedDishForCustomization.name} (${variantName})`,
-      price: selectedDishForCustomization.price + priceDelta,
+      id: `cart_${selectedDish.id}_${option?.id ?? 'standard'}`,
+      dishId: selectedDish.id,
+      name: `${selectedDish.name} (${variant})`,
+      price: selectedDish.price + delta,
       quantity: 1,
-      isVeg: selectedDishForCustomization.isVeg,
-      variant: variantName,
+      isVeg: selectedDish.isVeg,
+      variant,
       selectedOptions: group && option ? [{ groupId: group.id, optionId: option.id }] : undefined
     });
-    setSelectedDishForCustomization(null);
+    setSelectedDish(null);
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Navigation */}
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <ArrowLeft size={20} color="#0F172A" />
-          <Text style={styles.backText}>Back to Restaurants</Text>
-        </TouchableOpacity>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Hero */}
+        <View style={styles.hero}>
+          {restaurant.bannerUrl ? (
+            <Image source={{ uri: restaurant.bannerUrl }} style={styles.heroImage} />
+          ) : (
+            <View style={[styles.heroImage, { backgroundColor: c.surface.sunken }]} />
+          )}
+          <View style={styles.heroScrim} />
 
-        {/* Restaurant Profile Card */}
-        <View style={styles.restaurantHeader}>
-          <Text style={styles.restaurantTitle}>{restaurant.name}</Text>
-          <Text style={styles.cuisineText}>{restaurant.cuisine}</Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>{restaurant.rating.toFixed(1)}</Text>
-              <Star size={10} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 2 }} />
+          <View style={styles.heroTop}>
+            <TouchableOpacity style={styles.circleBtn} onPress={onBack} activeOpacity={0.85}>
+              <ArrowLeft size={19} color={c.text.primary} />
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={styles.circleBtn} activeOpacity={0.85}>
+                <Heart size={18} color={c.text.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.circleBtn} activeOpacity={0.85}>
+                <Share2 size={18} color={c.text.primary} />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText}>{restaurant.deliveryTimeMins} mins Delivery</Text>
-            <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText}>{restaurant.distanceKm} km</Text>
           </View>
 
-          <View style={styles.fssaiRow}>
-            <ShieldCheck size={14} color={tokens.colors.dietary.veg} />
-            <Text style={styles.fssaiText}>FSSAI License: 11223344556677 (Verified Active)</Text>
+          <View style={styles.heroEta}>
+            <Timer size={12} color={c.text.primary} />
+            <Text style={styles.heroEtaText}>{restaurant.deliveryTimeMins} MIN</Text>
           </View>
         </View>
 
-        {/* Menu Section */}
-        <Text style={styles.menuSectionHeader}>Menu</Text>
+        {/* Restaurant summary */}
+        <Card style={styles.summaryCard}>
+          <View style={styles.summaryTop}>
+            <Text style={styles.title}>{restaurant.name}</Text>
+            <RatingBadge value={restaurant.rating} compact />
+          </View>
+          <Text style={styles.cuisine}>{restaurant.cuisine}</Text>
+          <Text style={styles.costLine}>
+            ₹{restaurant.priceForTwo} for two • Free delivery above ₹199
+          </Text>
+
+          <View style={styles.fssaiRow}>
+            <ShieldCheck size={13} color={c.dietary.veg} />
+            <Text style={styles.fssaiText}>FSSAI verified partner kitchen</Text>
+          </View>
+        </Card>
+
+        {/* Offers */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
+          {OFFERS.map(o => (
+            <View key={o.title} style={styles.offerCard}>
+              <Tag size={14} color={c.accent[600]} />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.offerTitle}>{o.title}</Text>
+                <Text style={styles.offerSub}>{o.sub}</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Category tabs */}
+        {categories.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+            {categories.map(cat => (
+              <TouchableOpacity key={cat} onPress={() => setActiveCategory(cat)} activeOpacity={0.8}>
+                <View style={styles.tab}>
+                  <Text style={[styles.tabText, activeCategory === cat && styles.tabTextActive]}>{cat}</Text>
+                  {activeCategory === cat && <View style={styles.tabUnderline} />}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {isLoading && (
-          <View style={styles.menuStatusBox}>
-            <ActivityIndicator color={tokens.colors.primary[500]} />
-            <Text style={styles.menuStatusText}>Loading menu...</Text>
+          <View style={{ gap: 14, paddingHorizontal: 16 }}>
+            {[0, 1, 2].map(i => (
+              <Skeleton key={i} height={104} />
+            ))}
           </View>
         )}
 
         {!isLoading && loadError && (
-          <View style={styles.menuStatusBox}>
-            <Text style={styles.menuErrorText}>{loadError}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadMenu}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState title="Menu unavailable" subtitle={loadError} action="Retry" onAction={loadMenu} />
         )}
 
         {!isLoading && !loadError && dishes.length === 0 && (
-          <View style={styles.menuStatusBox}>
-            <Text style={styles.menuStatusText}>This restaurant has not published a menu yet.</Text>
-          </View>
+          <EmptyState title="No dishes yet" subtitle="This restaurant hasn't published its menu." />
         )}
 
-        <View style={styles.dishList}>
-          {dishes.map(dish => {
-            const countInCart = cart
-              .filter(c => c.dishId === dish.id)
-              .reduce((s, c) => s + c.quantity, 0);
-
+        {/* Menu */}
+        <View style={styles.menuList}>
+          {shown.map(dish => {
+            const inCart = cart.filter(x => x.dishId === dish.id).reduce((s, x) => s + x.quantity, 0);
             return (
-              <View key={dish.id} style={[styles.dishCard, !dish.isAvailable && styles.dishCardUnavailable]}>
+              <View key={dish.id} style={[styles.dishRow, !dish.isAvailable && styles.dishRowOut]}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
-                  {/* Dietary Indicator */}
-                  <View style={dish.isVeg ? styles.vegSymbol : styles.nonVegSymbol}>
-                    <View style={dish.isVeg ? styles.vegDot : styles.nonVegTriangle} />
-                  </View>
-
+                  <DietMark isVeg={dish.isVeg} />
                   <Text style={styles.dishName}>{dish.name}</Text>
-                  <Text style={styles.dishPrice}>Rs {dish.price.toFixed(2)}</Text>
-                  <Text style={styles.dishDesc} numberOfLines={2}>{dish.description}</Text>
+                  <Text style={styles.dishPrice}>₹{dish.price.toFixed(0)}</Text>
+                  {!!dish.description && (
+                    <Text style={styles.dishDesc} numberOfLines={2}>
+                      {dish.description}
+                    </Text>
+                  )}
                 </View>
 
-                {/* Add / Quantity Button */}
-                {dish.isAvailable ? (
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => handleAddDish(dish)}
-                  >
-                    <Text style={styles.addButtonText}>
-                      {countInCart > 0 ? `ADD (${countInCart})` : 'ADD'}
-                    </Text>
-                    {dish.hasCustomizations && (
-                      <Text style={styles.customizableText}>customisable</Text>
-                    )}
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.soldOutButton}>
-                    <Text style={styles.soldOutText}>SOLD OUT</Text>
-                  </View>
-                )}
+                <View style={styles.dishRight}>
+                  {dish.imageUrl ? (
+                    <Image source={{ uri: dish.imageUrl }} style={styles.dishImage} />
+                  ) : (
+                    <View style={[styles.dishImage, { backgroundColor: c.surface.sunken }]} />
+                  )}
+
+                  {dish.isAvailable ? (
+                    <TouchableOpacity style={styles.addBtn} onPress={() => handleAddDish(dish)} activeOpacity={0.85}>
+                      <Text style={styles.addBtnText}>{inCart > 0 ? `ADD ${inCart}` : 'ADD'}</Text>
+                      <Text style={styles.addBtnPlus}>+</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.soldOutBtn}>
+                      <Text style={styles.soldOutText}>SOLD OUT</Text>
+                    </View>
+                  )}
+                  {dish.hasCustomizations && dish.isAvailable && (
+                    <Text style={styles.customisable}>customisable</Text>
+                  )}
+                </View>
               </View>
             );
           })}
         </View>
       </ScrollView>
 
-      {/* Floating Bottom Cart Bar */}
+      {/* Cart bar */}
       {totalCartCount > 0 && (
         <View style={styles.cartBar}>
           <View>
-            <Text style={styles.cartBarCount}>{totalCartCount} item{totalCartCount > 1 ? 's' : ''} added</Text>
-            <Text style={styles.cartBarSubtext}>Charges and taxes calculated next</Text>
+            <Text style={styles.cartBarCount}>
+              {totalCartCount} item{totalCartCount > 1 ? 's' : ''} added
+            </Text>
+            <Text style={styles.cartBarSub}>Taxes and charges calculated next</Text>
           </View>
-          <TouchableOpacity style={styles.viewCartButton} onPress={onViewCart}>
-            <Text style={styles.viewCartButtonText}>View Cart</Text>
-            <ShoppingBag size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+          <TouchableOpacity style={styles.cartBarBtn} onPress={onViewCart} activeOpacity={0.88}>
+            <Text style={styles.cartBarBtnText}>View Cart</Text>
+            <ShoppingBag size={16} color={c.text.onAccent} />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Customization Modal */}
-      {selectedDishForCustomization && (
-        <Modal visible transparent animationType="slide">
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{selectedDishForCustomization.name}</Text>
-              <Text style={styles.modalSubtitle}>
-                {selectedDishForCustomization.optionGroups?.[0]?.title || 'Choose an Option'}
-              </Text>
+      {/* Customisation sheet */}
+      {selectedDish && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setSelectedDish(null)}>
+          <View style={styles.sheetBackdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>{selectedDish.name}</Text>
+              <Text style={styles.sheetSub}>{selectedDish.optionGroups?.[0]?.title || 'Choose an option'}</Text>
 
-              {(selectedDishForCustomization.optionGroups?.[0]?.options || []).map(option => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[styles.modalOption, selectedOptionId === option.id && styles.modalOptionSelected]}
-                  onPress={() => setSelectedOptionId(option.id)}
-                >
-                  <Text style={styles.optionName}>{option.name}</Text>
-                  <Text style={styles.optionPrice}>
-                    Rs {(selectedDishForCustomization.price + option.priceDelta).toFixed(2)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(selectedDish.optionGroups?.[0]?.options || []).map(option => {
+                const active = selectedOptionId === option.id;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[styles.optionRow, active && styles.optionRowActive]}
+                    onPress={() => setSelectedOptionId(option.id)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[styles.radio, active && styles.radioActive]}>
+                      {active && <View style={styles.radioInner} />}
+                    </View>
+                    <Text style={styles.optionName}>{option.name}</Text>
+                    <Text style={styles.optionPrice}>₹{(selectedDish.price + option.priceDelta).toFixed(0)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
 
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-                <TouchableOpacity
-                  style={[styles.modalBtn, { backgroundColor: '#F1F5F9' }]}
-                  onPress={() => setSelectedDishForCustomization(null)}
-                >
-                  <Text style={{ color: '#475569', fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalBtn, { backgroundColor: tokens.colors.primary[500], flex: 1 }]}
-                  onPress={handleConfirmCustomization}
-                >
-                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Add Item to Cart</Text>
-                </TouchableOpacity>
+              <View style={styles.sheetActions}>
+                <Button label="Cancel" variant="ghost" onPress={() => setSelectedDish(null)} />
+                <Button label="Add to Cart" variant="accent" onPress={handleConfirmCustomization} style={{ flex: 1 }} full />
               </View>
             </View>
           </View>
@@ -306,311 +351,208 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  screen: { flex: 1, backgroundColor: c.surface.app },
+  content: { paddingBottom: 120 },
+
+  hero: { height: 230 },
+  heroImage: { width: '100%', height: 230 },
+  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,16,20,0.18)' },
+  heroTop: {
+    position: 'absolute',
+    top: 14,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  circleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  heroEta: {
+    position: 'absolute',
+    right: 16,
+    bottom: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: tokens.radii.sm
+  },
+  heroEtaText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+
+  summaryCard: { marginHorizontal: 16, marginTop: -18 },
+  summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  title: {
     flex: 1,
-    backgroundColor: '#F8FAFC'
+    fontSize: tokens.font.size.xl,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    letterSpacing: -0.4
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 90
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16
-  },
-  backText: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '600'
-  },
-  restaurantHeader: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 20
-  },
-  restaurantTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A'
-  },
-  cuisineText: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    gap: 6
-  },
-  ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: tokens.colors.dietary.veg,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6
-  },
-  ratingText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#64748B'
-  },
-  metaDot: {
-    color: '#94A3B8'
-  },
+  cuisine: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6 },
+  costLine: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4 },
   fssaiRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 12,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9'
+    borderTopColor: c.border.subtle
   },
-  fssaiText: {
-    fontSize: 11,
-    color: '#64748B'
-  },
-  menuSectionHeader: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 12
-  },
-  dishList: {
-    gap: 12
-  },
-  dishCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  fssaiText: { fontSize: tokens.font.size.xs, color: c.dietary.veg, fontWeight: tokens.font.weight.semibold },
+
+  offerRow: { gap: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
+  offerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  dishCardUnavailable: {
-    opacity: 0.55,
-    backgroundColor: '#F8FAFC'
-  },
-  soldOutButton: {
+    backgroundColor: c.accent[50],
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'center'
+    borderColor: c.accent[300],
+    borderStyle: 'dashed',
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10
   },
-  soldOutText: {
-    color: '#94A3B8',
-    fontWeight: '800',
-    fontSize: 12
-  },
-  menuStatusBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 20,
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12
-  },
-  menuStatusText: {
-    color: '#64748B',
-    fontSize: 13
-  },
-  menuErrorText: {
-    color: tokens.colors.primary[500],
-    fontSize: 13,
-    textAlign: 'center'
-  },
-  retryButton: {
-    backgroundColor: tokens.colors.primary[500],
-    borderRadius: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 8
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13
-  },
-  vegSymbol: {
-    width: 14,
-    height: 14,
-    borderWidth: 1.5,
-    borderColor: tokens.colors.dietary.veg,
+  offerTitle: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.accent[600] },
+  offerSub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 1 },
+
+  tabRow: { gap: 20, paddingHorizontal: 16, paddingTop: 18 },
+  tab: { paddingBottom: 8 },
+  tabText: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: c.text.muted },
+  tabTextActive: { color: c.primary[500], fontWeight: tokens.font.weight.extrabold },
+  tabUnderline: {
+    height: 3,
     borderRadius: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6
+    backgroundColor: c.primary[500],
+    marginTop: 6
   },
-  vegDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: tokens.colors.dietary.veg
+
+  menuList: { paddingHorizontal: 16, paddingTop: 8 },
+  dishRow: {
+    flexDirection: 'row',
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border.subtle
   },
-  nonVegSymbol: {
-    width: 14,
-    height: 14,
-    borderWidth: 1.5,
-    borderColor: tokens.colors.primary[500],
-    borderRadius: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6
-  },
-  nonVegTriangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 3.5,
-    borderRightWidth: 3.5,
-    borderBottomWidth: 6,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: tokens.colors.primary[500]
-  },
+  dishRowOut: { opacity: 0.5 },
   dishName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A'
+    fontSize: tokens.font.size.base,
+    fontWeight: tokens.font.weight.bold,
+    color: c.text.primary,
+    marginTop: 8
   },
   dishPrice: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: tokens.colors.primary[500],
-    marginTop: 2
+    fontSize: tokens.font.size.base,
+    fontWeight: tokens.font.weight.bold,
+    color: c.text.primary,
+    marginTop: 4
   },
-  dishDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
-    lineHeight: 16
-  },
-  addButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: tokens.colors.dietary.veg,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  dishDesc: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, lineHeight: 18 },
+
+  dishRight: { width: 112, alignItems: 'center' },
+  dishImage: { width: 112, height: 96, borderRadius: tokens.radii.md },
+  addBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 80
+    gap: 4,
+    marginTop: -16,
+    backgroundColor: c.accent[500],
+    paddingHorizontal: 22,
+    paddingVertical: 9,
+    borderRadius: tokens.radii.sm,
+    ...tokens.shadow.card
   },
-  addButtonText: {
-    color: tokens.colors.dietary.veg,
-    fontWeight: '800',
-    fontSize: 13
+  addBtnText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
+  addBtnPlus: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
+  soldOutBtn: {
+    marginTop: -16,
+    backgroundColor: c.surface.sunken,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: tokens.radii.sm
   },
-  customizableText: {
-    fontSize: 9,
-    color: '#94A3B8',
-    marginTop: 2
-  },
+  soldOutText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.extrabold, color: c.text.muted },
+  customisable: { fontSize: 10, color: c.text.muted, marginTop: 5 },
+
   cartBar: {
     position: 'absolute',
-    bottom: 16,
     left: 16,
     right: 16,
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    padding: 14,
+    bottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8
+    backgroundColor: c.primary[600],
+    borderRadius: tokens.radii.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    ...tokens.shadow.floating
   },
-  cartBarCount: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14
-  },
-  cartBarSubtext: {
-    color: '#94A3B8',
-    fontSize: 11,
-    marginTop: 2
-  },
-  viewCartButton: {
+  cartBarCount: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.base },
+  cartBarSub: { color: '#D9C4BB', fontSize: tokens.font.size.xs, marginTop: 2 },
+  cartBarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: tokens.colors.primary[500],
+    gap: 7,
+    backgroundColor: c.accent[500],
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8
+    borderRadius: tokens.radii.sm
   },
-  viewCartButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13
+  cartBarBtnText: { fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent, fontSize: tokens.font.size.sm },
+
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(26,7,16,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: c.surface.card,
+    borderTopLeftRadius: tokens.radii['2xl'],
+    borderTopRightRadius: tokens.radii['2xl'],
+    padding: 20,
+    paddingBottom: 28
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end'
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: c.border.strong,
+    alignSelf: 'center',
+    marginBottom: 16
   },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A'
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginVertical: 12
-  },
-  modalOption: {
+  sheetTitle: { fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  sheetSub: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4, marginBottom: 14 },
+  optionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 14,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: c.border.subtle,
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10
+  },
+  optionRowActive: { borderColor: c.primary[500], backgroundColor: c.primary[50] },
+  radio: {
+    width: 19,
+    height: 19,
     borderRadius: 10,
-    marginBottom: 8
-  },
-  modalOptionSelected: {
-    borderColor: tokens.colors.primary[500],
-    backgroundColor: '#FDF2F2'
-  },
-  optionName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A'
-  },
-  optionPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: tokens.colors.primary[500]
-  },
-  modalBtn: {
-    paddingVertical: 12,
-    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: c.border.strong,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16
-  }
+    marginRight: 12
+  },
+  radioActive: { borderColor: c.primary[500] },
+  radioInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary[500] },
+  optionName: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, fontWeight: tokens.font.weight.medium },
+  optionPrice: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sheetActions: { flexDirection: 'row', gap: 12, marginTop: 8 }
 });

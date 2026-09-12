@@ -78,7 +78,7 @@ export function authMiddleware(requiredRole?: string) {
         id: payload.sub || 'usr_unknown',
         email: payload.email || '',
         role: payload.role || 'customer',
-        fullName: payload.user_metadata?.name || 'Quick Bite User',
+        fullName: payload.user_metadata?.name || 'Quick Bites User',
         isGold: !!payload.is_gold
       };
       

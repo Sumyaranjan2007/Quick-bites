@@ -1,5 +1,5 @@
 /**
- * Quick Bite Database Client & Data Store
+ * Quick Bites Database Client & Data Store
  * Supports Dual Mode: Live Supabase PostgreSQL + PostGIS, with In-Memory Deterministic Engine for Multi-Portal State.
  * Includes Local JSON Persistence Engine to survive server restarts.
  */
