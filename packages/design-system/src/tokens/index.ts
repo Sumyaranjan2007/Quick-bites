@@ -1,30 +1,30 @@
 export const tokens = {
   colors: {
     primary: {
-      50: '#FDF2F2',
-      100: '#FDE8EA',
-      500: '#E23744',
-      600: '#C62835',
-      700: '#A51D29'
+      50: '#FBF1F3',
+      100: '#F5DDE2',
+      500: '#5B0E20',
+      600: '#4A0D1F',
+      700: '#3D0A17'
     },
     accent: {
-      400: '#FFA233',
-      500: '#FF8A00',
-      600: '#E07A00'
+      400: '#FFB84D',
+      500: '#F5A623',
+      600: '#E08E0B'
     },
     dietary: {
-      veg: '#0F8A3C',
-      vegBg: '#E8F5E9',
-      nonveg: '#E23744',
-      nonvegBg: '#FDE8EA',
-      gold: '#D97706',
-      goldBg: '#FEF3C7'
+      veg: '#0F8A5F',
+      vegBg: '#E7F7F0',
+      nonveg: '#D64545',
+      nonvegBg: '#FDECEC',
+      gold: '#B4801A',
+      goldBg: '#FDF3DD'
     },
     semantic: {
-      success: '#10B981',
-      warning: '#F59E0B',
-      error: '#EF4444',
-      info: '#3B82F6'
+      success: '#0F8A5F',
+      warning: '#E08E0B',
+      error: '#D64545',
+      info: '#2563EB'
     }
   },
   spacing: {

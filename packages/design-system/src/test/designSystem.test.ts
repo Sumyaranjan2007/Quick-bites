@@ -15,10 +15,10 @@ async function runDesignSystemTests() {
 
   // Test 1: Design Token Constants
   console.log('Test 1: Validating Design Tokens & Strict Indian Food Colors...');
-  assert.strictEqual(tokens.colors.primary[500], '#E23744', 'Brand Crimson color mismatch');
-  assert.strictEqual(tokens.colors.dietary.veg, '#0F8A3C', 'FSSAI Veg Green color mismatch');
-  assert.strictEqual(tokens.colors.dietary.nonveg, '#E23744', 'FSSAI Non-Veg Crimson color mismatch');
-  assert.strictEqual(tokens.colors.dietary.gold, '#D97706', 'Quick Bites Gold Amber color mismatch');
+  assert.strictEqual(tokens.colors.primary[500], '#5B0E20', 'Brand maroon color mismatch');
+  assert.strictEqual(tokens.colors.dietary.veg, '#0F8A5F', 'FSSAI Veg Green color mismatch');
+  assert.strictEqual(tokens.colors.dietary.nonveg, '#D64545', 'FSSAI Non-Veg red color mismatch');
+  assert.strictEqual(tokens.colors.dietary.gold, '#B4801A', 'Quick Bites Gold Amber color mismatch');
   assert.strictEqual(tokens.spacing[4], '16px', 'Spacing 4px grid mismatch');
   console.log('[PASS] Test 1: Design tokens match approved DESIGN_TOKENS.md specification');
 
@@ -31,15 +31,25 @@ async function runDesignSystemTests() {
   assert.ok(fs.existsSync(componentsCssPath), 'components.css must exist');
 
   const tokensCss = fs.readFileSync(tokensCssPath, 'utf-8');
-  assert.ok(tokensCss.includes('--color-primary-500: #E23744;'), 'tokens.css missing canonical brand crimson');
+  assert.ok(tokensCss.includes('--color-primary-500: #5B0E20;'), 'tokens.css missing canonical brand maroon');
   assert.ok(tokensCss.includes('[data-theme="dark"]'), 'tokens.css missing dark theme overrides');
-  assert.ok(tokensCss.includes('--bg-app: #060918;'), 'tokens.css missing dark mode background');
+  assert.ok(tokensCss.includes('--bg-app: #17090E;'), 'tokens.css missing dark mode background');
 
   const componentsCss = fs.readFileSync(componentsCssPath, 'utf-8');
   assert.ok(componentsCss.includes('.qb-dietary-icon-veg'), 'components.css missing zero-emoji pure CSS veg icon');
   assert.ok(componentsCss.includes('.qb-dietary-icon-nonveg'), 'components.css missing zero-emoji pure CSS nonveg icon');
   assert.ok(componentsCss.includes('.qb-skeleton'), 'components.css missing skeleton shimmer animation');
-  console.log('[PASS] Test 2: CSS custom property files verified with dark theme & zero-emoji indicators');
+  // The TS token module and the CSS custom properties are two copies of the same
+  // palette — assert they agree so a change to one cannot silently skip the other.
+  assert.ok(
+    tokensCss.includes(`--color-primary-500: ${tokens.colors.primary[500]};`),
+    'tokens.css primary-500 does not match the TS token module'
+  );
+  assert.ok(
+    tokensCss.includes(`--color-veg: ${tokens.colors.dietary.veg};`),
+    'tokens.css --color-veg does not match the TS token module'
+  );
+  console.log('[PASS] Test 2: CSS tokens verified and in sync with the TS token module');
 
   // Test 3: Multi-Language i18n Translation Coverage
   console.log('\nTest 3: Testing i18n translations (English, Hindi, Kannada)...');
@@ -55,7 +65,7 @@ async function runDesignSystemTests() {
   const hiApp = translate('hi', 'common.appName');
   const hiDelivery = translate('hi', 'customer.deliveryIn', { minutes: 25 });
   const hiVeg = translate('hi', 'common.veg');
-  assert.strictEqual(hiApp, 'क्विक बाइट');
+  assert.strictEqual(hiApp, 'क्विक बाइट्स');
   assert.strictEqual(hiDelivery, '25 मिनट में डिलीवरी');
   assert.strictEqual(hiVeg, 'शुद्ध शाकाहारी');
 
@@ -63,7 +73,7 @@ async function runDesignSystemTests() {
   const knApp = translate('kn', 'common.appName');
   const knDelivery = translate('kn', 'customer.deliveryIn', { minutes: 25 });
   const knVeg = translate('kn', 'common.veg');
-  assert.strictEqual(knApp, 'ಕ್ವಿಕ್ ಬೈಟ್');
+  assert.strictEqual(knApp, 'ಕ್ವಿಕ್ ಬೈಟ್ಸ್');
   assert.strictEqual(knDelivery, '25 ನಿಮಿಷಗಳಲ್ಲಿ ವಿತರಣೆ');
   assert.strictEqual(knVeg, 'ಶುದ್ಧ ಸಸ್ಯಾಹಾರಿ');
 
