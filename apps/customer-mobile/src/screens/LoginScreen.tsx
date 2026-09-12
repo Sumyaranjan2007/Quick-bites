@@ -15,6 +15,7 @@ import {
 import { tokens } from '../theme/tokens';
 import { Lock, Mail, User, Phone, Server, Sparkles } from 'lucide-react-native';
 import { Card } from '../components/ui';
+import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
 
@@ -53,7 +54,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
         ? { email, password, fullName, phone, role: 'customer' }
         : { email, password, role: 'customer' };
 
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyPayload)

@@ -27,6 +27,7 @@ import {
   KeyRound,
   ArrowRight
 } from 'lucide-react-native';
+import { apiFetch } from './src/lib/apiFetch';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -72,7 +73,7 @@ function DeliveryApp() {
         setTelemetryCount(prev => prev + 1);
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-        fetch(`${apiUrl}/riders/telemetry`, {
+        apiFetch(`${apiUrl}/riders/telemetry`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -110,7 +111,7 @@ function DeliveryApp() {
 
   const loadRiderProfile = async (userId: string, token?: string) => {
     try {
-      const res = await fetch(`${apiUrl}/riders/profile/${userId}`, { headers: authHeaders(token) });
+      const res = await apiFetch(`${apiUrl}/riders/profile/${userId}`, { headers: authHeaders(token) });
       const data = await res.json();
       if (data.success && data.data?.rider) {
         const r = data.data.rider;
@@ -135,7 +136,7 @@ function DeliveryApp() {
   const syncBroadcasts = async (token?: string) => {
     setIsSyncing(true);
     try {
-      const res = await fetch(`${apiUrl}/riders/orders/broadcast`, { headers: authHeaders(token) });
+      const res = await apiFetch(`${apiUrl}/riders/orders/broadcast`, { headers: authHeaders(token) });
       const data = await res.json();
       if (data.success && Array.isArray(data.data?.broadcasts) && data.data.broadcasts.length > 0) {
         setIncomingBroadcast(mapBroadcast(data.data.broadcasts[0]));
@@ -152,7 +153,7 @@ function DeliveryApp() {
   // Login handler
   const handleLogin = async () => {
     try {
-      const res = await fetch(`${apiUrl}/auth/login`, {
+      const res = await apiFetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role: 'rider' })
@@ -177,7 +178,7 @@ function DeliveryApp() {
     const nextState = !rider.isOnline;
     setRider({ ...rider, isOnline: nextState });
     try {
-      const res = await fetch(`${apiUrl}/riders/shift`, {
+      const res = await apiFetch(`${apiUrl}/riders/shift`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ riderId: rider.id, isOnline: nextState })
@@ -195,7 +196,7 @@ function DeliveryApp() {
   const acceptBroadcast = async () => {
     if (!incomingBroadcast) return;
     try {
-      const res = await fetch(`${apiUrl}/riders/orders/${incomingBroadcast.id}/claim`, {
+      const res = await apiFetch(`${apiUrl}/riders/orders/${incomingBroadcast.id}/claim`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
@@ -220,7 +221,7 @@ function DeliveryApp() {
   // Pickup Handshake — verified by the backend, not locally
   const verifyPickupHandshake = async () => {
     try {
-      const res = await fetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-pickup`, {
+      const res = await apiFetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-pickup`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ pickupCode: pickupCodeInput.trim() })
@@ -242,7 +243,7 @@ function DeliveryApp() {
     const cash = activeTrip.paymentMode === 'COD' ? activeTrip.cashToCollect : 0;
 
     try {
-      const res = await fetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-otp`, {
+      const res = await apiFetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-otp`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({

@@ -15,6 +15,7 @@ const c = tokens.colors;
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus } from 'lucide-react-native';
 import { CartItem } from './RestaurantDetailScreen';
+import { apiFetch } from '../lib/apiFetch';
 
 interface Props {
   cart: CartItem[];
@@ -58,7 +59,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   const loadAddresses = async () => {
     if (!apiUrl || !token) return;
     try {
-      const res = await fetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success && Array.isArray(data.data?.addresses)) {
         setAddresses(data.data.addresses);
@@ -79,7 +80,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
     setIsSavingAddress(true);
     setAddressError(null);
     try {
-      const res = await fetch(`${apiUrl}/addresses`, {
+      const res = await apiFetch(`${apiUrl}/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form)
@@ -172,7 +173,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         distanceKm: distanceKm ?? 2.5
       };
 
-      const res = await fetch(`${effectiveBase}/orders`, {
+      const res = await apiFetch(`${effectiveBase}/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +194,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       // A Razorpay order is created as PAYMENT_PENDING; it only reaches the kitchen
       // once payment is confirmed. Demo mode accepts the simulated sandbox signature.
       if (order.status === 'PAYMENT_PENDING') {
-        const payRes = await fetch(`${effectiveBase}/orders/${order.id}/confirm-payment`, {
+        const payRes = await apiFetch(`${effectiveBase}/orders/${order.id}/confirm-payment`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -14,6 +14,7 @@ import { tokens } from '../theme/tokens';
 
 const c = tokens.colors;
 import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft, CreditCard, Cloud } from 'lucide-react-native';
+import { apiFetch } from '../lib/apiFetch';
 
 interface Props {
   onBack: () => void;
@@ -38,7 +39,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`${apiUrl}/auth/me`, {
+      const res = await apiFetch(`${apiUrl}/auth/me`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +66,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`${apiUrl}/wallets/usr_customer_01`, { headers })
+    apiFetch(`${apiUrl}/wallets/usr_customer_01`, { headers })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data?.wallet?.balance !== undefined) {

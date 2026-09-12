@@ -29,6 +29,7 @@ import {
   LogOut,
   Sparkles
 } from 'lucide-react-native';
+import { apiFetch } from './src/lib/apiFetch';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -89,7 +90,7 @@ function RestaurantApp() {
 
   const loadRestaurantProfile = async (ownerId: string, token?: string) => {
     try {
-      const res = await fetch(`${apiUrl}/restaurants/owner/${ownerId}`, { headers: authHeaders(token) });
+      const res = await apiFetch(`${apiUrl}/restaurants/owner/${ownerId}`, { headers: authHeaders(token) });
       const data = await res.json();
       if (data.success && data.data?.restaurant) {
         const r = data.data.restaurant;
@@ -114,8 +115,8 @@ function RestaurantApp() {
     setIsSyncing(true);
     try {
       const [ordersRes, menuRes] = await Promise.all([
-        fetch(`${apiUrl}/restaurants/${restaurant.id}/orders`, { headers: authHeaders(token) }),
-        fetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers: authHeaders(token) })
+        apiFetch(`${apiUrl}/restaurants/${restaurant.id}/orders`, { headers: authHeaders(token) }),
+        apiFetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers: authHeaders(token) })
       ]);
 
       const ordersData = await ordersRes.json();
@@ -167,7 +168,7 @@ function RestaurantApp() {
   // Handle Login
   const handleLogin = async () => {
     try {
-      const res = await fetch(`${apiUrl}/auth/login`, {
+      const res = await apiFetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role: 'restaurant_owner' })
@@ -192,7 +193,7 @@ function RestaurantApp() {
     const nextState = !restaurant.isOpen;
     setRestaurant({ ...restaurant, isOpen: nextState });
     try {
-      const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/kitchen-status`, {
+      const res = await apiFetch(`${apiUrl}/restaurants/${restaurant.id}/kitchen-status`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ isKitchenActive: nextState })
@@ -210,7 +211,7 @@ function RestaurantApp() {
     const previous = menuItems;
     setMenuItems(menuItems.map(m => m.id === dishId ? { ...m, isAvailable: !current } : m));
     try {
-      const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/menu/toggle-stock`, {
+      const res = await apiFetch(`${apiUrl}/restaurants/${restaurant.id}/menu/toggle-stock`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ dishId, isAvailable: !current })
@@ -230,7 +231,7 @@ function RestaurantApp() {
       prev.map(o => (o.id === orderId ? { ...o, status, prepMinutes: preparationMinutes ?? o.prepMinutes } : o))
     );
     try {
-      const res = await fetch(`${apiUrl}/orders/${orderId}/status`, {
+      const res = await apiFetch(`${apiUrl}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: authHeaders(),
         body: JSON.stringify(

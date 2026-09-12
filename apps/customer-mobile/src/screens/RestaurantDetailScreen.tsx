@@ -12,6 +12,7 @@ import { tokens } from '../theme/tokens';
 import { Card, DietMark, RatingBadge, Button, EmptyState, LoadingState, Skeleton } from '../components/ui';
 import { ArrowLeft, ShoppingBag, ShieldCheck, Heart, Share2, Timer, Tag } from 'lucide-react-native';
 import { RestaurantItem } from './DiscoveryFeedScreen';
+import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
 
@@ -84,7 +85,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
     try {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers });
+      const res = await apiFetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers });
       const data = await res.json();
       if (!data.success || !data.data?.menu?.categories) throw new Error('Menu unavailable for this restaurant.');
 

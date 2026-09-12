@@ -9,6 +9,7 @@ import {
 import { tokens } from '../theme/tokens';
 import { Bike, Phone, ArrowLeft, Check } from 'lucide-react-native';
 import { Card } from '../components/ui';
+import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
 
@@ -55,7 +56,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
       try {
         const headers: Record<string, string> = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${apiUrl}/orders/${orderId}`, { headers });
+        const res = await apiFetch(`${apiUrl}/orders/${orderId}`, { headers });
         const data = await res.json();
         if (!cancelled && data.success && data.data?.order) {
           setOrder(data.data.order);

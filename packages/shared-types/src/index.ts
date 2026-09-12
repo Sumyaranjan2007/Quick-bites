@@ -143,6 +143,10 @@ export interface Order {
   deliveryAddressId: string;
   deliveryAddressText?: string;
   deliveryCoordinates?: Coordinates;
+  /** Last known rider position for this trip, so the customer can follow it. */
+  riderCoordinates?: Coordinates;
+  riderBearing?: number;
+  riderLocationUpdatedAt?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;

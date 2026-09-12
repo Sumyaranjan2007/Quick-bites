@@ -12,6 +12,7 @@ import {
 import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
 import { Search, MapPin, ChevronDown, Bell, Mic, Heart, Timer } from 'lucide-react-native';
+import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
 
@@ -57,7 +58,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
   const load = async () => {
     if (!apiUrl) return;
     try {
-      const res = await fetch(`${apiUrl}/restaurants`);
+      const res = await apiFetch(`${apiUrl}/restaurants`);
       const data = await res.json();
       if (data.success && Array.isArray(data.data?.restaurants)) {
         setRestaurants(

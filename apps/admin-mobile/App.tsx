@@ -28,6 +28,7 @@ import {
   Sparkles,
   ArrowUpRight
 } from 'lucide-react-native';
+import { apiFetch } from './src/lib/apiFetch';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -71,9 +72,9 @@ function AdminApp() {
     setIsSyncing(true);
     try {
       const [metricsRes, kycRes, ordersRes] = await Promise.all([
-        fetch(`${apiUrl}/admin/metrics`, { headers: authHeaders(token) }),
-        fetch(`${apiUrl}/admin/kyc/pending`, { headers: authHeaders(token) }),
-        fetch(`${apiUrl}/orders`, { headers: authHeaders(token) })
+        apiFetch(`${apiUrl}/admin/metrics`, { headers: authHeaders(token) }),
+        apiFetch(`${apiUrl}/admin/kyc/pending`, { headers: authHeaders(token) }),
+        apiFetch(`${apiUrl}/orders`, { headers: authHeaders(token) })
       ]);
 
       const metricsData = await metricsRes.json();
@@ -124,7 +125,7 @@ function AdminApp() {
   // Handle Login
   const handleLogin = async () => {
     try {
-      const res = await fetch(`${apiUrl}/auth/login`, {
+      const res = await apiFetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role: 'admin' })
@@ -145,7 +146,7 @@ function AdminApp() {
   // Review KYC Document
   const handleKycReview = async (docId: string, action: 'APPROVE' | 'REJECT') => {
     try {
-      const res = await fetch(`${apiUrl}/admin/kyc/review`, {
+      const res = await apiFetch(`${apiUrl}/admin/kyc/review`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ documentId: docId, action })
@@ -170,7 +171,7 @@ function AdminApp() {
     const amount = refundAmount ? Number(refundAmount) : refundTarget.totalAmount;
 
     try {
-      const res = await fetch(`${apiUrl}/admin/orders/${refundTarget.id}/refund`, {
+      const res = await apiFetch(`${apiUrl}/admin/orders/${refundTarget.id}/refund`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ amount, reason: refundReason })
