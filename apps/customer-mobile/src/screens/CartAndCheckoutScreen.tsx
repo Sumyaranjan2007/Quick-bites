@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  StyleSheet
+  StyleSheet,
+  Modal
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Card, DietMark } from '../components/ui';
@@ -44,6 +45,61 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
+
+  // Saved delivery addresses — customers must be able to say where they live,
+  // and the server rejects an address that isn't theirs.
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showAddressSheet, setShowAddressSheet] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [form, setForm] = useState({ label: 'Home', addressLine: '', landmark: '', city: 'Bengaluru', pincode: '' });
+
+  const loadAddresses = async () => {
+    if (!apiUrl || !token) return;
+    try {
+      const res = await fetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data?.addresses)) {
+        setAddresses(data.data.addresses);
+        const preferred = data.data.addresses.find((a: any) => a.isDefault) ?? data.data.addresses[0];
+        setSelectedAddressId(prev => prev ?? preferred?.id ?? null);
+      }
+    } catch {
+      // Leave the picker empty; checkout will prompt for an address.
+    }
+  };
+
+  useEffect(() => {
+    loadAddresses();
+  }, [apiUrl, token]);
+
+  const handleSaveAddress = async () => {
+    if (!apiUrl || !token) return;
+    setIsSavingAddress(true);
+    setAddressError(null);
+    try {
+      const res = await fetch(`${apiUrl}/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error?.details?.[0]?.message || data?.error?.message || 'Address could not be saved.');
+      }
+      setSelectedAddressId(data.data.address.id);
+      setShowAddressSheet(false);
+      setForm({ label: 'Home', addressLine: '', landmark: '', city: 'Bengaluru', pincode: '' });
+      await loadAddresses();
+    } catch (err: any) {
+      setAddressError(err?.message || 'Address could not be saved.');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  const selectedAddress = addresses.find(a => a.id === selectedAddressId) ?? null;
 
   // Map cart items for pricing engine
   const pricingItems = cart.map(item => ({
@@ -84,6 +140,10 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   };
 
   const handleCheckout = async () => {
+    if (!selectedAddressId) {
+      setCheckoutError('Add a delivery address before placing your order.');
+      return;
+    }
     setIsProcessing(true);
     setCheckoutError(null);
     const effectiveBase = apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api';
@@ -97,7 +157,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
       const payload = {
         restaurantId: restaurantId || 'rst_bbh_01',
-        deliveryAddressId: 'addr_indiranagar_01',
+        deliveryAddressId: selectedAddressId,
         items: cart.map(item => ({
           dishId: item.dishId,
           quantity: item.quantity,
@@ -221,8 +281,45 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             <MapPin size={16} color={c.primary[500]} />
             <Text style={styles.blockTitle}>Delivering to</Text>
           </View>
-          <Text style={styles.addressTitle}>Home • Indiranagar</Text>
-          <Text style={styles.addressDesc}>Flat 402, Green Glen Towers, 100 Feet Road, Bengaluru</Text>
+          {selectedAddress ? (
+            <>
+              <Text style={styles.addressTitle}>
+                {selectedAddress.label} • {selectedAddress.city}
+              </Text>
+              <Text style={styles.addressDesc}>
+                {[selectedAddress.addressLine, selectedAddress.landmark, selectedAddress.pincode]
+                  .filter(Boolean)
+                  .join(', ')}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.addressDesc}>No delivery address saved yet.</Text>
+          )}
+
+          {addresses.length > 1 && (
+            <View style={styles.addressPicker}>
+              {addresses.map(a => (
+                <TouchableOpacity
+                  key={a.id}
+                  style={[styles.addressChip, selectedAddressId === a.id && styles.addressChipActive]}
+                  onPress={() => setSelectedAddressId(a.id)}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[styles.addressChipText, selectedAddressId === a.id && styles.addressChipTextActive]}
+                  >
+                    {a.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity onPress={() => setShowAddressSheet(true)} activeOpacity={0.7}>
+            <Text style={styles.addressAction}>
+              {addresses.length ? '+ Add another address' : '+ Add a delivery address'}
+            </Text>
+          </TouchableOpacity>
         </Card>
 
         {/* Coupon */}
@@ -308,6 +405,94 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         )}
       </ScrollView>
 
+      {/* Add address sheet */}
+      <Modal visible={showAddressSheet} transparent animationType="slide" onRequestClose={() => setShowAddressSheet(false)}>
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Add a delivery address</Text>
+
+            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              <Text style={styles.fieldLabel}>Label</Text>
+              <View style={styles.labelRow}>
+                {['Home', 'Work', 'Other'].map(l => (
+                  <TouchableOpacity
+                    key={l}
+                    style={[styles.addressChip, form.label === l && styles.addressChipActive]}
+                    onPress={() => setForm({ ...form, label: l })}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.addressChipText, form.label === l && styles.addressChipTextActive]}>{l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.fieldLabel}>Flat / House, street</Text>
+              <TextInput
+                style={styles.sheetInput}
+                value={form.addressLine}
+                onChangeText={v => setForm({ ...form, addressLine: v })}
+                placeholder="Flat 402, Green Glen Towers, 100 Feet Road"
+                placeholderTextColor={c.text.muted}
+              />
+
+              <Text style={styles.fieldLabel}>Landmark (optional)</Text>
+              <TextInput
+                style={styles.sheetInput}
+                value={form.landmark}
+                onChangeText={v => setForm({ ...form, landmark: v })}
+                placeholder="Opposite Indiranagar Metro"
+                placeholderTextColor={c.text.muted}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>City</Text>
+                  <TextInput
+                    style={styles.sheetInput}
+                    value={form.city}
+                    onChangeText={v => setForm({ ...form, city: v })}
+                    placeholderTextColor={c.text.muted}
+                  />
+                </View>
+                <View style={{ width: 130 }}>
+                  <Text style={styles.fieldLabel}>PIN code</Text>
+                  <TextInput
+                    style={styles.sheetInput}
+                    value={form.pincode}
+                    onChangeText={v => setForm({ ...form, pincode: v.replace(/[^0-9]/g, '').slice(0, 6) })}
+                    placeholder="560038"
+                    placeholderTextColor={c.text.muted}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
+
+              {addressError ? <Text style={styles.couponError}>{addressError}</Text> : null}
+            </ScrollView>
+
+            <View style={styles.sheetActions}>
+              <TouchableOpacity
+                style={styles.sheetCancel}
+                onPress={() => {
+                  setShowAddressSheet(false);
+                  setAddressError(null);
+                }}
+              >
+                <Text style={styles.sheetCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sheetSave, isSavingAddress && { opacity: 0.6 }]}
+                onPress={handleSaveAddress}
+                disabled={isSavingAddress}
+              >
+                <Text style={styles.sheetSaveText}>{isSavingAddress ? 'Saving…' : 'Save address'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Sticky pay bar */}
       <View style={styles.payBar}>
         <View>
@@ -329,6 +514,84 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  addressPicker: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  addressChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: tokens.radii.full,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    backgroundColor: c.surface.subtle
+  },
+  addressChipActive: { backgroundColor: c.primary[600], borderColor: c.primary[600] },
+  addressChipText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.secondary },
+  addressChipTextActive: { color: '#FFFFFF' },
+  addressAction: {
+    fontSize: tokens.font.size.sm,
+    fontWeight: tokens.font.weight.bold,
+    color: c.primary[500],
+    marginTop: 14
+  },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(26,7,16,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: c.surface.card,
+    borderTopLeftRadius: tokens.radii['2xl'],
+    borderTopRightRadius: tokens.radii['2xl'],
+    padding: 20,
+    paddingBottom: 28
+  },
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: c.border.strong,
+    alignSelf: 'center',
+    marginBottom: 16
+  },
+  sheetTitle: {
+    fontSize: tokens.font.size.lg,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    marginBottom: 8
+  },
+  fieldLabel: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.bold,
+    color: c.text.secondary,
+    marginTop: 12,
+    marginBottom: 6
+  },
+  labelRow: { flexDirection: 'row', gap: 8 },
+  sheetInput: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 13,
+    fontSize: tokens.font.size.base,
+    color: c.text.primary,
+    backgroundColor: c.surface.subtle
+  },
+  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  sheetCancel: {
+    flex: 1,
+    height: 48,
+    borderRadius: tokens.radii.md,
+    backgroundColor: c.surface.sunken,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  sheetCancelText: { color: c.text.primary, fontWeight: tokens.font.weight.bold, fontSize: tokens.font.size.sm },
+  sheetSave: {
+    flex: 1.4,
+    height: 48,
+    borderRadius: tokens.radii.md,
+    backgroundColor: c.primary[600],
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  sheetSaveText: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.sm },
+
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 130 },
 

@@ -11,3 +11,10 @@ coverage/
 scratch/
 apps/customer-mobile/android/
 apps/customer-mobile/ios/
+
+# Android upload signing — keystores and passwords must never be committed
+**/keystore.properties
+*.jks
+*.keystore
+!**/debug.keystore
+*.password

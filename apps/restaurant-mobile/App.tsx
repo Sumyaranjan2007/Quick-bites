@@ -35,8 +35,8 @@ export default function RestaurantApp() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState('');
-  const [email, setEmail] = useState('partner@quickbite.app');
-  const [password, setPassword] = useState('pass123');
+  const [email, setEmail] = useState(__DEV__ ? 'partner@quickbite.app' : '');
+  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'kyc' | 'settlements'>('orders');
 
@@ -289,10 +289,18 @@ export default function RestaurantApp() {
             <Text style={styles.loginBtnText}>Launch Kitchen Terminal</Text>
           </TouchableOpacity>
 
-          <View style={styles.demoPill}>
+          {__DEV__ && (
+
+
+            <View style={styles.demoPill}>
             <Sparkles size={16} color="#F5A623" />
             <Text style={styles.demoPillText}>Default Login: partner@quickbite.app / pass123</Text>
-          </View>
+
+
+            </View>
+
+
+          )}
         </View>
       </SafeAreaView>
     );

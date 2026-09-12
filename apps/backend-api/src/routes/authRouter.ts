@@ -5,6 +5,9 @@ import { userRepository } from '../db/repositories/userRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { config } from '../config/env.ts';
+import { validate } from '../middlewares/validate.ts';
+import { AppError } from '../utils/AppError.ts';
+import { z } from 'zod';
 import type { UserRole } from '@quick-bites/shared-types';
 
 export const authRouter = Router();
@@ -130,5 +133,42 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res) => {
     return res.json({ success: true, data: { user: safeUser } });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+const DeleteAccountSchema = z.object({
+  password: z.string().min(1, 'Password confirmation is required')
+});
+
+/**
+ * DELETE /api/auth/me — permanently deletes the authenticated user's account.
+ * Google Play requires an in-app deletion path for apps offering sign-up.
+ * Re-authentication is required so a mislaid unlocked phone cannot wipe an account.
+ */
+authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema }), async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new AppError('Account not found.', 404, 'USER_NOT_FOUND');
+    }
+
+    const confirmed = await userRepository.verifyCredentials(user.email, req.body.password);
+    if (!confirmed) {
+      throw new AppError('Password is incorrect. Account was not deleted.', 401, 'INVALID_PASSWORD');
+    }
+
+    const deleted = await userRepository.deleteAccount(userId);
+    if (!deleted) {
+      throw new AppError('Account could not be deleted.', 500, 'DELETE_FAILED');
+    }
+
+    return res.json({
+      success: true,
+      data: { deleted: true },
+      message: 'Your account and personal data have been permanently deleted.'
+    });
+  } catch (err) {
+    next(err);
   }
 });

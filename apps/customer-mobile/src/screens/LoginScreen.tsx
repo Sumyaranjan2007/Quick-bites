@@ -26,8 +26,10 @@ interface Props {
 export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [apiUrl, setApiUrl] = useState(initialApiUrl);
-  const [email, setEmail] = useState('customer@quickbite.app');
-  const [password, setPassword] = useState('pass123');
+  // Play rejects builds that look like test harnesses, so prefilled demo
+  // credentials and the server picker exist only in development.
+  const [email, setEmail] = useState(__DEV__ ? 'customer@quickbite.app' : '');
+  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
   const [fullName, setFullName] = useState('Rahul Sharma');
   const [phone, setPhone] = useState('9876543210');
   const [loading, setLoading] = useState(false);
@@ -179,23 +181,27 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.demoBtn} onPress={handleQuickDemoLogin} activeOpacity={0.85}>
-            <Sparkles size={15} color={c.accent[600]} />
-            <Text style={styles.demoBtnText}>One-Tap Demo Login</Text>
-          </TouchableOpacity>
+          {__DEV__ && (
+            <TouchableOpacity style={styles.demoBtn} onPress={handleQuickDemoLogin} activeOpacity={0.85}>
+              <Sparkles size={15} color={c.accent[600]} />
+              <Text style={styles.demoBtnText}>One-Tap Demo Login</Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            style={styles.serverToggle}
-            onPress={() => setShowServerConfig(!showServerConfig)}
-            activeOpacity={0.7}
-          >
-            <Server size={13} color={c.text.muted} />
-            <Text style={styles.serverToggleText}>
-              {showServerConfig ? 'Hide server settings' : 'Server settings'}
-            </Text>
-          </TouchableOpacity>
+          {__DEV__ && (
+            <TouchableOpacity
+              style={styles.serverToggle}
+              onPress={() => setShowServerConfig(!showServerConfig)}
+              activeOpacity={0.7}
+            >
+              <Server size={13} color={c.text.muted} />
+              <Text style={styles.serverToggleText}>
+                {showServerConfig ? 'Hide server settings' : 'Server settings'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
-          {showServerConfig && (
+          {__DEV__ && showServerConfig && (
             <View style={styles.serverBox}>
               <Text style={styles.label}>Backend API URL</Text>
               <View style={styles.field}>

@@ -3,6 +3,7 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { menuRepository } from '../../db/repositories/menuRepository.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
+import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
@@ -48,6 +49,16 @@ export const orderService = {
     const customer = await userRepository.findById(input.customerId);
     if (!customer) {
       throw new AppError('Customer account not found.', 404, 'CUSTOMER_NOT_FOUND');
+    }
+
+    // 3b. The delivery address must exist AND belong to this customer —
+    // otherwise anyone could post another user's address id and read it back.
+    const address = await addressRepository.findById(input.deliveryAddressId);
+    if (!address) {
+      throw new AppError('Delivery address not found.', 404, 'ADDRESS_NOT_FOUND');
+    }
+    if (address.userId !== input.customerId) {
+      throw new AppError('That delivery address does not belong to you.', 403, 'ADDRESS_FORBIDDEN');
     }
 
     // 4. Verify & Fetch Live Dish Prices from Menu
@@ -160,6 +171,9 @@ export const orderService = {
       restaurantId: input.restaurantId,
       restaurantName: restaurant.name,
       deliveryAddressId: input.deliveryAddressId,
+      deliveryAddressText: [address.addressLine, address.landmark, address.city, address.pincode]
+        .filter(Boolean)
+        .join(', '),
       status: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'ORDER_PLACED' : 'PAYMENT_PENDING',
       paymentStatus: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'PENDING' : 'PENDING',
       paymentMethod: input.paymentMethod,

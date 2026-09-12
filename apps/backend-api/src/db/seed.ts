@@ -393,6 +393,33 @@ export async function seedDatabase() {
     ]
   });
 
+  // Default delivery address for the demo customer
+  memoryStore.addresses.set('addr_indiranagar_01', {
+    id: 'addr_indiranagar_01',
+    userId: 'usr_customer_01',
+    label: 'Home',
+    addressLine: 'Flat 402, Green Glen Towers, 100 Feet Road',
+    landmark: 'Opposite Indiranagar Metro',
+    city: 'Bengaluru',
+    pincode: '560038',
+    coordinates: { latitude: 12.9716, longitude: 77.6412 },
+    isDefault: true,
+    createdAt: new Date().toISOString()
+  });
+  memoryStore.addresses.set('addr_sample_01', {
+    id: 'addr_sample_01',
+    userId: 'usr_customer_01',
+    label: 'Work',
+    addressLine: 'WeWork Galaxy, 43 Residency Road',
+    landmark: 'Near Mayo Hall',
+    city: 'Bengaluru',
+    pincode: '560025',
+    coordinates: { latitude: 12.9698, longitude: 77.5986 },
+    isDefault: false,
+    createdAt: new Date().toISOString()
+  });
+  console.log('[PASS] Customer delivery addresses seeded (Home, Work).');
+
   // 6. Seed Pending KYC Documents for Admin Review Demonstration
   await kycRepository.submitDocument({
     entityType: 'RESTAURANT',

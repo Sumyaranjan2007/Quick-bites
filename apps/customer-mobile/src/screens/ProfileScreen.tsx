@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Switch
+  Switch,
+  Modal,
+  Alert
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 
@@ -26,6 +28,37 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
   const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number>(500.00);
   const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (!apiUrl) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`${apiUrl}/auth/me`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ password: deletePassword })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error?.message || 'Account could not be deleted.');
+      }
+      setShowDeleteConfirm(false);
+      Alert.alert('Account deleted', 'Your account and personal data have been removed.');
+      onLogout?.();
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Account could not be deleted. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!apiUrl) return;
@@ -160,11 +193,141 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
           <Text style={styles.logoutButtonText}>Log Out of Quick Bites</Text>
         </TouchableOpacity>
       )}
+
+      {/* Account deletion — required by Google Play for apps with sign-up */}
+      <TouchableOpacity style={styles.deleteAccountButton} onPress={() => setShowDeleteConfirm(true)}>
+        <Text style={styles.deleteAccountText}>Delete my account</Text>
+      </TouchableOpacity>
+      <Text style={styles.deleteAccountHint}>
+        Permanently removes your profile, saved addresses and wallet. Past orders are kept by
+        restaurants for tax records, with your personal details removed.
+      </Text>
+
+      <Modal visible={showDeleteConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Delete your account?</Text>
+            <Text style={styles.modalBody}>
+              This cannot be undone. Enter your password to confirm.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              placeholder="Your password"
+              placeholderTextColor={c.text.muted}
+              secureTextEntry
+            />
+            {deleteError ? <Text style={styles.modalError}>{deleteError}</Text> : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteError(null);
+                  setDeletePassword('');
+                }}
+              >
+                <Text style={styles.modalCancelText}>Keep my account</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalDelete, isDeleting && { opacity: 0.6 }]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalDeleteText}>{isDeleting ? 'Deleting…' : 'Delete forever'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  deleteAccountButton: {
+    marginTop: 14,
+    height: 46,
+    borderRadius: tokens.radii.md,
+    borderWidth: 1,
+    borderColor: '#F0C9C9',
+    backgroundColor: c.dietary.nonvegBg,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  deleteAccountText: {
+    color: c.dietary.nonveg,
+    fontWeight: tokens.font.weight.bold,
+    fontSize: tokens.font.size.base
+  },
+  deleteAccountHint: {
+    fontSize: tokens.font.size.xs,
+    color: c.text.muted,
+    marginTop: 8,
+    lineHeight: 17
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(26,7,16,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: c.surface.card,
+    borderRadius: tokens.radii.xl,
+    padding: 22
+  },
+  modalTitle: {
+    fontSize: tokens.font.size.lg,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary
+  },
+  modalBody: {
+    fontSize: tokens.font.size.sm,
+    color: c.text.secondary,
+    marginTop: 8,
+    lineHeight: 20
+  },
+  modalInput: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 13,
+    marginTop: 16,
+    fontSize: tokens.font.size.base,
+    color: c.text.primary,
+    backgroundColor: c.surface.subtle
+  },
+  modalError: {
+    fontSize: tokens.font.size.xs,
+    color: c.dietary.nonveg,
+    marginTop: 8,
+    fontWeight: tokens.font.weight.semibold
+  },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  modalCancel: {
+    flex: 1,
+    height: 46,
+    borderRadius: tokens.radii.md,
+    backgroundColor: c.surface.sunken,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalCancelText: { color: c.text.primary, fontWeight: tokens.font.weight.bold, fontSize: tokens.font.size.sm },
+  modalDelete: {
+    flex: 1,
+    height: 46,
+    borderRadius: tokens.radii.md,
+    backgroundColor: c.dietary.nonveg,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalDeleteText: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.sm },
+
   container: {
     flex: 1,
     backgroundColor: c.surface.app

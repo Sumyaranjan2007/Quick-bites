@@ -39,6 +39,44 @@ export const userRepository = {
     return updated;
   },
 
+  /**
+   * Permanently removes the account and the personal data attached to it.
+   * Google Play requires an in-app path to account deletion for any app that
+   * lets users create an account.
+   *
+   * Delivered orders are retained but stripped of identifying fields — the
+   * restaurant's financial and tax records must survive the customer deleting
+   * their profile.
+   */
+  async deleteAccount(userId: string): Promise<boolean> {
+    const user = memoryStore.users.get(userId);
+    if (!user) return false;
+
+    for (const [id, addr] of memoryStore.addresses.entries()) {
+      if (addr.userId === userId) memoryStore.addresses.delete(id);
+    }
+
+    for (const [id, wallet] of memoryStore.wallets.entries()) {
+      if (wallet.userId === userId) memoryStore.wallets.delete(id);
+    }
+    for (const [id, txn] of memoryStore.walletTransactions.entries()) {
+      if (txn.userId === userId) memoryStore.walletTransactions.delete(id);
+    }
+
+    for (const order of memoryStore.orders.values()) {
+      if (order.customerId === userId) {
+        order.customerId = 'deleted_user';
+        order.customerName = 'Deleted account';
+        delete order.customerPhone;
+        delete order.deliveryAddressText;
+      }
+    }
+
+    memoryStore.users.delete(userId);
+    triggerAutoSave();
+    return true;
+  },
+
   async list(): Promise<UserRecord[]> {
     return Array.from(memoryStore.users.values());
   },

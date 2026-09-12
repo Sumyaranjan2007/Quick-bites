@@ -32,8 +32,8 @@ const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api'
 export default function DeliveryApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState('');
-  const [email, setEmail] = useState('rider@quickbite.app');
-  const [password, setPassword] = useState('pass123');
+  const [email, setEmail] = useState(__DEV__ ? 'rider@quickbite.app' : '');
+  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [activeTab, setActiveTab] = useState<'deliveries' | 'earnings' | 'profile'>('deliveries');
 
@@ -300,10 +300,18 @@ export default function DeliveryApp() {
             <Text style={styles.loginBtnText}>Check In For Shift</Text>
           </TouchableOpacity>
 
-          <View style={styles.demoPill}>
+          {__DEV__ && (
+
+
+            <View style={styles.demoPill}>
             <Sparkles size={16} color="#22C08A" />
             <Text style={styles.demoPillText}>Default Login: rider@quickbite.app / pass123</Text>
-          </View>
+
+
+            </View>
+
+
+          )}
         </View>
       </SafeAreaView>
     );

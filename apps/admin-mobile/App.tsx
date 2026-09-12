@@ -33,8 +33,8 @@ const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api'
 export default function AdminApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState('');
-  const [email, setEmail] = useState('admin@quickbite.app');
-  const [password, setPassword] = useState('pass123');
+  const [email, setEmail] = useState(__DEV__ ? 'admin@quickbite.app' : '');
+  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [activeTab, setActiveTab] = useState<'pulse' | 'kyc' | 'orders' | 'disputes'>('pulse');
 
@@ -239,10 +239,18 @@ export default function AdminApp() {
             <Text style={styles.loginBtnText}>Enter Command Tower</Text>
           </TouchableOpacity>
 
-          <View style={styles.demoPill}>
+          {__DEV__ && (
+
+
+            <View style={styles.demoPill}>
             <Sparkles size={16} color="#F5A623" />
             <Text style={styles.demoPillText}>Default Login: admin@quickbite.app / pass123</Text>
-          </View>
+
+
+            </View>
+
+
+          )}
         </View>
       </SafeAreaView>
     );
