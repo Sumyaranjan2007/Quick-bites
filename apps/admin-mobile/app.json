@@ -42,7 +42,8 @@
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0",
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "kotlinVersion": "1.9.24"
           }
         }
       ],

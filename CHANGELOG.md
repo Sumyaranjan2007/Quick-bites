@@ -437,6 +437,44 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-12] -- Claude Opus 5 -- Session 16 (Brand System & Play Store Readiness)
+
+**Description:** Rebuilt the UI across all six surfaces against a reference design, applied the new Quickbits logo, renamed the product to Quick Bites, and cleared the Google Play submission blockers for the four Android apps.
+
+**Chunks Modified:** 02, 04, 06, 07, 09
+
+**Changes:**
+- **Design system.** New warm palette (cream canvas, deep maroon brand taken from the logo, amber accent) as React Native tokens and as CSS custom properties, so mobile and web share one language. Added a mobile primitive library (Card, Chip, Button, RatingBadge, DietMark, Pill, empty/loading/skeleton states).
+- **Customer app rebuilt:** photo-forward home (location header, craving hero, search with veg toggle, category circles, offer banner, filter chips, restaurant cards with banner/offer/ETA/rating/cost-for-two); detail screen with hero image, overlapping summary, dashed offer strip, category tabs and a customisation sheet; restyled cart, tracking (real 5-step stepper, maroon OTP panel), login and profile.
+- **Web portals:** retuned shared tokens, added an app shell with brand lockup, segmented pill nav, larger page headings and KPI tiles. Dark theme got its own lightened brand ramp — maroon on near-black is unreadable.
+- **Operational mobile apps** moved from cool slate to a warm dark theme; kitchen and admin use brand amber, the rider app keeps green because there it signals go/online rather than brand.
+- **Branding:** applied the new logo as app icon, adaptive icon and splash across four apps plus web favicons; renamed "Quick Bite" to "Quick Bites" in 31 files including Hindi and Kannada.
+- **Restaurants** gained `bannerUrl`, `costForTwo` and `highlightTag` so cards render real content.
+- **Play Store readiness:**
+  - Release signing with per-app upload keystores (RSA 4096), injected by a new Expo config plugin (`packages/config/expo-plugins/withReleaseSigning.js`) so it survives `expo prebuild`. Credentials read from a gitignored `keystore.properties` or `QB_*` env vars; keystores live outside the repo.
+  - `targetSdk`/`compileSdk` 35, `kotlinVersion` pinned to 1.9.24 and Proguard/resource shrinking enabled via `expo-build-properties`. AAB is now the release artifact (22 MB vs a 57 MB universal APK).
+  - Blocked the `SYSTEM_ALERT_WINDOW`, storage, camera and microphone permissions Expo adds by default; shipped manifests request only `INTERNET` and `VIBRATE`.
+  - Demo credentials, one-tap demo login and the server-URL picker gated behind `__DEV__`.
+  - Account deletion (`DELETE /auth/me`) with password re-authentication, removing profile/addresses/wallet and anonymising past orders so restaurants retain tax records; surfaced in Profile.
+  - Saved delivery addresses: new `addressRepository` and `addressRouter` (CRUD), picker and entry sheet in checkout, Home/Work seeded. Order creation now verifies the address exists **and belongs to the caller** — previously any address id was accepted, so one user could submit another's.
+  - Added `PLAY_STORE_RELEASE.md` documenting the build procedure and the Console steps that require a human.
+- **Repo hygiene:** `.gitignore` now covers keystores, passwords and the generated `android/`/`ios/` directories for every app (previously only customer-mobile); untracked 96 generated native files that had been committed. Verified no keystore or password file exists anywhere in git history.
+- Fixed the metro `unstable_serverRoot` pin that broke `expo start --web` in the three operational apps.
+
+**Build Status:** Complete. All 7 packages typecheck clean, 6/6 backend suites pass, four signed AABs build (each verified as signed by its own upload key, targetSdk 35).
+
+**Known Issues:**
+- Backend persistence is still an in-memory store with a JSON snapshot; a restart or redeploy can lose recent orders. The Prisma schema and docker-compose Postgres exist but are not wired.
+- No online payment — checkout is cash on delivery only; no Razorpay SDK integration.
+- Logo wordmark still reads "Quickbits" while the apps are named "Quick Bites".
+- Play Console work outstanding: hosted privacy policy URL, web account-deletion route, Data Safety form, content rating, store listing assets, rider location disclosure.
+
+**NEXT AI SHOULD:** Wire the backend to a managed Postgres so orders survive restarts, then integrate a real payment provider. Both are prerequisites for taking real customer orders.
+
+**Notes:** Upload keystores are at `~/.quickbites-upload-keys/` and are deliberately outside the repo. They must be backed up — losing one means that app can never be updated under the same Play listing.
+
+---
+
 ## Session Log Template (For Future Sessions)
 ```markdown
 ## [YYYY-MM-DD] -- [AI Model] -- Session [N]

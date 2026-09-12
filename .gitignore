@@ -9,8 +9,11 @@ dist/
 .DS_Store
 coverage/
 scratch/
-apps/customer-mobile/android/
-apps/customer-mobile/ios/
+# Generated native projects — recreated by `expo prebuild`, never hand-edited.
+# Signing and SDK settings live in app.json + the withReleaseSigning plugin so
+# they survive regeneration.
+apps/*/android/
+apps/*/ios/
 
 # Android upload signing — keystores and passwords must never be committed
 **/keystore.properties
