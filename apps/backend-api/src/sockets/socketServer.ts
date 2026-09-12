@@ -275,3 +275,12 @@ export function emitKitchenStatus(
   ioInstance.to(`restaurant:${restaurantId}`).emit('kitchen:status_update', payload);
   ioInstance.to('admin:control_tower').emit('kitchen:status_update', payload);
 }
+
+/** Tells customers viewing this restaurant that its menu changed. */
+export function emitMenuUpdated(restaurantId: string): void {
+  if (!ioInstance) return;
+  ioInstance.to(`restaurant:${restaurantId}`).emit('menu:updated', {
+    restaurantId,
+    updatedAt: new Date().toISOString()
+  });
+}

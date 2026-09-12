@@ -5,7 +5,7 @@ import { restaurantRepository } from '../db/repositories/restaurantRepository.ts
 import { menuRepository } from '../db/repositories/menuRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { calculateDistanceKm } from '../db/client.ts';
-import { emitKitchenStatus } from '../sockets/socketServer.ts';
+import { emitKitchenStatus, emitMenuUpdated } from '../sockets/socketServer.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
@@ -98,14 +98,103 @@ restaurantRouter.get('/:id/orders', authMiddleware('restaurant_owner'), async (r
   }
 });
 
+
+/**
+ * Confirms the signed-in partner actually owns this restaurant.
+ *
+ * authMiddleware('restaurant_owner') only proves the caller is *a* partner. Without
+ * this check any partner could edit a competitor's menu — verified reproducible:
+ * a newly registered owner marked another restaurant's flagship dish sold out and
+ * customers immediately saw it.
+ */
+async function assertOwnsRestaurant(req: any, restaurantId: string) {
+  const restaurant = await restaurantRepository.findById(restaurantId);
+  if (!restaurant) {
+    throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+  }
+  const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
+  if (!isStaff && restaurant.ownerId !== req.user?.id) {
+    throw new AppError('You do not manage this restaurant.', 403, 'NOT_RESTAURANT_OWNER');
+  }
+  return restaurant;
+}
+
+const MenuItemSchema = z.object({
+  name: z.string().min(1, 'name is required').max(120),
+  description: z.string().max(400).optional().default(''),
+  price: z.number().positive('price must be greater than zero').max(100000),
+  isVeg: z.boolean(),
+  isAvailable: z.boolean().optional().default(true),
+  imageUrl: z.string().url('imageUrl must be a valid URL').optional(),
+  categoryName: z.string().min(1, 'categoryName is required').max(80)
+});
+
+// POST /api/restaurants/:id/menu/items — add a dish
+restaurantRouter.post(
+  '/:id/menu/items',
+  authMiddleware('restaurant_owner'),
+  validate({ body: MenuItemSchema }),
+  async (req, res, next) => {
+    try {
+      await assertOwnsRestaurant(req, req.params.id);
+      const { categoryName, ...item } = req.body;
+      const created = await menuRepository.addItem(req.params.id, categoryName, item as any);
+      if (!created) throw new AppError('Menu not found for this restaurant.', 404, 'MENU_NOT_FOUND');
+
+      emitMenuUpdated(req.params.id);
+      res.status(201).json({ success: true, data: { item: created } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PUT /api/restaurants/:id/menu/items/:dishId — edit or reprice a dish
+restaurantRouter.put(
+  '/:id/menu/items/:dishId',
+  authMiddleware('restaurant_owner'),
+  validate({ body: MenuItemSchema.partial() }),
+  async (req, res, next) => {
+    try {
+      await assertOwnsRestaurant(req, req.params.id);
+      const updated = await menuRepository.updateItem(req.params.id, req.params.dishId, req.body);
+      if (!updated) throw new AppError('Dish not found on this menu.', 404, 'DISH_NOT_FOUND');
+
+      emitMenuUpdated(req.params.id);
+      res.json({ success: true, data: { item: updated } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/restaurants/:id/menu/items/:dishId
+restaurantRouter.delete(
+  '/:id/menu/items/:dishId',
+  authMiddleware('restaurant_owner'),
+  async (req, res, next) => {
+    try {
+      await assertOwnsRestaurant(req, req.params.id);
+      const removed = await menuRepository.removeItem(req.params.id, req.params.dishId);
+      if (!removed) throw new AppError('Dish not found on this menu.', 404, 'DISH_NOT_FOUND');
+
+      emitMenuUpdated(req.params.id);
+      res.json({ success: true, data: { deleted: true } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 const ToggleStockSchema = z.object({
   dishId: z.string().min(1, 'dishId is required'),
   isAvailable: z.boolean()
 });
 
 // POST /api/restaurants/:id/menu/toggle-stock
-restaurantRouter.post('/:id/menu/toggle-stock', authMiddleware('restaurant_owner'), validate({ body: ToggleStockSchema }), async (req, res) => {
+restaurantRouter.post('/:id/menu/toggle-stock', authMiddleware('restaurant_owner'), validate({ body: ToggleStockSchema }), async (req, res, next) => {
   try {
+    await assertOwnsRestaurant(req, req.params.id);
     const { dishId, isAvailable } = req.body;
     const menu = await menuRepository.findByRestaurantId(req.params.id);
     if (!menu) {
@@ -130,8 +219,8 @@ restaurantRouter.post('/:id/menu/toggle-stock', authMiddleware('restaurant_owner
 
     await menuRepository.upsert(menu);
     return res.json({ success: true, message: 'Stock status updated successfully', data: { dishId, isAvailable } });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -140,8 +229,9 @@ const KitchenStatusSchema = z.object({
 });
 
 // POST /api/restaurants/:id/kitchen-status
-restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'), validate({ body: KitchenStatusSchema }), async (req, res) => {
+restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'), validate({ body: KitchenStatusSchema }), async (req, res, next) => {
   try {
+    await assertOwnsRestaurant(req, req.params.id);
     const { isKitchenActive } = req.body;
     const restaurant = await restaurantRepository.findById(req.params.id);
     if (!restaurant) {
@@ -156,8 +246,8 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
       message: `Kitchen is now ${restaurant.isOpen ? 'ONLINE' : 'OFFLINE'}`,
       data: { isOpen: restaurant.isOpen }
     });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+  } catch (err) {
+    next(err);
   }
 });
 
