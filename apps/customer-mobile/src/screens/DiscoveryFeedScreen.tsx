@@ -20,6 +20,7 @@ export interface RestaurantItem {
   distanceKm: number;
   isPureVeg: boolean;
   priceForTwo: number;
+  packagingFee?: number;
 }
 
 const SAMPLE_RESTAURANTS: RestaurantItem[] = [
@@ -80,7 +81,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
             deliveryTimeMins: r.estimatedDeliveryMinutes || 25,
             distanceKm: r.distanceKm || 2.2,
             isPureVeg: !!r.isPureVeg,
-            priceForTwo: 450
+            priceForTwo: r.costForTwo ?? 450,
+            packagingFee: r.packagingFee
           }));
           setRestaurants(mapped);
         }

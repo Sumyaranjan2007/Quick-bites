@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Card, Badge, Button, StateView, ComponentState } from '@quick-bites/design-system';
+import React, { useEffect, useState } from 'react';
+import { Card, Badge, Button, StateView, ComponentState, useTranslation } from '@quick-bites/design-system';
 import { AlertCircle, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { fetchAllOrders, processDisputeRefund } from '../api';
 
 interface DisputeTicket {
   id: string;
@@ -9,72 +10,100 @@ interface DisputeTicket {
   restaurantName: string;
   amount: number;
   reason: string;
-  status: 'OPEN' | 'REFUNDED' | 'DISMISSED';
   createdAt: string;
 }
 
-const INITIAL_DISPUTES: DisputeTicket[] = [
-  {
-    id: 'disp_01',
-    orderNumber: 'QB-551982',
-    customerName: 'Ananya Deshmukh',
-    restaurantName: 'Bangalore Biryani House',
-    amount: 320.00,
-    reason: 'Container lid was loose causing spill during delivery transit.',
-    status: 'OPEN',
-    createdAt: '15 mins ago'
-  },
-  {
-    id: 'disp_02',
-    orderNumber: 'QB-442190',
-    customerName: 'Karthik Rao',
-    restaurantName: 'Udupi Sri Krishna Bhavan',
-    amount: 110.00,
-    reason: 'Incorrect item received (Plain Dosa instead of Benne Masala Dosa).',
-    status: 'OPEN',
-    createdAt: '45 mins ago'
-  }
-];
-
 export const DisputeResolutionConsole: React.FC = () => {
-  const [disputes, setDisputes] = useState<DisputeTicket[]>(INITIAL_DISPUTES);
-  const [uiState, setUiState] = useState<ComponentState>('success');
+  const { t } = useTranslation();
+  const [disputes, setDisputes] = useState<DisputeTicket[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [uiState, setUiState] = useState<ComponentState>('loading');
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const handleRefund = (id: string) => {
-    setDisputes(prev =>
-      prev.map(d => (d.id === id ? { ...d, status: 'REFUNDED' } : d))
-    );
+  const loadDisputes = async () => {
+    setUiState('loading');
+    try {
+      const res = await fetchAllOrders();
+      if (!res.success || !Array.isArray(res.data?.orders)) {
+        setUiState('error');
+        return;
+      }
+      // Delivered orders are eligible for a post-delivery dispute/refund review.
+      const eligible = res.data.orders
+        .filter((o: any) => o.status === 'DELIVERED')
+        .map((o: any) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName || 'Customer',
+          restaurantName: o.restaurantName || 'Restaurant Partner',
+          amount: o.bill?.totalAmount ?? 0,
+          reason: 'Flagged for delivery quality / order accuracy review.',
+          createdAt: o.deliveredAt ? new Date(o.deliveredAt).toLocaleString('en-IN') : '—'
+        }));
+      setDisputes(eligible);
+      setUiState('success');
+    } catch (e) {
+      console.warn('[Disputes] Failed to load orders', e);
+      setUiState('error');
+    }
+  };
+
+  useEffect(() => {
+    loadDisputes();
+  }, []);
+
+  const handleRefund = async (dispute: DisputeTicket) => {
+    setActionError(null);
+    try {
+      const res = await processDisputeRefund(dispute.id, dispute.amount, dispute.reason);
+      if (!res.success) throw new Error(res.error?.message || res.error || 'Refund failed.');
+      setDisputes(prev => prev.filter(d => d.id !== dispute.id));
+    } catch (e: any) {
+      setActionError(e.message || 'Could not process the refund. Please try again.');
+    }
   };
 
   const handleDismiss = (id: string) => {
-    setDisputes(prev =>
-      prev.map(d => (d.id === id ? { ...d, status: 'DISMISSED' } : d))
-    );
+    setDismissedIds(prev => new Set(prev).add(id));
   };
 
-  const openDisputes = disputes.filter(d => d.status === 'OPEN');
+  const openDisputes = disputes.filter(d => !dismissedIds.has(d.id));
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
         <div>
           <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)' }}>
-            Dispute Resolution & Refund Console
+            {t('admin.disputesHeading')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            Arbitrate customer delivery complaints, issue automated UPI/Razorpay reversals, and manage refunds.
+            {t('admin.disputesDescription')}
           </p>
         </div>
-        <Badge variant="status-error" label={`${openDisputes.length} OPEN DISPUTES`} />
+        <Badge variant="status-error" label={`${openDisputes.length} ${t('admin.openDisputes')}`} />
       </div>
 
+      {actionError && (
+        <div
+          style={{
+            marginBottom: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-danger-50, #FEF2F2)',
+            color: 'var(--color-danger-600, #DC2626)',
+            fontSize: 'var(--font-size-sm)'
+          }}
+        >
+          {actionError}
+        </div>
+      )}
+
       <StateView
-        state={openDisputes.length === 0 ? 'empty' : uiState}
+        state={uiState === 'success' && openDisputes.length === 0 ? 'empty' : uiState}
         emptyTitle="All Customer Disputes Resolved"
         emptyDescription="Zero open complaints or pending refund requests in the queue."
-        emptyActionLabel="Reload Demo Tickets"
-        onEmptyAction={() => setDisputes(INITIAL_DISPUTES)}
-        onRetry={() => setUiState('success')}
+        errorMessage="Could not reach the Quick Bite server. Check your connection and try again."
+        onRetry={loadDisputes}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {openDisputes.map(dispute => (
@@ -90,7 +119,7 @@ export const DisputeResolutionConsole: React.FC = () => {
                     </span>
                   </div>
                   <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Reported {dispute.createdAt}
+                    Delivered {dispute.createdAt}
                   </div>
                 </div>
                 <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-primary-500)', fontSize: 'var(--font-size-md)' }}>
@@ -100,7 +129,7 @@ export const DisputeResolutionConsole: React.FC = () => {
 
               <div style={{ backgroundColor: 'var(--color-primary-50)', borderLeft: '3px solid var(--color-primary-500)', padding: 'var(--space-3)', margin: 'var(--space-3) 0', borderRadius: 'var(--radius-sm)' }}>
                 <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-bold)', color: 'var(--color-primary-700)', marginBottom: '2px' }}>
-                  CUSTOMER COMPLAINT
+                  {t('admin.customerComplaint')}
                 </div>
                 <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)' }}>
                   {dispute.reason}
@@ -109,10 +138,10 @@ export const DisputeResolutionConsole: React.FC = () => {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
                 <Button variant="outline" size="sm" onClick={() => handleDismiss(dispute.id)} leftIcon={<XCircle size={14} />}>
-                  Dismiss Dispute
+                  {t('admin.dismissDispute')}
                 </Button>
-                <Button variant="primary" size="sm" onClick={() => handleRefund(dispute.id)} leftIcon={<RotateCcw size={14} />}>
-                  Approve UPI Instant Refund (Rs {dispute.amount.toFixed(2)})
+                <Button variant="primary" size="sm" onClick={() => handleRefund(dispute)} leftIcon={<RotateCcw size={14} />}>
+                  {t('admin.approveRefund')} (Rs {dispute.amount.toFixed(2)})
                 </Button>
               </div>
             </Card>

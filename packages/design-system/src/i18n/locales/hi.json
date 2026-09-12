@@ -15,7 +15,8 @@
     "veg": "शुद्ध शाकाहारी",
     "nonVeg": "मांसाहारी",
     "goldMember": "गोल्ड सदस्य",
-    "demoMode": "डेमो मोड सक्रिय"
+    "demoMode": "डेमो मोड सक्रिय",
+    "active": "सक्रिय"
   },
   "customer": {
     "searchPlaceholder": "व्यंजन, रेस्तरां या प्रकार खोजें...",
@@ -57,6 +58,37 @@
     "approvePartner": "रेस्तरां स्वीकृत करें",
     "rejectPartner": "अस्वीकृत करें",
     "liveOrders": "लाइव प्लेटफ़ॉर्म ऑर्डर",
-    "auditLogs": "सुरक्षा और ऑडिट लॉग"
+    "auditLogs": "सुरक्षा और ऑडिट लॉग",
+    "navControlTower": "कंट्रोल टावर",
+    "navKycPipeline": "केवाईसी पाइपलाइन",
+    "navDisputes": "विवाद और रिफंड",
+    "navDemoData": "डेमो डेटा टूल",
+    "controlTowerHeading": "संचालन कंट्रोल टावर",
+    "controlTowerDescription": "सिस्टम स्वास्थ्य टेलीमेट्री, लाइव ऑर्डर मेट्रिक्स, और क्लाउड संसाधन काउंटर।",
+    "refreshMetrics": "मेट्रिक्स रीफ्रेश करें",
+    "gmvToday": "प्लेटफ़ॉर्म जीएमवी (आज)",
+    "gmvCaption": "लाइव प्लेटफ़ॉर्म सकल व्यापारिक मूल्य",
+    "liveOrdersTransit": "पारगमन में लाइव ऑर्डर",
+    "totalOrdersProcessed": "कुल संसाधित ऑर्डर",
+    "activePartnerRestaurants": "सक्रिय पार्टनर रेस्तरां",
+    "verifiedLabel": "सत्यापित",
+    "kycApprovalsPendingReview": "केवाईसी अनुमोदन समीक्षा के लिए लंबित",
+    "activeDeliveryFleet": "सक्रिय डिलीवरी फ्लीट",
+    "ridersOnline": "राइडर ऑनलाइन",
+    "liveTelemetryConnected": "लाइव टेलीमेट्री कनेक्टेड",
+    "infraHealthTitle": "इन्फ्रास्ट्रक्चर और फ्री टियर स्वास्थ्य मॉनिटर",
+    "allSystemsHealthy": "सभी सिस्टम स्वस्थ",
+    "kycPipelineHeading": "रेस्तरां केवाईसी सत्यापन पाइपलाइन",
+    "kycPipelineDescription": "व्यापारी ऑनबोर्डिंग दस्तावेज़, 14-अंकीय FSSAI लाइसेंस, और राज्य GSTIN अनुपालन की समीक्षा करें।",
+    "pendingAudit": "लंबित ऑडिट",
+    "submittedLabel": "प्रस्तुत",
+    "rejectWithFeedback": "फीडबैक के साथ अस्वीकार करें",
+    "approveGrantAccess": "रेस्तरां स्वीकृत करें और लाइव एक्सेस दें",
+    "disputesHeading": "विवाद समाधान और रिफंड कंसोल",
+    "disputesDescription": "ग्राहक डिलीवरी शिकायतों का निपटारा करें, स्वचालित UPI/Razorpay रिवर्सल जारी करें, और रिफंड प्रबंधित करें।",
+    "openDisputes": "खुले विवाद",
+    "customerComplaint": "ग्राहक शिकायत",
+    "dismissDispute": "विवाद खारिज करें",
+    "approveRefund": "यूपीआई इंस्टेंट रिफंड स्वीकृत करें"
   }
 }

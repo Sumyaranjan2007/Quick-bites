@@ -40,67 +40,85 @@ export default function AdminApp() {
 
   // Platform metrics
   const [metrics, setMetrics] = useState<any>({
-    activeOrdersCount: 3,
-    totalOrdersCount: 28,
-    grossMerchandiseValue: 14250.00,
-    onlineRidersCount: 4,
-    pendingKycCount: 2,
-    totalRestaurantsCount: 8,
-    totalUsersCount: 142
+    activeOrdersCount: 0,
+    totalOrdersCount: 0,
+    grossMerchandiseValue: 0,
+    onlineRidersCount: 0,
+    pendingKycCount: 0,
+    totalRestaurantsCount: 0,
+    totalUsersCount: 0
   });
 
-  // Pending KYC queue
-  const [pendingKyc, setPendingKyc] = useState<any[]>([
-    {
-      id: 'kyc_rest_01',
-      entityType: 'RESTAURANT',
-      entityId: 'rst_bbh_01',
-      entityName: 'Bangalore Biryani House',
-      documentType: 'FSSAI License',
-      docDetails: '14-Digit Central FSSAI: 11223344556677',
-      submittedAt: '10 mins ago',
-      status: 'PENDING'
-    },
-    {
-      id: 'kyc_rdr_01',
-      entityType: 'RIDER',
-      entityId: 'rdr_vikram_01',
-      entityName: 'Vikram Singh',
-      documentType: 'Driving License',
-      docDetails: 'DL #KA032021008899 (Motorcycle)',
-      submittedAt: '25 mins ago',
-      status: 'PENDING'
-    }
-  ]);
-
-  // Live Orders
-  const [liveOrders, setLiveOrders] = useState<any[]>([
-    {
-      id: 'ord_live_101',
-      orderNumber: 'QB-2891',
-      customerName: 'Rahul Sharma',
-      restaurantName: 'Bangalore Biryani House',
-      riderName: 'Vikram Singh',
-      totalAmount: 940.00,
-      status: 'OUT_FOR_DELIVERY',
-      paymentMode: 'COD'
-    },
-    {
-      id: 'ord_live_102',
-      orderNumber: 'QB-2892',
-      customerName: 'Priya Patel',
-      restaurantName: 'Milano Artisan Pizzeria',
-      riderName: 'Unassigned',
-      totalAmount: 520.00,
-      status: 'PREPARING',
-      paymentMode: 'WALLET'
-    }
-  ]);
+  const [pendingKyc, setPendingKyc] = useState<any[]>([]);
+  const [liveOrders, setLiveOrders] = useState<any[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Refund Modal State
   const [refundTarget, setRefundTarget] = useState<any | null>(null);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('Missing item in order');
+
+  const authHeaders = (token?: string): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const effective = token || authToken;
+    if (effective) headers['Authorization'] = `Bearer ${effective}`;
+    return headers;
+  };
+
+  // Pull live platform metrics, KYC queue and orders from the backend
+  const syncPlatformData = async (token?: string) => {
+    setIsSyncing(true);
+    try {
+      const [metricsRes, kycRes, ordersRes] = await Promise.all([
+        fetch(`${apiUrl}/admin/metrics`, { headers: authHeaders(token) }),
+        fetch(`${apiUrl}/admin/kyc/pending`, { headers: authHeaders(token) }),
+        fetch(`${apiUrl}/orders`, { headers: authHeaders(token) })
+      ]);
+
+      const metricsData = await metricsRes.json();
+      if (metricsData.success && metricsData.data) {
+        setMetrics(metricsData.data);
+      }
+
+      const kycData = await kycRes.json();
+      if (kycData.success && Array.isArray(kycData.data?.pending)) {
+        setPendingKyc(
+          kycData.data.pending.map((p: any) => ({
+            id: p.id,
+            entityType: p.entityType,
+            entityId: p.entityId,
+            entityName: p.entityName || 'Merchant Partner',
+            documentType: p.documentType,
+            docDetails: p.documentNumber || p.documentType,
+            submittedAt: p.submittedAt
+              ? new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : 'Recently',
+            status: p.status
+          }))
+        );
+      }
+
+      const ordersData = await ordersRes.json();
+      if (ordersData.success && Array.isArray(ordersData.data?.orders)) {
+        setLiveOrders(
+          ordersData.data.orders.map((o: any) => ({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            customerName: o.customerName || 'Customer',
+            restaurantName: o.restaurantName || 'Restaurant Partner',
+            riderName: o.riderName || 'Unassigned',
+            totalAmount: o.bill?.totalAmount ?? 0,
+            status: o.status,
+            paymentMode: o.paymentMethod
+          }))
+        );
+      }
+    } catch {
+      Alert.alert('Sync Failed', 'Could not reach the Quick Bite server. Check your connection.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Handle Login
   const handleLogin = async () => {
@@ -114,36 +132,35 @@ export default function AdminApp() {
       if (data.success && data.data?.token) {
         setAuthToken(data.data.token);
         setIsAuthenticated(true);
+        syncPlatformData(data.data.token);
       } else {
-        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+        Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
       }
     } catch {
-      if (email === 'admin@quickbite.app' && password === 'pass123') {
-        setIsAuthenticated(true);
-      } else {
-        Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
-      }
+      Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
     }
   };
 
   // Review KYC Document
   const handleKycReview = async (docId: string, action: 'APPROVE' | 'REJECT') => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      await fetch(`${apiUrl}/admin/kyc/review`, {
+      const res = await fetch(`${apiUrl}/admin/kyc/review`, {
         method: 'POST',
-        headers,
+        headers: authHeaders(),
         body: JSON.stringify({ documentId: docId, action })
       });
-    } catch {}
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error || 'Review was rejected by the server.');
 
-    setPendingKyc(pendingKyc.filter(d => d.id !== docId));
-    setMetrics({ ...metrics, pendingKycCount: Math.max(0, metrics.pendingKycCount - 1) });
-    Alert.alert(
-      action === 'APPROVE' ? 'Partner Approved' : 'Partner Rejected',
-      `Document has been ${action === 'APPROVE' ? 'approved' : 'rejected'}. Status updated to ACTIVE in database.`
-    );
+      setPendingKyc(prev => prev.filter(d => d.id !== docId));
+      setMetrics((prev: any) => ({ ...prev, pendingKycCount: Math.max(0, (prev.pendingKycCount || 0) - 1) }));
+      Alert.alert(
+        action === 'APPROVE' ? 'Partner Approved' : 'Partner Rejected',
+        `Document has been ${action === 'APPROVE' ? 'approved' : 'rejected'} and saved to the database.`
+      );
+    } catch (err: any) {
+      Alert.alert('Action Failed', err?.message || 'Could not reach the server. Nothing was changed.');
+    }
   };
 
   // Process Instant Refund
@@ -152,18 +169,20 @@ export default function AdminApp() {
     const amount = refundAmount ? Number(refundAmount) : refundTarget.totalAmount;
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      await fetch(`${apiUrl}/admin/orders/${refundTarget.id}/refund`, {
+      const res = await fetch(`${apiUrl}/admin/orders/${refundTarget.id}/refund`, {
         method: 'POST',
-        headers,
+        headers: authHeaders(),
         body: JSON.stringify({ amount, reason: refundReason })
       });
-    } catch {}
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error || 'Refund was rejected by the server.');
 
-    setLiveOrders(liveOrders.map(o => o.id === refundTarget.id ? { ...o, status: 'REFUNDED' } : o));
-    setRefundTarget(null);
-    Alert.alert('Refund Issued', `Rs ${amount.toFixed(2)} credited instantly to customer wallet.`);
+      setLiveOrders(prev => prev.map(o => (o.id === refundTarget.id ? { ...o, status: 'REFUNDED' } : o)));
+      setRefundTarget(null);
+      Alert.alert('Refund Issued', `Rs ${amount.toFixed(2)} credited instantly to customer wallet.`);
+    } catch (err: any) {
+      Alert.alert('Refund Failed', err?.message || 'Could not reach the server. No refund was issued.');
+    }
   };
 
   if (!isAuthenticated) {
@@ -239,10 +258,10 @@ export default function AdminApp() {
           <Text style={styles.towerTitle}>Quick Bite Ops Tower</Text>
           <Text style={styles.towerSub}>City Hub: Bengaluru Central • Sockets Online</Text>
         </View>
-        <View style={styles.liveIndicator}>
+        <TouchableOpacity style={styles.liveIndicator} onPress={() => syncPlatformData()} disabled={isSyncing}>
           <View style={styles.pulsingDot} />
-          <Text style={styles.liveText}>LIVE</Text>
-        </View>
+          <Text style={styles.liveText}>{isSyncing ? 'SYNC' : 'LIVE'}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tab Navigation */}

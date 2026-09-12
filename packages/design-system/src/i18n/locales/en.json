@@ -15,7 +15,8 @@
     "veg": "Pure Veg",
     "nonVeg": "Non-Veg",
     "goldMember": "Gold Member",
-    "demoMode": "Demo Mode Active"
+    "demoMode": "Demo Mode Active",
+    "active": "Active"
   },
   "customer": {
     "searchPlaceholder": "Search dishes, restaurants or cuisines...",
@@ -57,6 +58,37 @@
     "approvePartner": "Approve Restaurant",
     "rejectPartner": "Reject",
     "liveOrders": "Live Platform Orders",
-    "auditLogs": "Security & Audit Logs"
+    "auditLogs": "Security & Audit Logs",
+    "navControlTower": "Control Tower",
+    "navKycPipeline": "KYC Pipeline",
+    "navDisputes": "Disputes & Refunds",
+    "navDemoData": "Demo Data Tool",
+    "controlTowerHeading": "Operations Control Tower",
+    "controlTowerDescription": "System health telemetry, live order metrics, and cloud resource counters.",
+    "refreshMetrics": "Refresh Metrics",
+    "gmvToday": "PLATFORM GMV (TODAY)",
+    "gmvCaption": "Live Platform Gross Merchandise Value",
+    "liveOrdersTransit": "LIVE ORDERS IN TRANSIT",
+    "totalOrdersProcessed": "Total Orders Processed",
+    "activePartnerRestaurants": "ACTIVE PARTNER RESTAURANTS",
+    "verifiedLabel": "Verified",
+    "kycApprovalsPendingReview": "KYC approvals pending review",
+    "activeDeliveryFleet": "ACTIVE DELIVERY FLEET",
+    "ridersOnline": "Riders Online",
+    "liveTelemetryConnected": "Live Telemetry Connected",
+    "infraHealthTitle": "Infrastructure & Free Tier Health Monitor",
+    "allSystemsHealthy": "ALL SYSTEMS HEALTHY",
+    "kycPipelineHeading": "Restaurant KYC Verification Pipeline",
+    "kycPipelineDescription": "Review merchant onboarding documents, 14-digit FSSAI licenses, and state GSTIN compliance.",
+    "pendingAudit": "PENDING AUDIT",
+    "submittedLabel": "Submitted",
+    "rejectWithFeedback": "Reject with Feedback",
+    "approveGrantAccess": "Approve Restaurant & Grant Live Access",
+    "disputesHeading": "Dispute Resolution & Refund Console",
+    "disputesDescription": "Arbitrate customer delivery complaints, issue automated UPI/Razorpay reversals, and manage refunds.",
+    "openDisputes": "OPEN DISPUTES",
+    "customerComplaint": "CUSTOMER COMPLAINT",
+    "dismissDispute": "Dismiss Dispute",
+    "approveRefund": "Approve UPI Instant Refund"
   }
 }

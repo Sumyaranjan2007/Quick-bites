@@ -117,6 +117,33 @@ orderRouter.post('/', authMiddleware('customer'), validate({ body: CreateOrderSc
   }
 });
 
+const ConfirmPaymentSchema = z.object({
+  razorpayPaymentId: z.string().min(1, 'razorpayPaymentId is required'),
+  razorpaySignature: z.string().min(1, 'razorpaySignature is required')
+});
+
+// POST /api/v1/orders/:id/confirm-payment - Moves PAYMENT_PENDING -> ORDER_PLACED
+orderRouter.post('/:id/confirm-payment', authMiddleware(), validate({ body: ConfirmPaymentSchema }), async (req, res, next) => {
+  try {
+    const order = await orderService.confirmPayment(
+      req.params.id,
+      req.body.razorpayPaymentId,
+      req.body.razorpaySignature
+    );
+
+    res.json({
+      success: true,
+      data: { order },
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const StatusTransitionSchema = z.object({
   status: z.enum([
     'ACCEPTED',

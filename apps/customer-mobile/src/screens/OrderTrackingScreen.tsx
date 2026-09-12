@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,22 +14,75 @@ interface Props {
   total: number;
   otp: string;
   onHome: () => void;
+  orderId?: string;
+  apiUrl?: string;
+  token?: string;
 }
+
+// Backend order status -> index in the customer-facing progress tracker
+const STATUS_STEP_INDEX: Record<string, number> = {
+  PAYMENT_PENDING: 0,
+  ORDER_PLACED: 0,
+  ACCEPTED: 1,
+  PREPARING: 2,
+  READY_FOR_PICKUP: 2,
+  RIDER_ASSIGNED: 3,
+  OUT_FOR_DELIVERY: 3,
+  DELIVERED: 4
+};
 
 export const OrderTrackingScreen: React.FC<Props> = ({
   orderNumber,
   total,
   otp,
-  onHome
+  onHome,
+  orderId,
+  apiUrl,
+  token
 }) => {
-  const [currentStep, setCurrentStep] = useState<number>(2); // 0: Placed, 1: Accepted, 2: Preparing, 3: Out for Delivery, 4: Delivered
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [order, setOrder] = useState<any | null>(null);
+
+  // Poll the real order so the tracker reflects what the kitchen and rider actually did
+  useEffect(() => {
+    if (!orderId || !apiUrl) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${apiUrl}/orders/${orderId}`, { headers });
+        const data = await res.json();
+        if (!cancelled && data.success && data.data?.order) {
+          setOrder(data.data.order);
+          setCurrentStep(STATUS_STEP_INDEX[data.data.order.status] ?? 0);
+        }
+      } catch {
+        // Keep showing the last known state; the next poll may succeed.
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [orderId, apiUrl, token]);
+
+  const restaurantName = order?.restaurantName || 'the restaurant';
+  const riderName = order?.riderName;
 
   const steps = [
-    { title: 'Order Confirmed', time: '12:45 PM', desc: 'Received by Bangalore Biryani House' },
-    { title: 'Kitchen Accepted', time: '12:46 PM', desc: 'Chef started food preparation' },
-    { title: 'Cooking in Progress', time: '12:50 PM', desc: 'Your authentic biryani is simmering' },
-    { title: 'Out for Delivery', time: 'Est. 1:05 PM', desc: 'Rider assigned and on the way' },
-    { title: 'Delivered', time: 'Est. 1:15 PM', desc: 'Verify with 4-digit OTP upon arrival' }
+    { title: 'Order Confirmed', desc: `Received by ${restaurantName}` },
+    { title: 'Kitchen Accepted', desc: 'Chef started food preparation' },
+    { title: 'Cooking in Progress', desc: 'Your food is being prepared fresh' },
+    {
+      title: 'Out for Delivery',
+      desc: riderName ? `${riderName} is on the way` : 'Rider assigned and on the way'
+    },
+    { title: 'Delivered', desc: 'Verify with 4-digit OTP upon arrival' }
   ];
 
   return (
@@ -79,7 +132,6 @@ export const OrderTrackingScreen: React.FC<Props> = ({
                   <Text style={[styles.stepTitle, isCurrent && styles.stepTitleCurrent]}>
                     {step.title}
                   </Text>
-                  <Text style={styles.stepTime}>{step.time}</Text>
                 </View>
                 <Text style={styles.stepDesc}>{step.desc}</Text>
               </View>
@@ -88,27 +140,21 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         })}
       </View>
 
-      {/* Delivery Partner Card */}
-      <View style={styles.riderCard}>
-        <View style={styles.riderAvatar}>
-          <Bike size={24} color="#FFFFFF" />
+      {/* Delivery Partner Card — only once a rider has actually claimed the trip */}
+      {riderName && (
+        <View style={styles.riderCard}>
+          <View style={styles.riderAvatar}>
+            <Bike size={24} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.riderName}>{riderName} (Verified Partner)</Text>
+            {order?.riderPhone && <Text style={styles.riderVehicle}>{order.riderPhone}</Text>}
+          </View>
+          <View style={styles.callIcon}>
+            <Phone size={18} color={tokens.colors.primary[500]} />
+          </View>
         </View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.riderName}>Ravi Kumar (Verified Partner)</Text>
-          <Text style={styles.riderVehicle}>Hero Electric Splendor • KA-03-EQ-8812</Text>
-        </View>
-        <View style={styles.callIcon}>
-          <Phone size={18} color={tokens.colors.primary[500]} />
-        </View>
-      </View>
-
-      {/* Simulator Advance Button for Testing */}
-      <TouchableOpacity
-        style={styles.advanceButton}
-        onPress={() => setCurrentStep(prev => (prev < steps.length - 1 ? prev + 1 : prev))}
-      >
-        <Text style={styles.advanceButtonText}>Simulate Next Order Status</Text>
-      </TouchableOpacity>
+      )}
     </ScrollView>
   );
 };

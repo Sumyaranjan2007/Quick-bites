@@ -50,15 +50,23 @@ export async function reviewKycApplication(documentId: string, action: 'APPROVE'
   return res.json();
 }
 
+export async function fetchAllOrders() {
+  const token = await getAdminToken();
+  const res = await fetch(`${API_BASE}/orders`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  return res.json();
+}
+
 export async function processDisputeRefund(orderId: string, refundAmount: number, reason: string) {
   const token = await getAdminToken();
-  const res = await fetch(`${API_BASE}/admin/disputes/refund`, {
+  const res = await fetch(`${API_BASE}/admin/orders/${orderId}/refund`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ orderId, refundAmount, reason })
+    body: JSON.stringify({ amount: refundAmount, reason })
   });
   return res.json();
 }

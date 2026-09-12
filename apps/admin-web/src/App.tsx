@@ -41,7 +41,7 @@ export function AppContent() {
               Quick Bite <span style={{ color: 'var(--color-primary-500)' }}>Admin</span>
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-              Master Operations Control Tower
+              {t('admin.portalTitle')}
             </div>
           </div>
         </div>
@@ -53,28 +53,28 @@ export function AppContent() {
             onClick={() => setActiveTab('tower')}
           >
             <Activity size={16} />
-            <span>Control Tower</span>
+            <span>{t('admin.navControlTower')}</span>
           </button>
           <button
             className={`admin-nav-tab ${activeTab === 'kyc' ? 'active' : ''}`}
             onClick={() => setActiveTab('kyc')}
           >
             <FileCheck size={16} />
-            <span>KYC Pipeline</span>
+            <span>{t('admin.navKycPipeline')}</span>
           </button>
           <button
             className={`admin-nav-tab ${activeTab === 'disputes' ? 'active' : ''}`}
             onClick={() => setActiveTab('disputes')}
           >
             <AlertCircle size={16} />
-            <span>Disputes & Refunds</span>
+            <span>{t('admin.navDisputes')}</span>
           </button>
           <button
             className={`admin-nav-tab ${activeTab === 'demo' ? 'active' : ''}`}
             onClick={() => setActiveTab('demo')}
           >
             <Sparkles size={16} />
-            <span>Demo Data Tool</span>
+            <span>{t('admin.navDemoData')}</span>
           </button>
         </nav>
 

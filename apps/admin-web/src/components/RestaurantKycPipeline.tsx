@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Badge, Button, StateView, ComponentState } from '@quick-bites/design-system';
+import { Card, Badge, Button, StateView, ComponentState, useTranslation } from '@quick-bites/design-system';
 import { FileCheck, ShieldAlert, Check, X, MapPin, RefreshCw } from 'lucide-react';
 import { fetchPendingKyc, reviewKycApplication } from '../api';
 
@@ -33,6 +33,7 @@ const INITIAL_APPLICATIONS = [
 ];
 
 export const RestaurantKycPipeline: React.FC = () => {
+  const { t } = useTranslation();
   const [applications, setApplications] = useState<any[]>(INITIAL_APPLICATIONS);
   const [uiState, setUiState] = useState<ComponentState>('success');
   const [isLoading, setIsLoading] = useState(false);
@@ -68,21 +69,27 @@ export const RestaurantKycPipeline: React.FC = () => {
     loadKyc();
   }, []);
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleApprove = async (id: string) => {
+    setActionError(null);
     try {
-      await reviewKycApplication(id, 'APPROVE');
+      const res = await reviewKycApplication(id, 'APPROVE');
+      if (!res.success) throw new Error(res.error?.message || 'Approval failed.');
       setApplications(prev => prev.filter(app => app.id !== id));
-    } catch (e) {
-      setApplications(prev => prev.filter(app => app.id !== id));
+    } catch (e: any) {
+      setActionError(e.message || 'Could not reach the server. The application was not approved — please retry.');
     }
   };
 
   const handleReject = async (id: string) => {
+    setActionError(null);
     try {
-      await reviewKycApplication(id, 'REJECT', 'Document verification failed.');
+      const res = await reviewKycApplication(id, 'REJECT', 'Document verification failed.');
+      if (!res.success) throw new Error(res.error?.message || 'Rejection failed.');
       setApplications(prev => prev.filter(app => app.id !== id));
-    } catch (e) {
-      setApplications(prev => prev.filter(app => app.id !== id));
+    } catch (e: any) {
+      setActionError(e.message || 'Could not reach the server. The application was not rejected — please retry.');
     }
   };
 
@@ -93,14 +100,29 @@ export const RestaurantKycPipeline: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
         <div>
           <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)' }}>
-            Restaurant KYC Verification Pipeline
+            {t('admin.kycPipelineHeading')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            Review merchant onboarding documents, 14-digit FSSAI licenses, and state GSTIN compliance.
+            {t('admin.kycPipelineDescription')}
           </p>
         </div>
-        <Badge variant="status-pending" label={`${pendingApps.length} PENDING AUDIT`} />
+        <Badge variant="status-pending" label={`${pendingApps.length} ${t('admin.pendingAudit')}`} />
       </div>
+
+      {actionError && (
+        <div
+          style={{
+            marginBottom: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-danger-50, #FEF2F2)',
+            color: 'var(--color-danger-600, #DC2626)',
+            fontSize: 'var(--font-size-sm)'
+          }}
+        >
+          {actionError}
+        </div>
+      )}
 
       <StateView
         state={pendingApps.length === 0 ? 'empty' : uiState}
@@ -125,7 +147,7 @@ export const RestaurantKycPipeline: React.FC = () => {
                     <span>Owner: {app.ownerName} ({app.phone})</span>
                   </div>
                 </div>
-                <Badge variant="status-pending" label={`Submitted ${app.submittedAt}`} />
+                <Badge variant="status-pending" label={`${t('admin.submittedLabel')} ${app.submittedAt}`} />
               </div>
 
               {/* Compliance Badges Check */}
@@ -150,10 +172,10 @@ export const RestaurantKycPipeline: React.FC = () => {
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
                 <Button variant="outline" size="sm" onClick={() => handleReject(app.id)} leftIcon={<X size={14} />}>
-                  Reject with Feedback
+                  {t('admin.rejectWithFeedback')}
                 </Button>
                 <Button variant="veg" size="sm" onClick={() => handleApprove(app.id)} leftIcon={<Check size={14} />}>
-                  Approve Restaurant & Grant Live Access
+                  {t('admin.approveGrantAccess')}
                 </Button>
               </div>
             </Card>

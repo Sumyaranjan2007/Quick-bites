@@ -50,33 +50,75 @@ export default function RestaurantApp() {
     todayGmv: 4850.00
   });
 
-  const [activeOrders, setActiveOrders] = useState<any[]>([
-    {
-      id: 'ord_sample_01',
-      orderNumber: 'QB-2891',
-      customerName: 'Rahul Sharma',
-      items: [
-        { name: 'Special Chicken Dum Biryani', quantity: 2, variant: 'Large (Serves 2-3)', notes: 'Extra spicy please' },
-        { name: 'Extra Boondi Raita', quantity: 1 }
-      ],
-      totalAmount: 940.00,
-      status: 'PLACED',
-      timerSeconds: 114,
-      pickupCode: '4821'
-    }
-  ]);
-
-  const [menuItems, setMenuItems] = useState<any[]>([
-    { id: 'dish_ck_biryani', name: 'Special Chicken Dum Biryani', price: 320.00, isAvailable: true, isVeg: false },
-    { id: 'dish_mutton_biryani', name: 'Kolkata Shahi Mutton Biryani', price: 420.00, isAvailable: true, isVeg: false },
-    { id: 'dish_paneer_biryani', name: 'Royal Nizami Paneer Biryani', price: 280.00, isAvailable: true, isVeg: true },
-    { id: 'dish_pbm', name: 'Paneer Butter Masala', price: 260.00, isAvailable: true, isVeg: true }
-  ]);
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Selected order for action
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [prepMinutes, setPrepMinutes] = useState(20);
   const [pickupInput, setPickupInput] = useState('');
+
+  const authHeaders = (token?: string): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const effective = token || authToken;
+    if (effective) headers['Authorization'] = `Bearer ${effective}`;
+    return headers;
+  };
+
+  // Load live orders + menu from the backend
+  const syncRestaurantData = async (token?: string) => {
+    setIsSyncing(true);
+    try {
+      const [ordersRes, menuRes] = await Promise.all([
+        fetch(`${apiUrl}/restaurants/${restaurant.id}/orders`, { headers: authHeaders(token) }),
+        fetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers: authHeaders(token) })
+      ]);
+
+      const ordersData = await ordersRes.json();
+      if (ordersData.success && Array.isArray(ordersData.data?.orders)) {
+        setActiveOrders(
+          ordersData.data.orders
+            .filter((o: any) => !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status))
+            .map((o: any) => ({
+              id: o.id,
+              orderNumber: o.orderNumber,
+              customerName: o.customerName || 'Customer',
+              items: (o.items || []).map((it: any) => ({
+                name: it.name,
+                quantity: it.quantity,
+                variant: it.selectedOptions?.[0]?.optionName
+              })),
+              totalAmount: o.bill?.totalAmount ?? 0,
+              status: o.status,
+              prepMinutes: o.preparationMinutes,
+              pickupCode: o.pickupCode
+            }))
+        );
+      }
+
+      const menuData = await menuRes.json();
+      if (menuData.success && menuData.data?.menu?.categories) {
+        const flattened: any[] = [];
+        for (const cat of menuData.data.menu.categories) {
+          for (const item of cat.items || []) {
+            flattened.push({
+              id: item.id,
+              name: item.name,
+              price: item.price,
+              isAvailable: item.isAvailable !== false,
+              isVeg: Boolean(item.isVeg)
+            });
+          }
+        }
+        setMenuItems(flattened);
+      }
+    } catch {
+      Alert.alert('Sync Failed', 'Could not reach the Quick Bite server. Pull to retry.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Handle Login
   const handleLogin = async () => {
@@ -90,16 +132,12 @@ export default function RestaurantApp() {
       if (data.success && data.data?.token) {
         setAuthToken(data.data.token);
         setIsAuthenticated(true);
+        syncRestaurantData(data.data.token);
       } else {
-        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+        Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
       }
     } catch {
-      // Offline / Demo fallback
-      if (email === 'partner@quickbite.app' && password === 'pass123') {
-        setIsAuthenticated(true);
-      } else {
-        Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
-      }
+      Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
     }
   };
 
@@ -108,54 +146,92 @@ export default function RestaurantApp() {
     const nextState = !restaurant.isOpen;
     setRestaurant({ ...restaurant, isOpen: nextState });
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      await fetch(`${apiUrl}/restaurants/${restaurant.id}/kitchen-status`, {
+      const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/kitchen-status`, {
         method: 'POST',
-        headers,
+        headers: authHeaders(),
         body: JSON.stringify({ isKitchenActive: nextState })
       });
-    } catch {}
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error);
+    } catch (err: any) {
+      setRestaurant({ ...restaurant, isOpen: !nextState });
+      Alert.alert('Update Failed', err?.message || 'Kitchen status was not saved. Please try again.');
+    }
   };
 
   // Toggle Dish Stock
   const toggleStock = async (dishId: string, current: boolean) => {
+    const previous = menuItems;
     setMenuItems(menuItems.map(m => m.id === dishId ? { ...m, isAvailable: !current } : m));
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      await fetch(`${apiUrl}/restaurants/${restaurant.id}/menu/toggle-stock`, {
+      const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/menu/toggle-stock`, {
         method: 'POST',
-        headers,
+        headers: authHeaders(),
         body: JSON.stringify({ dishId, isAvailable: !current })
       });
-    } catch {}
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error);
+    } catch (err: any) {
+      setMenuItems(previous);
+      Alert.alert('Update Failed', err?.message || 'Stock status was not saved. Please try again.');
+    }
+  };
+
+  // Push an order status transition to the backend, rolling back on failure
+  const pushOrderStatus = async (orderId: string, status: string, preparationMinutes?: number) => {
+    const previous = activeOrders;
+    setActiveOrders(prev =>
+      prev.map(o => (o.id === orderId ? { ...o, status, prepMinutes: preparationMinutes ?? o.prepMinutes } : o))
+    );
+    try {
+      const res = await fetch(`${apiUrl}/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify(
+          preparationMinutes !== undefined ? { status, preparationMinutes } : { status }
+        )
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || 'Status update rejected by server.');
+      return true;
+    } catch (err: any) {
+      setActiveOrders(previous);
+      Alert.alert('Update Failed', err?.message || 'Could not reach the server. Please try again.');
+      return false;
+    }
   };
 
   // Accept Order
-  const acceptOrder = (orderId: string, mins: number) => {
-    setActiveOrders(activeOrders.map(o => o.id === orderId ? { ...o, status: 'PREPARING', prepMinutes: mins } : o));
-    setSelectedOrder(null);
-    Alert.alert('Order Accepted', `Order moved to kitchen queue with ${mins} minutes prep time.`);
+  const acceptOrder = async (orderId: string, mins: number) => {
+    const ok = await pushOrderStatus(orderId, 'PREPARING', mins);
+    if (ok) {
+      setSelectedOrder(null);
+      Alert.alert('Order Accepted', `Order moved to kitchen queue with ${mins} minutes prep time.`);
+    }
   };
 
   // Mark Ready for Pickup
-  const markReady = (orderId: string) => {
-    setActiveOrders(activeOrders.map(o => o.id === orderId ? { ...o, status: 'READY_FOR_PICKUP' } : o));
-    Alert.alert('Food Ready', 'Delivery partner has been notified that food is packed.');
+  const markReady = async (orderId: string) => {
+    const ok = await pushOrderStatus(orderId, 'READY_FOR_PICKUP');
+    if (ok) {
+      Alert.alert('Food Ready', 'Delivery partner has been notified that food is packed.');
+    }
   };
 
   // Verify Pickup Code
-  const verifyPickup = (orderId: string) => {
+  const verifyPickup = async (orderId: string) => {
     const order = activeOrders.find(o => o.id === orderId);
     if (!order) return;
-    if (pickupInput.trim() === order.pickupCode) {
-      setActiveOrders(activeOrders.filter(o => o.id !== orderId));
+    if (pickupInput.trim() !== order.pickupCode) {
+      Alert.alert('Invalid Code', 'The 4-digit pickup code does not match.');
+      return;
+    }
+    const ok = await pushOrderStatus(orderId, 'OUT_FOR_DELIVERY');
+    if (ok) {
+      setActiveOrders(prev => prev.filter(o => o.id !== orderId));
       setPickupInput('');
       setSelectedOrder(null);
       Alert.alert('Pickup Confirmed', 'Food handed over to delivery partner successfully.');
-    } else {
-      Alert.alert('Invalid Code', 'The 4-digit pickup code does not match.');
     }
   };
 
@@ -289,17 +365,17 @@ export default function RestaurantApp() {
           <View>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Incoming & Active Orders</Text>
-              <View style={styles.soundBadge}>
+              <TouchableOpacity style={styles.soundBadge} onPress={() => syncRestaurantData()} disabled={isSyncing}>
                 <Bell size={14} color="#10B981" />
-                <Text style={styles.soundBadgeText}>Audio Alert Active</Text>
-              </View>
+                <Text style={styles.soundBadgeText}>{isSyncing ? 'Syncing...' : 'Sync Orders'}</Text>
+              </TouchableOpacity>
             </View>
 
             {activeOrders.length === 0 ? (
               <View style={styles.emptyCard}>
                 <ChefHat size={48} color="#475569" />
                 <Text style={styles.emptyTitle}>Kitchen Queue Empty</Text>
-                <Text style={styles.emptySubtitle}>Incoming orders will chime here with a 120s timer.</Text>
+                <Text style={styles.emptySubtitle}>New customer orders will appear here automatically.</Text>
               </View>
             ) : (
               activeOrders.map(order => (
@@ -333,11 +409,11 @@ export default function RestaurantApp() {
                     <Text style={styles.pickupCodeText}>Pickup Code: {order.pickupCode}</Text>
                   </View>
 
-                  {order.status === 'PLACED' && (
+                  {(order.status === 'ORDER_PLACED' || order.status === 'ACCEPTED') && (
                     <View style={styles.actionRow}>
                       <TouchableOpacity
                         style={styles.rejectBtn}
-                        onPress={() => setActiveOrders(activeOrders.filter(o => o.id !== order.id))}
+                        onPress={() => pushOrderStatus(order.id, 'CANCELLED')}
                       >
                         <XCircle size={18} color="#EF4444" />
                         <Text style={styles.rejectBtnText}>Reject</Text>

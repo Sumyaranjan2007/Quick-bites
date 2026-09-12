@@ -20,62 +20,53 @@ interface TerminalOrder {
   placedAt: string;
 }
 
-const INITIAL_ORDERS: TerminalOrder[] = [
-  {
-    id: 'ord_live_01',
-    orderNumber: 'QB-981245',
-    customerName: 'Rahul Sharma',
-    items: [
-      { name: 'Special Chicken Dum Biryani', quantity: 2, isVeg: false, variant: 'Regular (Serves 1)' },
-      { name: 'Extra Boondi Raita', quantity: 1, isVeg: true }
-    ],
-    totalAmount: 670.00,
-    status: 'ORDER_PLACED',
-    placedAt: '2 mins ago'
-  },
-  {
-    id: 'ord_live_02',
-    orderNumber: 'QB-773120',
-    customerName: 'Priya Iyer',
-    items: [
-      { name: 'Paneer Butter Masala', quantity: 1, isVeg: true },
-      { name: 'Butter Naan', quantity: 3, isVeg: true }
-    ],
-    totalAmount: 410.00,
-    status: 'PREPARING',
-    prepTimeMinutes: 20,
-    placedAt: '12 mins ago'
-  }
-];
+function mapApiOrder(o: any): TerminalOrder {
+  return {
+    id: o.id,
+    orderNumber: o.orderNumber || o.id.slice(-6).toUpperCase(),
+    customerName: o.customerName || 'Customer',
+    items: Array.isArray(o.items)
+      ? o.items.map((it: any) => ({
+          name: it.name,
+          quantity: it.quantity,
+          isVeg: Boolean(it.isVeg),
+          variant: it.selectedOptions?.[0]?.optionName
+        }))
+      : [],
+    totalAmount: typeof o.bill?.totalAmount === 'number' ? o.bill.totalAmount : 0,
+    status: o.status === 'ACCEPTED' ? 'PREPARING' : (o.status || 'ORDER_PLACED'),
+    prepTimeMinutes: o.preparationMinutes || 20,
+    placedAt: o.createdAt
+      ? new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : 'Recently'
+  };
+}
 
 export const LiveOrderTerminal: React.FC = () => {
-  const [orders, setOrders] = useState<TerminalOrder[]>(INITIAL_ORDERS);
-  const [uiState, setUiState] = useState<ComponentState>('success');
+  const [orders, setOrders] = useState<TerminalOrder[]>([]);
+  const [uiState, setUiState] = useState<ComponentState>('loading');
   const [selectedPrepTime, setSelectedPrepTime] = useState<number>(20);
   const [lastChimeTime, setLastChimeTime] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadLiveOrders = async () => {
     setIsLoading(true);
     try {
       const res = await fetchRestaurantOrders('rst_bbh_01');
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        const mapped: TerminalOrder[] = res.data.map((o: any) => ({
-          id: o.id,
-          orderNumber: o.orderNumber || o.id.slice(-6).toUpperCase(),
-          customerName: o.customerName || 'Customer',
-          items: Array.isArray(o.items) ? o.items : [
-            { name: 'Special Chicken Dum Biryani', quantity: 1, isVeg: false }
-          ],
-          totalAmount: typeof o.totalAmount === 'number' ? o.totalAmount : 350,
-          status: o.status || 'ORDER_PLACED',
-          prepTimeMinutes: o.prepTimeMinutes || 20,
-          placedAt: o.createdAt ? new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'
-        }));
-        setOrders(mapped);
+      if (res.success && Array.isArray(res.data?.orders)) {
+        setOrders(
+          res.data.orders
+            .filter((o: any) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'REFUNDED')
+            .map(mapApiOrder)
+        );
+        setUiState('success');
+      } else {
+        setUiState('error');
       }
     } catch (err) {
-      console.warn('[Terminal] Using local orders fallback', err);
+      console.warn('[Terminal] Failed to load live orders', err);
+      setUiState('error');
     } finally {
       setIsLoading(false);
     }
@@ -109,34 +100,32 @@ export const LiveOrderTerminal: React.FC = () => {
     }
   };
 
-  const handleAcceptOrder = (orderId: string) => {
+  const applyStatusUpdate = async (
+    orderId: string,
+    nextStatus: TerminalOrder['status'],
+    prepTimeMinutes?: number
+  ) => {
+    setActionError(null);
+    const previous = orders;
     setOrders(prev =>
-      prev.map(o =>
-        o.id === orderId
-          ? { ...o, status: 'PREPARING', prepTimeMinutes: selectedPrepTime }
-          : o
-      )
+      prev.map(o => (o.id === orderId ? { ...o, status: nextStatus, prepTimeMinutes: prepTimeMinutes ?? o.prepTimeMinutes } : o))
     );
-    updateOrderStatus(orderId, 'PREPARING', selectedPrepTime).catch(e => console.warn(e));
+
+    try {
+      const res = await updateOrderStatus(orderId, nextStatus, prepTimeMinutes);
+      if (!res.success) {
+        throw new Error(res.error?.message || 'Failed to update order status.');
+      }
+    } catch (err: any) {
+      // Roll back the optimistic update — the backend never actually confirmed the change.
+      setOrders(previous);
+      setActionError(err.message || 'Could not reach the server. Please try again.');
+    }
   };
 
-  const handleMarkReady = (orderId: string) => {
-    setOrders(prev =>
-      prev.map(o =>
-        o.id === orderId ? { ...o, status: 'READY_FOR_PICKUP' } : o
-      )
-    );
-    updateOrderStatus(orderId, 'READY_FOR_PICKUP').catch(e => console.warn(e));
-  };
-
-  const handleHandover = (orderId: string) => {
-    setOrders(prev =>
-      prev.map(o =>
-        o.id === orderId ? { ...o, status: 'OUT_FOR_DELIVERY' } : o
-      )
-    );
-    updateOrderStatus(orderId, 'OUT_FOR_DELIVERY').catch(e => console.warn(e));
-  };
+  const handleAcceptOrder = (orderId: string) => applyStatusUpdate(orderId, 'PREPARING', selectedPrepTime);
+  const handleMarkReady = (orderId: string) => applyStatusUpdate(orderId, 'READY_FOR_PICKUP');
+  const handleHandover = (orderId: string) => applyStatusUpdate(orderId, 'OUT_FOR_DELIVERY');
 
   const activeOrders = orders.filter(o => o.status !== 'OUT_FOR_DELIVERY');
 
@@ -163,17 +152,30 @@ export const LiveOrderTerminal: React.FC = () => {
         </div>
       </div>
 
+      {actionError && (
+        <div
+          style={{
+            marginBottom: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-danger-50, #FEF2F2)',
+            color: 'var(--color-danger-600, #DC2626)',
+            fontSize: 'var(--font-size-sm)'
+          }}
+        >
+          {actionError}
+        </div>
+      )}
+
       {/* 4-State UI Container */}
       <StateView
-        state={activeOrders.length === 0 ? 'empty' : uiState}
+        state={uiState === 'success' && activeOrders.length === 0 ? 'empty' : uiState}
         emptyTitle="No Active Orders in Kitchen Queue"
         emptyDescription="All incoming orders have been prepared and handed over to delivery partners."
-        emptyActionLabel="Simulate Incoming Order"
-        onEmptyAction={() => {
-          setOrders(INITIAL_ORDERS);
-          playKitchenChime();
-        }}
-        onRetry={() => setUiState('success')}
+        emptyActionLabel="Refresh Queue"
+        onEmptyAction={loadLiveOrders}
+        errorMessage="Could not reach the Quick Bite server. Check your connection and try again."
+        onRetry={loadLiveOrders}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 'var(--space-4)' }}>
           {activeOrders.map(order => (

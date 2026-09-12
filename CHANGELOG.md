@@ -401,6 +401,42 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-12] -- Claude Opus 5 -- Session 15 (Platform QA Audit & Correctness Fixes)
+**Description:** Full-platform QA audit across all 7 apps followed by a correctness fix pass. Testing revealed that most "live" screens were rendering hardcoded demo constants while their write actions were fire-and-forget calls whose failures were silently swallowed, so the UI reported success even when nothing reached the backend. The customer order pipeline was broken end-to-end and could never place a real order. All findings below were reproduced against a running backend and re-verified after fixing.
+**Chunks Modified:** 02, 04, 07, 08
+**Changes:**
+- **Customer order pipeline (was completely non-functional end-to-end):**
+  - Fixed `apps/customer-mobile/src/screens/CartAndCheckoutScreen.tsx` sending the cart-line id (`cart_<dish>_<variant>`) as `dishId`, which the backend rejected for every order ever placed.
+  - Removed the fallback that fabricated a random order number and OTP whenever the API call failed, which showed customers a fake confirmation for an order that was never placed. Failures now surface a real error and the order is not reported as placed.
+  - Added `POST /api/v1/orders/:id/confirm-payment` (`apps/backend-api/src/routes/orderRouter.ts`). `orderService.confirmPayment` existed and was unit-tested but had no HTTP route, so every `RAZORPAY_SANDBOX` order was stranded in `PAYMENT_PENDING` and never reached a kitchen. The customer app now completes this step after order creation.
+- **Hardcoded data replaced with live backend reads:**
+  - `apps/customer-mobile/src/screens/RestaurantDetailScreen.tsx` rendered the same 3 constant dishes for every restaurant, so a Pure Veg restaurant advertised a chicken biryani. Now fetches `GET /restaurants/:id/menu`, honours `isAvailable` (sold-out items render disabled instead of orderable), and drives the customisation modal from real `optionGroups` instead of hardcoded portion sizes.
+  - `apps/restaurant-web/src/components/LiveOrderTerminal.tsx` checked `Array.isArray(res.data)` against a payload shaped `{ data: { orders } }`, so live orders never loaded and the fallback demo queue was permanent. Now maps real orders, with rollback and a visible error when a status write fails.
+  - `apps/restaurant-web/src/components/PayoutLedger.tsx`, `apps/admin-web/src/components/DisputeResolutionConsole.tsx`, `apps/restaurant-mobile/App.tsx`, `apps/admin-mobile/App.tsx`, and `apps/delivery-mobile/App.tsx` all seeded local state from constants; each now loads from the backend on mount with an explicit sync control.
+  - `apps/customer-mobile/src/screens/OrderTrackingScreen.tsx` displayed a scripted timeline and a fictional rider ("Ravi Kumar"). Now polls the real order every 5s and shows the actual rider only once one has claimed the trip. Removed the "Simulate Next Order Status" developer control from the customer-facing screen.
+- **Delivery app connected to the rider API that already existed:**
+  - `apps/delivery-mobile/App.tsx` simulated the job broadcast, pickup handshake, and doorstep OTP locally while `GET /riders/orders/broadcast`, `POST /riders/orders/:id/claim`, `/verify-pickup`, and `/verify-otp` sat unused. All four are now wired, so trips are claimed server-side and cannot be double-assigned.
+- **Security:**
+  - `apps/backend-api/src/routes/riderRouter.ts` returned the customer's `deliveryOtp` in the broadcast, claim, and verify-pickup payloads, and `delivery-mobile` compared the OTP client-side — a rider could close out a delivery without handing the food over. The OTP is now stripped from all rider-facing responses and verified only by the server.
+- **Silent-failure pattern removed:** every write action in `admin-web`, `restaurant-web`, `customer-mobile`, `restaurant-mobile`, `admin-mobile`, and `delivery-mobile` now checks the response, rolls back optimistic UI state, and surfaces the server's error instead of reporting success unconditionally.
+- **Pricing correctness:** the checkout preview hardcoded a Rs 25.00 packaging fee and a 2.5 km distance while the server used each restaurant's real values, so the quoted total did not match the amount charged. Both are now passed through from the selected restaurant.
+- **Backend correctness:**
+  - Added `apps/backend-api/src/utils/AppError.ts`; business-rule failures now return 400/404/409 instead of a blanket 500 (an invalid dish id returned `500 INTERNAL_SERVER_ERROR`).
+  - `orderStateMachine.ts` rejected `ORDER_PLACED -> PREPARING`, which is exactly what the partner's single "Accept Order & Start Cooking" button does; the transition is now permitted.
+  - Orders now persist `customerName`, `restaurantName`, and per-item `isVeg` (partner terminals were labelling Paneer Butter Masala as NON-VEG).
+- **API contract mismatches:** `restaurant-web` sent `POST` to a `PUT`-only status route and `prepTimeMinutes` to a `preparationMinutes` field; `admin-web` called a non-existent `/admin/disputes/refund` instead of `/admin/orders/:id/refund`.
+- **Internationalisation:** the EN/HI/KN language switcher changed state but no string ever called `t()`. Added ~30 `admin.*` keys across `packages/design-system/src/i18n/locales/{en,hi,kn}.json` and wired the admin portal's navigation, headings, metric labels, and actions; all three languages verified in-browser.
+- **Other:** the "Export GST Invoice" button had no handler and the ledger was hardcoded — it now computes from delivered orders and downloads a CSV. Removed the `unstable_serverRoot` override in `apps/customer-mobile/metro.config.js` that made `expo start --web` 404 on its own bundle.
+**Build Status:** Complete (10/10 packages typecheck clean, 6/6 backend suites passing, full order lifecycle verified end-to-end).
+**Known Issues:**
+- Disputes are derived from delivered orders rather than stored as their own entity; "Dismiss Dispute" hides a row for the session only, as there is no dispute record to persist against.
+- `apps/admin-web/src/components/DemoDataGenerator.tsx` remains client-side only, which is appropriate for a demo-data tool.
+- Restaurant/rider portals poll on demand; the Socket.IO stream is emitted by the backend but not yet consumed by the web portals for push updates.
+**NEXT AI SHOULD:** Consume the existing Socket.IO events in the web portals so kitchen and tracking screens update without manual sync, and model disputes as a first-class persisted entity.
+**Notes:** Verified against a local backend in demo mode with a fresh store: customer places order -> payment confirmed -> kitchen accepts -> rider claims, verifies pickup, completes with server-verified OTP -> admin metrics and refunds reflect the result. Forged payment signatures and incorrect OTPs are rejected.
+
+---
+
 ## Session Log Template (For Future Sessions)
 ```markdown
 ## [YYYY-MM-DD] -- [AI Model] -- Session [N]

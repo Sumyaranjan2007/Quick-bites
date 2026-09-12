@@ -9,6 +9,7 @@ import { couponService } from './couponService.ts';
 import { razorpayAdapter } from '../payments/razorpayAdapter.ts';
 import { emitOrderCreated, emitOrderStatusUpdate } from '../../sockets/socketServer.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
+import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod } from '@quick-bites/shared-types';
 
 export interface CreateOrderInput {
@@ -37,22 +38,22 @@ export const orderService = {
     // 2. Validate Restaurant Exists & Open
     const restaurant = await restaurantRepository.findById(input.restaurantId);
     if (!restaurant) {
-      throw new Error('Restaurant not found.');
+      throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
     }
     if (restaurant.status !== 'ACTIVE') {
-      throw new Error('Restaurant is currently not accepting orders.');
+      throw new AppError('Restaurant is currently not accepting orders.', 409, 'RESTAURANT_INACTIVE');
     }
 
     // 3. Validate User Profile
     const customer = await userRepository.findById(input.customerId);
     if (!customer) {
-      throw new Error('Customer account not found.');
+      throw new AppError('Customer account not found.', 404, 'CUSTOMER_NOT_FOUND');
     }
 
     // 4. Verify & Fetch Live Dish Prices from Menu
     const menu = await menuRepository.findByRestaurantId(input.restaurantId);
     if (!menu) {
-      throw new Error('Restaurant menu not found.');
+      throw new AppError('Restaurant menu not found.', 404, 'MENU_NOT_FOUND');
     }
 
     const allDishes = new Map<string, any>();
@@ -67,6 +68,7 @@ export const orderService = {
       name: string;
       unitPrice: number;
       quantity: number;
+      isVeg: boolean;
       addonsTotal: number;
       selectedOptions: any[];
       totalPrice: number;
@@ -75,10 +77,10 @@ export const orderService = {
     for (const reqItem of input.items) {
       const dish = allDishes.get(reqItem.dishId);
       if (!dish) {
-        throw new Error(`Dish ID ${reqItem.dishId} does not exist in this restaurant menu.`);
+        throw new AppError(`Dish ID ${reqItem.dishId} does not exist in this restaurant menu.`, 400, 'INVALID_DISH_ID');
       }
       if (!dish.isAvailable) {
-        throw new Error(`Item "${dish.name}" is currently out of stock.`);
+        throw new AppError(`Item "${dish.name}" is currently out of stock.`, 409, 'DISH_OUT_OF_STOCK');
       }
 
       let addonsTotal = 0;
@@ -109,6 +111,7 @@ export const orderService = {
         name: dish.name,
         unitPrice: dish.price,
         quantity: reqItem.quantity,
+        isVeg: Boolean(dish.isVeg),
         addonsTotal,
         selectedOptions: selectedOptionsDetails,
         totalPrice: Math.round(itemTotal * 100) / 100
@@ -153,7 +156,9 @@ export const orderService = {
       idempotencyKey: input.idempotencyKey,
       orderNumber,
       customerId: input.customerId,
+      customerName: customer.fullName,
       restaurantId: input.restaurantId,
+      restaurantName: restaurant.name,
       deliveryAddressId: input.deliveryAddressId,
       status: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'ORDER_PLACED' : 'PAYMENT_PENDING',
       paymentStatus: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'PENDING' : 'PENDING',
@@ -191,7 +196,7 @@ export const orderService = {
 
   async confirmPayment(orderId: string, razorpayPaymentId: string, signature: string) {
     const order = await orderRepository.findById(orderId);
-    if (!order) throw new Error('Order not found.');
+    if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
 
     const isValid = razorpayAdapter.verifySignature({
       razorpayOrderId: order.orderNumber,
@@ -200,7 +205,7 @@ export const orderService = {
     });
 
     if (!isValid) {
-      throw new Error('Invalid Razorpay payment signature.');
+      throw new AppError('Invalid Razorpay payment signature.', 400, 'INVALID_PAYMENT_SIGNATURE');
     }
 
     order.paymentStatus = 'PAID';
@@ -221,19 +226,19 @@ export const orderService = {
 
   async transitionStatus(orderId: string, nextStatus: OrderStatus, prepMinutes?: number, otp?: string) {
     const order = await orderRepository.findById(orderId);
-    if (!order) throw new Error('Order not found.');
+    if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
 
     validateTransition(order.status, nextStatus);
 
     if (nextStatus === 'DELIVERED') {
       if (!otp || otp !== order.deliveryOtp) {
-        throw new Error('Invalid delivery confirmation OTP. Handover failed.');
+        throw new AppError('Invalid delivery confirmation OTP. Handover failed.', 400, 'INVALID_OTP');
       }
     }
 
     const updated = await orderRepository.updateStatus(orderId, nextStatus, prepMinutes);
     if (!updated) {
-      throw new Error(`Failed to update order status for order ID: ${orderId}`);
+      throw new AppError(`Failed to update order status for order ID: ${orderId}`, 500, 'STATUS_UPDATE_FAILED');
     }
 
     // 1. Emit Socket.IO real-time event to order room and admin control tower

@@ -108,6 +108,8 @@ export interface OrderItemPayload {
   name: string;
   unitPrice: number;
   quantity: number;
+  isVeg?: boolean;
+  addonsTotal?: number;
   selectedOptions?: Array<{ groupId: string; optionId: string; priceDelta: number }>;
   totalPrice: number;
 }

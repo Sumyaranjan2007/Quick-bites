@@ -50,21 +50,9 @@ export default function DeliveryApp() {
     todayTrips: 4
   });
 
-  // Active broadcast job (simulated incoming broadcast)
-  const [incomingBroadcast, setIncomingBroadcast] = useState<any | null>({
-    id: 'ord_broadcast_101',
-    orderNumber: 'QB-2891',
-    restaurantName: 'Bangalore Biryani House',
-    pickupAddress: '100 Feet Road, Indiranagar',
-    dropAddress: '80 Feet Road, Koramangala',
-    distanceKm: 3.8,
-    estimatedEarnings: 75.00,
-    timerSeconds: 15,
-    pickupCode: '4821',
-    deliveryOtp: '5821',
-    paymentMode: 'COD',
-    cashToCollect: 455.00
-  });
+  // Live broadcast job pulled from the backend dispatch queue
+  const [incomingBroadcast, setIncomingBroadcast] = useState<any | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Active delivery underway
   const [activeTrip, setActiveTrip] = useState<any | null>(null);
@@ -96,6 +84,45 @@ export default function DeliveryApp() {
     return () => clearInterval(timer);
   }, [activeTrip, tripStage, apiUrl, authToken]);
 
+  const authHeaders = (token?: string): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const effective = token || authToken;
+    if (effective) headers['Authorization'] = `Bearer ${effective}`;
+    return headers;
+  };
+
+  const mapBroadcast = (o: any) => ({
+    id: o.id,
+    orderNumber: o.orderNumber,
+    restaurantName: o.restaurantName || 'Restaurant Partner',
+    pickupAddress: o.restaurantAddress || 'Restaurant pickup counter',
+    dropAddress: o.deliveryAddressText || 'Customer doorstep',
+    distanceKm: o.distanceKm ?? 3.5,
+    estimatedEarnings: o.riderPayout ?? 65.0,
+    timerSeconds: 30,
+    pickupCode: o.pickupCode,
+    paymentMode: o.paymentMethod === 'CASH_ON_DELIVERY' ? 'COD' : o.paymentMethod,
+    cashToCollect: o.paymentMethod === 'CASH_ON_DELIVERY' ? o.bill?.totalAmount ?? 0 : 0
+  });
+
+  // Pull real dispatch broadcasts waiting for a rider
+  const syncBroadcasts = async (token?: string) => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`${apiUrl}/riders/orders/broadcast`, { headers: authHeaders(token) });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data?.broadcasts) && data.data.broadcasts.length > 0) {
+        setIncomingBroadcast(mapBroadcast(data.data.broadcasts[0]));
+      } else {
+        setIncomingBroadcast(null);
+      }
+    } catch {
+      Alert.alert('Sync Failed', 'Could not reach the dispatch server. Check your connection.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Login handler
   const handleLogin = async () => {
     try {
@@ -108,15 +135,12 @@ export default function DeliveryApp() {
       if (data.success && data.data?.token) {
         setAuthToken(data.data.token);
         setIsAuthenticated(true);
+        syncBroadcasts(data.data.token);
       } else {
-        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+        Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
       }
     } catch {
-      if (email === 'rider@quickbite.app' && password === 'pass123') {
-        setIsAuthenticated(true);
-      } else {
-        Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
-      }
+      Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
     }
   };
 
@@ -125,40 +149,85 @@ export default function DeliveryApp() {
     const nextState = !rider.isOnline;
     setRider({ ...rider, isOnline: nextState });
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      await fetch(`${apiUrl}/riders/shift`, {
+      const res = await fetch(`${apiUrl}/riders/shift`, {
         method: 'POST',
-        headers,
+        headers: authHeaders(),
         body: JSON.stringify({ riderId: rider.id, isOnline: nextState })
       });
-    } catch {}
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error);
+      if (nextState) syncBroadcasts();
+    } catch (err: any) {
+      setRider({ ...rider, isOnline: !nextState });
+      Alert.alert('Shift Update Failed', err?.message || 'Could not update your shift status.');
+    }
   };
 
-  // Accept Broadcast Job
-  const acceptBroadcast = () => {
-    setActiveTrip(incomingBroadcast);
-    setIncomingBroadcast(null);
-    setTripStage('HEADING_TO_RESTAURANT');
-    Alert.alert('Trip Claimed', 'Navigate to restaurant pickup counter.');
+  // Accept Broadcast Job — claims the order server-side so no two riders get it
+  const acceptBroadcast = async () => {
+    if (!incomingBroadcast) return;
+    try {
+      const res = await fetch(`${apiUrl}/riders/orders/${incomingBroadcast.id}/claim`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          riderId: rider.id,
+          riderName: rider.fullName,
+          riderPhone: rider.phone
+        })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error || 'This trip was already claimed.');
+
+      setActiveTrip({ ...incomingBroadcast, ...mapBroadcast(data.data.order) });
+      setIncomingBroadcast(null);
+      setTripStage('HEADING_TO_RESTAURANT');
+      Alert.alert('Trip Claimed', 'Navigate to restaurant pickup counter.');
+    } catch (err: any) {
+      Alert.alert('Could Not Claim Trip', err?.message || 'Please try again.');
+      syncBroadcasts();
+    }
   };
 
-  // Pickup Handshake
-  const verifyPickupHandshake = () => {
-    if (pickupCodeInput.trim() === activeTrip.pickupCode) {
+  // Pickup Handshake — verified by the backend, not locally
+  const verifyPickupHandshake = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-pickup`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ pickupCode: pickupCodeInput.trim() })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || data.error || 'Pickup code does not match.');
+
       setTripStage('OUT_FOR_DELIVERY');
       setPickupCodeInput('');
-      Alert.alert('Pickup Confirmed', 'Food verified! 3s GPS live tracking active to customer.');
-    } else {
-      Alert.alert('Invalid Code', 'Enter matching pickup code provided by kitchen staff.');
+      Alert.alert('Pickup Confirmed', 'Food verified! Live GPS tracking is now active.');
+    } catch (err: any) {
+      Alert.alert('Invalid Code', err?.message || 'Enter the pickup code provided by kitchen staff.');
     }
   };
 
   // Doorstep OTP Verification
-  const completeDeliveryOtp = () => {
-    if (otpInput.trim() === activeTrip.deliveryOtp) {
-      const earnings = activeTrip.estimatedEarnings;
-      const cash = activeTrip.paymentMode === 'COD' ? activeTrip.cashToCollect : 0;
+  const completeDeliveryOtp = async () => {
+    const earnings = activeTrip.estimatedEarnings;
+    const cash = activeTrip.paymentMode === 'COD' ? activeTrip.cashToCollect : 0;
+
+    try {
+      const res = await fetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-otp`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          deliveryOtp: otpInput.trim(),
+          riderUserId: rider.id,
+          tripEarnings: earnings
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || data.error || 'Customer 4-digit delivery OTP does not match.');
+      }
+
       setRider({
         ...rider,
         walletBalance: rider.walletBalance + earnings,
@@ -171,8 +240,9 @@ export default function DeliveryApp() {
       );
       setActiveTrip(null);
       setOtpInput('');
-    } else {
-      Alert.alert('Incorrect OTP', 'Customer 4-digit delivery OTP does not match.');
+      syncBroadcasts();
+    } catch (err: any) {
+      Alert.alert('Incorrect OTP', err?.message || 'Customer 4-digit delivery OTP does not match.');
     }
   };
 
@@ -455,10 +525,19 @@ export default function DeliveryApp() {
                     <Bike size={48} color="#475569" />
                     <Text style={styles.idleTitle}>Waiting for Nearby Delivery Jobs</Text>
                     <Text style={styles.idleSubtitle}>
-                      {rider.isOnline 
-                        ? 'Stay online. Broadcast cards appear here when restaurants accept orders.' 
+                      {rider.isOnline
+                        ? 'Stay online. Broadcast cards appear here when restaurants accept orders.'
                         : 'You are currently offline. Turn on your shift switch above to receive jobs.'}
                     </Text>
+                    <TouchableOpacity
+                      style={styles.acceptJobBtn}
+                      onPress={() => syncBroadcasts()}
+                      disabled={isSyncing}
+                    >
+                      <Text style={styles.acceptJobBtnText}>
+                        {isSyncing ? 'Checking...' : 'Check for Jobs'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>

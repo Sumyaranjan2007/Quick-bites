@@ -16,10 +16,12 @@ interface Props {
   cart: CartItem[];
   onUpdateQuantity: (cartItemId: string, delta: number) => void;
   onBack: () => void;
-  onOrderPlaced: (orderData: { orderNumber: string; total: number; otp: string }) => void;
+  onOrderPlaced: (orderData: { orderNumber: string; total: number; otp: string; orderId?: string }) => void;
   restaurantId?: string;
   apiUrl?: string;
   token?: string;
+  packagingFee?: number;
+  distanceKm?: number;
 }
 
 export const CartAndCheckoutScreen: React.FC<Props> = ({
@@ -29,12 +31,16 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   onOrderPlaced,
   restaurantId,
   apiUrl,
-  token
+  token,
+  packagingFee,
+  distanceKm
 }) => {
   const [couponCode, setCouponCode] = useState('WELCOME50');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>('WELCOME50');
   const [isGoldMember] = useState(true); // Rahul Sharma is a Quick Bite Gold subscriber
   const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   // Map cart items for pricing engine
   const pricingItems = cart.map(item => ({
@@ -45,8 +51,8 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   const pricingResult = calculateOrderPricing({
     items: pricingItems,
     isGold: isGoldMember,
-    packagingFee: 25.00,
-    distanceKm: 2.5,
+    packagingFee: packagingFee ?? 25.0,
+    distanceKm: distanceKm ?? 2.5,
     coupon: appliedCoupon === 'WELCOME50'
       ? {
           discountType: 'PERCENTAGE',
@@ -54,22 +60,31 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           maxDiscountCap: 100,
           minOrderValue: 200
         }
+      : appliedCoupon === 'FREEDEL'
+      ? {
+          discountType: 'FREE_DELIVERY',
+          discountValue: 0,
+          minOrderValue: 0
+        }
       : undefined
   });
 
   const handleApplyCoupon = () => {
-    if (couponCode.trim().toUpperCase() === 'WELCOME50') {
-      setAppliedCoupon('WELCOME50');
-    } else if (couponCode.trim().toUpperCase() === 'FREEDEL') {
-      setAppliedCoupon('FREEDEL');
+    const code = couponCode.trim().toUpperCase();
+    if (code === 'WELCOME50' || code === 'FREEDEL') {
+      setAppliedCoupon(code);
+      setCouponError(null);
     } else {
       setAppliedCoupon(null);
+      setCouponError(`'${code || 'This code'}' is not a valid coupon.`);
     }
   };
 
   const handleCheckout = async () => {
     setIsProcessing(true);
+    setCheckoutError(null);
     const effectiveBase = apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api';
+
     try {
       const generatedUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0;
@@ -81,46 +96,70 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         restaurantId: restaurantId || 'rst_bbh_01',
         deliveryAddressId: 'addr_indiranagar_01',
         items: cart.map(item => ({
-          dishId: item.id,
-          quantity: item.quantity
+          dishId: item.dishId,
+          quantity: item.quantity,
+          ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {})
         })),
         paymentMethod: 'RAZORPAY_SANDBOX',
         couponCode: appliedCoupon || undefined,
         idempotencyKey: generatedUUID,
-        distanceKm: 2.5
+        distanceKm: distanceKm ?? 2.5
       };
 
       const res = await fetch(`${effectiveBase}/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : 'Bearer demo-customer-token'
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify(payload)
       });
 
       const data = await res.json();
-      if (data.success && data.data?.order) {
-        setIsProcessing(false);
-        onOrderPlaced({
-          orderNumber: data.data.order.orderNumber,
-          total: data.data.order.pricing?.totalAmount || pricingResult.totalAmount,
-          otp: data.data.order.deliveryOtp || `${Math.floor(1000 + Math.random() * 9000)}`
-        });
-        return;
-      }
-    } catch {
-      // Backend not reachable, use fallback
-    }
+      let order = data?.data?.order;
 
-    setIsProcessing(false);
-    const randomOrderNo = `QB-${Math.floor(100000 + Math.random() * 900000)}`;
-    const randomOtp = `${Math.floor(1000 + Math.random() * 9000)}`;
-    onOrderPlaced({
-      orderNumber: randomOrderNo,
-      total: pricingResult.totalAmount,
-      otp: randomOtp
-    });
+      if (!res.ok || !data.success || !order) {
+        throw new Error(
+          data?.error?.message || 'We could not place your order. Please try again.'
+        );
+      }
+
+      // A Razorpay order is created as PAYMENT_PENDING; it only reaches the kitchen
+      // once payment is confirmed. Demo mode accepts the simulated sandbox signature.
+      if (order.status === 'PAYMENT_PENDING') {
+        const payRes = await fetch(`${effectiveBase}/orders/${order.id}/confirm-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            razorpayPaymentId: `pay_test_${Date.now()}`,
+            razorpaySignature: 'simulated_valid_signature'
+          })
+        });
+        const payData = await payRes.json();
+        if (!payRes.ok || !payData.success) {
+          throw new Error(payData?.error?.message || 'Payment could not be confirmed. You have not been charged.');
+        }
+        order = payData.data?.order ?? order;
+      }
+
+      onOrderPlaced({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        total: order.bill?.totalAmount ?? pricingResult.totalAmount,
+        otp: order.deliveryOtp || ''
+      });
+    } catch (err: any) {
+      setCheckoutError(
+        err?.message === 'Failed to fetch' || err?.name === 'TypeError'
+          ? 'Could not reach the Quick Bite server. Check your connection and try again.'
+          : err?.message || 'We could not place your order. Please try again.'
+      );
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (cart.length === 0) {
@@ -202,9 +241,11 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             <Text style={styles.applyBtnText}>APPLY</Text>
           </TouchableOpacity>
         </View>
-        {appliedCoupon && (
+        {appliedCoupon ? (
           <Text style={styles.couponSuccess}>Coupon '{appliedCoupon}' applied successfully!</Text>
-        )}
+        ) : couponError ? (
+          <Text style={styles.couponError}>{couponError}</Text>
+        ) : null}
       </View>
 
       {/* Gold Member Highlight */}
@@ -263,9 +304,15 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         </View>
       </View>
 
+      {checkoutError && (
+        <View style={styles.checkoutErrorBox}>
+          <Text style={styles.checkoutErrorText}>{checkoutError}</Text>
+        </View>
+      )}
+
       {/* Pay Now Button (Razorpay Simulated Flow) */}
       <TouchableOpacity
-        style={styles.payButton}
+        style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
         onPress={handleCheckout}
         disabled={isProcessing}
       >
@@ -399,6 +446,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 6
   },
+  couponError: {
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '600',
+    marginTop: 6
+  },
   goldCard: {
     backgroundColor: '#FEF3C7',
     borderWidth: 1,
@@ -458,10 +511,26 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 6
   },
+  payButtonDisabled: {
+    opacity: 0.6
+  },
   payButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 15
+  },
+  checkoutErrorBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10
+  },
+  checkoutErrorText: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600'
   },
   emptyContainer: {
     flex: 1,

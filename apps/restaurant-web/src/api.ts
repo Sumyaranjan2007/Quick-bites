@@ -50,12 +50,14 @@ export async function toggleDishStock(restaurantId: string, dishId: string, isAv
 export async function updateOrderStatus(orderId: string, status: string, prepTimeMinutes?: number) {
   const token = await getPartnerToken();
   const res = await fetch(`${API_BASE}/orders/${orderId}/status`, {
-    method: 'POST',
+    method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ status, prepTimeMinutes })
+    body: JSON.stringify(
+      prepTimeMinutes !== undefined ? { status, preparationMinutes: prepTimeMinutes } : { status }
+    )
   });
   return res.json();
 }

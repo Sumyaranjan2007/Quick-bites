@@ -21,7 +21,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'feed' | 'detail' | 'cart' | 'tracking' | 'profile'>('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string } | null>(null);
+  const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string; orderId?: string } | null>(null);
   const [apiUrl, setApiUrl] = useState<string>('https://quick-bites-production-9f45.up.railway.app/api');
   const [authToken, setAuthToken] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
@@ -55,7 +55,7 @@ export default function App() {
     );
   };
 
-  const handleOrderPlaced = (orderData: { orderNumber: string; total: number; otp: string }) => {
+  const handleOrderPlaced = (orderData: { orderNumber: string; total: number; otp: string; orderId?: string }) => {
     setActiveOrder(orderData);
     setCart([]);
     setCurrentScreen('tracking');
@@ -109,6 +109,8 @@ export default function App() {
             onAddToCart={handleAddToCart}
             onBack={() => setCurrentScreen('feed')}
             onViewCart={() => setCurrentScreen('cart')}
+            apiUrl={apiUrl}
+            token={authToken}
           />
         )}
 
@@ -121,6 +123,8 @@ export default function App() {
             restaurantId={selectedRestaurant?.id}
             apiUrl={apiUrl}
             token={authToken}
+            packagingFee={selectedRestaurant?.packagingFee}
+            distanceKm={selectedRestaurant?.distanceKm}
           />
         )}
 
@@ -129,6 +133,9 @@ export default function App() {
             orderNumber={activeOrder.orderNumber}
             total={activeOrder.total}
             otp={activeOrder.otp}
+            orderId={activeOrder.orderId}
+            apiUrl={apiUrl}
+            token={authToken}
             onHome={() => setCurrentScreen('feed')}
           />
         )}

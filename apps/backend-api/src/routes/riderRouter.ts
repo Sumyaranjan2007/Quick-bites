@@ -8,6 +8,16 @@ import { validate } from '../middlewares/validate.ts';
 
 export const riderRouter = Router();
 
+/**
+ * The customer's doorstep OTP must never reach the rider's device — otherwise a rider
+ * could close out a delivery without ever handing the food over. It is verified
+ * server-side by POST /riders/orders/:id/verify-otp instead.
+ */
+function withoutDeliveryOtp<T extends { deliveryOtp?: string }>(order: T): Omit<T, 'deliveryOtp'> {
+  const { deliveryOtp, ...safe } = order;
+  return safe;
+}
+
 const ShiftStatusSchema = z.object({
   riderId: z.string().min(1, 'riderId is required'),
   isOnline: z.boolean()
@@ -57,7 +67,7 @@ riderRouter.get('/profile/:userId', async (req, res) => {
 riderRouter.get('/orders/broadcast', async (req, res) => {
   try {
     const broadcasts = await orderRepository.listAvailableBroadcasts();
-    return res.json({ success: true, data: { broadcasts } });
+    return res.json({ success: true, data: { broadcasts: broadcasts.map(withoutDeliveryOtp) } });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }
@@ -87,7 +97,7 @@ riderRouter.post('/orders/:id/claim', validate({ body: ClaimOrderSchema }), asyn
 
     return res.json({
       success: true,
-      data: { order },
+      data: { order: withoutDeliveryOtp(order) },
       message: 'Order successfully claimed. Navigate to restaurant pickup counter.'
     });
   } catch (error: any) {
@@ -117,7 +127,7 @@ riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchem
 
     return res.json({
       success: true,
-      data: { order: result.order },
+      data: { order: withoutDeliveryOtp(result.order!) },
       message: 'Pickup verified. Order is now out for delivery.'
     });
   } catch (error: any) {

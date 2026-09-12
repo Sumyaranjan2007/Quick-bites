@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal
+  Modal,
+  ActivityIndicator
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { ArrowLeft, Star, ShoppingBag, ShieldCheck, Plus, Check } from 'lucide-react-native';
@@ -19,6 +20,14 @@ export interface CartItem {
   quantity: number;
   isVeg: boolean;
   variant?: string;
+  selectedOptions?: Array<{ groupId: string; optionId: string }>;
+}
+
+interface OptionGroup {
+  id: string;
+  title: string;
+  isRequired: boolean;
+  options: Array<{ id: string; name: string; priceDelta: number }>;
 }
 
 interface Dish {
@@ -27,35 +36,11 @@ interface Dish {
   description: string;
   price: number;
   isVeg: boolean;
+  isAvailable: boolean;
   hasCustomizations: boolean;
+  optionGroups?: OptionGroup[];
+  categoryName?: string;
 }
-
-const SAMPLE_DISHES: Dish[] = [
-  {
-    id: 'dish_ck_biryani',
-    name: 'Special Chicken Dum Biryani',
-    description: 'Fragrant basmati rice layered with slow-cooked spiced chicken and caramelized onions.',
-    price: 320.00,
-    isVeg: false,
-    hasCustomizations: true
-  },
-  {
-    id: 'dish_pbm',
-    name: 'Paneer Butter Masala',
-    description: 'Fresh cottage cheese cooked in creamy tomato gravy with rich butter.',
-    price: 260.00,
-    isVeg: true,
-    hasCustomizations: false
-  },
-  {
-    id: 'dish_garlic_naan',
-    name: 'Butter Garlic Naan',
-    description: 'Crispy tandoori naan infused with roasted garlic flakes and clarified butter.',
-    price: 65.00,
-    isVeg: true,
-    hasCustomizations: false
-  }
-];
 
 interface Props {
   restaurant: RestaurantItem;
@@ -63,6 +48,8 @@ interface Props {
   onAddToCart: (item: CartItem) => void;
   onBack: () => void;
   onViewCart: () => void;
+  apiUrl: string;
+  token?: string;
 }
 
 export const RestaurantDetailScreen: React.FC<Props> = ({
@@ -70,15 +57,62 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   cart,
   onAddToCart,
   onBack,
-  onViewCart
+  onViewCart,
+  apiUrl,
+  token
 }) => {
   const [selectedDishForCustomization, setSelectedDishForCustomization] = useState<Dish | null>(null);
-  const [selectedPortion, setSelectedPortion] = useState<'Regular' | 'Large'>('Regular');
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+  const [dishes, setDishes] = useState<Dish[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadMenu = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers });
+      const data = await res.json();
+      if (!data.success || !data.data?.menu?.categories) {
+        throw new Error('Menu unavailable for this restaurant.');
+      }
+      const flattened: Dish[] = [];
+      for (const cat of data.data.menu.categories) {
+        for (const item of cat.items || []) {
+          flattened.push({
+            id: item.id,
+            name: item.name,
+            description: item.description || '',
+            price: item.price,
+            isVeg: Boolean(item.isVeg),
+            isAvailable: item.isAvailable !== false,
+            hasCustomizations: Array.isArray(item.optionGroups) && item.optionGroups.length > 0,
+            optionGroups: item.optionGroups,
+            categoryName: cat.name
+          });
+        }
+      }
+      setDishes(flattened);
+    } catch (err: any) {
+      setLoadError(err.message || 'Could not load the menu. Please check your connection.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMenu();
+  }, [restaurant.id]);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleAddDish = (dish: Dish) => {
+    if (!dish.isAvailable) return;
     if (dish.hasCustomizations) {
+      const firstGroup = dish.optionGroups?.[0];
+      setSelectedOptionId(firstGroup?.options?.[0]?.id ?? null);
       setSelectedDishForCustomization(dish);
     } else {
       onAddToCart({
@@ -94,15 +128,20 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 
   const handleConfirmCustomization = () => {
     if (!selectedDishForCustomization) return;
-    const priceDelta = selectedPortion === 'Large' ? 150 : 0;
+    const group = selectedDishForCustomization.optionGroups?.[0];
+    const option = group?.options?.find(o => o.id === selectedOptionId) ?? group?.options?.[0];
+    const priceDelta = option?.priceDelta ?? 0;
+    const variantName = option?.name ?? 'Standard';
+
     onAddToCart({
-      id: `cart_${selectedDishForCustomization.id}_${selectedPortion}`,
+      id: `cart_${selectedDishForCustomization.id}_${option?.id ?? 'standard'}`,
       dishId: selectedDishForCustomization.id,
-      name: `${selectedDishForCustomization.name} (${selectedPortion})`,
+      name: `${selectedDishForCustomization.name} (${variantName})`,
       price: selectedDishForCustomization.price + priceDelta,
       quantity: 1,
       isVeg: selectedDishForCustomization.isVeg,
-      variant: selectedPortion
+      variant: variantName,
+      selectedOptions: group && option ? [{ groupId: group.id, optionId: option.id }] : undefined
     });
     setSelectedDishForCustomization(null);
   };
@@ -139,16 +178,38 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
         </View>
 
         {/* Menu Section */}
-        <Text style={styles.menuSectionHeader}>Recommended Dishes</Text>
+        <Text style={styles.menuSectionHeader}>Menu</Text>
+
+        {isLoading && (
+          <View style={styles.menuStatusBox}>
+            <ActivityIndicator color={tokens.colors.primary[500]} />
+            <Text style={styles.menuStatusText}>Loading menu...</Text>
+          </View>
+        )}
+
+        {!isLoading && loadError && (
+          <View style={styles.menuStatusBox}>
+            <Text style={styles.menuErrorText}>{loadError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadMenu}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!isLoading && !loadError && dishes.length === 0 && (
+          <View style={styles.menuStatusBox}>
+            <Text style={styles.menuStatusText}>This restaurant has not published a menu yet.</Text>
+          </View>
+        )}
 
         <View style={styles.dishList}>
-          {SAMPLE_DISHES.map(dish => {
+          {dishes.map(dish => {
             const countInCart = cart
               .filter(c => c.dishId === dish.id)
               .reduce((s, c) => s + c.quantity, 0);
 
             return (
-              <View key={dish.id} style={styles.dishCard}>
+              <View key={dish.id} style={[styles.dishCard, !dish.isAvailable && styles.dishCardUnavailable]}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
                   {/* Dietary Indicator */}
                   <View style={dish.isVeg ? styles.vegSymbol : styles.nonVegSymbol}>
@@ -161,17 +222,23 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
                 </View>
 
                 {/* Add / Quantity Button */}
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => handleAddDish(dish)}
-                >
-                  <Text style={styles.addButtonText}>
-                    {countInCart > 0 ? `ADD (${countInCart})` : 'ADD'}
-                  </Text>
-                  {dish.hasCustomizations && (
-                    <Text style={styles.customizableText}>customisable</Text>
-                  )}
-                </TouchableOpacity>
+                {dish.isAvailable ? (
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => handleAddDish(dish)}
+                  >
+                    <Text style={styles.addButtonText}>
+                      {countInCart > 0 ? `ADD (${countInCart})` : 'ADD'}
+                    </Text>
+                    {dish.hasCustomizations && (
+                      <Text style={styles.customizableText}>customisable</Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.soldOutButton}>
+                    <Text style={styles.soldOutText}>SOLD OUT</Text>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -198,23 +265,22 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
           <View style={styles.modalBackdrop}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>{selectedDishForCustomization.name}</Text>
-              <Text style={styles.modalSubtitle}>Choose Portion Size</Text>
+              <Text style={styles.modalSubtitle}>
+                {selectedDishForCustomization.optionGroups?.[0]?.title || 'Choose an Option'}
+              </Text>
 
-              <TouchableOpacity
-                style={[styles.modalOption, selectedPortion === 'Regular' && styles.modalOptionSelected]}
-                onPress={() => setSelectedPortion('Regular')}
-              >
-                <Text style={styles.optionName}>Regular (Serves 1)</Text>
-                <Text style={styles.optionPrice}>Rs {selectedDishForCustomization.price.toFixed(2)}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalOption, selectedPortion === 'Large' && styles.modalOptionSelected]}
-                onPress={() => setSelectedPortion('Large')}
-              >
-                <Text style={styles.optionName}>Large (Serves 2-3)</Text>
-                <Text style={styles.optionPrice}>Rs {(selectedDishForCustomization.price + 150).toFixed(2)}</Text>
-              </TouchableOpacity>
+              {(selectedDishForCustomization.optionGroups?.[0]?.options || []).map(option => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[styles.modalOption, selectedOptionId === option.id && styles.modalOptionSelected]}
+                  onPress={() => setSelectedOptionId(option.id)}
+                >
+                  <Text style={styles.optionName}>{option.name}</Text>
+                  <Text style={styles.optionPrice}>
+                    Rs {(selectedDishForCustomization.price + option.priceDelta).toFixed(2)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
 
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
                 <TouchableOpacity
@@ -334,6 +400,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
+  },
+  dishCardUnavailable: {
+    opacity: 0.55,
+    backgroundColor: '#F8FAFC'
+  },
+  soldOutButton: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center'
+  },
+  soldOutText: {
+    color: '#94A3B8',
+    fontWeight: '800',
+    fontSize: 12
+  },
+  menuStatusBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 20,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12
+  },
+  menuStatusText: {
+    color: '#64748B',
+    fontSize: 13
+  },
+  menuErrorText: {
+    color: tokens.colors.primary[500],
+    fontSize: 13,
+    textAlign: 'center'
+  },
+  retryButton: {
+    backgroundColor: tokens.colors.primary[500],
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13
   },
   vegSymbol: {
     width: 14,

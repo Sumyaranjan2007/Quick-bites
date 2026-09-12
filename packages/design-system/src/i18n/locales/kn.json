@@ -15,7 +15,8 @@
     "veg": "ಶುದ್ಧ ಸಸ್ಯಾಹಾರಿ",
     "nonVeg": "ಮಾಂಸಾಹಾರಿ",
     "goldMember": "ಗೋಲ್ಡ್ ಸದಸ್ಯ",
-    "demoMode": "ಡೆಮೋ ಮೋಡ್ ಸಕ್ರಿಯ"
+    "demoMode": "ಡೆಮೋ ಮೋಡ್ ಸಕ್ರಿಯ",
+    "active": "ಸಕ್ರಿಯ"
   },
   "customer": {
     "searchPlaceholder": "ಖಾದ್ಯಗಳು, ರೆಸ್ಟೋರೆಂಟ್‌ಗಳು ಅಥವಾ ತಿನಿಸುಗಳನ್ನು ಹುಡುಕಿ...",
@@ -57,6 +58,37 @@
     "approvePartner": "ರೆಸ್ಟೋರೆಂಟ್ ಅನುಮೋದಿಸಿ",
     "rejectPartner": "ತಿರಸ್ಕರಿಸಿ",
     "liveOrders": "ಲೈವ್ ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಆರ್ಡರ್‌ಗಳು",
-    "auditLogs": "ಭದ್ರತೆ ಮತ್ತು ಆಡಿಟ್ ದಾಖಲೆಗಳು"
+    "auditLogs": "ಭದ್ರತೆ ಮತ್ತು ಆಡಿಟ್ ದಾಖಲೆಗಳು",
+    "navControlTower": "ಕಂಟ್ರೋಲ್ ಟವರ್",
+    "navKycPipeline": "ಕೆವೈಸಿ ಪೈಪ್‌ಲೈನ್",
+    "navDisputes": "ವಿವಾದಗಳು ಮತ್ತು ಮರುಪಾವತಿ",
+    "navDemoData": "ಡೆಮೊ ಡೇಟಾ ಟೂಲ್",
+    "controlTowerHeading": "ಕಾರ್ಯಾಚರಣೆ ಕಂಟ್ರೋಲ್ ಟವರ್",
+    "controlTowerDescription": "ಸಿಸ್ಟಂ ಆರೋಗ್ಯ ಟೆಲಿಮೆಟ್ರಿ, ಲೈವ್ ಆರ್ಡರ್ ಮೆಟ್ರಿಕ್‌ಗಳು ಮತ್ತು ಕ್ಲೌಡ್ ಸಂಪನ್ಮೂಲ ಕೌಂಟರ್‌ಗಳು.",
+    "refreshMetrics": "ಮೆಟ್ರಿಕ್‌ಗಳನ್ನು ರಿಫ್ರೆಶ್ ಮಾಡಿ",
+    "gmvToday": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಜಿಎಂವಿ (ಇಂದು)",
+    "gmvCaption": "ಲೈವ್ ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಒಟ್ಟು ವ್ಯಾಪಾರ ಮೌಲ್ಯ",
+    "liveOrdersTransit": "ಸಾಗಣೆಯಲ್ಲಿರುವ ಲೈವ್ ಆರ್ಡರ್‌ಗಳು",
+    "totalOrdersProcessed": "ಒಟ್ಟು ಸಂಸ್ಕರಿಸಿದ ಆರ್ಡರ್‌ಗಳು",
+    "activePartnerRestaurants": "ಸಕ್ರಿಯ ಪಾಲುದಾರ ರೆಸ್ಟೋರೆಂಟ್‌ಗಳು",
+    "verifiedLabel": "ಪರಿಶೀಲಿಸಲಾಗಿದೆ",
+    "kycApprovalsPendingReview": "ಕೆವೈಸಿ ಅನುಮೋದನೆಗಳು ಪರಿಶೀಲನೆಗೆ ಬಾಕಿಯಿವೆ",
+    "activeDeliveryFleet": "ಸಕ್ರಿಯ ಡೆಲಿವರಿ ಫ್ಲೀಟ್",
+    "ridersOnline": "ರೈಡರ್‌ಗಳು ಆನ್‌ಲೈನ್",
+    "liveTelemetryConnected": "ಲೈವ್ ಟೆಲಿಮೆಟ್ರಿ ಸಂಪರ್ಕಗೊಂಡಿದೆ",
+    "infraHealthTitle": "ಮೂಲಸೌಕರ್ಯ ಮತ್ತು ಫ್ರೀ ಟಯರ್ ಆರೋಗ್ಯ ಮಾನಿಟರ್",
+    "allSystemsHealthy": "ಎಲ್ಲಾ ಸಿಸ್ಟಂಗಳು ಆರೋಗ್ಯಕರವಾಗಿವೆ",
+    "kycPipelineHeading": "ರೆಸ್ಟೋರೆಂಟ್ ಕೆವೈಸಿ ಪರಿಶೀಲನಾ ಪೈಪ್‌ಲೈನ್",
+    "kycPipelineDescription": "ವರ್ತಕರ ಆನ್‌ಬೋರ್ಡಿಂಗ್ ದಾಖಲೆಗಳು, 14-ಅಂಕಿಯ FSSAI ಪರವಾನಗಿಗಳು ಮತ್ತು ರಾಜ್ಯ GSTIN ಅನುಸರಣೆಯನ್ನು ಪರಿಶೀಲಿಸಿ.",
+    "pendingAudit": "ಬಾಕಿ ಇರುವ ಆಡಿಟ್",
+    "submittedLabel": "ಸಲ್ಲಿಸಲಾಗಿದೆ",
+    "rejectWithFeedback": "ಪ್ರತಿಕ್ರಿಯೆಯೊಂದಿಗೆ ತಿರಸ್ಕರಿಸಿ",
+    "approveGrantAccess": "ರೆಸ್ಟೋರೆಂಟ್ ಅನುಮೋದಿಸಿ ಮತ್ತು ಲೈವ್ ಪ್ರವೇಶ ನೀಡಿ",
+    "disputesHeading": "ವಿವಾದ ಪರಿಹಾರ ಮತ್ತು ಮರುಪಾವತಿ ಕನ್ಸೋಲ್",
+    "disputesDescription": "ಗ್ರಾಹಕರ ಡೆಲಿವರಿ ದೂರುಗಳನ್ನು ಪರಿಹರಿಸಿ, ಸ್ವಯಂಚಾಲಿತ UPI/Razorpay ರಿವರ್ಸಲ್‌ಗಳನ್ನು ನೀಡಿ ಮತ್ತು ಮರುಪಾವತಿಗಳನ್ನು ನಿರ್ವಹಿಸಿ.",
+    "openDisputes": "ತೆರೆದ ವಿವಾದಗಳು",
+    "customerComplaint": "ಗ್ರಾಹಕರ ದೂರು",
+    "dismissDispute": "ವಿವಾದವನ್ನು ವಜಾಗೊಳಿಸಿ",
+    "approveRefund": "UPI ತ್ವರಿತ ಮರುಪಾವತಿ ಅನುಮೋದಿಸಿ"
   }
 }

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Badge, Button, StateView, ComponentState } from '@quick-bites/design-system';
+import { Card, Badge, Button, StateView, ComponentState, useTranslation } from '@quick-bites/design-system';
 import { Activity, Server, Users, ShoppingBag, TrendingUp, RefreshCw } from 'lucide-react';
 import { fetchAdminMetrics } from '../api';
 
 export const OperationsControlTower: React.FC = () => {
+  const { t } = useTranslation();
   const [uiState, setUiState] = useState<ComponentState>('success');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metrics, setMetrics] = useState<any>({
@@ -48,14 +49,14 @@ export const OperationsControlTower: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
         <div>
           <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)' }}>
-            Operations Control Tower
+            {t('admin.controlTowerHeading')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            System health telemetry, live order metrics, and cloud resource counters.
+            {t('admin.controlTowerDescription')}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} isLoading={isRefreshing} leftIcon={<RefreshCw size={16} />}>
-          Refresh Metrics
+          {t('admin.refreshMetrics')}
         </Button>
       </div>
 
@@ -65,7 +66,7 @@ export const OperationsControlTower: React.FC = () => {
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 'var(--font-weight-bold)' }}>
-                PLATFORM GMV (TODAY)
+                {t('admin.gmvToday')}
               </span>
               <TrendingUp size={18} color="var(--color-veg)" />
             </div>
@@ -73,52 +74,52 @@ export const OperationsControlTower: React.FC = () => {
               Rs {Number(metrics.grossMerchandiseValue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-veg)', marginTop: 'var(--space-1)' }}>
-              Live Platform Gross Merchandise Value
+              {t('admin.gmvCaption')}
             </div>
           </Card>
 
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 'var(--font-weight-bold)' }}>
-                LIVE ORDERS IN TRANSIT
+                {t('admin.liveOrdersTransit')}
               </span>
               <Activity size={18} color="var(--color-accent-500)" />
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-extrabold)', fontFamily: 'var(--font-family-mono)', color: 'var(--color-accent-500)' }}>
-              {metrics.activeOrdersCount} Active
+              {metrics.activeOrdersCount} {t('common.active')}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
-              Total Orders Processed: {metrics.totalOrdersCount ?? metrics.activeOrdersCount}
+              {t('admin.totalOrdersProcessed')}: {metrics.totalOrdersCount ?? metrics.activeOrdersCount}
             </div>
           </Card>
 
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 'var(--font-weight-bold)' }}>
-                ACTIVE PARTNER RESTAURANTS
+                {t('admin.activePartnerRestaurants')}
               </span>
               <ShoppingBag size={18} color="var(--color-primary-500)" />
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-extrabold)', fontFamily: 'var(--font-family-mono)' }}>
-              {metrics.totalRestaurantsCount} Verified
+              {metrics.totalRestaurantsCount} {t('admin.verifiedLabel')}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
-              {metrics.pendingKycCount} KYC approvals pending review
+              {metrics.pendingKycCount} {t('admin.kycApprovalsPendingReview')}
             </div>
           </Card>
 
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 'var(--font-weight-bold)' }}>
-                ACTIVE DELIVERY FLEET
+                {t('admin.activeDeliveryFleet')}
               </span>
               <Users size={18} color="var(--color-info)" />
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-extrabold)', fontFamily: 'var(--font-family-mono)' }}>
-              {metrics.onlineRidersCount} Riders Online
+              {metrics.onlineRidersCount} {t('admin.ridersOnline')}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-veg)', marginTop: 'var(--space-1)' }}>
-              Live Telemetry Connected
+              {t('admin.liveTelemetryConnected')}
             </div>
           </Card>
         </div>
@@ -129,10 +130,10 @@ export const OperationsControlTower: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
               <Server size={20} color="var(--color-primary-500)" />
               <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 'var(--font-weight-bold)' }}>
-                Infrastructure & Free Tier Health Monitor
+                {t('admin.infraHealthTitle')}
               </h3>
             </div>
-            <Badge variant="status-active" label="ALL SYSTEMS HEALTHY" />
+            <Badge variant="status-active" label={t('admin.allSystemsHealthy')} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-4)' }}>
