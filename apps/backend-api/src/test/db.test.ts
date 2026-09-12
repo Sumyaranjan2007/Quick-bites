@@ -23,10 +23,11 @@ async function runDbTests() {
   console.log('[PASS] Test 2: User repository fetched correct profile with Gold status');
 
   // 3. PostGIS / Spatial Distance Calculations
-  console.log('Test 3: Testing spatial restaurant proximity (Near Indiranagar) ...');
+  console.log('Test 3: Testing spatial restaurant proximity (Near Harohalli) ...');
+  // Harohalli, Kanakapura Road — the service area the seeded restaurants sit in.
   const nearby = await restaurantRepository.findNearby({
-    latitude: 12.9716,
-    longitude: 77.6412,
+    latitude: 12.6802,
+    longitude: 77.4734,
     radiusKm: 10.0
   });
 
@@ -41,8 +42,8 @@ async function runDbTests() {
   // 4. Pure Veg Filter Verification
   console.log('Test 4: Testing Pure Veg filtering ...');
   const vegOnly = await restaurantRepository.findNearby({
-    latitude: 12.9716,
-    longitude: 77.6412,
+    latitude: 12.6802,
+    longitude: 77.4734,
     isVegOnly: true
   });
 

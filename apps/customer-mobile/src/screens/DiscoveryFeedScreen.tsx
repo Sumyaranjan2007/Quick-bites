@@ -35,6 +35,7 @@ export interface RestaurantItem {
 interface Props {
   onSelectRestaurant: (restaurant: RestaurantItem) => void;
   apiUrl?: string;
+  token?: string;
 }
 
 const CATEGORIES = [
@@ -47,13 +48,32 @@ const CATEGORIES = [
 
 const FILTERS = ['All', 'Offers', 'Pure Veg', 'Fast Delivery', 'Top Rated'];
 
-export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUrl }) => {
+export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUrl, token }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [restaurants, setRestaurants] = useState<RestaurantItem[]>([]);
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [refreshing, setRefreshing] = useState(false);
+  // Shown in the header. Read from the customer's saved default address rather
+  // than hardcoded, so it follows wherever they actually are.
+  const [locality, setLocality] = useState<string | null>(null);
+
+  const loadLocality = async () => {
+    if (!apiUrl || !token) return;
+    try {
+      const res = await apiFetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data?.addresses) && data.data.addresses.length) {
+        const a = data.data.addresses.find((x: any) => x.isDefault) ?? data.data.addresses[0];
+        // "No. 24, Shivanandha Layout, Harohalli" -> "Harohalli"
+        const parts = String(a.addressLine).split(',').map((x: string) => x.trim()).filter(Boolean);
+        setLocality(parts[parts.length - 1] || a.city);
+      }
+    } catch {
+      // Header falls back to the city label below.
+    }
+  };
 
   const load = async () => {
     if (!apiUrl) return;
@@ -89,7 +109,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
 
   useEffect(() => {
     load();
-  }, [apiUrl]);
+    loadLocality();
+  }, [apiUrl, token]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -125,7 +146,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
         <View style={{ flex: 1 }}>
           <View style={styles.locationRow}>
             <MapPin size={16} color={c.primary[500]} />
-            <Text style={styles.locationName}>Indiranagar</Text>
+            <Text style={styles.locationName}>{locality ?? 'Set your location'}</Text>
             <ChevronDown size={15} color={c.text.primary} />
           </View>
           <Text style={styles.locationSub}>Delivering to you</Text>

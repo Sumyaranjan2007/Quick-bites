@@ -100,6 +100,7 @@ function AppRoot() {
           <DiscoveryFeedScreen
             onSelectRestaurant={handleSelectRestaurant}
             apiUrl={apiUrl}
+            token={authToken}
           />
         )}
 

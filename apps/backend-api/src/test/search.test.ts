@@ -70,9 +70,9 @@ async function runSearchTests() {
 
   // Step 5: Geolocation Distance & Delivery ETA Estimation
   console.log('\nStep 5: Testing spatial distance and delivery ETA calculation...');
-  // Indiranagar customer coordinates
-  const customerLat = 12.9716;
-  const customerLng = 77.6412;
+  // Harohalli customer coordinates, matching the seeded service area.
+  const customerLat = 12.6818;
+  const customerLng = 77.4751;
   const spatialRes = await searchService.searchCatalog({
     query: 'dosa',
     latitude: customerLat,
