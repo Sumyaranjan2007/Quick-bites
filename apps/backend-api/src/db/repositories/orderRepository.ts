@@ -98,6 +98,23 @@ export const orderRepository = {
     return { success: true, order };
   },
 
+  /** Records the rider's latest position on the trip so the customer can follow it. */
+  async updateRiderLocation(
+    orderId: string,
+    coords: { latitude: number; longitude: number },
+    bearing: number,
+    updatedAt: string
+  ): Promise<Order | null> {
+    const order = memoryStore.orders.get(orderId);
+    if (!order) return null;
+    order.riderCoordinates = coords;
+    order.riderBearing = bearing;
+    order.riderLocationUpdatedAt = updatedAt;
+    memoryStore.orders.set(orderId, order);
+    triggerAutoSave();
+    return order;
+  },
+
   async listAvailableBroadcasts(): Promise<Order[]> {
     return Array.from(memoryStore.orders.values())
       .filter((o: Order) => (o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'READY_FOR_PICKUP') && !o.riderId)

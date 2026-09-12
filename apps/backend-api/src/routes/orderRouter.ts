@@ -4,6 +4,7 @@ import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { z } from 'zod';
+import { AppError } from '../utils/AppError.ts';
 
 export const orderRouter = Router();
 
@@ -107,6 +108,51 @@ orderRouter.post('/', authMiddleware('customer'), validate({ body: CreateOrderSc
     res.status(result.isDuplicate ? 200 : 201).json({
       success: true,
       data: result,
+      meta: {
+        timestamp: new Date().toISOString(),
+        correlationId: req.correlationId
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/orders/:id/tracking — live position of the rider carrying this order.
+ *
+ * The customer needs to follow the rider without being handed the whole order
+ * record (which contains the delivery OTP). Restricted to the order's own
+ * customer, its assigned rider, or staff.
+ */
+orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.id);
+    if (!order) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+
+    const isCustomer = order.customerId === req.user?.id;
+    const isRider = order.riderId === req.user?.id;
+    const isStaff =
+      req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.role === 'rider';
+
+    if (!isCustomer && !isRider && !isStaff) {
+      throw new AppError('You do not have permission to track this order.', 403, 'FORBIDDEN');
+    }
+
+    res.json({
+      success: true,
+      data: {
+        orderId: order.id,
+        status: order.status,
+        riderName: order.riderName ?? null,
+        riderPhone: order.riderPhone ?? null,
+        riderCoordinates: order.riderCoordinates ?? null,
+        riderBearing: order.riderBearing ?? 0,
+        riderLocationUpdatedAt: order.riderLocationUpdatedAt ?? null,
+        destinationCoordinates: order.deliveryCoordinates ?? null
+      },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId

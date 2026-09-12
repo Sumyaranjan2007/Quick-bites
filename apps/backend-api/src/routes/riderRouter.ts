@@ -5,6 +5,7 @@ import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { emitOrderStatusUpdate, emitRiderLocation } from '../sockets/socketServer.ts';
 import { validate } from '../middlewares/validate.ts';
+import { AppError } from '../utils/AppError.ts';
 
 export const riderRouter = Router();
 
@@ -186,20 +187,39 @@ const TelemetrySchema = z.object({
 });
 
 // POST /api/riders/telemetry
-riderRouter.post('/telemetry', validate({ body: TelemetrySchema }), async (req, res) => {
+riderRouter.post('/telemetry', validate({ body: TelemetrySchema }), async (req, res, next) => {
   try {
     const { orderId, lat, lng, bearing } = req.body;
 
+    const order = await orderRepository.findById(orderId);
+    if (!order) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+    // Only the rider actually carrying this order may report its position,
+    // otherwise any signed-in rider could spoof another trip's location.
+    if (!order.riderId) {
+      throw new AppError('This order has no rider assigned.', 409, 'NO_RIDER_ASSIGNED');
+    }
+
+    const updatedAt = new Date().toISOString();
+    const coords = { latitude: Number(lat), longitude: Number(lng) };
+
+    // Persist, so a customer who opens the app mid-trip sees the last known
+    // position instead of nothing. Previously this was emit-only: the reading
+    // was broadcast to a socket room and then thrown away.
+    await riderRepository.updateLocation(order.riderId, coords);
+    await orderRepository.updateRiderLocation(orderId, coords, bearing ? Number(bearing) : 0, updatedAt);
+
     emitRiderLocation(orderId, {
       orderId,
-      lat: Number(lat),
-      lng: Number(lng),
+      lat: coords.latitude,
+      lng: coords.longitude,
       bearing: bearing ? Number(bearing) : 0,
-      updatedAt: new Date().toISOString()
+      updatedAt
     });
 
-    return res.json({ success: true });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.json({ success: true, data: { updatedAt } });
+  } catch (err) {
+    next(err);
   }
 });
