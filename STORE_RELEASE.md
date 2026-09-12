@@ -1,7 +1,11 @@
-# Google Play Release Guide
+# Store Release Guide — Google Play & Apple App Store
 
-Status of each Android app, how to build a signed release, and the steps that
-must be done by a human in Play Console.
+Status of each app, how to build a signed release, and the steps that must be
+done by a human in Play Console / App Store Connect.
+
+**Android:** signed AABs build and are verified here.
+**iOS:** configured but never compiled — this machine has no Xcode. See the iOS
+section at the end.
 
 ---
 
@@ -131,3 +135,74 @@ Not Play blockers, but they affect real users:
   integration, so no card or UPI payment path exists.
 - **Catalogue size.** Four seeded restaurants.
 - **Logo wordmark** reads "Quickbits" while the apps are named "Quick Bites".
+
+---
+
+# Apple App Store — iOS
+
+## What is configured in code
+
+All four apps now carry the iOS settings that are decided in the repo:
+
+- **Bundle identifiers** — `com.quickbite.app` / `.partner` / `.rider` / `.admin`
+- **`buildNumber`** — starts at `1`; must increase on **every** upload
+- **App icon with no alpha channel.** App Store Connect rejects transparent
+  icons outright (`ITMS-90717`); all four icons were RGBA and are now flattened
+- **Privacy manifest** (`PrivacyInfo.xcprivacy`) — required by Apple since May
+  2024. Declares the required-reason APIs the React Native runtime uses
+  (UserDefaults, file timestamp, boot time, disk space) and the data collected:
+  email, name, phone, delivery address, order history — all linked to the user,
+  none used for tracking
+- **`ITSAppUsesNonExemptEncryption: false`** — these apps use only HTTPS, which
+  is exempt. Without this you answer the export-compliance questionnaire on
+  every upload
+- **`supportsTablet: false`** — the UI is laid out for phones and has not been
+  designed or tested on iPad. Shipping an untested iPad layout risks a
+  Guideline 4.0 rejection. Turn this on only after doing iPad layout work
+- **Account deletion** — already implemented for Play, and equally required by
+  App Store Guideline 5.1.1(v)
+
+Generate the native project with:
+
+```bash
+cd apps/customer-mobile
+npx expo prebuild --platform ios --no-install
+```
+
+## What cannot be done from this repo
+
+**An iOS build requires a Mac with full Xcode.** This machine has only the
+Command Line Tools — no Xcode, no CocoaPods, no simulators — so the apps have
+**not** been compiled, run, or archived for iOS. The configuration above is
+verified by inspecting the generated `Info.plist` and privacy manifest, not by a
+build.
+
+Before an iOS release someone must:
+
+1. **Install Xcode** (Mac App Store, ~15 GB) and run `sudo xcode-select -s
+   /Applications/Xcode.app`, then `sudo gem install cocoapods`.
+2. **Join the Apple Developer Program** (US$99/year). Signing certificates and
+   provisioning profiles are tied to that account's Team ID and cannot be
+   created without it.
+3. `cd apps/<app>/ios && pod install`, open the `.xcworkspace`, set the team,
+   and archive — or use `eas build --platform ios`, which handles signing in the
+   cloud and does not need local Xcode.
+4. **Create each app in App Store Connect**, then upload and submit for review.
+5. **Test on a real device or simulator.** No iOS build has ever been run; the
+   Android build revealed a crash from a missing native module, and iOS has not
+   had the equivalent shakeout.
+
+## iOS-specific review notes
+
+- **Add usage-description strings before adding any permission-using feature.**
+  None are declared today because none of the apps currently use camera,
+  photos, contacts or location. The rider app sends simulated coordinates, not
+  device GPS. The moment real GPS is added it needs
+  `NSLocationWhenInUseUsageDescription` — Apple rejects a permission prompt with
+  no purpose string.
+- **Guideline 4.2 (minimum functionality).** The partner, rider and admin apps
+  are staff tools; a public listing for an app only usable by onboarded staff
+  attracts scrutiny. Prefer TestFlight or a private distribution method.
+- **Demo account for review.** App Review needs working credentials to get past
+  the login screen. Supply a demo login in App Store Connect review notes — the
+  in-app demo button is `__DEV__`-only and will not exist in the build they test.
