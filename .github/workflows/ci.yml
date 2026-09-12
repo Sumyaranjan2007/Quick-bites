@@ -15,10 +15,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20.x
+      # The backend runs its tests and seed through Node's native TypeScript
+      # stripping (`node --experimental-strip-types src/**/*.ts`), which only
+      # exists from Node 22.6. On Node 20 the flag is rejected outright with
+      # "bad option", so every run failed before a single test executed.
+      - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: 'npm'
 
       - name: Install Monorepo Dependencies
