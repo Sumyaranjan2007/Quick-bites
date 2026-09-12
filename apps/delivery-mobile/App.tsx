@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert
 } from 'react-native';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import {
   Bike,
   Navigation,
@@ -29,7 +30,7 @@ import {
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
-export default function DeliveryApp() {
+function DeliveryApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [email, setEmail] = useState(__DEV__ ? 'rider@quickbite.app' : '');
@@ -734,3 +735,11 @@ const styles = StyleSheet.create({
   docDesc: { fontSize: 12, color: '#A8968E', marginTop: 2 },
   docStatusBadge: { alignSelf: 'flex-start', backgroundColor: '#0A3D2E', color: '#4ADFA8', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 8 }
 });
+
+export default function App() {
+  return (
+    <ErrorBoundary appName="Quick Bites Rider" accent="#22C08A">
+      <DeliveryApp />
+    </ErrorBoundary>
+  );
+}

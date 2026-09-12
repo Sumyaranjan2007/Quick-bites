@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert
 } from 'react-native';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import {
   ChefHat,
   Bell,
@@ -31,7 +32,7 @@ import {
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
-export default function RestaurantApp() {
+function RestaurantApp() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState('');
@@ -769,3 +770,11 @@ const styles = StyleSheet.create({
   cancelModalBtn: { height: 44, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   cancelModalText: { color: '#A8968E', fontSize: 14 }
 });
+
+export default function App() {
+  return (
+    <ErrorBoundary appName="Quick Bites Partner" accent="#F5A623">
+      <RestaurantApp />
+    </ErrorBoundary>
+  );
+}

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   StatusBar
 } from 'react-native';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { tokens } from './src/theme/tokens';
 import { Utensils, ShoppingBag, User } from 'lucide-react-native';
 import { DiscoveryFeedScreen, RestaurantItem } from './src/screens/DiscoveryFeedScreen';
@@ -16,7 +17,7 @@ import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 
-export default function App() {
+function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentScreen, setCurrentScreen] = useState<'feed' | 'detail' | 'cart' | 'tracking' | 'profile'>('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
@@ -258,3 +259,11 @@ const styles = StyleSheet.create({
     color: tokens.colors.text.onAccent
   }
 });
+
+export default function App() {
+  return (
+    <ErrorBoundary appName="Quick Bites" accent="#5B0E20">
+      <AppRoot />
+    </ErrorBoundary>
+  );
+}

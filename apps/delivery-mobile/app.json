@@ -97,7 +97,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#0F8A5F"
       },
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",

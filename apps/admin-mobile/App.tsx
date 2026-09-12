@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert
 } from 'react-native';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import {
   ShieldAlert,
   Activity,
@@ -30,7 +31,7 @@ import {
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
-export default function AdminApp() {
+function AdminApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [email, setEmail] = useState(__DEV__ ? 'admin@quickbite.app' : '');
@@ -590,3 +591,11 @@ const styles = StyleSheet.create({
   cancelBtn: { height: 44, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   cancelText: { color: '#A8968E', fontSize: 14 }
 });
+
+export default function App() {
+  return (
+    <ErrorBoundary appName="Quick Bites Operations" accent="#F5A623">
+      <AdminApp />
+    </ErrorBoundary>
+  );
+}
