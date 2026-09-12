@@ -1,4 +1,4 @@
-import { memoryStore } from '../client.ts';
+import { memoryStore, triggerAutoSave } from '../client.ts';
 import type { KycDocument } from '@quick-bites/shared-types';
 
 export class KycRepository {
@@ -11,6 +11,7 @@ export class KycRepository {
       submittedAt: new Date().toISOString()
     };
     memoryStore.kycDocuments.set(id, doc);
+    triggerAutoSave();
     return doc;
   }
 
@@ -47,6 +48,7 @@ export class KycRepository {
     if (rejectionReason) doc.rejectionReason = rejectionReason;
 
     memoryStore.kycDocuments.set(id, doc);
+    triggerAutoSave();
     return doc;
   }
 }

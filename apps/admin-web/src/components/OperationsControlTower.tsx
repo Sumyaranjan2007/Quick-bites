@@ -5,14 +5,14 @@ import { fetchAdminMetrics } from '../api';
 
 export const OperationsControlTower: React.FC = () => {
   const { t } = useTranslation();
-  const [uiState, setUiState] = useState<ComponentState>('success');
+  const [uiState, setUiState] = useState<ComponentState>('loading');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metrics, setMetrics] = useState<any>({
-    grossMerchandiseValue: 148250.00,
-    activeOrdersCount: 24,
-    totalRestaurantsCount: 42,
-    onlineRidersCount: 68,
-    pendingKycCount: 2
+    grossMerchandiseValue: 0,
+    activeOrdersCount: 0,
+    totalRestaurantsCount: 0,
+    onlineRidersCount: 0,
+    pendingKycCount: 0
   });
 
   const loadMetrics = async () => {
@@ -21,15 +21,20 @@ export const OperationsControlTower: React.FC = () => {
       const res = await fetchAdminMetrics();
       if (res.success && res.data) {
         setMetrics({
-          grossMerchandiseValue: res.data.grossMerchandiseValue ?? 148250.00,
-          activeOrdersCount: res.data.activeOrdersCount ?? 0,
-          totalRestaurantsCount: res.data.totalRestaurantsCount ?? 8,
-          onlineRidersCount: res.data.onlineRidersCount ?? 12,
-          pendingKycCount: res.data.pendingKycCount ?? 0
+          grossMerchandiseValue: Number(res.data.grossMerchandiseValue) || 0,
+          activeOrdersCount: Number(res.data.activeOrdersCount) || 0,
+          totalOrdersCount: Number(res.data.totalOrdersCount) || 0,
+          totalRestaurantsCount: Number(res.data.totalRestaurantsCount) || 0,
+          onlineRidersCount: Number(res.data.onlineRidersCount) || 0,
+          pendingKycCount: Number(res.data.pendingKycCount) || 0
         });
+        setUiState('success');
+      } else {
+        setUiState('error');
       }
     } catch (e) {
-      console.warn('Could not reach Railway metrics endpoint, using cached fallback', e);
+      console.warn('Could not reach the metrics endpoint', e);
+      setUiState('error');
     } finally {
       setIsRefreshing(false);
     }
@@ -56,7 +61,11 @@ export const OperationsControlTower: React.FC = () => {
         </Button>
       </div>
 
-      <StateView state={uiState} onRetry={() => setUiState('success')}>
+      <StateView
+        state={uiState}
+        errorMessage="Could not reach the Quick Bites server. Metrics are unavailable."
+        onRetry={loadMetrics}
+      >
         {/* Core KPI Grid */}
         <div className="grid-auto" style={{ marginBottom: 'var(--space-6)' }}>
           <Card>

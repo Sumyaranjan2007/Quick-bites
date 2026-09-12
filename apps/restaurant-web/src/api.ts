@@ -61,3 +61,19 @@ export async function updateOrderStatus(orderId: string, status: string, prepTim
   });
   return res.json();
 }
+
+export async function addMenuItem(
+  restaurantId: string,
+  item: { name: string; price: number; isVeg: boolean; description?: string; category?: string }
+) {
+  const token = await getPartnerToken();
+  const res = await fetch(`${API_BASE}/restaurants/${restaurantId}/menu/items`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(item)
+  });
+  return res.json();
+}

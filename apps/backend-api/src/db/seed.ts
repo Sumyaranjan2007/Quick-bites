@@ -426,6 +426,10 @@ export async function seedDatabase() {
     entityId: 'rst_bbh_01',
     entityName: 'Bangalore Biryani House',
     documentType: 'FSSAI',
+    documentNumber: '11223344556677',
+    entityAddress: '100 Feet Road, Indiranagar',
+    entityCity: 'Bengaluru',
+    entityPhone: '+91-98765-43210',
     fileUrl: 'https://assets.quickbite.app/kyc/fssai-sample-license.jpg'
   });
 
@@ -434,6 +438,9 @@ export async function seedDatabase() {
     entityId: 'rdr_vikram_01',
     entityName: 'Vikram Singh',
     documentType: 'DRIVING_LICENSE',
+    documentNumber: 'KA03 2021 0008899',
+    entityCity: 'Bengaluru',
+    entityPhone: '+91-98765-11223',
     fileUrl: 'https://assets.quickbite.app/kyc/dl-sample-license.jpg'
   });
   console.log('[PASS] Demo KYC documents seeded for Admin review queue.');

@@ -105,7 +105,7 @@ export default function RestaurantApp() {
             flattened.push({
               id: item.id,
               name: item.name,
-              price: item.price,
+              price: Number(item.price) || 0,
               isAvailable: item.isAvailable !== false,
               isVeg: Boolean(item.isVeg)
             });

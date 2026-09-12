@@ -176,6 +176,11 @@ export interface KycDocument {
   entityId: string;
   entityName?: string;
   documentType: 'FSSAI' | 'GSTIN' | 'DRIVING_LICENSE' | 'PAN' | 'VEHICLE_RC';
+  /** The number printed on the document. Reviewers must never see an invented value. */
+  documentNumber?: string;
+  entityAddress?: string;
+  entityCity?: string;
+  entityPhone?: string;
   fileUrl: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   rejectionReason?: string;

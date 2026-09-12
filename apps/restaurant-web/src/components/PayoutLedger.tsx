@@ -45,14 +45,15 @@ export const PayoutLedger: React.FC = () => {
       }
       const delivered = res.data.orders.filter((o: any) => o.status === 'DELIVERED' && o.bill);
       const mapped: LedgerRow[] = delivered.map((o: any) => {
-        const platformCommission = o.bill.itemsTotal * 0.15;
+        const itemsTotal = Number(o.bill.itemsTotal) || 0;
+        const platformCommission = itemsTotal * 0.15;
         return {
           orderNumber: o.orderNumber,
           deliveredAt: o.deliveredAt ? new Date(o.deliveredAt).toLocaleString('en-IN') : '—',
-          itemsTotal: o.bill.itemsTotal,
-          gstAmount: o.bill.gstAmount,
+          itemsTotal,
+          gstAmount: Number(o.bill.gstAmount) || 0,
           platformCommission,
-          netPayout: typeof o.bill.restaurantNetPayout === 'number' ? o.bill.restaurantNetPayout : o.bill.itemsTotal - platformCommission
+          netPayout: typeof o.bill.restaurantNetPayout === 'number' ? o.bill.restaurantNetPayout : itemsTotal - platformCommission
         };
       });
       setRows(mapped);

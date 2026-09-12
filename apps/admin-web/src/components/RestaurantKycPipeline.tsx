@@ -3,63 +3,40 @@ import { Card, Badge, Button, StateView, ComponentState, useTranslation } from '
 import { FileCheck, ShieldAlert, Check, X, MapPin, RefreshCw } from 'lucide-react';
 import { fetchPendingKyc, reviewKycApplication } from '../api';
 
-const INITIAL_APPLICATIONS = [
-  {
-    id: 'kyc_demo_01',
-    restaurantName: 'The Royal Biryani House',
-    ownerName: 'Vikram Singh',
-    phone: '+91-98765-43210',
-    city: 'Bengaluru',
-    address: '12th Main, HAL 2nd Stage, Indiranagar',
-    fssaiNumber: '11223344556677',
-    gstin: '29ABCDE1234F1Z5',
-    submittedAt: '10 mins ago',
-    status: 'PENDING_APPROVAL',
-    documentType: 'FSSAI_LICENSE'
-  },
-  {
-    id: 'kyc_demo_02',
-    restaurantName: 'Green Bowl Healthy Salads',
-    ownerName: 'Ananya Roy',
-    phone: '+91-98123-45678',
-    city: 'Bengaluru',
-    address: '5th Block, Koramangala',
-    fssaiNumber: '99887766554433',
-    gstin: '29WXYZ8901G2Z8',
-    submittedAt: '35 mins ago',
-    status: 'PENDING_APPROVAL',
-    documentType: 'GST_CERTIFICATE'
-  }
-];
-
 export const RestaurantKycPipeline: React.FC = () => {
   const { t } = useTranslation();
-  const [applications, setApplications] = useState<any[]>(INITIAL_APPLICATIONS);
-  const [uiState, setUiState] = useState<ComponentState>('success');
+  const [applications, setApplications] = useState<any[]>([]);
+  const [uiState, setUiState] = useState<ComponentState>('loading');
   const [isLoading, setIsLoading] = useState(false);
 
   const loadKyc = async () => {
     setIsLoading(true);
     try {
       const res = await fetchPendingKyc();
-      if (res.success && Array.isArray(res.data?.pending)) {
+      if (!res.success || !Array.isArray(res.data?.pending)) {
+        setUiState('error');
+      } else {
         setApplications(res.data.pending.map((p: any) => ({
           id: p.id,
-          restaurantName: p.entityName || 'Merchant Partner',
-          ownerName: p.entityType === 'RESTAURANT' ? 'Restaurant Partner' : 'Delivery Rider',
-          phone: '+91-98765-00000',
-          city: 'Bengaluru',
-          address: 'Indiranagar / Koramangala',
-          fssaiNumber: p.documentType === 'FSSAI' ? '11223344556677' : 'KA03-2026-00918',
-          gstin: '29ABCDE1234F1Z5',
-          submittedAt: new Date(p.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          entityName: p.entityName || 'Merchant partner',
+          entityType: p.entityType,
+          ownerLabel: p.entityType === 'RESTAURANT' ? 'Restaurant partner' : 'Delivery rider',
+          phone: p.entityPhone || null,
+          city: p.entityCity || null,
+          address: p.entityAddress || null,
+          documentNumber: p.documentNumber || null,
+          documentType: p.documentType,
+          submittedAt: p.submittedAt
+            ? new Date(p.submittedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+            : 'Unknown',
           status: p.status === 'PENDING' ? 'PENDING_APPROVAL' : p.status,
-          fileUrl: p.fileUrl,
-          documentType: p.documentType
+          fileUrl: p.fileUrl
         })));
+        setUiState('success');
       }
     } catch (e) {
-      console.warn('Could not fetch KYC from Railway, using sample data', e);
+      console.warn('Could not fetch the KYC queue', e);
+      setUiState('error');
     } finally {
       setIsLoading(false);
     }
@@ -125,47 +102,74 @@ export const RestaurantKycPipeline: React.FC = () => {
       )}
 
       <StateView
-        state={pendingApps.length === 0 ? 'empty' : uiState}
+        state={uiState === 'success' && pendingApps.length === 0 ? 'empty' : uiState}
         emptyTitle="KYC Approval Queue Clear"
         emptyDescription="All restaurant merchant verification applications have been reviewed."
-        emptyActionLabel="Reset Demo Applications"
-        onEmptyAction={() => setApplications(INITIAL_APPLICATIONS)}
-        onRetry={() => setUiState('success')}
+        emptyActionLabel="Refresh queue"
+        onEmptyAction={loadKyc}
+        errorMessage="Could not reach the Quick Bites server. The review queue is unavailable."
+        onRetry={loadKyc}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {pendingApps.map(app => (
             <Card key={app.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)', gap: 'var(--space-3)' }}>
                 <div>
                   <h3 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-bold)' }}>
-                    {app.restaurantName}
+                    {app.entityName}
                   </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    <MapPin size={12} />
-                    <span>{app.address}, {app.city}</span>
-                    <span>•</span>
-                    <span>Owner: {app.ownerName} ({app.phone})</span>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-2)', fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <span>{app.ownerLabel}</span>
+                    {app.address && (<><span>•</span><MapPin size={12} /><span>{app.address}{app.city ? `, ${app.city}` : ''}</span></>)}
+                    {!app.address && app.city && (<><span>•</span><MapPin size={12} /><span>{app.city}</span></>)}
+                    {app.phone && (<><span>•</span><span>{app.phone}</span></>)}
                   </div>
                 </div>
                 <Badge variant="status-pending" label={`${t('admin.submittedLabel')} ${app.submittedAt}`} />
               </div>
 
-              {/* Compliance Badges Check */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-3)', backgroundColor: 'var(--bg-app)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-4)' }}>
+              {/* Submitted document — only what the record actually contains */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-3)', backgroundColor: 'var(--bg-app)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-4)' }}>
                 <div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>FSSAI LICENSE (14-DIGIT)</div>
-                  <div style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-sm)', marginTop: '2px' }}>
-                    {app.fssaiNumber}
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'var(--font-weight-bold)' }}>
+                    Document type
                   </div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-veg)' }}>Format Verified: Food Services License</div>
+                  <div style={{ fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-sm)', marginTop: '4px' }}>
+                    {String(app.documentType || 'Unknown').replace(/_/g, ' ')}
+                  </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>GSTIN REGISTRATION</div>
-                  <div style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-sm)', marginTop: '2px' }}>
-                    {app.gstin}
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'var(--font-weight-bold)' }}>
+                    Document number
                   </div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-veg)' }}>State: Karnataka (29) Active</div>
+                  {app.documentNumber ? (
+                    <div style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-sm)', marginTop: '4px' }}>
+                      {app.documentNumber}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-warning)', marginTop: '4px', fontWeight: 'var(--font-weight-semibold)' }}>
+                      Not provided — verify from the uploaded file
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'var(--font-weight-bold)' }}>
+                    Uploaded file
+                  </div>
+                  {app.fileUrl ? (
+                    <a
+                      href={app.fileUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-info)', fontWeight: 'var(--font-weight-semibold)', marginTop: '4px', display: 'inline-block', textDecoration: 'underline' }}
+                    >
+                      Open document
+                    </a>
+                  ) : (
+                    <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-warning)', marginTop: '4px' }}>No file attached</div>
+                  )}
                 </div>
               </div>
 

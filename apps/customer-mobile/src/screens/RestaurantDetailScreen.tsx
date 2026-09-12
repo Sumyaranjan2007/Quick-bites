@@ -95,7 +95,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             id: item.id,
             name: item.name,
             description: item.description || '',
-            price: item.price,
+            price: Number(item.price) || 0,
             isVeg: Boolean(item.isVeg),
             isAvailable: item.isAvailable !== false,
             hasCustomizations: Array.isArray(item.optionGroups) && item.optionGroups.length > 0,

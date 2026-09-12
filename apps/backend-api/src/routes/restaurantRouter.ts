@@ -8,6 +8,7 @@ import { calculateDistanceKm } from '../db/client.ts';
 import { emitKitchenStatus } from '../sockets/socketServer.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
+import { AppError } from '../utils/AppError.ts';
 
 export const restaurantRouter = Router();
 
@@ -159,3 +160,40 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
     return res.status(500).json({ success: false, error: error.message });
   }
 });
+
+const AddMenuItemSchema = z.object({
+  name: z.string().min(1, 'name is required').max(80),
+  description: z.string().max(300).optional(),
+  price: z.number().positive('price must be greater than zero'),
+  isVeg: z.boolean(),
+  category: z.string().min(1).max(60).optional(),
+  imageUrl: z.string().url().optional()
+});
+
+// POST /api/restaurants/:id/menu/items — partner adds a dish to their menu
+restaurantRouter.post(
+  '/:id/menu/items',
+  authMiddleware('restaurant_owner'),
+  validate({ body: AddMenuItemSchema }),
+  async (req, res, next) => {
+    try {
+      const { name, description, price, isVeg, category, imageUrl } = req.body;
+      const created = await menuRepository.addItem(req.params.id, category || 'Specialities', {
+        name,
+        description: description || '',
+        price,
+        isVeg,
+        isAvailable: true,
+        imageUrl
+      });
+
+      if (!created) {
+        throw new AppError('Restaurant menu not found.', 404, 'MENU_NOT_FOUND');
+      }
+
+      return res.status(201).json({ success: true, data: { item: created } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

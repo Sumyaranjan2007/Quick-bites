@@ -8,7 +8,7 @@ import {
   ComponentState
 } from '@quick-bites/design-system';
 import { Plus, Check, X, Edit3, RefreshCw } from 'lucide-react';
-import { fetchRestaurantDetails, toggleDishStock } from '../api';
+import { fetchRestaurantDetails, toggleDishStock, addMenuItem } from '../api';
 
 interface MenuItemDisplay {
   id: string;
@@ -20,39 +20,11 @@ interface MenuItemDisplay {
   description: string;
 }
 
-const INITIAL_MENU: MenuItemDisplay[] = [
-  {
-    id: 'dish_ck_biryani',
-    name: 'Special Chicken Dum Biryani',
-    category: 'Biryani & Rice',
-    price: 320.00,
-    isVeg: false,
-    isAvailable: true,
-    description: 'Fragrant basmati rice layered with slow-cooked spiced chicken and caramelized onions.'
-  },
-  {
-    id: 'dish_pbm',
-    name: 'Paneer Butter Masala',
-    category: 'Curries & Gravies',
-    price: 260.00,
-    isVeg: true,
-    isAvailable: true,
-    description: 'Fresh cottage cheese cooked in creamy tomato gravy with rich butter.'
-  },
-  {
-    id: 'dish_butter_naan',
-    name: 'Butter Naan',
-    category: 'Breads & Roti',
-    price: 50.00,
-    isVeg: true,
-    isAvailable: false,
-    description: 'Tandoor-baked leavened flatbread brushed with butter.'
-  }
-];
-
 export const MenuCatalogManager: React.FC = () => {
-  const [items, setItems] = useState<MenuItemDisplay[]>(INITIAL_MENU);
-  const [uiState, setUiState] = useState<ComponentState>('success');
+  const [items, setItems] = useState<MenuItemDisplay[]>([]);
+  const [uiState, setUiState] = useState<ComponentState>('loading');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newDishName, setNewDishName] = useState('');
   const [newDishPrice, setNewDishPrice] = useState('');
@@ -80,12 +52,14 @@ export const MenuCatalogManager: React.FC = () => {
             });
           }
         });
-        if (extracted.length > 0) {
-          setItems(extracted);
-        }
+        setItems(extracted);
+        setUiState('success');
+      } else {
+        setUiState('error');
       }
     } catch (err) {
-      console.warn('[MenuCatalog] Using fallback initial menu', err);
+      console.warn('[MenuCatalog] Could not load menu', err);
+      setUiState('error');
     } finally {
       setIsLoading(false);
     }
@@ -95,35 +69,52 @@ export const MenuCatalogManager: React.FC = () => {
     loadMenu();
   }, []);
 
-  const toggleStock = (dishId: string) => {
+  const toggleStock = async (dishId: string) => {
     const item = items.find(i => i.id === dishId);
-    const newStatus = item ? !item.isAvailable : false;
-    setItems(prev =>
-      prev.map(i =>
-        i.id === dishId ? { ...i, isAvailable: !i.isAvailable } : i
-      )
-    );
-    toggleDishStock('rst_bbh_01', dishId, newStatus).catch(e => console.warn(e));
+    if (!item) return;
+    const newStatus = !item.isAvailable;
+    const previous = items;
+
+    setActionError(null);
+    setItems(prev => prev.map(i => (i.id === dishId ? { ...i, isAvailable: newStatus } : i)));
+
+    try {
+      const res = await toggleDishStock('rst_bbh_01', dishId, newStatus);
+      if (!res.success) throw new Error(res.error?.message || res.error || 'Stock update was rejected.');
+    } catch (err: any) {
+      setItems(previous);
+      setActionError(err.message || 'Could not reach the server. Stock was not changed.');
+    }
   };
 
-  const handleAddDish = (e: React.FormEvent) => {
+  const handleAddDish = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDishName || !newDishPrice) return;
+    const price = parseFloat(newDishPrice);
+    if (!newDishName.trim() || !Number.isFinite(price) || price <= 0) {
+      setActionError('Enter a dish name and a price greater than zero.');
+      return;
+    }
 
-    const newDish: MenuItemDisplay = {
-      id: `dish_custom_${Date.now()}`,
-      name: newDishName,
-      category: 'Specialties',
-      price: parseFloat(newDishPrice),
-      isVeg: newDishIsVeg,
-      isAvailable: true,
-      description: 'Chef recommendation prepared with traditional spices.'
-    };
+    setIsSaving(true);
+    setActionError(null);
+    try {
+      const res = await addMenuItem('rst_bbh_01', {
+        name: newDishName.trim(),
+        price,
+        isVeg: newDishIsVeg,
+        category: 'Specialities'
+      });
+      if (!res.success) throw new Error(res.error?.message || res.error || 'Dish could not be added.');
 
-    setItems(prev => [newDish, ...prev]);
-    setNewDishName('');
-    setNewDishPrice('');
-    setShowAddModal(false);
+      setNewDishName('');
+      setNewDishPrice('');
+      setShowAddModal(false);
+      await loadMenu();
+    } catch (err: any) {
+      setActionError(err.message || 'Dish could not be added. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -142,12 +133,30 @@ export const MenuCatalogManager: React.FC = () => {
         </Button>
       </div>
 
+      {actionError && (
+        <div
+          style={{
+            marginBottom: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-nonveg-bg)',
+            color: 'var(--color-nonveg)',
+            fontSize: 'var(--font-size-sm)',
+            fontWeight: 'var(--font-weight-semibold)'
+          }}
+        >
+          {actionError}
+        </div>
+      )}
+
       <StateView
         state={items.length === 0 ? 'empty' : uiState}
         emptyTitle="Menu is Empty"
         emptyDescription="No dishes are currently configured for this restaurant."
         emptyActionLabel="Add First Dish"
         onEmptyAction={() => setShowAddModal(true)}
+        errorMessage="Could not load your menu. Check your connection and try again."
+        onRetry={loadMenu}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 'var(--space-4)' }}>
           {items.map(dish => (
@@ -238,7 +247,7 @@ export const MenuCatalogManager: React.FC = () => {
                 <Button variant="ghost" type="button" onClick={() => setShowAddModal(false)}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit">
+                <Button variant="primary" type="submit" isLoading={isSaving} disabled={isSaving}>
                   Save Dish
                 </Button>
               </div>
