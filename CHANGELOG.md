@@ -475,6 +475,39 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-13] -- Claude Opus 5 -- Session 17 (Full-Repo Audit: Fabricated Data, Crash Safety, iOS, Live Tracking)
+
+**Description:** Walked the whole repository file by file looking for anything that could crash an app, mislead a user, or fail a store review. The dominant defect found was the same one in many places: screens presented invented data as though it had come from the server, and writes were fired into empty `catch {}` blocks so a failure still rendered as success. Removed that pattern across all six surfaces, added crash recovery and network timeouts to the mobile apps, closed two authorisation holes, made rider tracking real, and configured all four apps for App Store submission.
+
+**Chunks Modified:** 02, 03, 04, 06, 07, 08, 09
+
+**Changes:**
+
+- **Stopped showing invented data as real** (`f1b1ee2`, `3399faa`). The KYC review queue in admin-web had a hardcoded `INITIAL_APPLICATIONS` list with fabricated FSSAI and GSTIN numbers — an admin could have approved a merchant against numbers no one ever submitted. It now renders only fields the record actually contains, and says "Not provided — verify from the uploaded file" when a number is missing. Partner settlements showed a fabricated "₹4,122.50 net payout" and fake HDFC account numbers as payout destinations; both are gone. Where a value genuinely is not available yet, the UI now says so instead of inventing one.
+- **Persisted writes that were being silently dropped** (`f1b1ee2`). `menuRepository` and `kycRepository` mutated in-memory state without calling `triggerAutoSave()`, so menu edits and KYC decisions vanished on the next restart. Added the missing calls.
+- **Crash recovery and per-app icons** (`d26d42a`). Added an `ErrorBoundary` to all four mobile apps: a render-time exception now shows a branded recovery screen with a retry action instead of a white screen, with the underlying message shown only under `__DEV__`. Each app also got its own distinct icon so the four are distinguishable on a home screen.
+- **Network timeouts everywhere** (`9e0ca03`). Every `fetch` in the codebase could hang indefinitely on a stalled connection. Added a shared `apiFetch` wrapper (`AbortController` + a `TimeoutError`) to all six apps and routed every call through it, so a dead network surfaces as a retryable error rather than a spinner that never resolves.
+- **Real rider tracking** (`ebb503e`, `33710f0`). The rider app was reporting a simulated position (`12.9716 + (Math.random() - 0.5) * 0.002`) and the backend was broadcasting each reading to a socket room and then discarding it — a customer who opened the app mid-trip saw nothing. The rider app now reports real GPS via `expo-location`; `POST /riders/telemetry` persists the reading to both the rider and the order, and rejects a report for an order with no rider assigned so one rider cannot spoof another's trip. Added `GET /orders/:id/tracking`, which returns position and rider contact **without** the order record's delivery OTP, restricted to that order's customer, its rider, or staff.
+- **Closed a cross-restaurant IDOR** (`6ed425e`). Partner menu endpoints were guarded by `authMiddleware('restaurant_owner')`, which only proved the caller was *a* partner — not the owner of *this* restaurant, so any signed-in partner could edit another restaurant's menu. Ownership is now checked per request. Added the menu CRUD the partner portal needed (`menuRepository.addItem()` and routes).
+- **iOS submission readiness** (`4b4f84a`). All four apps now ship `PrivacyInfo.xcprivacy` (required by Apple since May 2024) declaring the API reasons each app actually uses, and `ITSAppUsesNonExemptEncryption: false` so builds skip the export-compliance prompt. Flattened every iOS icon from RGBA to RGB — an alpha channel is an automatic ITMS-90717 rejection. Renamed `PLAY_STORE_RELEASE.md` to `STORE_RELEASE.md` and extended it to cover App Store Connect.
+- **Fixed the CI failures** that were emailing the repo owner (`40f66c0`, `e1ec88e`). Three separate causes: `package-lock.json` was never committed after `expo install expo-build-properties`, so strict `npm ci` failed in about fifteen seconds; the design-system test still asserted the pre-rebrand palette constants; and the workflow pinned Node 20.x while the backend runs on `--experimental-strip-types`, which needs Node ≥ 22.6. CI now runs Node 22 and `engines.node` records the requirement. The design-system test now asserts that the CSS custom properties and the TypeScript token export agree, so the two palettes cannot drift apart again.
+
+**Build Status:** Complete. All 7 packages typecheck clean; 6/6 test suites pass; CI green.
+
+**Known Issues:**
+- Live order updates over Socket.IO are **in progress and uncommitted**: `apps/customer-mobile/src/lib/useOrderSocket.ts` (new), plus changes to `OrderTrackingScreen.tsx`, `restaurant-web/src/api.ts` and `LiveOrderTerminal.tsx`, with `socket.io-client` added to both apps. Polling is deliberately retained as a fallback. Needs end-to-end verification against a running backend before it is committed.
+- Backend persistence is still an in-memory store with a JSON snapshot; a restart or redeploy can lose recent orders. The Prisma schema and docker-compose Postgres exist but are not wired.
+- No online payment — checkout is cash on delivery only.
+- Logo wordmark still reads "Quickbits" while the apps are named "Quick Bites".
+- Android release artifacts have **not** been rebuilt since these fixes; the AABs and APK currently published predate this session.
+- Play Console / App Store Connect work still needs a human: hosted privacy policy URL, web account-deletion route, Data Safety form, content rating, store listing assets, rider location disclosure.
+
+**NEXT AI SHOULD:** Verify the socket.io work end to end against a running backend and commit or revert it — do not leave it half-applied. Then rebuild the four AABs and the shareable APK so the published artifacts include this session's fixes. After that, wiring the backend to a managed Postgres remains the highest-value change, since orders are still lost on redeploy.
+
+**Notes:** Four of this session's ten commits came from a parallel session working in the same tree (`e1ec88e`, `ebb503e`, `33710f0`, `6ed425e`); they are described here from their commit bodies. Upload keystores remain at `~/.quickbites-upload-keys/`, outside the repo, and must be backed up — losing one means that app can never be updated under the same Play listing. The repository is public, so every commit is checked for keystores, `keystore.properties` and password files before it is pushed.
+
+---
+
 ## Session Log Template (For Future Sessions)
 ```markdown
 ## [YYYY-MM-DD] -- [AI Model] -- Session [N]
