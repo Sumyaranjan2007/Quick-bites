@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, Linking, TouchableOpacity } from 'react-native';
 import Svg, { Circle, Line, Path, G } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
 import { Bike } from 'lucide-react-native';
@@ -11,21 +11,52 @@ export interface Coords {
   longitude: number;
 }
 
+const TILE = 256;
+
+/**
+ * Street tiles come from OpenStreetMap, which needs no API key — Google Maps and
+ * Mapbox both require an account with billing enabled before they will serve a
+ * single tile.
+ *
+ * OSM's tile policy covers light use like this. A production launch should point
+ * TILE_URL at your own tile server or a paid provider; attribution below is
+ * required by the ODbL licence either way.
+ */
+const TILE_URL = (z: number, x: number, y: number) =>
+  `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+
 /** Great-circle distance in metres. */
 export function distanceMetres(a: Coords, b: Coords): number {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b.latitude - a.latitude);
   const dLng = toRad(b.longitude - a.longitude);
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
   const h =
-    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude));
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 export function formatDistance(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+/** Web-mercator world pixel coordinates at a given zoom. */
+function project(lat: number, lon: number, z: number) {
+  const n = TILE * Math.pow(2, z);
+  const x = ((lon + 180) / 360) * n;
+  const y = ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * n;
+  return { x, y };
+}
+
+/** Largest zoom at which both points still fit inside the viewport. */
+function fitZoom(a: Coords, b: Coords, w: number, h: number): number {
+  for (let z = 17; z >= 11; z--) {
+    const pa = project(a.latitude, a.longitude, z);
+    const pb = project(b.latitude, b.longitude, z);
+    if (Math.abs(pa.x - pb.x) < w * 0.6 && Math.abs(pa.y - pb.y) < h * 0.6) return z;
+  }
+  return 11;
 }
 
 function freshness(iso?: string | null): string {
@@ -43,15 +74,9 @@ interface Props {
   riderName?: string | null;
 }
 
-/**
- * Shows the rider closing on the delivery address using their real reported
- * position. This is a relative proximity view, not a street map — drawing real
- * streets needs a Maps provider key, and a decorative fake map would misrepresent
- * where the rider actually is.
- */
 export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, riderName }) => {
-  const W = 300;
-  const H = 150;
+  const W = 320;
+  const H = 190;
 
   if (!rider || !destination) {
     return (
@@ -66,50 +91,89 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
   }
 
   const metres = distanceMetres(rider, destination);
+  const z = fitZoom(rider, destination, W, H);
 
-  // Normalise the rider's offset from the destination into the drawing area,
-  // clamped so a distant rider still renders at the edge rather than off-canvas.
-  const scale = Math.max(metres, 120);
-  const dx = ((rider.longitude - destination.longitude) / (scale / 111000)) || 0;
-  const dy = ((rider.latitude - destination.latitude) / (scale / 111000)) || 0;
-  const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+  const pr = project(rider.latitude, rider.longitude, z);
+  const pd = project(destination.latitude, destination.longitude, z);
 
-  const destX = W * 0.78;
-  const destY = H * 0.5;
-  const riderX = destX + clamp(dx) * (W * 0.3);
-  const riderY = destY - clamp(dy) * (H * 0.3);
+  // Centre the viewport between the two points.
+  const centreX = (pr.x + pd.x) / 2;
+  const centreY = (pr.y + pd.y) / 2;
+  const originX = centreX - W / 2;
+  const originY = centreY - H / 2;
+
+  // Tiles covering the viewport, with one row/column of bleed.
+  const firstTileX = Math.floor(originX / TILE);
+  const firstTileY = Math.floor(originY / TILE);
+  const lastTileX = Math.floor((originX + W) / TILE);
+  const lastTileY = Math.floor((originY + H) / TILE);
+
+  const tiles: React.ReactNode[] = [];
+  const maxTile = Math.pow(2, z);
+  for (let tx = firstTileX; tx <= lastTileX; tx++) {
+    for (let ty = firstTileY; ty <= lastTileY; ty++) {
+      const wrappedX = ((tx % maxTile) + maxTile) % maxTile;
+      if (ty < 0 || ty >= maxTile) continue;
+      tiles.push(
+        <Image
+          key={`${z}/${tx}/${ty}`}
+          source={{ uri: TILE_URL(z, wrappedX, ty) }}
+          style={{
+            position: 'absolute',
+            left: tx * TILE - originX,
+            top: ty * TILE - originY,
+            width: TILE,
+            height: TILE
+          }}
+        />
+      );
+    }
+  }
+
+  const riderX = pr.x - originX;
+  const riderY = pr.y - originY;
+  const destX = pd.x - originX;
+  const destY = pd.y - originY;
 
   return (
     <View>
-      <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
-        {/* Route between rider and destination */}
-        <Line
-          x1={riderX}
-          y1={riderY}
-          x2={destX}
-          y2={destY}
-          stroke={c.accent[500]}
-          strokeWidth={2.5}
-          strokeDasharray="6 5"
-          strokeLinecap="round"
-        />
+      <View style={[styles.mapFrame, { height: H }]}>
+        {tiles}
 
-        {/* Destination */}
-        <G>
-          <Circle cx={destX} cy={destY} r={16} fill={c.primary[50]} />
-          <Path
-            d={`M ${destX} ${destY - 8} l 7 7 v 8 h -14 v -8 z`}
-            fill={c.primary[500]}
+        <Svg width={W} height={H} style={StyleSheet.absoluteFill} viewBox={`0 0 ${W} ${H}`}>
+          <Line
+            x1={riderX}
+            y1={riderY}
+            x2={destX}
+            y2={destY}
+            stroke={c.primary[500]}
+            strokeWidth={3}
+            strokeDasharray="7 6"
+            strokeLinecap="round"
+            opacity={0.85}
           />
-        </G>
 
-        {/* Rider */}
-        <G>
-          <Circle cx={riderX} cy={riderY} r={17} fill={c.accent[500]} opacity={0.25} />
-          <Circle cx={riderX} cy={riderY} r={10} fill={c.accent[500]} />
-          <Circle cx={riderX} cy={riderY} r={4} fill="#FFFFFF" />
-        </G>
-      </Svg>
+          {/* Destination */}
+          <G>
+            <Circle cx={destX} cy={destY} r={13} fill="#FFFFFF" opacity={0.95} />
+            <Path d={`M ${destX} ${destY - 7} l 6 6 v 7 h -12 v -7 z`} fill={c.primary[500]} />
+          </G>
+
+          {/* Rider */}
+          <G>
+            <Circle cx={riderX} cy={riderY} r={16} fill={c.accent[500]} opacity={0.3} />
+            <Circle cx={riderX} cy={riderY} r={9} fill={c.accent[500]} stroke="#FFFFFF" strokeWidth={2.5} />
+          </G>
+        </Svg>
+
+        <TouchableOpacity
+          style={styles.attribution}
+          onPress={() => Linking.openURL('https://www.openstreetmap.org/copyright')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.attributionText}>© OpenStreetMap contributors</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.legend}>
         <View style={styles.legendLeft}>
@@ -126,6 +190,24 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
 };
 
 const styles = StyleSheet.create({
+  mapFrame: {
+    width: '100%',
+    borderRadius: tokens.radii.md,
+    overflow: 'hidden',
+    backgroundColor: c.surface.sunken,
+    borderWidth: 1,
+    borderColor: c.border.subtle
+  },
+  attribution: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderTopLeftRadius: 6
+  },
+  attributionText: { fontSize: 9, color: c.text.secondary },
   placeholder: {
     height: 92,
     borderRadius: tokens.radii.md,
