@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button, StateView, ComponentState, useTranslation } from '@quick-bites/design-system';
 import { Activity, Server, Users, ShoppingBag, TrendingUp, RefreshCw } from 'lucide-react';
-import { fetchAdminMetrics } from '../api';
+import { fetchAdminMetrics, fetchSystemHealth } from '../api';
 
 export const OperationsControlTower: React.FC = () => {
   const { t } = useTranslation();
   const [uiState, setUiState] = useState<ComponentState>('loading');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [health, setHealth] = useState<any>(null);
   const [metrics, setMetrics] = useState<any>({
     grossMerchandiseValue: 0,
     activeOrdersCount: 0,
@@ -18,6 +19,10 @@ export const OperationsControlTower: React.FC = () => {
   const loadMetrics = async () => {
     setIsRefreshing(true);
     try {
+      fetchSystemHealth()
+        .then(h => setHealth(h?.status ? h : null))
+        .catch(() => setHealth(null));
+
       const res = await fetchAdminMetrics();
       if (res.success && res.data) {
         setMetrics({
@@ -138,33 +143,30 @@ export const OperationsControlTower: React.FC = () => {
                 {t('admin.infraHealthTitle')}
               </h3>
             </div>
-            <Badge variant="status-active" label={t('admin.allSystemsHealthy')} />
+            <Badge
+              variant={health?.status === 'HEALTHY' ? 'status-active' : 'status-pending'}
+              label={health?.status === 'HEALTHY' ? t('admin.allSystemsHealthy') : 'STATUS UNKNOWN'}
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-4)' }}>
-            <div style={{ backgroundColor: 'var(--bg-app)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>POSTGRESQL + POSTGIS</div>
-              <div style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-veg)', marginTop: '4px' }}>Connected (0ms lag)</div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>Spatial indexes operational</div>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-app)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>MEILISEARCH SEARCH ENGINE</div>
-              <div style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-veg)', marginTop: '4px' }}>Synchronized (0.2ms avg)</div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>Typo tolerance active</div>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-app)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>UPSTASH REDIS CACHE</div>
-              <div style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-veg)', marginTop: '4px' }}>Operational</div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>Hit ratio: 91.2%</div>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-app)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>RAZORPAY PAYMENT GATEWAY</div>
-              <div style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--color-veg)', marginTop: '4px' }}>Sandbox Connected</div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>HMAC SHA256 verified</div>
-            </div>
+            {health?.services ? (
+              Object.entries(health.services).map(([name, svc]: [string, any]) => (
+                <div key={name} style={{ backgroundColor: 'var(--bg-app)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'var(--font-weight-bold)' }}>
+                    {name}
+                  </div>
+                  <div style={{ fontWeight: 'var(--font-weight-bold)', color: svc.status === 'UP' ? 'var(--color-veg)' : 'var(--color-error)', marginTop: '4px' }}>
+                    {svc.status === 'UP' ? 'Operational' : 'Unavailable'}
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>{svc.provider}</div>
+                </div>
+              ))
+            ) : (
+              <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+                Service health is unavailable — the server did not respond to the health probe.
+              </div>
+            )}
           </div>
         </Card>
       </StateView>

@@ -89,6 +89,7 @@
     "openDisputes": "OPEN DISPUTES",
     "customerComplaint": "CUSTOMER COMPLAINT",
     "dismissDispute": "Dismiss Dispute",
-    "approveRefund": "Approve UPI Instant Refund"
+    "approveRefund": "Approve UPI Instant Refund",
+    "approveRider": "Approve Rider & Grant Live Access"
   }
 }

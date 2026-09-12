@@ -70,3 +70,10 @@ export async function processDisputeRefund(orderId: string, refundAmount: number
   });
   return res.json();
 }
+
+/** Live service health. The /health probe sits outside the /api prefix. */
+export async function fetchSystemHealth() {
+  const base = API_BASE.replace(/\/api(\/v1)?$/, '');
+  const res = await fetch(`${base}/health`);
+  return res.json();
+}

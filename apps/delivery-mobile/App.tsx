@@ -38,16 +38,18 @@ export default function DeliveryApp() {
   const [activeTab, setActiveTab] = useState<'deliveries' | 'earnings' | 'profile'>('deliveries');
 
   // Rider state
+  // Identity comes from the server; showing another rider's name and wallet
+  // while the real profile loads would be worse than showing nothing.
   const [rider, setRider] = useState<any>({
-    id: 'rdr_vikram_01',
-    fullName: 'Vikram Singh',
-    phone: '+91-98765-11223',
+    id: '',
+    fullName: '',
+    phone: '',
     vehicleType: 'BIKE',
-    isOnline: true,
-    kycStatus: 'ACTIVE',
-    walletBalance: 240.00,
-    codCashInHand: 0.00,
-    todayTrips: 4
+    isOnline: false,
+    kycStatus: 'PENDING',
+    walletBalance: 0,
+    codCashInHand: 0,
+    todayTrips: 0
   });
 
   // Live broadcast job pulled from the backend dispatch queue
@@ -105,6 +107,29 @@ export default function DeliveryApp() {
     cashToCollect: o.paymentMethod === 'CASH_ON_DELIVERY' ? o.bill?.totalAmount ?? 0 : 0
   });
 
+  const loadRiderProfile = async (userId: string, token?: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/riders/profile/${userId}`, { headers: authHeaders(token) });
+      const data = await res.json();
+      if (data.success && data.data?.rider) {
+        const r = data.data.rider;
+        setRider({
+          id: r.id,
+          fullName: r.fullName || 'Rider',
+          phone: r.phone || '',
+          vehicleType: r.vehicleType || 'BIKE',
+          isOnline: Boolean(r.isOnline),
+          kycStatus: r.kycStatus || 'PENDING',
+          walletBalance: Number(data.data.wallet?.balance) || 0,
+          codCashInHand: Number(r.codCashInHand) || 0,
+          todayTrips: Number(r.todayTrips) || 0
+        });
+      }
+    } catch {
+      // Keep the empty profile; the header will simply show no name.
+    }
+  };
+
   // Pull real dispatch broadcasts waiting for a rider
   const syncBroadcasts = async (token?: string) => {
     setIsSyncing(true);
@@ -135,6 +160,8 @@ export default function DeliveryApp() {
       if (data.success && data.data?.token) {
         setAuthToken(data.data.token);
         setIsAuthenticated(true);
+        const userId = data.data.user?.id;
+        if (userId) await loadRiderProfile(userId, data.data.token);
         syncBroadcasts(data.data.token);
       } else {
         Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
@@ -538,12 +565,13 @@ export default function DeliveryApp() {
                         : 'You are currently offline. Turn on your shift switch above to receive jobs.'}
                     </Text>
                     <TouchableOpacity
-                      style={styles.acceptJobBtn}
+                      style={[styles.idleRefreshBtn, isSyncing && { opacity: 0.6 }]}
                       onPress={() => syncBroadcasts()}
                       disabled={isSyncing}
+                      activeOpacity={0.85}
                     >
                       <Text style={styles.acceptJobBtnText}>
-                        {isSyncing ? 'Checking...' : 'Check for Jobs'}
+                        {isSyncing ? 'Checking…' : 'Check for Jobs'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -559,7 +587,7 @@ export default function DeliveryApp() {
             <View style={styles.walletCard}>
               <Text style={styles.walletLabel}>Withdrawable Wallet Balance</Text>
               <Text style={styles.walletBalance}>Rs {rider.walletBalance.toFixed(2)}</Text>
-              <Text style={styles.walletSub}>Instant bank transfer available to HDFC Bank</Text>
+              <Text style={styles.walletSub}>Paid out to your registered bank account</Text>
             </View>
 
             <View style={styles.earningsGrid}>
@@ -572,8 +600,10 @@ export default function DeliveryApp() {
                 <Text style={styles.statLbl}>Cash in Hand</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statNum}>98%</Text>
-                <Text style={styles.statLbl}>On-Time Rate</Text>
+                <Text style={[styles.statNum, { fontSize: 15 }]}>
+                  {rider.kycStatus === 'ACTIVE' ? 'Verified' : 'Pending'}
+                </Text>
+                <Text style={styles.statLbl}>KYC Status</Text>
               </View>
             </View>
           </View>
@@ -640,7 +670,16 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#FBF3EE', marginBottom: 16 },
   idleCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 36, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
   idleTitle: { fontSize: 16, fontWeight: '700', color: '#FBF3EE', marginTop: 12 },
-  idleSubtitle: { fontSize: 13, color: '#A8968E', marginTop: 4, textAlign: 'center' },
+  idleSubtitle: { fontSize: 13, color: '#A8968E', marginTop: 6, textAlign: 'center', lineHeight: 19 },
+  idleRefreshBtn: {
+    marginTop: 20,
+    height: 46,
+    paddingHorizontal: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#22C08A',
+    borderRadius: 12
+  },
   broadcastCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 20, borderWidth: 2, borderColor: '#22C08A' },
   broadcastTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   broadcastAlert: { fontSize: 12, color: '#22C08A', fontWeight: '800', textTransform: 'uppercase' },

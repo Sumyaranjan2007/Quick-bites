@@ -179,7 +179,7 @@ export const RestaurantKycPipeline: React.FC = () => {
                   {t('admin.rejectWithFeedback')}
                 </Button>
                 <Button variant="veg" size="sm" onClick={() => handleApprove(app.id)} leftIcon={<Check size={14} />}>
-                  {t('admin.approveGrantAccess')}
+                  {app.entityType === 'RIDER' ? t('admin.approveRider') : t('admin.approveGrantAccess')}
                 </Button>
               </div>
             </Card>

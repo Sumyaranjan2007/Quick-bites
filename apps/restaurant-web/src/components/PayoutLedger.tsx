@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Badge, Button, StateView, ComponentState } from '@quick-bites/design-system';
 import { ArrowDownRight, ShieldCheck, Download } from 'lucide-react';
-import { fetchRestaurantOrders } from '../api';
+import { fetchRestaurantOrders, fetchRestaurantDetails } from '../api';
 
 interface LedgerRow {
   orderNumber: string;
@@ -34,10 +34,15 @@ function downloadCsv(filename: string, rows: LedgerRow[]) {
 export const PayoutLedger: React.FC = () => {
   const [uiState, setUiState] = useState<ComponentState>('loading');
   const [rows, setRows] = useState<LedgerRow[]>([]);
+  const [restaurant, setRestaurant] = useState<any>(null);
 
   const loadLedger = async () => {
     setUiState('loading');
     try {
+      fetchRestaurantDetails('rst_bbh_01')
+        .then(r => { if (r.success && r.data?.restaurant) setRestaurant(r.data.restaurant); })
+        .catch(() => { /* compliance panel falls back to "not on file" */ });
+
       const res = await fetchRestaurantOrders('rst_bbh_01');
       if (!res.success || !Array.isArray(res.data?.orders)) {
         setUiState('error');
@@ -150,15 +155,22 @@ export const PayoutLedger: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: 'var(--font-size-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>FSSAI License:</span>
-                <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-semibold)' }}>11223344556677</span>
+                <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-semibold)' }}>
+                  {restaurant?.fssaiLicenseNumber || 'Not on file'}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>GSTIN Registration:</span>
-                <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-semibold)' }}>29ABCDE1234F1Z5</span>
+                <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-semibold)' }}>
+                  {restaurant?.gstin || 'Not on file'}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Compliance Status:</span>
-                <Badge variant="status-active" label="VERIFIED ACTIVE" />
+                <Badge
+                  variant={restaurant?.kycStatus === 'ACTIVE' ? 'status-active' : 'status-pending'}
+                  label={restaurant?.kycStatus === 'ACTIVE' ? 'VERIFIED ACTIVE' : 'PENDING VERIFICATION'}
+                />
               </div>
             </div>
           </Card>
@@ -167,23 +179,14 @@ export const PayoutLedger: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
               <ArrowDownRight size={20} color="var(--color-primary-500)" />
               <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 'var(--font-weight-bold)' }}>
-                Direct Bank Transfer Account
+                Payout Account
               </h3>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: 'var(--font-size-sm)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Bank Name:</span>
-                <span style={{ fontWeight: 'var(--font-weight-semibold)' }}>HDFC Bank Ltd.</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Account Number:</span>
-                <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-semibold)' }}>•••• •••• 8821</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>IFSC Code:</span>
-                <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-semibold)' }}>HDFC0001234</span>
-              </div>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              No bank account is linked to this restaurant yet. Payouts are held until
+              account details are added and verified.
             </div>
+            <Badge variant="status-pending" label="NOT LINKED" />
           </Card>
         </div>
       </StateView>

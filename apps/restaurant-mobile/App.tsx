@@ -41,16 +41,18 @@ export default function RestaurantApp() {
   const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'kyc' | 'settlements'>('orders');
 
   // Restaurant & Kitchen state
+  // Resolved from the signed-in owner rather than assumed.
   const [restaurant, setRestaurant] = useState<any>({
     id: 'rst_bbh_01',
-    name: 'Bangalore Biryani House',
-    kycStatus: 'ACTIVE',
-    isOpen: true,
-    ratingAverage: 4.8,
-    todayGmv: 4850.00
+    name: '',
+    kycStatus: 'PENDING',
+    isOpen: false,
+    ratingAverage: 0,
+    todayGmv: 0
   });
 
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [allOrders, setAllOrders] = useState<any[]>([]);
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -59,11 +61,51 @@ export default function RestaurantApp() {
   const [prepMinutes, setPrepMinutes] = useState(20);
   const [pickupInput, setPickupInput] = useState('');
 
+  // Settlement is derived from delivered orders rather than invented. The
+  // restaurant's share is what the pricing engine recorded on each bill.
+  const settlement = React.useMemo(() => {
+    const delivered = allOrders.filter((o: any) => o.status === 'DELIVERED' && o.bill);
+    const grossSales = delivered.reduce((sum: number, o: any) => sum + (Number(o.bill.itemsTotal) || 0), 0);
+    const netPayout = delivered.reduce(
+      (sum: number, o: any) => sum + (Number(o.bill.restaurantNetPayout) || 0),
+      0
+    );
+    const prepTimes = allOrders
+      .map((o: any) => Number(o.preparationMinutes))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    const avgPrep = prepTimes.length
+      ? Math.round(prepTimes.reduce((a: number, b: number) => a + b, 0) / prepTimes.length)
+      : null;
+    return { grossSales, netPayout, deliveredCount: delivered.length, totalCount: allOrders.length, avgPrep };
+  }, [allOrders]);
+
   const authHeaders = (token?: string): Record<string, string> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const effective = token || authToken;
     if (effective) headers['Authorization'] = `Bearer ${effective}`;
     return headers;
+  };
+
+  const loadRestaurantProfile = async (ownerId: string, token?: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/restaurants/owner/${ownerId}`, { headers: authHeaders(token) });
+      const data = await res.json();
+      if (data.success && data.data?.restaurant) {
+        const r = data.data.restaurant;
+        setRestaurant({
+          id: r.id,
+          name: r.name || 'Your restaurant',
+          kycStatus: r.kycStatus || 'PENDING',
+          isOpen: Boolean(r.isOpen),
+          ratingAverage: Number(r.ratingAverage) || 0,
+          todayGmv: 0
+        });
+        return r.id as string;
+      }
+    } catch {
+      // Fall through; the caller keeps the default id.
+    }
+    return null;
   };
 
   // Load live orders + menu from the backend
@@ -77,6 +119,7 @@ export default function RestaurantApp() {
 
       const ordersData = await ordersRes.json();
       if (ordersData.success && Array.isArray(ordersData.data?.orders)) {
+        setAllOrders(ordersData.data.orders);
         setActiveOrders(
           ordersData.data.orders
             .filter((o: any) => !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status))
@@ -132,6 +175,8 @@ export default function RestaurantApp() {
       if (data.success && data.data?.token) {
         setAuthToken(data.data.token);
         setIsAuthenticated(true);
+        const ownerId = data.data.user?.id;
+        if (ownerId) await loadRestaurantProfile(ownerId, data.data.token);
         syncRestaurantData(data.data.token);
       } else {
         Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
@@ -538,9 +583,9 @@ export default function RestaurantApp() {
               <Store size={22} color="#A8968E" />
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.docName}>Kitchen Payout Account</Text>
-                <Text style={styles.docNumber}>HDFC Bank •••• 9182 (IFSC: HDFC0001234)</Text>
+                <Text style={styles.docNumber}>Not linked yet — add a bank account to receive payouts</Text>
               </View>
-              <Text style={styles.verifiedBadge}>Active</Text>
+              <Text style={styles.pendingBadge}>Pending</Text>
             </View>
           </View>
         )}
@@ -549,25 +594,35 @@ export default function RestaurantApp() {
           <View>
             <Text style={styles.sectionTitle}>Settlement & Earnings Ledger</Text>
             <View style={styles.revenueCard}>
-              <Text style={styles.revenueLabel}>Today's Net Payout Balance</Text>
-              <Text style={styles.revenueAmount}>Rs 4,122.50</Text>
-              <Text style={styles.revenueSub}>Gross Sales: Rs 4,850.00 (-15% Platform Commission)</Text>
+              <Text style={styles.revenueLabel}>Net Payout (Delivered Orders)</Text>
+              <Text style={styles.revenueAmount}>Rs {settlement.netPayout.toFixed(2)}</Text>
+              <Text style={styles.revenueSub}>
+                Gross sales: Rs {settlement.grossSales.toFixed(2)} — less platform commission and TDS
+              </Text>
             </View>
 
             <View style={styles.statsGrid}>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>14</Text>
-                <Text style={styles.statLabel}>Orders Today</Text>
+                <Text style={styles.statNumber}>{settlement.deliveredCount}</Text>
+                <Text style={styles.statLabel}>Delivered</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>18m</Text>
+                <Text style={styles.statNumber}>
+                  {settlement.avgPrep !== null ? `${settlement.avgPrep}m` : '—'}
+                </Text>
                 <Text style={styles.statLabel}>Avg Prep Time</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>100%</Text>
-                <Text style={styles.statLabel}>Acceptance Rate</Text>
+                <Text style={styles.statNumber}>{settlement.totalCount}</Text>
+                <Text style={styles.statLabel}>Total Orders</Text>
               </View>
             </View>
+
+            {settlement.totalCount === 0 && (
+              <Text style={styles.revenueSub}>
+                No orders yet. Figures appear here once customers start ordering.
+              </Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -690,6 +745,7 @@ const styles = StyleSheet.create({
   docItemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#26111A', padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#3E1E28' },
   docName: { fontSize: 14, fontWeight: '700', color: '#FBF3EE' },
   docNumber: { fontSize: 12, color: '#A8968E', marginTop: 2 },
+  pendingBadge: { color: '#E08E0B', fontSize: 12, fontWeight: '700' },
   verifiedBadge: { backgroundColor: '#0A3D2E', color: '#4ADFA8', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   revenueCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 22, marginBottom: 16, borderWidth: 1, borderColor: '#3E1E28' },
   revenueLabel: { fontSize: 13, color: '#A8968E', fontWeight: '600' },
