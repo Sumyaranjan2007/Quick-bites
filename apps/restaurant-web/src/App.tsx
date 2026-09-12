@@ -22,31 +22,18 @@ export function AppContent() {
     <div>
       {/* Partner Header */}
       <header className="portal-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-primary-500)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-inverse)'
-          }}>
-            <UtensilsCrossed size={20} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 'var(--font-weight-extrabold)', fontSize: 'var(--font-size-md)', letterSpacing: '-0.02em' }}>
-              Quick Bite <span style={{ color: 'var(--color-primary-500)' }}>Partner</span>
+        <div className="portal-brand">
+          <img src="/favicon.png" alt="Quick Bites" className="portal-brand-logo" />
+          <div style={{ minWidth: 0 }}>
+            <div className="portal-brand-name">
+              Quick Bites <span style={{ color: 'var(--color-primary-500)' }}>Partner</span>
             </div>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-              Bangalore Biryani House (Indiranagar)
-            </div>
+            <div className="portal-brand-sub">Bangalore Biryani House • Indiranagar</div>
           </div>
         </div>
 
         {/* Center Tabs */}
-        <nav style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <nav className="portal-nav">
           <button
             className={`portal-nav-tab ${activeTab === 'terminal' ? 'active' : ''}`}
             onClick={() => setActiveTab('terminal')}

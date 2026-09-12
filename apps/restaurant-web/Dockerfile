@@ -1,4 +1,4 @@
-# Multi-Stage Dockerfile for Quick Bite Restaurant Partner Web Portal
+# Multi-Stage Dockerfile for Quick Bites Restaurant Partner Web Portal
 # Stage 1: Build & Bundle
 FROM node:20-alpine AS builder
 

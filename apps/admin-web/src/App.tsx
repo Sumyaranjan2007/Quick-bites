@@ -23,31 +23,18 @@ export function AppContent() {
     <div>
       {/* Admin Header */}
       <header className="admin-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-primary-500)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-inverse)'
-          }}>
-            <ShieldCheck size={20} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 'var(--font-weight-extrabold)', fontSize: 'var(--font-size-md)', letterSpacing: '-0.02em' }}>
-              Quick Bite <span style={{ color: 'var(--color-primary-500)' }}>Admin</span>
+        <div className="admin-brand">
+          <img src="/favicon.png" alt="Quick Bites" className="admin-brand-logo" />
+          <div style={{ minWidth: 0 }}>
+            <div className="admin-brand-name">
+              Quick Bites <span style={{ color: 'var(--color-primary-500)' }}>Admin</span>
             </div>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
-              {t('admin.portalTitle')}
-            </div>
+            <div className="admin-brand-sub">{t('admin.portalTitle')}</div>
           </div>
         </div>
 
         {/* Center Tabs */}
-        <nav style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <nav className="admin-nav">
           <button
             className={`admin-nav-tab ${activeTab === 'tower' ? 'active' : ''}`}
             onClick={() => setActiveTab('tower')}

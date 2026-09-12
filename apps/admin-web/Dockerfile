@@ -1,4 +1,4 @@
-# Multi-Stage Dockerfile for Quick Bite Admin Operations Control Tower
+# Multi-Stage Dockerfile for Quick Bites Admin Operations Control Tower
 # Stage 1: Build & Bundle
 FROM node:20-alpine AS builder
 

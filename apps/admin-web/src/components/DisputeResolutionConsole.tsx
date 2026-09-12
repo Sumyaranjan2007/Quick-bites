@@ -102,7 +102,7 @@ export const DisputeResolutionConsole: React.FC = () => {
         state={uiState === 'success' && openDisputes.length === 0 ? 'empty' : uiState}
         emptyTitle="All Customer Disputes Resolved"
         emptyDescription="Zero open complaints or pending refund requests in the queue."
-        errorMessage="Could not reach the Quick Bite server. Check your connection and try again."
+        errorMessage="Could not reach the Quick Bites server. Check your connection and try again."
         onRetry={loadDisputes}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>

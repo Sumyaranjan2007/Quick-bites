@@ -20,46 +20,194 @@ a {
   text-decoration: none;
 }
 
-.portal-header {
-  height: 64px;
+/* ==========================================================================
+   APP SHELL
+   ========================================================================== */
+.admin-header, .portal-header {
+  height: 68px;
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-6);
   padding: 0 var(--space-6);
   position: sticky;
   top: 0;
   z-index: var(--z-index-sticky);
+  backdrop-filter: saturate(140%) blur(8px);
 }
 
-.portal-nav-tab {
+.admin-brand, .portal-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-brand-logo, .portal-brand-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  background: var(--bg-app);
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.admin-brand-name, .portal-brand-name {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.admin-brand-sub, .portal-brand-sub {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Segmented nav — reads as one control rather than loose buttons. */
+.admin-nav, .portal-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 4px;
+}
+
+.admin-nav-tab, .portal-nav-tab {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
+  padding: 9px var(--space-4);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   color: var(--text-secondary);
   cursor: pointer;
   border: none;
   background: transparent;
-  transition: all var(--anim-duration-fast);
+  white-space: nowrap;
+  transition: background-color var(--anim-duration-fast) var(--anim-ease-standard),
+              color var(--anim-duration-fast) var(--anim-ease-standard);
 }
 
-.portal-nav-tab.active {
-  background-color: var(--color-primary-50);
-  color: var(--color-primary-500);
+.admin-nav-tab.active, .portal-nav-tab.active {
+  background-color: var(--color-primary-600);
+  color: #FFFFFF;
+  box-shadow: var(--shadow-sm);
 }
 
-.portal-nav-tab:hover:not(.active) {
-  background-color: var(--bg-surface-elevated);
+.admin-nav-tab:hover:not(.active), .portal-nav-tab:hover:not(.active) {
+  background-color: var(--bg-surface);
   color: var(--text-primary);
 }
 
-.portal-container {
-  max-width: 1200px;
+.admin-container, .portal-container {
+  max-width: 1320px;
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+
+/* Page heading block used at the top of every tab. */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-extrabold);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.page-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: 6px;
+  max-width: 62ch;
+}
+
+/* Icon button for header utilities. */
+.icon-button {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--anim-duration-fast);
+}
+
+.icon-button:hover { background: var(--bg-surface-elevated); }
+
+/* KPI tile */
+.stat-tile {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--color-accent-500);
+  opacity: 0.9;
+}
+
+.stat-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-extrabold);
+  font-family: var(--font-family-mono);
+  letter-spacing: -0.02em;
+  margin-top: 6px;
+}
+
+.stat-caption {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 860px) {
+.admin-header, .portal-header { flex-wrap: wrap; height: auto; padding: var(--space-3) var(--space-4); gap: var(--space-3); }
+.admin-nav, .portal-nav { order: 3; width: 100%; overflow-x: auto; }
+.admin-container, .portal-container { padding: var(--space-5) var(--space-4) var(--space-10); }
+.page-title { font-size: var(--font-size-2xl); }
 }

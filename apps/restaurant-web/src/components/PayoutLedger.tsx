@@ -95,7 +95,7 @@ export const PayoutLedger: React.FC = () => {
         state={uiState === 'success' && rows.length === 0 ? 'empty' : uiState}
         emptyTitle="No Delivered Orders Yet"
         emptyDescription="Your payout ledger will populate once orders are delivered."
-        errorMessage="Could not reach the Quick Bite server. Check your connection and try again."
+        errorMessage="Could not reach the Quick Bites server. Check your connection and try again."
         onRetry={loadLedger}
       >
         {/* Metric Cards Grid */}
@@ -120,7 +120,7 @@ export const PayoutLedger: React.FC = () => {
               -Rs {platformCommission.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
-              15% Quick Bite Standard Rate
+              15% Quick Bites Standard Rate
             </div>
           </Card>
 

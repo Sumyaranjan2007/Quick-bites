@@ -18,7 +18,7 @@ async function runDesignSystemTests() {
   assert.strictEqual(tokens.colors.primary[500], '#E23744', 'Brand Crimson color mismatch');
   assert.strictEqual(tokens.colors.dietary.veg, '#0F8A3C', 'FSSAI Veg Green color mismatch');
   assert.strictEqual(tokens.colors.dietary.nonveg, '#E23744', 'FSSAI Non-Veg Crimson color mismatch');
-  assert.strictEqual(tokens.colors.dietary.gold, '#D97706', 'Quick Bite Gold Amber color mismatch');
+  assert.strictEqual(tokens.colors.dietary.gold, '#D97706', 'Quick Bites Gold Amber color mismatch');
   assert.strictEqual(tokens.spacing[4], '16px', 'Spacing 4px grid mismatch');
   console.log('[PASS] Test 1: Design tokens match approved DESIGN_TOKENS.md specification');
 
@@ -48,7 +48,7 @@ async function runDesignSystemTests() {
   // 3a. English
   const enApp = translate('en', 'common.appName');
   const enDelivery = translate('en', 'customer.deliveryIn', { minutes: 25 });
-  assert.strictEqual(enApp, 'Quick Bite');
+  assert.strictEqual(enApp, 'Quick Bites');
   assert.strictEqual(enDelivery, 'Delivery in 25 mins');
 
   // 3b. Hindi

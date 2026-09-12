@@ -261,6 +261,110 @@
         "updatedAt": "2026-09-12T14:03:53.665Z",
         "pickupCode": "8933"
       }
+    ],
+    [
+      "ord_ceaa4fa0-a5aa-40cc-a356-af80d0ab896e",
+      {
+        "id": "ord_ceaa4fa0-a5aa-40cc-a356-af80d0ab896e",
+        "idempotencyKey": "ui-seed-1-17103",
+        "orderNumber": "QB-279054",
+        "customerId": "usr_customer_01",
+        "customerName": "Rahul Sharma",
+        "restaurantId": "rst_bbh_01",
+        "restaurantName": "Bangalore Biryani House",
+        "deliveryAddressId": "addr_sample_01",
+        "status": "ORDER_PLACED",
+        "paymentStatus": "PENDING",
+        "paymentMethod": "CASH_ON_DELIVERY",
+        "items": [
+          {
+            "dishId": "dish_ck_biryani",
+            "name": "Special Chicken Dum Biryani",
+            "unitPrice": 320,
+            "quantity": 2,
+            "isVeg": false,
+            "addonsTotal": 0,
+            "selectedOptions": [],
+            "totalPrice": 640
+          },
+          {
+            "dishId": "dish_pbm",
+            "name": "Paneer Butter Masala",
+            "unitPrice": 260,
+            "quantity": 1,
+            "isVeg": true,
+            "addonsTotal": 0,
+            "selectedOptions": [],
+            "totalPrice": 260
+          }
+        ],
+        "bill": {
+          "itemsTotal": 900,
+          "gstAmount": 45,
+          "packagingFee": 25,
+          "deliveryFee": 0,
+          "platformFee": 5.9,
+          "couponDiscount": 0,
+          "totalAmount": 975.9,
+          "restaurantNetPayout": 781
+        },
+        "deliveryOtp": "6063",
+        "createdAt": "2026-09-12T14:06:12.131Z",
+        "updatedAt": "2026-09-12T14:06:12.131Z",
+        "pickupCode": "3489"
+      }
+    ],
+    [
+      "ord_52c4d104-ae20-4436-956a-fc7b0f6e1a8c",
+      {
+        "id": "ord_52c4d104-ae20-4436-956a-fc7b0f6e1a8c",
+        "idempotencyKey": "ui-seed-2-17103",
+        "orderNumber": "QB-940248",
+        "customerId": "usr_customer_01",
+        "customerName": "Rahul Sharma",
+        "restaurantId": "rst_bbh_01",
+        "restaurantName": "Bangalore Biryani House",
+        "deliveryAddressId": "addr_sample_01",
+        "status": "ORDER_PLACED",
+        "paymentStatus": "PENDING",
+        "paymentMethod": "CASH_ON_DELIVERY",
+        "items": [
+          {
+            "dishId": "dish_ck_biryani",
+            "name": "Special Chicken Dum Biryani",
+            "unitPrice": 320,
+            "quantity": 2,
+            "isVeg": false,
+            "addonsTotal": 0,
+            "selectedOptions": [],
+            "totalPrice": 640
+          },
+          {
+            "dishId": "dish_pbm",
+            "name": "Paneer Butter Masala",
+            "unitPrice": 260,
+            "quantity": 1,
+            "isVeg": true,
+            "addonsTotal": 0,
+            "selectedOptions": [],
+            "totalPrice": 260
+          }
+        ],
+        "bill": {
+          "itemsTotal": 900,
+          "gstAmount": 45,
+          "packagingFee": 25,
+          "deliveryFee": 0,
+          "platformFee": 5.9,
+          "couponDiscount": 0,
+          "totalAmount": 975.9,
+          "restaurantNetPayout": 781
+        },
+        "deliveryOtp": "8791",
+        "createdAt": "2026-09-12T14:06:12.246Z",
+        "updatedAt": "2026-09-12T14:06:12.246Z",
+        "pickupCode": "9206"
+      }
     ]
   ],
   "menus": [

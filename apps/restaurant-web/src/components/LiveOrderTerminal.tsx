@@ -132,13 +132,11 @@ export const LiveOrderTerminal: React.FC = () => {
   return (
     <div>
       {/* Action Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+      <div className="page-head">
         <div>
-          <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)' }}>
-            Live Kitchen Terminal
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            Real-time incoming customer orders and preparation queue.
+          <h2 className="page-title">Live Kitchen Terminal</h2>
+          <p className="page-subtitle">
+            Incoming customer orders and the preparation queue, synced with the Quick Bites kitchen.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
@@ -174,15 +172,15 @@ export const LiveOrderTerminal: React.FC = () => {
         emptyDescription="All incoming orders have been prepared and handed over to delivery partners."
         emptyActionLabel="Refresh Queue"
         onEmptyAction={loadLiveOrders}
-        errorMessage="Could not reach the Quick Bite server. Check your connection and try again."
+        errorMessage="Could not reach the Quick Bites server. Check your connection and try again."
         onRetry={loadLiveOrders}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 'var(--space-4)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 'var(--space-5)' }}>
           {activeOrders.map(order => (
             <Card key={order.id} style={{ borderTop: order.status === 'ORDER_PLACED' ? '4px solid var(--color-primary-500)' : '4px solid var(--color-accent-500)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
                 <div>
-                  <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-bold)', fontSize: 'var(--font-size-md)' }}>
+                  <span style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 'var(--font-weight-extrabold)', fontSize: 'var(--font-size-xl)', letterSpacing: '-0.02em' }}>
                     {order.orderNumber}
                   </span>
                   <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)' }}>
@@ -212,9 +210,9 @@ export const LiveOrderTerminal: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                <div style={{ marginTop: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px dashed var(--border-medium)', display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-bold)' }}>
-                  <span>Bill Total</span>
-                  <span>Rs {order.totalAmount.toFixed(2)}</span>
+                <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px dashed var(--border-medium)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 'var(--font-weight-bold)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Bill Total</span>
+                  <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-extrabold)', fontFamily: 'var(--font-family-mono)' }}>₹{order.totalAmount.toFixed(2)}</span>
                 </div>
               </div>
 

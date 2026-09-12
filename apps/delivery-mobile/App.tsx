@@ -249,13 +249,13 @@ export default function DeliveryApp() {
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.authContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+        <StatusBar barStyle="light-content" backgroundColor="#17090E" />
         <View style={styles.authCard}>
           <View style={styles.authHeader}>
             <View style={styles.brandIconCircle}>
-              <Bike size={36} color="#10B981" />
+              <Bike size={36} color="#22C08A" />
             </View>
-            <Text style={styles.authTitle}>Quick Bite Rider</Text>
+            <Text style={styles.authTitle}>Quick Bites Rider</Text>
             <Text style={styles.authSubtitle}>Delivery Logistics & Navigation</Text>
           </View>
 
@@ -268,7 +268,7 @@ export default function DeliveryApp() {
               keyboardType="email-address"
               autoCapitalize="none"
               placeholder="rider@quickbite.app"
-              placeholderTextColor="#64748B"
+              placeholderTextColor="#8A7A72"
             />
           </View>
 
@@ -280,7 +280,7 @@ export default function DeliveryApp() {
               onChangeText={setPassword}
               secureTextEntry
               placeholder="pass123"
-              placeholderTextColor="#64748B"
+              placeholderTextColor="#8A7A72"
             />
           </View>
 
@@ -292,7 +292,7 @@ export default function DeliveryApp() {
               onChangeText={setApiUrl}
               autoCapitalize="none"
               placeholder="http://10.0.2.2:5000/api"
-              placeholderTextColor="#64748B"
+              placeholderTextColor="#8A7A72"
             />
           </View>
 
@@ -301,7 +301,7 @@ export default function DeliveryApp() {
           </TouchableOpacity>
 
           <View style={styles.demoPill}>
-            <Sparkles size={16} color="#10B981" />
+            <Sparkles size={16} color="#22C08A" />
             <Text style={styles.demoPillText}>Default Login: rider@quickbite.app / pass123</Text>
           </View>
         </View>
@@ -311,24 +311,24 @@ export default function DeliveryApp() {
 
   return (
     <SafeAreaView style={styles.mainContainer}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+      <StatusBar barStyle="light-content" backgroundColor="#17090E" />
 
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View>
           <Text style={styles.riderName}>{rider.fullName}</Text>
           <View style={styles.shiftMetaRow}>
-            <View style={[styles.statusDot, { backgroundColor: rider.isOnline ? '#10B981' : '#EF4444' }]} />
+            <View style={[styles.statusDot, { backgroundColor: rider.isOnline ? '#22C08A' : '#E15D5D' }]} />
             <Text style={styles.statusText}>{rider.isOnline ? 'Online (Accepting Jobs)' : 'Offline (On Break)'}</Text>
             <Text style={styles.vehicleBadge}>{rider.vehicleType}</Text>
           </View>
         </View>
 
         <TouchableOpacity
-          style={[styles.shiftToggleBtn, { backgroundColor: rider.isOnline ? '#064E3B' : '#334155' }]}
+          style={[styles.shiftToggleBtn, { backgroundColor: rider.isOnline ? '#0A3D2E' : '#3E1E28' }]}
           onPress={toggleShift}
         >
-          <Power size={18} color={rider.isOnline ? '#34D399' : '#94A3B8'} />
+          <Power size={18} color={rider.isOnline ? '#4ADFA8' : '#A8968E'} />
         </TouchableOpacity>
       </View>
 
@@ -338,7 +338,7 @@ export default function DeliveryApp() {
           style={[styles.tabItem, activeTab === 'deliveries' && styles.tabItemActive]}
           onPress={() => setActiveTab('deliveries')}
         >
-          <Navigation size={18} color={activeTab === 'deliveries' ? '#10B981' : '#94A3B8'} />
+          <Navigation size={18} color={activeTab === 'deliveries' ? '#22C08A' : '#A8968E'} />
           <Text style={[styles.tabLabel, activeTab === 'deliveries' && styles.tabLabelActive]}>Logistics</Text>
         </TouchableOpacity>
 
@@ -346,7 +346,7 @@ export default function DeliveryApp() {
           style={[styles.tabItem, activeTab === 'earnings' && styles.tabItemActive]}
           onPress={() => setActiveTab('earnings')}
         >
-          <DollarSign size={18} color={activeTab === 'earnings' ? '#10B981' : '#94A3B8'} />
+          <DollarSign size={18} color={activeTab === 'earnings' ? '#22C08A' : '#A8968E'} />
           <Text style={[styles.tabLabel, activeTab === 'earnings' && styles.tabLabelActive]}>Earnings</Text>
         </TouchableOpacity>
 
@@ -354,7 +354,7 @@ export default function DeliveryApp() {
           style={[styles.tabItem, activeTab === 'profile' && styles.tabItemActive]}
           onPress={() => setActiveTab('profile')}
         >
-          <ShieldCheck size={18} color={activeTab === 'profile' ? '#10B981' : '#94A3B8'} />
+          <ShieldCheck size={18} color={activeTab === 'profile' ? '#22C08A' : '#A8968E'} />
           <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>Rider KYC</Text>
         </TouchableOpacity>
       </View>
@@ -388,7 +388,7 @@ export default function DeliveryApp() {
                   <View style={styles.routeDivider} />
 
                   <View style={styles.routeStep}>
-                    <MapPin size={16} color="#10B981" />
+                    <MapPin size={16} color="#22C08A" />
                     <View style={{ marginLeft: 8, flex: 1 }}>
                       <Text style={styles.stepLabel}>Customer Doorstep</Text>
                       <Text style={styles.stepAddress}>{activeTrip.dropAddress}</Text>
@@ -398,7 +398,7 @@ export default function DeliveryApp() {
 
                 {/* OpenStreetMap Route Navigation Polyline Simulation */}
                 <View style={styles.mapSimContainer}>
-                  <Navigation size={24} color="#10B981" />
+                  <Navigation size={24} color="#22C08A" />
                   <Text style={styles.mapSimText}>
                     OSRM Turn-by-Turn Navigation Active ({activeTrip.distanceKm} km)
                   </Text>
@@ -428,7 +428,7 @@ export default function DeliveryApp() {
                       value={pickupCodeInput}
                       onChangeText={setPickupCodeInput}
                       placeholder="Enter 4-Digit Pickup Code (e.g. 4821)"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor="#8A7A72"
                       keyboardType="number-pad"
                       maxLength={4}
                     />
@@ -454,7 +454,7 @@ export default function DeliveryApp() {
 
                     {activeTrip.paymentMode === 'COD' && (
                       <View style={styles.codAlertBox}>
-                        <DollarSign size={18} color="#F59E0B" />
+                        <DollarSign size={18} color="#E08E0B" />
                         <Text style={styles.codAlertText}>
                           Collect Rs {activeTrip.cashToCollect.toFixed(2)} Cash from Customer
                         </Text>
@@ -466,7 +466,7 @@ export default function DeliveryApp() {
                       value={otpInput}
                       onChangeText={setOtpInput}
                       placeholder="Enter Customer 4-Digit OTP"
-                      placeholderTextColor="#64748B"
+                      placeholderTextColor="#8A7A72"
                       keyboardType="number-pad"
                       maxLength={4}
                     />
@@ -488,7 +488,7 @@ export default function DeliveryApp() {
                         <Text style={styles.broadcastRestName}>{incomingBroadcast.restaurantName}</Text>
                       </View>
                       <View style={styles.timerBadge}>
-                        <Clock size={14} color="#EF4444" />
+                        <Clock size={14} color="#E15D5D" />
                         <Text style={styles.timerText}>{incomingBroadcast.timerSeconds}s</Text>
                       </View>
                     </View>
@@ -522,7 +522,7 @@ export default function DeliveryApp() {
                   </View>
                 ) : (
                   <View style={styles.idleCard}>
-                    <Bike size={48} color="#475569" />
+                    <Bike size={48} color="#55303A" />
                     <Text style={styles.idleTitle}>Waiting for Nearby Delivery Jobs</Text>
                     <Text style={styles.idleSubtitle}>
                       {rider.isOnline
@@ -575,7 +575,7 @@ export default function DeliveryApp() {
           <View>
             <Text style={styles.sectionTitle}>Rider Profile & KYC Credentials</Text>
             <View style={styles.kycActiveCard}>
-              <ShieldCheck size={28} color="#10B981" />
+              <ShieldCheck size={28} color="#22C08A" />
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.kycActiveTitle}>Background Check Approved</Text>
                 <Text style={styles.kycActiveDesc}>Driving License #KA032021008899 verified.</Text>
@@ -601,89 +601,89 @@ export default function DeliveryApp() {
 }
 
 const styles = StyleSheet.create({
-  authContainer: { flex: 1, backgroundColor: '#0F172A', justifyContent: 'center', padding: 24 },
-  authCard: { backgroundColor: '#1E293B', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#334155' },
+  authContainer: { flex: 1, backgroundColor: '#17090E', justifyContent: 'center', padding: 24 },
+  authCard: { backgroundColor: '#26111A', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#3E1E28' },
   authHeader: { alignItems: 'center', marginBottom: 28 },
-  brandIconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  authTitle: { fontSize: 24, fontWeight: '800', color: '#F8FAFC' },
-  authSubtitle: { fontSize: 14, color: '#94A3B8', marginTop: 4 },
+  brandIconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#3E1E28', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  authTitle: { fontSize: 24, fontWeight: '800', color: '#FBF3EE' },
+  authSubtitle: { fontSize: 14, color: '#A8968E', marginTop: 4 },
   inputGroup: { marginBottom: 18 },
-  inputLabel: { fontSize: 13, color: '#CBD5E1', marginBottom: 8, fontWeight: '600' },
-  textInput: { backgroundColor: '#0F172A', borderRadius: 14, height: 50, paddingHorizontal: 16, color: '#F8FAFC', fontSize: 15, borderWidth: 1, borderColor: '#334155' },
-  loginBtn: { backgroundColor: '#10B981', borderRadius: 14, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
+  inputLabel: { fontSize: 13, color: '#D8C9C0', marginBottom: 8, fontWeight: '600' },
+  textInput: { backgroundColor: '#17090E', borderRadius: 14, height: 50, paddingHorizontal: 16, color: '#FBF3EE', fontSize: 15, borderWidth: 1, borderColor: '#3E1E28' },
+  loginBtn: { backgroundColor: '#22C08A', borderRadius: 14, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
   loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  demoPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#334155', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginTop: 20, alignSelf: 'center' },
-  demoPillText: { color: '#CBD5E1', fontSize: 12, marginLeft: 6 },
-  mainContainer: { flex: 1, backgroundColor: '#0F172A' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
-  riderName: { fontSize: 20, fontWeight: '800', color: '#F8FAFC' },
+  demoPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3E1E28', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginTop: 20, alignSelf: 'center' },
+  demoPillText: { color: '#D8C9C0', fontSize: 12, marginLeft: 6 },
+  mainContainer: { flex: 1, backgroundColor: '#17090E' },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#26111A' },
+  riderName: { fontSize: 20, fontWeight: '800', color: '#FBF3EE' },
   shiftMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  statusText: { fontSize: 13, color: '#94A3B8', marginRight: 10 },
-  vehicleBadge: { backgroundColor: '#334155', color: '#38BDF8', fontSize: 11, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  statusText: { fontSize: 13, color: '#A8968E', marginRight: 10 },
+  vehicleBadge: { backgroundColor: '#3E1E28', color: '#38BDF8', fontSize: 11, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   shiftToggleBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  tabNav: { flexDirection: 'row', backgroundColor: '#1E293B', borderBottomWidth: 1, borderBottomColor: '#334155' },
+  tabNav: { flexDirection: 'row', backgroundColor: '#26111A', borderBottomWidth: 1, borderBottomColor: '#3E1E28' },
   tabItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 6 },
-  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#10B981' },
-  tabLabel: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
-  tabLabelActive: { color: '#10B981', fontWeight: '700' },
+  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#22C08A' },
+  tabLabel: { fontSize: 12, color: '#A8968E', fontWeight: '600' },
+  tabLabelActive: { color: '#22C08A', fontWeight: '700' },
   scrollArea: { flex: 1 },
   scrollContent: { padding: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#F8FAFC', marginBottom: 16 },
-  idleCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 36, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
-  idleTitle: { fontSize: 16, fontWeight: '700', color: '#F8FAFC', marginTop: 12 },
-  idleSubtitle: { fontSize: 13, color: '#94A3B8', marginTop: 4, textAlign: 'center' },
-  broadcastCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 20, borderWidth: 2, borderColor: '#10B981' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#FBF3EE', marginBottom: 16 },
+  idleCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 36, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
+  idleTitle: { fontSize: 16, fontWeight: '700', color: '#FBF3EE', marginTop: 12 },
+  idleSubtitle: { fontSize: 13, color: '#A8968E', marginTop: 4, textAlign: 'center' },
+  broadcastCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 20, borderWidth: 2, borderColor: '#22C08A' },
   broadcastTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  broadcastAlert: { fontSize: 12, color: '#10B981', fontWeight: '800', textTransform: 'uppercase' },
-  broadcastRestName: { fontSize: 18, fontWeight: '800', color: '#F8FAFC', marginTop: 2 },
+  broadcastAlert: { fontSize: 12, color: '#22C08A', fontWeight: '800', textTransform: 'uppercase' },
+  broadcastRestName: { fontSize: 18, fontWeight: '800', color: '#FBF3EE', marginTop: 2 },
   timerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#450A0A', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
-  timerText: { color: '#F87171', fontSize: 12, fontWeight: '700' },
-  broadcastDetailsRow: { flexDirection: 'row', backgroundColor: '#0F172A', padding: 14, borderRadius: 14, marginVertical: 14 },
+  timerText: { color: '#EC8080', fontSize: 12, fontWeight: '700' },
+  broadcastDetailsRow: { flexDirection: 'row', backgroundColor: '#17090E', padding: 14, borderRadius: 14, marginVertical: 14 },
   detailItem: { flex: 1, alignItems: 'center' },
-  detailLabel: { fontSize: 11, color: '#94A3B8' },
-  detailValue: { fontSize: 16, fontWeight: '800', color: '#F8FAFC', marginTop: 2 },
+  detailLabel: { fontSize: 11, color: '#A8968E' },
+  detailValue: { fontSize: 16, fontWeight: '800', color: '#FBF3EE', marginTop: 2 },
   broadcastActionRow: { flexDirection: 'row', gap: 12 },
-  declineBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#334155', borderRadius: 12 },
-  declineBtnText: { color: '#94A3B8', fontWeight: '700' },
-  acceptJobBtn: { flex: 2, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#10B981', borderRadius: 12 },
+  declineBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#3E1E28', borderRadius: 12 },
+  declineBtnText: { color: '#A8968E', fontWeight: '700' },
+  acceptJobBtn: { flex: 2, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#22C08A', borderRadius: 12 },
   acceptJobBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
-  activeTripCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#334155' },
+  activeTripCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#3E1E28' },
   tripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tripOrderNumber: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
-  tripRestName: { fontSize: 18, fontWeight: '800', color: '#F8FAFC' },
-  stagePill: { backgroundColor: '#064E3B', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  stagePillText: { color: '#34D399', fontSize: 11, fontWeight: '700' },
-  routeBox: { backgroundColor: '#0F172A', borderRadius: 14, padding: 14, marginVertical: 14 },
+  tripOrderNumber: { fontSize: 14, color: '#A8968E', fontWeight: '600' },
+  tripRestName: { fontSize: 18, fontWeight: '800', color: '#FBF3EE' },
+  stagePill: { backgroundColor: '#0A3D2E', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  stagePillText: { color: '#4ADFA8', fontSize: 11, fontWeight: '700' },
+  routeBox: { backgroundColor: '#17090E', borderRadius: 14, padding: 14, marginVertical: 14 },
   routeStep: { flexDirection: 'row', alignItems: 'flex-start' },
-  routeDivider: { height: 16, width: 1, backgroundColor: '#334155', marginLeft: 8, marginVertical: 4 },
-  stepLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
-  stepAddress: { fontSize: 13, color: '#F8FAFC', fontWeight: '600', marginTop: 1 },
-  mapSimContainer: { backgroundColor: '#064E3B', padding: 14, borderRadius: 14, alignItems: 'center', marginBottom: 14 },
-  mapSimText: { color: '#34D399', fontSize: 13, fontWeight: '700', marginTop: 4 },
+  routeDivider: { height: 16, width: 1, backgroundColor: '#3E1E28', marginLeft: 8, marginVertical: 4 },
+  stepLabel: { fontSize: 11, color: '#8A7A72', fontWeight: '600' },
+  stepAddress: { fontSize: 13, color: '#FBF3EE', fontWeight: '600', marginTop: 1 },
+  mapSimContainer: { backgroundColor: '#0A3D2E', padding: 14, borderRadius: 14, alignItems: 'center', marginBottom: 14 },
+  mapSimText: { color: '#4ADFA8', fontSize: 13, fontWeight: '700', marginTop: 4 },
   telemetryText: { color: '#A7F3D0', fontSize: 11, marginTop: 2 },
-  primaryActionBtn: { backgroundColor: '#10B981', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  primaryActionBtn: { backgroundColor: '#22C08A', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   primaryActionText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  handshakeBox: { backgroundColor: '#0F172A', padding: 16, borderRadius: 16 },
-  handshakeTitle: { fontSize: 15, fontWeight: '800', color: '#F8FAFC' },
-  handshakeSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 2, marginBottom: 12 },
-  pickupCodeInput: { backgroundColor: '#1E293B', height: 48, borderRadius: 12, paddingHorizontal: 14, color: '#FFFFFF', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#334155', marginBottom: 12 },
+  handshakeBox: { backgroundColor: '#17090E', padding: 16, borderRadius: 16 },
+  handshakeTitle: { fontSize: 15, fontWeight: '800', color: '#FBF3EE' },
+  handshakeSubtitle: { fontSize: 12, color: '#A8968E', marginTop: 2, marginBottom: 12 },
+  pickupCodeInput: { backgroundColor: '#26111A', height: 48, borderRadius: 12, paddingHorizontal: 14, color: '#FFFFFF', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#3E1E28', marginBottom: 12 },
   codAlertBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#451A03', padding: 10, borderRadius: 10, gap: 6, marginBottom: 12 },
   codAlertText: { color: '#FBBF24', fontSize: 12, fontWeight: '700' },
-  completeBtn: { flexDirection: 'row', backgroundColor: '#10B981', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 6 },
-  walletCard: { backgroundColor: '#1E293B', padding: 22, borderRadius: 20, borderWidth: 1, borderColor: '#334155', marginBottom: 16 },
-  walletLabel: { fontSize: 13, color: '#94A3B8', fontWeight: '600' },
-  walletBalance: { fontSize: 32, fontWeight: '800', color: '#10B981', marginVertical: 6 },
-  walletSub: { fontSize: 12, color: '#64748B' },
+  completeBtn: { flexDirection: 'row', backgroundColor: '#22C08A', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 6 },
+  walletCard: { backgroundColor: '#26111A', padding: 22, borderRadius: 20, borderWidth: 1, borderColor: '#3E1E28', marginBottom: 16 },
+  walletLabel: { fontSize: 13, color: '#A8968E', fontWeight: '600' },
+  walletBalance: { fontSize: 32, fontWeight: '800', color: '#22C08A', marginVertical: 6 },
+  walletSub: { fontSize: 12, color: '#8A7A72' },
   earningsGrid: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: '#1E293B', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
-  statNum: { fontSize: 18, fontWeight: '800', color: '#F8FAFC' },
-  statLbl: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
-  kycActiveCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#064E3B', padding: 16, borderRadius: 16, marginBottom: 16 },
-  kycActiveTitle: { fontSize: 15, fontWeight: '800', color: '#34D399' },
+  statCard: { flex: 1, backgroundColor: '#26111A', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
+  statNum: { fontSize: 18, fontWeight: '800', color: '#FBF3EE' },
+  statLbl: { fontSize: 11, color: '#A8968E', marginTop: 4 },
+  kycActiveCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0A3D2E', padding: 16, borderRadius: 16, marginBottom: 16 },
+  kycActiveTitle: { fontSize: 15, fontWeight: '800', color: '#4ADFA8' },
   kycActiveDesc: { fontSize: 12, color: '#A7F3D0', marginTop: 2 },
-  docCard: { backgroundColor: '#1E293B', padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#334155' },
-  docTitle: { fontSize: 14, fontWeight: '700', color: '#F8FAFC' },
-  docDesc: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-  docStatusBadge: { alignSelf: 'flex-start', backgroundColor: '#064E3B', color: '#34D399', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 8 }
+  docCard: { backgroundColor: '#26111A', padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#3E1E28' },
+  docTitle: { fontSize: 14, fontWeight: '700', color: '#FBF3EE' },
+  docDesc: { fontSize: 12, color: '#A8968E', marginTop: 2 },
+  docStatusBadge: { alignSelf: 'flex-start', backgroundColor: '#0A3D2E', color: '#4ADFA8', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 8 }
 });

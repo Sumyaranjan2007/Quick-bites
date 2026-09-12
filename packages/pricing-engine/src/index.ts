@@ -1,5 +1,5 @@
 /**
- * Quick Bite - Core Pricing & Tax Calculation Engine
+ * Quick Bites - Core Pricing & Tax Calculation Engine
  * Version 1.0.0
  * Strictly enforces Indian GST, packaging, delivery, and commission rules.
  */

@@ -1,14 +1,15 @@
 {
   "expo": {
-    "name": "Quick Bite Partner",
+    "name": "Quick Bites Partner",
     "slug": "quick-bite-partner",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbitepartner",
     "splash": {
-      "backgroundColor": "#0F172A",
-      "resizeMode": "contain"
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,9 +19,11 @@
       "package": "com.quickbite.partner",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#0F172A"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
-    "newArchEnabled": false
+    "newArchEnabled": false,
+    "icon": "./assets/icon.png"
   }
 }

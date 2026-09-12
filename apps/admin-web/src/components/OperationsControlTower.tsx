@@ -46,14 +46,10 @@ export const OperationsControlTower: React.FC = () => {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+      <div className="page-head">
         <div>
-          <h2 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 'var(--font-weight-bold)' }}>
-            {t('admin.controlTowerHeading')}
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            {t('admin.controlTowerDescription')}
-          </p>
+          <h2 className="page-title">{t('admin.controlTowerHeading')}</h2>
+          <p className="page-subtitle">{t('admin.controlTowerDescription')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} isLoading={isRefreshing} leftIcon={<RefreshCw size={16} />}>
           {t('admin.refreshMetrics')}
@@ -62,7 +58,7 @@ export const OperationsControlTower: React.FC = () => {
 
       <StateView state={uiState} onRetry={() => setUiState('success')}>
         {/* Core KPI Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid-auto" style={{ marginBottom: 'var(--space-6)' }}>
           <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
               <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', fontWeight: 'var(--font-weight-bold)' }}>
