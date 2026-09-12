@@ -10,13 +10,14 @@
     "ios": "expo run:ios"
   },
   "dependencies": {
-    "@quick-bites/shared-types": "*",
-    "@quick-bites/pricing-engine": "*",
     "@quick-bites/design-system": "*",
+    "@quick-bites/pricing-engine": "*",
+    "@quick-bites/shared-types": "*",
     "expo": "~52.0.0",
+    "lucide-react-native": "^0.441.0",
     "react": "18.3.1",
     "react-native": "0.76.0",
-    "lucide-react-native": "^0.441.0"
+    "react-native-svg": "15.8.0"
   },
   "devDependencies": {
     "@types/react": "~18.3.12",
