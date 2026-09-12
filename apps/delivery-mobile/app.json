@@ -105,11 +105,21 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA"
+      ],
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "newArchEnabled": false,
     "icon": "./assets/icon.png",
     "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Quick Bites uses your location while you are on a delivery so the customer can see your approach and reach you if needed."
+        }
+      ],
       [
         "expo-build-properties",
         {

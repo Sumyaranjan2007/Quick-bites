@@ -174,6 +174,8 @@ export const orderService = {
       deliveryAddressText: [address.addressLine, address.landmark, address.city, address.pincode]
         .filter(Boolean)
         .join(', '),
+      // Carried onto the order so live tracking has a destination to measure against.
+      deliveryCoordinates: address.coordinates,
       status: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'ORDER_PLACED' : 'PAYMENT_PENDING',
       paymentStatus: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'PENDING' : 'PENDING',
       paymentMethod: input.paymentMethod,

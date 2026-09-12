@@ -9,6 +9,7 @@ import {
 import { tokens } from '../theme/tokens';
 import { Bike, Phone, ArrowLeft, Check } from 'lucide-react-native';
 import { Card } from '../components/ui';
+import { LiveRiderMap } from '../components/LiveRiderMap';
 import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
@@ -46,6 +47,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [order, setOrder] = useState<any | null>(null);
+  const [tracking, setTracking] = useState<any | null>(null);
 
   // Poll the real order so the tracker reflects what the kitchen and rider actually did
   useEffect(() => {
@@ -61,6 +63,14 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         if (!cancelled && data.success && data.data?.order) {
           setOrder(data.data.order);
           setCurrentStep(STATUS_STEP_INDEX[data.data.order.status] ?? 0);
+        }
+
+        // Rider position lives on a separate endpoint so the customer never
+        // needs the full order record, which carries the delivery OTP.
+        const trackRes = await apiFetch(`${apiUrl}/orders/${orderId}/tracking`, { headers });
+        const trackData = await trackRes.json();
+        if (!cancelled && trackData.success) {
+          setTracking(trackData.data);
         }
       } catch {
         // Keep showing the last known state; the next poll may succeed.
@@ -151,6 +161,19 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           <Text style={styles.otpValue}>{otp.split('').join('  ')}</Text>
           <Text style={styles.otpHint}>Share only when your order is handed over</Text>
         </View>
+      )}
+
+      {/* Live rider position */}
+      {riderName && (
+        <Card style={styles.block}>
+          <Text style={styles.blockTitle}>Live location</Text>
+          <LiveRiderMap
+            rider={tracking?.riderCoordinates ?? null}
+            destination={tracking?.destinationCoordinates ?? null}
+            updatedAt={tracking?.riderLocationUpdatedAt}
+            riderName={tracking?.riderName}
+          />
+        </Card>
       )}
 
       {/* Rider */}

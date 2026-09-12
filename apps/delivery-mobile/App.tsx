@@ -12,6 +12,7 @@ import {
   Alert
 } from 'react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import * as Location from 'expo-location';
 import {
   Bike,
   Navigation,
@@ -64,28 +65,50 @@ function DeliveryApp() {
   const [otpInput, setOtpInput] = useState('');
   const [pickupCodeInput, setPickupCodeInput] = useState('');
   const [telemetryCount, setTelemetryCount] = useState(0);
+  const [locationDenied, setLocationDenied] = useState(false);
 
-  // Background 3-second telemetry streaming
+  // Stream the rider's real device position while a delivery is underway.
+  // This previously posted randomised coordinates around a fixed point, so the
+  // customer's tracker would have shown a rider who was never actually moving.
   useEffect(() => {
-    let timer: any;
-    if (activeTrip && tripStage === 'OUT_FOR_DELIVERY') {
-      timer = setInterval(() => {
-        setTelemetryCount(prev => prev + 1);
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-        apiFetch(`${apiUrl}/riders/telemetry`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            orderId: activeTrip.id,
-            lat: 12.9716 + (Math.random() - 0.5) * 0.002,
-            lng: 77.6412 + (Math.random() - 0.5) * 0.002,
-            bearing: Math.floor(Math.random() * 360)
-          })
-        }).catch(() => {});
-      }, 3000);
-    }
-    return () => clearInterval(timer);
+    if (!(activeTrip && tripStage === 'OUT_FOR_DELIVERY')) return;
+
+    let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
+    const send = (coords: Location.LocationObjectCoords) => {
+      setTelemetryCount(prev => prev + 1);
+      apiFetch(`${apiUrl}/riders/telemetry`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          orderId: activeTrip.id,
+          lat: coords.latitude,
+          lng: coords.longitude,
+          bearing: coords.heading && coords.heading >= 0 ? Math.round(coords.heading) : 0
+        })
+      }).catch(() => {});
+    };
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+      if (status !== 'granted') {
+        setLocationDenied(true);
+        return;
+      }
+      setLocationDenied(false);
+
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+        loc => send(loc.coords)
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
   }, [activeTrip, tripStage, apiUrl, authToken]);
 
   const authHeaders = (token?: string): Record<string, string> => {
@@ -437,12 +460,19 @@ function DeliveryApp() {
                 <View style={styles.mapSimContainer}>
                   <Navigation size={24} color="#22C08A" />
                   <Text style={styles.mapSimText}>
-                    OSRM Turn-by-Turn Navigation Active ({activeTrip.distanceKm} km)
+                    Navigating to the drop ({activeTrip.distanceKm} km)
                   </Text>
                   {tripStage === 'OUT_FOR_DELIVERY' && (
-                    <Text style={styles.telemetryText}>
-                      Live 3s GPS Streamer Emitting ({telemetryCount} pings sent)
-                    </Text>
+                    locationDenied ? (
+                      <Text style={styles.telemetryWarn}>
+                        Location permission denied — the customer cannot see where you are.
+                        Enable location access for Quick Bites Rider in Settings.
+                      </Text>
+                    ) : (
+                      <Text style={styles.telemetryText}>
+                        Sharing live location with the customer ({telemetryCount} updates sent)
+                      </Text>
+                    )
                   )}
                 </View>
 
@@ -710,6 +740,14 @@ const styles = StyleSheet.create({
   stepAddress: { fontSize: 13, color: '#FBF3EE', fontWeight: '600', marginTop: 1 },
   mapSimContainer: { backgroundColor: '#0A3D2E', padding: 14, borderRadius: 14, alignItems: 'center', marginBottom: 14 },
   mapSimText: { color: '#4ADFA8', fontSize: 13, fontWeight: '700', marginTop: 4 },
+  telemetryWarn: {
+    fontSize: 12,
+    color: '#F0A6A6',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 17,
+    fontWeight: '600'
+  },
   telemetryText: { color: '#A7F3D0', fontSize: 11, marginTop: 2 },
   primaryActionBtn: { backgroundColor: '#22C08A', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   primaryActionText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
