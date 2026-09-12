@@ -78,3 +78,8 @@ export async function addMenuItem(
   });
   return res.json();
 }
+
+/** The socket server lives at the origin; API_BASE carries an /api suffix. */
+export function socketOrigin(): string {
+  return API_BASE.replace(/\/api(\/v1)?\/?$/, '');
+}

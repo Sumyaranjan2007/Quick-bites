@@ -10,6 +10,7 @@ import { tokens } from '../theme/tokens';
 import { Bike, Phone, ArrowLeft, Check } from 'lucide-react-native';
 import { Card } from '../components/ui';
 import { LiveRiderMap } from '../components/LiveRiderMap';
+import { useOrderSocket } from '../lib/useOrderSocket';
 import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
@@ -49,6 +50,19 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   const [order, setOrder] = useState<any | null>(null);
   const [tracking, setTracking] = useState<any | null>(null);
 
+  // Push updates arrive instantly; the poll below is only a fallback for
+  // networks where websockets are blocked.
+  const { connected: liveConnected } = useOrderSocket(orderId, apiUrl, token, {
+    onStatus: u => setCurrentStep(STATUS_STEP_INDEX[u.status] ?? 0),
+    onRiderLocation: l =>
+      setTracking((prev: any) => ({
+        ...(prev ?? {}),
+        riderCoordinates: { latitude: l.lat, longitude: l.lng },
+        riderBearing: l.bearing ?? 0,
+        riderLocationUpdatedAt: l.updatedAt
+      }))
+  });
+
   // Poll the real order so the tracker reflects what the kitchen and rider actually did
   useEffect(() => {
     if (!orderId || !apiUrl) return;
@@ -78,12 +92,13 @@ export const OrderTrackingScreen: React.FC<Props> = ({
     };
 
     poll();
-    const interval = setInterval(poll, 5000);
+    // 5s while polling is the only channel; 20s once push is connected.
+    const interval = setInterval(poll, liveConnected ? 20000 : 5000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [orderId, apiUrl, token]);
+  }, [orderId, apiUrl, token, liveConnected]);
 
   const restaurantName = order?.restaurantName || 'the restaurant';
   const riderName = order?.riderName;
@@ -110,8 +125,10 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>
         <View style={styles.liveTag}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText}>LIVE TRACKING</Text>
+          <View style={[styles.liveDot, !liveConnected && { backgroundColor: c.text.muted }]} />
+          <Text style={[styles.liveText, !liveConnected && { color: c.text.muted }]}>
+            {liveConnected ? 'LIVE TRACKING' : 'RECONNECTING'}
+          </Text>
         </View>
       </View>
 

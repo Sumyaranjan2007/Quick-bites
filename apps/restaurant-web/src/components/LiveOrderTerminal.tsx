@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Button,
   Badge,
@@ -7,7 +7,11 @@ import {
   ComponentState
 } from '@quick-bites/design-system';
 import { Bell, Clock, CheckCircle2, PackageCheck, Bike, RefreshCw } from 'lucide-react';
-import { fetchRestaurantOrders, updateOrderStatus } from '../api';
+import { fetchRestaurantOrders, updateOrderStatus, getPartnerToken, socketOrigin } from '../api';
+import { io, Socket } from 'socket.io-client';
+
+/** The signed-in partner's restaurant. */
+const RESTAURANT_ID = 'rst_bbh_01';
 
 interface TerminalOrder {
   id: string;
@@ -49,11 +53,13 @@ export const LiveOrderTerminal: React.FC = () => {
   const [lastChimeTime, setLastChimeTime] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
 
   const loadLiveOrders = async () => {
     setIsLoading(true);
     try {
-      const res = await fetchRestaurantOrders('rst_bbh_01');
+      const res = await fetchRestaurantOrders(RESTAURANT_ID);
       if (res.success && Array.isArray(res.data?.orders)) {
         setOrders(
           res.data.orders
@@ -74,6 +80,47 @@ export const LiveOrderTerminal: React.FC = () => {
 
   useEffect(() => {
     loadLiveOrders();
+  }, []);
+
+  // The kitchen should hear about an order the moment it is placed. The backend
+  // has always emitted order:created to the restaurant room; nothing listened,
+  // so staff only saw new tickets when they pressed Sync.
+  useEffect(() => {
+    let socket: Socket | null = null;
+    let cancelled = false;
+
+    (async () => {
+      const token = await getPartnerToken();
+      if (cancelled) return;
+
+      socket = io(socketOrigin(), {
+        transports: ['websocket', 'polling'],
+        auth: token ? { token } : undefined
+      });
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        setLiveConnected(true);
+        socket?.emit('join:restaurant', { restaurantId: RESTAURANT_ID });
+      });
+      socket.on('disconnect', () => setLiveConnected(false));
+      socket.on('connect_error', () => setLiveConnected(false));
+
+      socket.on('order:created', () => {
+        playKitchenChime();
+        loadLiveOrders();
+      });
+      socket.on('order:status_update', () => loadLiveOrders());
+      socket.on('menu:updated', () => loadLiveOrders());
+    })();
+
+    return () => {
+      cancelled = true;
+      socket?.emit('leave:restaurant', { restaurantId: RESTAURANT_ID });
+      socket?.removeAllListeners();
+      socket?.disconnect();
+      socketRef.current = null;
+    };
   }, []);
 
   // Kitchen Chime Generator using standard Web Audio API
@@ -146,7 +193,10 @@ export const LiveOrderTerminal: React.FC = () => {
           <Button variant="outline" size="sm" onClick={playKitchenChime} leftIcon={<Bell size={16} />}>
             Test Kitchen Chime {lastChimeTime ? `(${lastChimeTime})` : ''}
           </Button>
-          <Badge variant="status-active" label="KITCHEN ACCEPTING ORDERS" />
+          <Badge
+            variant={liveConnected ? 'status-active' : 'status-pending'}
+            label={liveConnected ? 'LIVE — ACCEPTING ORDERS' : 'RECONNECTING…'}
+          />
         </div>
       </div>
 
