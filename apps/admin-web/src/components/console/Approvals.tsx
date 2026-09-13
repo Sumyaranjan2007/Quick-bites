@@ -216,9 +216,9 @@ export const DocumentReview: React.FC = () => {
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
 
-  const decide = async (documentId: string, decision: 'APPROVED' | 'REJECTED') => {
+  const decide = async (documentId: string, decision: 'APPROVE' | 'REJECT') => {
     let rejectionReason: string | undefined;
-    if (decision === 'REJECTED') {
+    if (decision === 'REJECT') {
       const entered = window.prompt('Why is this being rejected? The partner sees this.');
       if (!entered || entered.trim().length < 4) return;
       rejectionReason = entered.trim();
@@ -227,9 +227,10 @@ export const DocumentReview: React.FC = () => {
     setBusyId(documentId);
     setActionError(null);
     try {
+      // The server takes `action`, not a status — verified against the handler.
       await adminSend('/admin/documents/review', 'POST', {
         documentId,
-        status: decision,
+        action: decision,
         rejectionReason
       });
       reload();
@@ -313,14 +314,14 @@ export const DocumentReview: React.FC = () => {
                   <button
                     className="btn btn-ghost"
                     disabled={busyId === d.id}
-                    onClick={() => decide(d.id, 'REJECTED')}
+                    onClick={() => decide(d.id, 'REJECT')}
                   >
                     Reject
                   </button>
                   <button
                     className="btn btn-primary"
                     disabled={busyId === d.id}
-                    onClick={() => decide(d.id, 'APPROVED')}
+                    onClick={() => decide(d.id, 'APPROVE')}
                   >
                     {busyId === d.id ? 'Saving…' : 'Approve'}
                   </button>
