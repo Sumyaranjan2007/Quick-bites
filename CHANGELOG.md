@@ -601,20 +601,213 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-13 18:37] -- Claude Opus 5 -- Session 20 (Release Artifacts Catch-Up)
+**Feature/Issue:** The published APK predated two sessions of work, so the download link did not contain the security audit or the live-tracking fixes.
+**Status:** Completed
+**Chunks Modified:** 05-08 (mobile apps), build artifacts
+
+**Frontend changes:** None to source in `e972511`. In `d481c58`, the partner, rider and admin sign-in screens stopped using the real demo password as the password field's placeholder — the demo pill above it was already behind `__DEV__` and stripped from release builds, but these placeholder hints were not, so a release build printed a working staff credential on screen. The admin one opens KYC approvals and refunds.
+**Backend/API/database changes:** None.
+**Build/APK changes:**
+- `e972511` rebuilt the customer APK carrying crash recovery, network timeouts, live rider tracking, real-time order updates and the security fixes. It replaced the previous binary rather than sitting alongside it, so the stale build could not be shared by mistake. SHA-256 `c0f560062cf88b560e630bcb9ee9bd3bda06fa12ebd11f82b3ff11a4ed3d0c9d`.
+- `d481c58` shipped all four apps at 1.1.0 / versionCode 3. The partner app was still at versionCode 2, which would have made the set refuse to install over one another.
+- APK size: the builds carried x86 and x86_64 native libraries — 24 MB of a 51 MB download that no shipping Android phone can execute. `gradle.properties` already limited `reactNativeArchitectures`, but that governs only what React Native itself compiles; prebuilt `.so` files inside Hermes, the Expo modules and `react-native-svg` ship every ABI and were packaged anyway. A new config plugin applies `ndk.abiFilters`, taking each app to 26 MB.
+
+**Files/modules affected:**
+- Created: `packages/config/expo-plugins/withArmOnlyAbis.js`
+- Modified: `apps/{admin,delivery,restaurant}-mobile/App.tsx`, `apps/{customer,restaurant,delivery,admin}-mobile/app.json`, `STORE_RELEASE.md`
+- Rebuilt: `build/apk/QuickBites-{Customer,Partner,Rider,Admin}.apk`
+
+**Testing performed:** Verified on every APK — signed with its own upload key (OU=customer/partner/rider/admin, not the debug key), `c61fbc03` Hermes bytecode, 38 RNSVG classes, zero occurrences of the demo password, exactly `armeabi-v7a` + `arm64-v8a`. Result: pass.
+
+**Known issues / pending work:**
+- **The ABI filter is opt-in behind `-PqbPhoneAbisOnly`, deliberately, and this is a decision a future session must not "simplify".** `abiFilters` in `defaultConfig` applies to `bundleRelease` too, and an App Bundle must keep every ABI: Play serves each device its own slice, so dropping x86_64 saves users nothing and silently removes Chromebooks, x86 tablets and Windows Subsystem for Android from the listing. `splits.abi` would be ignored for a bundle; `abiFilters` is not, which is why it has to be conditional. Forgetting the flag yields a fat APK, which is merely wasteful; making it unconditional yields an ARM-only listing, which is invisible until someone cannot install it.
+
+---
+
+## [2026-09-13 20:38] -- Claude Opus 5 -- Session 21 (Postgres Persistence)
+**Feature/Issue:** Orders were lost on every redeploy. This had been the standing "NEXT AI SHOULD" item since Session 18.
+**Status:** Completed
+**Chunks Modified:** 02 (backend)
+
+**Frontend changes:** None.
+**Backend/API/database changes:**
+- Added a Postgres-backed document store (`postgresStore.ts`). Documents are stored whole rather than mapped onto relational tables: the data is document-shaped already — an order carries its items, bill and status history — every query is an id lookup or a scan the size of one restaurant's catalogue, and a single representation avoids a translation layer that could drift from the types the rest of the codebase compiles against.
+- A save writes only documents whose serialisation changed, in one transaction, rather than rewriting the whole store on every mutation. Saves are serialised, so a slow write cannot overlap the next. `SIGTERM` flushes before closing, because a debounced write may still be pending and the platform sends `SIGTERM` on every redeploy.
+- **A database that cannot be reached fails the boot, by design.** Falling back to the file would come up looking healthy while writing orders somewhere they get thrown away — which is the bug this change exists to remove.
+- `87614bb` then fixed two defects in that store. **Deletions never happened:** the bookkeeping key joined collection and id with a separator that was written to disk as a NUL byte, while the deletion path split the key on a space, so the split never matched, the `DELETE` ran with an undefined id, and removed documents stayed in the table. Nothing failed — the transaction committed, the in-memory bookkeeping updated, and the row came back on the next boot. The bookkeeping is now nested by collection instead of keyed by a joined string, so there is no key to parse apart and no way for this class of bug to recur.
+- `87614bb` also stopped boot giving up on the first refused connection. A container routinely starts before its database accepts connections, especially on the first deploy after one is linked; failing immediately would crash-loop the service and present as a 502, indistinguishable from a real outage. Five attempts with backoff.
+- `1002308` fixed sign-in comparing email addresses case-insensitively but **not** whitespace-insensitively, so `"partner@quickbite.app "` — one trailing space — failed with "Invalid credentials or account does not have access permissions". Phone keyboards append that space routinely after an email autocomplete, and the message sent the user hunting for a wrong password they had typed correctly. Lookups now trim as well as lowercase, and registration stores the normalised address so a record cannot be created that is unreachable by the same text typed back in. Passwords are deliberately left untouched: a space there can be intentional.
+
+**Files/modules affected:**
+- Created: `apps/backend-api/src/db/postgresStore.ts`
+- Modified: `apps/backend-api/src/db/client.ts`, `apps/backend-api/src/server.ts`, `apps/backend-api/src/db/repositories/userRepository.ts`, `apps/backend-api/src/routes/authRouter.ts`, `apps/backend-api/package.json`, `DOWNLOAD.md`
+
+**Testing performed:** Verified against a real Postgres — placed an order, killed the process, deleted the local snapshot, started a fresh one; the order was still there, and a full customer/kitchen/rider journey then ran end to end against it. Deleting an address was confirmed to remove it and keep it gone across a restart. Result: pass.
+
+**Known issues / pending work:**
+- `f8cfd54` corrected `DOWNLOAD.md`: `pass123` is local-only. The hosted deployment seeds a password supplied out of band, because a password written into a public repository would be an open admin login.
+
+---
+
+## [2026-09-14 00:11] -- Claude Opus 5 -- Session 22 (Launch Crash: Duplicate react-native-svg)
+**Feature/Issue:** All four apps died before drawing anything, on every device: `Invariant Violation: Tried to register two views with the same name RNSVGCircle`.
+**Status:** Completed
+**Chunks Modified:** 05-08 (all four mobile apps), root workspace
+
+**Frontend changes:** No screen code changed; this was a dependency-resolution fault.
+**Backend/API/database changes:** None.
+**Root cause:** `lucide-react-native`, which supplies the icons in all four apps, declares a peer dependency on `react-native-svg ^15.0.0`. npm satisfied it by installing 15.15.5 at the workspace root, alongside the 15.8.0 each app pins — the version Expo SDK 52 expects. Both copies reached the bundle and each registered the same native view managers, which React Native treats as fatal.
+**Fix:** `react-native-svg` 15.8.0 is now declared at the workspace root so hoisting resolves a single version that also satisfies lucide's peer range, with an override to keep it there. Autolinking follows it to the root, which is why the generated autolinking caches had to be discarded — they still pointed at the per-app copies that no longer exist. Also aligned `react-native` with the version Expo SDK 52 expects (0.76.0 -> 0.76.9) and moved the Kotlin pin with it (1.9.24 -> 1.9.25), since `expo-modules-core` maps Kotlin 1.9.25 to Compose compiler 1.5.15 and the old pin no longer compiled. That alignment was not the cause of the crash but was a real mismatch found on the way.
+
+**Files/modules affected:** `package.json`, `package-lock.json`, `apps/{customer,restaurant,delivery,admin}-mobile/{package.json,app.json}`, `build/apk/QuickBites-*.apk`
+
+**Build/APK changes:** Shipping artifacts rebuilt ARM-only at **1.1.1 / versionCode 4**, signed with their own upload keys, Hermes bytecode, no credentials in the bundles.
+
+**Testing performed:** Verified by running them. An Android emulator was set up for this, all four apps were built with x86_64 native code so they could be installed on it, and each was launched and confirmed to reach its first screen rather than crash. Result: pass, all four.
+
+**Known issues / pending work:**
+- **Decision for every future session: static checking cannot catch this class of bug.** Imports, icon names, native libraries, entry classes and app config all passed — the two copies only collide at startup. Launch the apps before declaring a mobile build good.
+
+---
+
+## [2026-09-14 01:30] -- Claude Opus 5 -- Session 23 (Customer App: Ratings, Chat, History, Support)
+**Feature/Issue:** The customer app's remaining gaps — an order could not be rated, customer and rider had no way to talk, a profile could be read but never changed, tracking never ended, and several controls were decorative.
+**Status:** Completed
+**Chunks Modified:** 02 (backend), 05 (customer mobile)
+
+**Backend/API/database changes (`199ba6d`):**
+- `POST /orders/:id/rating` — customer-only, delivered-only, once. Rating an order that has not arrived would be rating something that has not happened, and re-rating would let one customer move a restaurant's average at will. The score folds into the restaurant's running average rather than being stored twice.
+- `GET`/`POST /orders/:id/messages` — scoped to one order and pushed over the existing order room. The thread closes when the order does: a delivered order should not stay an open channel between a customer and a stranger who once brought them food. Reading is limited to the people on the order.
+- `PATCH /auth/me` for name, phone and language **only**. Email is the login and role is not the user's to set — the same mistake registration used to make by trusting `role` from the request body.
+- Fixed a latent identity bug found while testing the chat: `order.riderId` holds the rider **record** id, not the user id, so comparing it to `req.user.id` never matches. The tracking endpoint had the same comparison and only ever passed by falling through to its staff clause.
+
+**Frontend changes (`87b50e2`, `6f0bcc8`):**
+- **Tracking now ends.** Delivered is read from the order's status rather than a display step index, and everything that only makes sense mid-delivery disappears with it — the doorstep OTP (a spent code is useless and confusing to keep showing), the live map, and the call and chat controls. In their place, a completion card and a rating.
+- Call actually dials via `tel:` with a readable fallback; chat opens the order thread live over the existing socket room, read-only once the order closes; the bill can be covered with one tap (shown by default, since bills get read at doorsteps and on buses); the ETA moves with the order instead of sitting at a constant "~25 min".
+- **Profile** rebuilt around what a person is trying to do — activity, account, preferences, then help — instead of one flat list. There is deliberately **no delete-account control**: deletion is handled through customer care, which keeps a route to deletion available without putting an irreversible action one tap from a wallet balance. This is what keeps the app compliant with Play's deletion requirement now the button is gone.
+- **Order history**, with live orders openable straight back into tracking and completed ones showing what was paid and whether it was rated. Amounts can be covered for the whole list at once.
+- **Customer care**, where every route opens something the phone can complete — a dialler, a mail composer, WhatsApp — rather than a form posting into a queue nobody watches.
+- **Language that actually changes the interface.** The picker used to set a value nothing read, so choosing Kannada highlighted a chip and nothing else. Strings now live in one place and screens read them through `t()`. Kannada leads the translations because the service area is Harohalli, in Karnataka. The choice is saved to the account, so it follows the customer to a new phone.
+- **Notifications:** a bell with unread history and a generated chime, driven by the order socket the app is already connected to, fired wherever the customer is rather than only on the tracking screen. In-app rather than push, which is the honest description — push would need a Firebase project and would reach a closed app. The sound is loaded once and replayed, because a `Sound` per event leaks handles on Android until it stops playing at all.
+- **Voice search:** the microphone was an icon with no handler. It now drives the device recogniser in the interface language, streams partial results, and ends every failure — permission, no recogniser, no network — in a sentence saying what happened instead of a spinner that never resolves.
+- **Location:** addresses saved from the app carried no coordinates, so an order made to one had no destination — which is why the live map sat on "waiting for the delivery address position" however well the rider's GPS worked. Checkout can now pin the real spot, with permission asked at the moment it is wanted.
+- Sign-up now shows the server's field-level reason under the field it names. "Password must be at least 8 characters" is what the server had been saying all along; the app was replacing it with "Request payload validation failed".
+
+**Two rendering bugs fixed:** the map's placeholder was 92px against a 190px map, so the page grew by ~100px the moment a rider position arrived and the list jumped under the reader's thumb (the unexplained scroll-to-top). And a rider ping can arrive over the socket before the first tracking fetch returns; the merge then produced a rider with no destination, leaving the map stuck on "waiting for the delivery address" even though the order had carried that address all along. It now falls back to the order's own coordinates.
+
+**Files/modules affected:**
+- Created (backend): `apps/backend-api/src/db/repositories/messageRepository.ts`
+- Modified (backend): `client.ts`, `orderRepository.ts`, `restaurantRepository.ts`, `userRepository.ts`, `authRouter.ts`, `orderRouter.ts`, `socketServer.ts`, `test/pipeline.test.ts`
+- Created (customer): `components/{NotificationBell,VoiceSearchSheet,OrderChat,RatingSheet}.tsx`, `lib/{i18n.tsx,useDeviceLocation.ts,useNotifications.tsx,apiErrors.ts,useOrderChat.ts}`, `screens/{OrderHistoryScreen,SupportScreen}.tsx`, `assets/notification.wav`
+- Modified (customer): `App.tsx`, `app.json`, `package.json`, `components/LiveRiderMap.tsx`, `screens/{CartAndCheckout,DiscoveryFeed,Profile,OrderTracking,Login}Screen.tsx`
+- Modified (shared): `packages/shared-types/src/index.ts`
+
+**Testing performed:** Pipeline test extended to **43 checks**, including that someone outside an order cannot read its chat, that a delivered order cannot be rated twice, and that the thread goes read-only on delivery. Result: pass.
+
+**Build/APK changes:** None in these commits — the published APKs are still the 1.1.1 / versionCode 4 set from Session 22 and **do not contain any of this session's customer-app work**.
+
+---
+
+## [2026-09-14] -- UNCOMMITTED WORK IN TREE -- Read this before you touch these files
+**Status:** In Progress (not this session's work; belongs to a parallel session)
+**Feature/Issue:** A large admin/rider/restaurant build-out is sitting uncommitted in the shared checkout.
+
+This is recorded here because it is exactly the information a fresh session cannot recover from `git log`, and because this project has already broken once (`1fcb853`, Session 18) when one session committed against another's half-finished files and the pushed tree stopped compiling.
+
+**Backend/API/database, untracked:**
+- `apps/backend-api/src/db/repositories/` — `adminRoleRepository.ts`, `auditRepository.ts`, `categoryRepository.ts`, `couponRepository.ts`, `menuRequestRepository.ts`, `payoutRepository.ts`, `refundRepository.ts`, `supportRepository.ts`
+- `apps/backend-api/src/modules/admin/` — `analytics.ts`, `audit.ts`, `permissions.ts`
+- `apps/backend-api/src/modules/restaurants/restaurantInsights.ts`
+- `apps/backend-api/src/modules/riders/` — `riderMetrics.ts`, `riderPolicies.ts`
+- `apps/backend-api/src/routes/admin/` — `dashboardRoutes.ts`, `orderRoutes.ts`, `peopleRoutes.ts`, `shared.ts`
+- `apps/backend-api/src/middlewares/adminAccess.ts`, `apps/backend-api/src/db/seedAssets.ts`
+
+**Backend, modified but uncommitted:** `db/client.ts`, `db/seed.ts`, `db/repositories/{order,restaurant,rider}Repository.ts`, `modules/orders/orderService.ts`, `routes/{admin,order,restaurant,rider}Router.ts`, `sockets/socketServer.ts`, `test/pipeline.test.ts`
+
+**Frontend, untracked (rider app):** `apps/delivery-mobile/src/screens/` — `DashboardScreen.tsx`, `EarningsScreen.tsx`, `IncentivesScreen.tsx`, `LoginScreen.tsx`, `RatingsScreen.tsx`, `TripScreen.tsx`, `WeeklyTripsScreen.tsx`; plus `components/{NewOrderModal,ui}.tsx`, `lib/{api,format,maps,orderAlert,session}.ts`, `theme.ts`, and the `new-order.mp3` / `new_order.wav` alert assets.
+
+**Frontend, modified but uncommitted:** `apps/delivery-mobile/{app.json,package.json}`, `apps/customer-mobile/app.json`, `packages/shared-types/src/index.ts` (+469 lines), `package-lock.json` (+447 lines)
+
+**Testing performed:** None by this session — this work was not written here and has not been verified here.
+
+**Known issues / pending work:**
+- Do **not** `git commit -a` in this tree. Stage only the files you changed yourself.
+- `packages/shared-types/src/index.ts` and `package-lock.json` are both being edited by that parallel session and are the most likely conflict points for anyone else working here.
+- Verify any build against a fresh `git clone`, not the working directory. A build that passes here proves nothing while another session has uncommitted files in the tree.
+- Everything carried forward from Session 19 that is still open: no online payment (cash on delivery only); the logo wordmark still reads "Quickbits" while the apps are named "Quick Bites"; the three staff mobile apps still hardcode their colours instead of sharing the customer app's token module; Play Console / App Store Connect work still needs a human.
+- The published APKs (1.1.1 / versionCode 4) predate Session 23's entire customer-app feature set.
+
+**NEXT AI SHOULD:** Check whether the parallel session's admin/rider work has landed before starting anything that touches `shared-types`, the admin routes or the rider app. Then rebuild the four APKs, which now lag Session 23.
+
+---
+
+## [2026-09-14] -- Claude Opus 5 -- Session 19 (Partner App, Admin Console, Platform Scope)
+
+**Description:** Rebuilt the restaurant partner app and the admin console, and closed the eleven partner-side defects the user reported plus the wider platform scope. Two sessions worked the same tree in parallel: this entry covers the restaurant and admin surfaces; the customer app, rider app, admin API and Postgres persistence came from the parallel session.
+
+**Chunks Modified:** 02, 03, 04, 07, 08, 09
+
+**Changes:**
+
+- **The Online/Offline toggle was three bugs, not one.** The route assigned `restaurant.isOpen` directly and never called `triggerAutoSave`, so the switch was never written down and reverted on the next restart — exactly the reported "switched to Offline, still shows Online". Customers were never told either way. And `createOrder` checked only `status !== 'ACTIVE'`, so a kitchen that had gone offline still accepted orders with nobody there to cook them. All three closed: `setOpenState` persists, the app trusts the server's answer rather than assuming, and ordering from a closed kitchen returns 409 `RESTAURANT_CLOSED`.
+- **The scroll jump** was one `ScrollView` wrapping all four tabs: the offset carried between them and was re-clamped whenever a background refresh changed the content height. Each screen now owns its own list; the order list is a `FlatList` with a stable `keyExtractor`, and a refresh merges by order id so unchanged rows keep their identity.
+- **New-order alerts** ring until acknowledged, with a vibration and an Android shade notification, reusing the rider app's `orderAlert` so both behave alike.
+- **Partner dashboard**: earnings, 14-day trend, order counts, rating distribution, best sellers, category revenue, menu health — all derived server-side in `restaurantInsights.ts` from the restaurant's own orders, none of it estimated in the app.
+- **Order history** filterable by completed and cancelled, with the doorstep OTP stripped as it is on the live queue.
+- **Menu requests**: a partner asks, an administrator decides, and approval is the only path that writes to a live menu. `review()` is idempotent so a double tap cannot create the dish twice. Taking a dish out of stock stays instant, and the screen explains the difference.
+- **Document verification** driven by a server-side catalogue (`restaurantDocuments.ts`) holding what each document is for, accepted formats, size limit and what must be legible — so the requirements and the review logic cannot drift apart. Per-document status, rejection reasons, and re-upload of rejected documents. Re-uploading over an approved document is refused rather than silently un-verifying a trading restaurant.
+- **Help Centre** with FAQs, ticket history and a composer; **Create Account** with validation; **show/hide** on every password field.
+- **Preparation time** has a floor of 10 minutes enforced in the API schema, not only in the app — the app is the part a partner can bypass.
+- **Admin console rebuilt** against the parallel session's admin API: control tower, all orders with a detail drawer, live deliveries, returns and refunds, revenue, payments, driver payouts including COD cash riders hold, menu approvals with reviewer corrections, document verification, support, roles/administrators/audit log, and the operator's own account. Navigation is filtered by permissions from `GET /admin/me` and lands on the first section the role can open; a 403 renders as "your role does not include this" rather than as a failure. The filtering is a convenience — every endpoint enforces the same permission server-side.
+- **A second missing-persistence bug**, same shape as the first: approving a restaurant's documents mutated `kycStatus` and `status` and called `memoryStore.set` with no `triggerAutoSave`, so a verified restaurant could revert to unverified on redeploy and, since trading is gated on verification, drop off the platform.
+
+**Build Status:** Green. 10/10 typecheck, 6/6 suites including the security, pipeline and new partner workflows.
+
+**Known Issues:**
+- Document upload has no file picker: the platform has no upload storage, so the partner submits a document reference and support attaches the file. Asking for a file and discarding it would have been worse than being honest about it.
+- The notification sound and the password reveal are the two items no automated test covers, being device behaviour and a local UI toggle.
+- Backend still hydrates every order into memory at boot and `findByIdempotencyKey` scans all of them, so durability is solved but growth is not.
+- Single backend replica only: two instances modifying the same document silently lose one write.
+
+**NEXT AI SHOULD:** Take the repository-side of the growth ceiling — an index for `findByIdempotencyKey` and a bounded hydration — before order volume makes boot time and memory a problem. Do not raise the Railway replica count until writes carry a version check.
+
+**Notes:** Three contracts were written against a guess this session and all three were wrong: the support composer sent `body` where the server takes `message` and offered two categories the schema rejects; the console's document review sent `status: 'APPROVED'` where the endpoint takes `action: 'APPROVE'`. None were caught by typecheck — two were caught by reading the handler, one by the end-to-end test. Read the handler.
+
+---
+
 ## Session Log Template (For Future Sessions)
+
+`changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.
+
+**Before starting a feature:** read this file to see what is already implemented or in progress, so work is not duplicated.
+**After completing a feature or significant fix:** append an entry immediately, not at the end of the session.
+**Never delete previous entries or rewrite history.** Append chronologically, or update an existing In Progress entry in place.
+
 ```markdown
-## [YYYY-MM-DD] -- [AI Model] -- Session [N]
-**Description**: Summary of work completed
-**Chunks Modified**: [List of chunk IDs]
-**Changes**:
-- Created: [file list]
-- Modified: [file list]
-- Deleted: [file list]
-**Build Status**: X/10 chunks complete
-**Known Issues**:
-- [issue description with file path]
-**NEXT AI SHOULD**: [exact instructions for the next session]
-**Notes**: [any special context]
+## [YYYY-MM-DD HH:MM] -- [AI Model] -- Session [N] ([short title])
+**Feature/Issue:** What was being worked on, and why it mattered
+**Status:** Completed | In Progress | Blocked
+**Chunks Modified:** [chunk ids]
+
+**Frontend changes:** [screens, components, UX decisions — or "None"]
+**Backend/API/database changes:** [endpoints, schema, repositories — or "None"]
+**Build/APK changes:** [version, versionCode, signing, size, SHA — or "None"]
+
+**Files/modules affected:**
+- Created: [...]
+- Modified: [...]
+- Deleted: [...]
+
+**Testing performed:** [what was run] Result: [pass/fail, counts]
+
+**Known issues / pending work:**
+- [issue, with file path]
+
+**Decisions / dependencies / session conflicts:**
+- [anything another developer or session must know before continuing —
+   deliberate choices that look like bugs, uncommitted work belonging to
+   a parallel session, files likely to conflict, new dependencies]
+
+**NEXT AI SHOULD:** [exact instructions for the next session]
 ```
-
-
