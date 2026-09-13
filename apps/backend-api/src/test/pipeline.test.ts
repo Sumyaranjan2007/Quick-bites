@@ -106,6 +106,21 @@ async function run() {
   riderSock.emit('join:riders');
   await new Promise(r => setTimeout(r, 300));
 
+  // --- 0. The rider goes on shift ---
+  // Nothing is offered to a rider who is off shift, so the dispatch half of the
+  // pipeline only exists once the toggle has actually been written down.
+  const shiftOn = await api('/riders/shift', { method: 'POST', body: { isOnline: true } }, rider.token);
+  check('Delivery partner can go Online', shiftOn.status === 200 && shiftOn.json?.data?.rider?.isOnline === true,
+    `status ${shiftOn.status} ${JSON.stringify(shiftOn.json).slice(0, 200)}`);
+
+  const shiftReadBack = await api('/riders/me', {}, rider.token);
+  check('Online status is what the server reports back, not just local state',
+    shiftReadBack.json?.data?.rider?.isOnline === true,
+    JSON.stringify(shiftReadBack.json?.data?.rider).slice(0, 160));
+  check('Rider profile is complete enough to ride',
+    shiftReadBack.json?.data?.profile?.complete === true,
+    JSON.stringify(shiftReadBack.json?.data?.profile?.missing));
+
   // --- 1. Customer places the order; the restaurant is told without asking ---
   const orderCreated = waitFor(partnerSock, 'order:created');
   const adminSawOrder = waitFor(adminSock, 'order:created');
@@ -268,10 +283,55 @@ async function run() {
     `status ${profile.status} ${JSON.stringify(profile.json).slice(0, 160)}`);
 
   const rated = await api(`/orders/${orderId}/rating`, {
-    method: 'POST', body: { rating: 5, comment: 'Hot and on time.' }
+    method: 'POST', body: { rating: 5, comment: 'Hot and on time.', riderRating: 5, riderComment: 'Polite and quick.' }
   }, customer.token);
   check('Delivered order can be rated', rated.status === 200,
     `status ${rated.status} ${JSON.stringify(rated.json).slice(0, 160)}`);
+
+  // --- 7c. The completed trip moves every number on the rider's dashboard ---
+  const dashboard = await api('/riders/dashboard', {}, rider.token);
+  const metrics = dashboard.json?.data?.metrics;
+  check('Rider dashboard counts the completed trip',
+    metrics?.todayTrips === 1 && metrics?.weekTrips === 1 && metrics?.totalTrips === 1,
+    JSON.stringify(metrics).slice(0, 200));
+  check('Rider dashboard credits the trip to today\'s earnings',
+    typeof metrics?.todayEarnings === 'number' && metrics.todayEarnings > 0,
+    JSON.stringify(metrics).slice(0, 200));
+  check('Rider dashboard reports an acceptance rate',
+    metrics?.acceptanceRate === 100,
+    `acceptanceRate ${metrics?.acceptanceRate} of ${metrics?.offersAccepted}/${metrics?.offersReceived}`);
+  check('Rider dashboard clears the active order once delivered',
+    dashboard.json?.data?.activeOrder === null,
+    JSON.stringify(dashboard.json?.data?.activeOrder).slice(0, 120));
+
+  const riderRatings = await api('/riders/ratings', {}, rider.token);
+  check('Rider sees the rating the customer left them',
+    riderRatings.json?.data?.average === 5 && riderRatings.json?.data?.reviews?.[0]?.comment === 'Polite and quick.',
+    JSON.stringify(riderRatings.json?.data).slice(0, 200));
+
+  const incentives = await api('/riders/incentives', {}, rider.token);
+  check('Rider sees incentive targets and progress',
+    Array.isArray(incentives.json?.data?.incentives) && incentives.json.data.incentives.length > 0 &&
+      incentives.json.data.incentives.some((i: any) => i.code === 'DAILY_8' && i.progress === 1),
+    JSON.stringify(incentives.json?.data?.incentives?.[0]).slice(0, 200));
+
+  const weekly = await api('/riders/trips?range=week', {}, rider.token);
+  check('Weekly trips list the delivery just completed',
+    weekly.json?.data?.totals?.trips === 1 && weekly.json?.data?.byDay?.length === 7,
+    JSON.stringify(weekly.json?.data?.totals).slice(0, 160));
+
+  // --- 7d. Safety and sign-out ---
+  const sos = await api('/riders/sos', {
+    method: 'POST', body: { category: 'VEHICLE_BREAKDOWN', note: 'Puncture on Kanakapura Road.', lat: 12.683, lng: 77.476 }
+  }, rider.token);
+  check('Rider can raise an SOS', sos.status === 201 && sos.json?.data?.alert?.status === 'OPEN',
+    `status ${sos.status} ${JSON.stringify(sos.json).slice(0, 160)}`);
+
+  const signedOut = await api('/riders/logout', { method: 'POST', body: {} }, rider.token);
+  const afterLogout = await api('/riders/profile/usr_rider_01', {}, rider.token);
+  check('Signing out takes the rider off shift',
+    signedOut.status === 200 && afterLogout.json?.data?.rider?.isOnline === false,
+    JSON.stringify(afterLogout.json?.data?.rider?.isOnline));
 
   const twice = await api(`/orders/${orderId}/rating`, {
     method: 'POST', body: { rating: 1 }

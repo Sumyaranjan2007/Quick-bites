@@ -1,95 +1,440 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
+  ActivityIndicator,
+  Alert,
+  AppState,
+  AppStateStatus,
+  Platform,
   SafeAreaView,
   StatusBar,
-  Alert
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { ErrorBoundary } from './src/components/ErrorBoundary';
 import * as Location from 'expo-location';
 import {
-  Bike,
-  Navigation,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-  TrendingUp,
-  MapPin,
-  Phone,
-  Power,
-  Sparkles,
-  DollarSign,
-  KeyRound,
-  ArrowRight
+  ChevronLeft,
+  CircleUser,
+  IndianRupee,
+  LayoutDashboard,
+  Navigation as NavigationIcon,
+  ShieldAlert
 } from 'lucide-react-native';
-import { apiFetch } from './src/lib/apiFetch';
-import { useLiveUpdates } from './src/lib/useLiveUpdates';
+
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { t } from './src/theme';
+import { Avatar } from './src/components/ui';
+import { NewOrderModal } from './src/components/NewOrderModal';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { DashboardScreen } from './src/screens/DashboardScreen';
+import { TripScreen } from './src/screens/TripScreen';
+import { EarningsScreen } from './src/screens/EarningsScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
+import { DocumentsScreen } from './src/screens/DocumentsScreen';
+import { RatingsScreen } from './src/screens/RatingsScreen';
+import { IncentivesScreen } from './src/screens/IncentivesScreen';
+import { WeeklyTripsScreen } from './src/screens/WeeklyTripsScreen';
+import { SafetyScreen } from './src/screens/SafetyScreen';
+import { PoliciesScreen } from './src/screens/PoliciesScreen';
+import { api, ApiError, type ApiContext, type DashboardResponse, type Trip, type TripStage } from './src/lib/api';
+import { clearSession, loadSession, saveSession } from './src/lib/session';
+import {
+  notifyNewOrder,
+  prepareOrderAlerts,
+  releaseOrderAlerts,
+  startOrderAlert,
+  stopOrderAlert
+} from './src/lib/orderAlert';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
+type Tab = 'home' | 'trips' | 'earnings' | 'profile';
+type SubScreen = 'documents' | 'ratings' | 'incentives' | 'weekly' | 'safety' | 'policies';
+
+const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
+  documents: 'Documents & verification',
+  ratings: 'Ratings & reviews',
+  incentives: 'Incentives & bonuses',
+  weekly: 'Trips',
+  safety: 'Safety & SOS',
+  policies: 'App policies'
+};
+
+/** How often the app asks for work when websockets are not getting through. */
+const BROADCAST_POLL_MS = 20000;
+
 function DeliveryApp() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authToken, setAuthToken] = useState('');
-  const [email, setEmail] = useState(__DEV__ ? 'rider@quickbite.app' : '');
-  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
+  const [booting, setBooting] = useState(true);
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
-  const [activeTab, setActiveTab] = useState<'deliveries' | 'earnings' | 'profile'>('deliveries');
+  const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState(false);
 
-  // Rider state
-  // Identity comes from the server; showing another rider's name and wallet
-  // while the real profile loads would be worse than showing nothing.
-  const [rider, setRider] = useState<any>({
-    id: '',
-    fullName: '',
-    phone: '',
-    vehicleType: 'BIKE',
-    isOnline: false,
-    kycStatus: 'PENDING',
-    walletBalance: 0,
-    codCashInHand: 0,
-    todayTrips: 0
-  });
+  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  // Live broadcast job pulled from the backend dispatch queue
-  const [incomingBroadcast, setIncomingBroadcast] = useState<any | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [tab, setTab] = useState<Tab>('home');
+  const [subScreen, setSubScreen] = useState<SubScreen | null>(null);
 
-  // Active delivery underway
-  const [activeTrip, setActiveTrip] = useState<any | null>(null);
-  const [tripStage, setTripStage] = useState<'HEADING_TO_RESTAURANT' | 'AT_RESTAURANT' | 'OUT_FOR_DELIVERY' | 'AT_DOORSTEP'>('HEADING_TO_RESTAURANT');
-  const [otpInput, setOtpInput] = useState('');
-  const [pickupCodeInput, setPickupCodeInput] = useState('');
+  const [offers, setOffers] = useState<Trip[]>([]);
+  const [pendingOffer, setPendingOffer] = useState<Trip | null>(null);
+  const [shiftSaving, setShiftSaving] = useState(false);
+
   const [telemetryCount, setTelemetryCount] = useState(0);
   const [locationDenied, setLocationDenied] = useState(false);
 
-  // Stream the rider's real device position while a delivery is underway.
-  // This previously posted randomised coordinates around a fixed point, so the
-  // customer's tracker would have shown a rider who was never actually moving.
+  const ctx: ApiContext = { apiUrl, token: token || undefined };
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+
+  const activeTrip = dashboard?.activeOrder || null;
+  const rider = dashboard?.rider || null;
+  const isOnline = Boolean(rider?.isOnline);
+  const profileComplete = Boolean(dashboard?.profile.complete);
+
+  /** Offers already put in front of the rider, so one is not announced twice. */
+  const announcedOffers = useRef<Set<string>>(new Set());
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+
   useEffect(() => {
-    if (!(activeTrip && tripStage === 'OUT_FOR_DELIVERY')) return;
+    const subscription = AppState.addEventListener('change', next => {
+      appState.current = next;
+    });
+    return () => subscription.remove();
+  }, []);
+
+  /* ----------------------------- Session ---------------------------------- */
+
+  useEffect(() => {
+    (async () => {
+      const session = await loadSession();
+      if (session) {
+        setApiUrl(session.apiUrl);
+        setToken(session.token);
+        setUserId(session.userId);
+      }
+      setBooting(false);
+    })();
+  }, []);
+
+  const handleLogin = async (email: string, password: string) => {
+    setLoggingIn(true);
+    setLoginError(null);
+    try {
+      const result = await api.login(apiUrl, email.trim(), password);
+      setToken(result.token);
+      setUserId(result.user.id);
+      await saveSession({ token: result.token, userId: result.user.id, email: result.user.email, apiUrl });
+    } catch (err: any) {
+      setLoginError(err.message);
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const handleChangePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    try {
+      await api.changePassword(ctxRef.current, currentPassword, newPassword);
+      Alert.alert('Password changed', 'Use the new password the next time you sign in.');
+      return true;
+    } catch (err: any) {
+      Alert.alert('Could not change your password', err?.message || 'Your password is unchanged.');
+      return false;
+    }
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    // Tell the server first: a rider who closes the app must not stay on the
+    // dispatch list as though they were still out there waiting for work.
+    try {
+      await api.logout(ctxRef.current);
+    } catch {
+      /* signing out locally still matters if the call fails */
+    }
+    await releaseOrderAlerts();
+    await clearSession();
+    setToken(null);
+    setUserId(null);
+    setDashboard(null);
+    setOffers([]);
+    setPendingOffer(null);
+    setTab('home');
+    setSubScreen(null);
+    announcedOffers.current.clear();
+  }, []);
+
+  /**
+   * A token that has expired or been revoked should return the rider to the
+   * login screen rather than leaving every screen quietly empty.
+   */
+  const handleApiError = useCallback((err: unknown): boolean => {
+    if (err instanceof ApiError && (err.status === 401 || err.code === 'INVALID_TOKEN')) {
+      clearSession();
+      setToken(null);
+      setDashboard(null);
+      setLoginError('Your session expired. Please sign in again.');
+      return true;
+    }
+    return false;
+  }, []);
+
+  /* ---------------------------- Dashboard --------------------------------- */
+
+  const loadDashboard = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!ctxRef.current.token) return null;
+    if (!options.silent) setLoadingDashboard(true);
+    try {
+      const data = await api.dashboard(ctxRef.current);
+      setDashboard(data);
+      return data;
+    } catch (err) {
+      if (!handleApiError(err)) {
+        if (!options.silent) {
+          Alert.alert('Could not refresh', (err as Error).message);
+        }
+      }
+      return null;
+    } finally {
+      setLoadingDashboard(false);
+    }
+  }, [handleApiError]);
+
+  useEffect(() => {
+    if (token) {
+      loadDashboard();
+      prepareOrderAlerts();
+    }
+  }, [token, loadDashboard]);
+
+  const refreshAll = useCallback(async () => {
+    setRefreshing(true);
+    await loadDashboard({ silent: true });
+    await syncOffers({ announce: false });
+    setRefreshing(false);
+  }, [loadDashboard]);
+
+  /* ------------------------------ Offers ---------------------------------- */
+
+  /**
+   * Pulls the offers waiting for this rider.
+   *
+   * `announce` is what turns a quiet list refresh into an alert: the modal,
+   * the chime and the shade notification only fire for an offer this device
+   * has not already shown.
+   */
+  const syncOffers = useCallback(async (options: { announce: boolean }) => {
+    if (!ctxRef.current.token) return;
+    try {
+      const result = await api.broadcasts(ctxRef.current);
+      const list = result.broadcasts || [];
+      setOffers(list);
+
+      if (!options.announce || list.length === 0) return;
+
+      const fresh = list.find(offer => !announcedOffers.current.has(offer.id));
+      if (!fresh) return;
+
+      announcedOffers.current.add(fresh.id);
+      setPendingOffer(current => current || fresh);
+      startOrderAlert();
+      if (appState.current !== 'active') {
+        notifyNewOrder({
+          restaurantName: fresh.restaurantName,
+          payout: fresh.estimatedEarnings,
+          distanceKm: fresh.distanceKm
+        });
+      }
+    } catch (err) {
+      handleApiError(err);
+    }
+  }, [handleApiError]);
+
+  // Live push from the backend the moment a kitchen packs an order, with a
+  // slow poll behind it because websockets do not survive every mobile network.
+  useEffect(() => {
+    if (!token || !isOnline || activeTrip) return;
+    syncOffers({ announce: false });
+    const timer = setInterval(() => syncOffers({ announce: true }), BROADCAST_POLL_MS);
+    return () => clearInterval(timer);
+  }, [token, isOnline, activeTrip?.id, syncOffers]);
+
+  const { connected: liveConnected } = useLiveOffers(
+    token && isOnline && !activeTrip ? apiUrl : null,
+    token,
+    () => syncOffers({ announce: true })
+  );
+
+  const dismissOffer = useCallback(() => {
+    setPendingOffer(null);
+    stopOrderAlert();
+  }, []);
+
+  const acceptOffer = async (trip: Trip) => {
+    setBusy(true);
+    try {
+      await api.claim(ctxRef.current, trip.id);
+      dismissOffer();
+      setOffers([]);
+      // Straight to the trip screen: the rider's next question is "where do I
+      // go", and the answer should already be on screen.
+      const data = await loadDashboard({ silent: true });
+      setTab('trips');
+      if (!data?.activeOrder) await loadDashboard({ silent: true });
+    } catch (err: any) {
+      if (!handleApiError(err)) Alert.alert('Could not accept', err.message);
+      dismissOffer();
+      syncOffers({ announce: false });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const declineOffer = async (trip: Trip) => {
+    dismissOffer();
+    try {
+      await api.decline(ctxRef.current, trip.id);
+    } catch (err) {
+      handleApiError(err);
+    }
+    syncOffers({ announce: false });
+  };
+
+  /* ------------------------------- Shift ---------------------------------- */
+
+  const setShift = async (next: boolean) => {
+    if (shiftSaving) return;
+    setShiftSaving(true);
+    try {
+      // The server decides, and the screen shows what it decided. Flipping the
+      // switch locally first is what used to leave a rider reading "Online"
+      // while dispatch still had them at home.
+      const result = await api.setShift(ctxRef.current, next);
+      setDashboard(current => (current ? { ...current, rider: result.rider } : current));
+      if (result.isOnline) {
+        announcedOffers.current.clear();
+        syncOffers({ announce: false });
+      } else {
+        setOffers([]);
+        dismissOffer();
+      }
+      await loadDashboard({ silent: true });
+    } catch (err: any) {
+      if (!handleApiError(err)) {
+        Alert.alert(
+          next ? 'Could not go online' : 'Could not go offline',
+          err.message,
+          err.code === 'PROFILE_INCOMPLETE'
+            ? [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Complete profile', onPress: () => setSubScreen('documents') }
+              ]
+            : undefined
+        );
+      }
+    } finally {
+      setShiftSaving(false);
+    }
+  };
+
+  /* ------------------------------- Trip ----------------------------------- */
+
+  const advanceStage = async (stage: TripStage) => {
+    if (!activeTrip) return;
+    setDashboard(current =>
+      current && current.activeOrder ? { ...current, activeOrder: { ...current.activeOrder, stage } } : current
+    );
+    try {
+      await api.setStage(ctxRef.current, activeTrip.id, stage);
+    } catch (err: any) {
+      if (!handleApiError(err)) Alert.alert('Could not update', err.message);
+      await loadDashboard({ silent: true });
+    }
+  };
+
+  const verifyPickup = async (code: string): Promise<boolean> => {
+    if (!activeTrip) return false;
+    setBusy(true);
+    try {
+      await api.verifyPickup(ctxRef.current, activeTrip.id, code);
+      await loadDashboard({ silent: true });
+      Alert.alert('Pickup confirmed', 'Head to the customer. Your live location is now being shared with them.');
+      return true;
+    } catch (err: any) {
+      if (!handleApiError(err)) Alert.alert('Code not accepted', err.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const completeDelivery = async (otp: string): Promise<boolean> => {
+    if (!activeTrip) return false;
+    setBusy(true);
+    try {
+      const result = await api.verifyDelivery(ctxRef.current, activeTrip.id, otp);
+      await loadDashboard({ silent: true });
+      setTab('home');
+
+      const bonusLine = result.incentivesAwarded.length
+        ? `\n\nBonus unlocked: ${result.incentivesAwarded.map(i => `${i.title} (Rs ${i.reward})`).join(', ')}`
+        : '';
+      const cashLine = result.cashCollected > 0 ? `\nCash collected: Rs ${result.cashCollected.toFixed(2)}` : '';
+      Alert.alert(
+        'Delivery complete',
+        `Rs ${result.payout.toFixed(2)} added to your wallet.${cashLine}${bonusLine}`
+      );
+      return true;
+    } catch (err: any) {
+      if (!handleApiError(err)) Alert.alert('Code not accepted', err.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelTrip = async (reason: string) => {
+    if (!activeTrip) return;
+    setBusy(true);
+    try {
+      await api.cancelTrip(ctxRef.current, activeTrip.id, reason);
+      await loadDashboard({ silent: true });
+      announcedOffers.current.clear();
+      syncOffers({ announce: false });
+      Alert.alert('Trip released', 'It has gone back to dispatch for another rider.');
+    } catch (err: any) {
+      if (!handleApiError(err)) Alert.alert('Could not release the trip', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProfile = async (patch: Record<string, unknown>): Promise<boolean> => {
+    try {
+      await api.updateProfile(ctxRef.current, patch);
+      await loadDashboard({ silent: true });
+      return true;
+    } catch (err: any) {
+      if (!handleApiError(err)) Alert.alert('Could not save', err.message);
+      return false;
+    }
+  };
+
+  /* ----------------------------- Telemetry -------------------------------- */
+
+  // The customer's map only moves while the rider is actually carrying the
+  // order, so the GPS subscription lives exactly as long as that leg does.
+  useEffect(() => {
+    const carrying =
+      activeTrip && (activeTrip.stage === 'OUT_FOR_DELIVERY' || activeTrip.stage === 'AT_DOORSTEP');
+    if (!carrying || !token) return;
 
     let subscription: Location.LocationSubscription | null = null;
     let cancelled = false;
-
-    const send = (coords: Location.LocationObjectCoords) => {
-      setTelemetryCount(prev => prev + 1);
-      apiFetch(`${apiUrl}/riders/telemetry`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          orderId: activeTrip.id,
-          lat: coords.latitude,
-          lng: coords.longitude,
-          bearing: coords.heading && coords.heading >= 0 ? Math.round(coords.heading) : 0
-        })
-      }).catch(() => {});
-    };
 
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -102,7 +447,20 @@ function DeliveryApp() {
 
       subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
-        loc => send(loc.coords)
+        location => {
+          setTelemetryCount(count => count + 1);
+          api
+            .telemetry(ctxRef.current, {
+              orderId: activeTrip.id,
+              lat: location.coords.latitude,
+              lng: location.coords.longitude,
+              bearing:
+                location.coords.heading && location.coords.heading >= 0
+                  ? Math.round(location.coords.heading)
+                  : 0
+            })
+            .catch(() => {});
+        }
       );
     })();
 
@@ -110,684 +468,370 @@ function DeliveryApp() {
       cancelled = true;
       subscription?.remove();
     };
-  }, [activeTrip, tripStage, apiUrl, authToken]);
+  }, [activeTrip?.id, activeTrip?.stage, token]);
 
-  const authHeaders = (token?: string): Record<string, string> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const effective = token || authToken;
-    if (effective) headers['Authorization'] = `Bearer ${effective}`;
-    return headers;
-  };
+  /* ------------------------------ Render ---------------------------------- */
 
-  const mapBroadcast = (o: any) => ({
-    id: o.id,
-    orderNumber: o.orderNumber,
-    restaurantName: o.restaurantName || 'Restaurant Partner',
-    pickupAddress: o.restaurantAddress || 'Restaurant pickup counter',
-    dropAddress: o.deliveryAddressText || 'Customer doorstep',
-    distanceKm: o.distanceKm ?? 3.5,
-    estimatedEarnings: o.riderPayout ?? 65.0,
-    timerSeconds: 30,
-    pickupCode: o.pickupCode,
-    paymentMode: o.paymentMethod === 'CASH_ON_DELIVERY' ? 'COD' : o.paymentMethod,
-    cashToCollect: o.paymentMethod === 'CASH_ON_DELIVERY' ? o.bill?.totalAmount ?? 0 : 0
-  });
-
-  const loadRiderProfile = async (userId: string, token?: string) => {
-    try {
-      const res = await apiFetch(`${apiUrl}/riders/profile/${userId}`, { headers: authHeaders(token) });
-      const data = await res.json();
-      if (data.success && data.data?.rider) {
-        const r = data.data.rider;
-        setRider({
-          id: r.id,
-          fullName: r.fullName || 'Rider',
-          phone: r.phone || '',
-          vehicleType: r.vehicleType || 'BIKE',
-          isOnline: Boolean(r.isOnline),
-          kycStatus: r.kycStatus || 'PENDING',
-          walletBalance: Number(data.data.wallet?.balance) || 0,
-          codCashInHand: Number(r.codCashInHand) || 0,
-          todayTrips: Number(r.todayTrips) || 0
-        });
-      }
-    } catch {
-      // Keep the empty profile; the header will simply show no name.
-    }
-  };
-
-  // Pull real dispatch broadcasts waiting for a rider
-  const syncBroadcasts = async (token?: string) => {
-    setIsSyncing(true);
-    try {
-      const res = await apiFetch(`${apiUrl}/riders/orders/broadcast`, { headers: authHeaders(token) });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data?.broadcasts) && data.data.broadcasts.length > 0) {
-        setIncomingBroadcast(mapBroadcast(data.data.broadcasts[0]));
-      } else {
-        setIncomingBroadcast(null);
-      }
-    } catch {
-      Alert.alert('Sync Failed', 'Could not reach the dispatch server. Check your connection.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Login handler
-  // While on shift the rider is told the moment a kitchen packs an order,
-  // instead of having to tap "Check for Jobs" and hope.
-  const { connected: liveConnected } = useLiveUpdates(
-    isAuthenticated && rider.isOnline ? { kind: 'riders' } : null,
-    apiUrl,
-    authToken,
-    () => { syncBroadcasts(); }
-  );
-
-  const handleLogin = async () => {
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role: 'rider' })
-      });
-      const data = await res.json();
-      if (data.success && data.data?.token) {
-        setAuthToken(data.data.token);
-        setIsAuthenticated(true);
-        const userId = data.data.user?.id;
-        if (userId) await loadRiderProfile(userId, data.data.token);
-        syncBroadcasts(data.data.token);
-      } else {
-        Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
-      }
-    } catch {
-      Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
-    }
-  };
-
-  // Toggle shift online/offline
-  const toggleShift = async () => {
-    const nextState = !rider.isOnline;
-    setRider({ ...rider, isOnline: nextState });
-    try {
-      const res = await apiFetch(`${apiUrl}/riders/shift`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ isOnline: nextState })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || data.error);
-      if (nextState) syncBroadcasts();
-    } catch (err: any) {
-      setRider({ ...rider, isOnline: !nextState });
-      Alert.alert('Shift Update Failed', err?.message || 'Could not update your shift status.');
-    }
-  };
-
-  // Accept Broadcast Job — claims the order server-side so no two riders get it
-  const acceptBroadcast = async () => {
-    if (!incomingBroadcast) return;
-    try {
-      const res = await apiFetch(`${apiUrl}/riders/orders/${incomingBroadcast.id}/claim`, {
-        // The claim is made for whoever is signed in; identity comes from the token,
-        // so there is no body to send.
-        method: 'POST',
-        headers: authHeaders()
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || data.error || 'This trip was already claimed.');
-
-      setActiveTrip({ ...incomingBroadcast, ...mapBroadcast(data.data.order) });
-      setIncomingBroadcast(null);
-      setTripStage('HEADING_TO_RESTAURANT');
-      Alert.alert('Trip Claimed', 'Navigate to restaurant pickup counter.');
-    } catch (err: any) {
-      Alert.alert('Could Not Claim Trip', err?.message || 'Please try again.');
-      syncBroadcasts();
-    }
-  };
-
-  // Pickup Handshake — verified by the backend, not locally
-  const verifyPickupHandshake = async () => {
-    try {
-      const res = await apiFetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-pickup`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ pickupCode: pickupCodeInput.trim() })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || data.error || 'Pickup code does not match.');
-
-      setTripStage('OUT_FOR_DELIVERY');
-      setPickupCodeInput('');
-      Alert.alert('Pickup Confirmed', 'Food verified! Live GPS tracking is now active.');
-    } catch (err: any) {
-      Alert.alert('Invalid Code', err?.message || 'Enter the pickup code provided by kitchen staff.');
-    }
-  };
-
-  // Doorstep OTP Verification
-  const completeDeliveryOtp = async () => {
-    const earnings = activeTrip.estimatedEarnings;
-    const cash = activeTrip.paymentMode === 'COD' ? activeTrip.cashToCollect : 0;
-
-    try {
-      const res = await apiFetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-otp`, {
-        method: 'POST',
-        headers: authHeaders(),
-        // The server decides the payout and which wallet it lands in; sending either
-        // from here was how a rider could credit any account any amount.
-        body: JSON.stringify({ deliveryOtp: otpInput.trim() })
-      });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error?.message || data.error || 'Customer 4-digit delivery OTP does not match.');
-      }
-
-      // Use what the server actually credited rather than this screen's estimate.
-      const credited = typeof data.data?.payout === 'number' ? data.data.payout : earnings;
-      setRider({
-        ...rider,
-        walletBalance:
-          typeof data.data?.walletBalance === 'number'
-            ? data.data.walletBalance
-            : rider.walletBalance + credited,
-        codCashInHand: rider.codCashInHand + cash,
-        todayTrips: rider.todayTrips + 1
-      });
-      Alert.alert(
-        'Delivery Complete!',
-        `Order marked DELIVERED.\n+Rs ${credited.toFixed(2)} credited to your wallet.${cash ? `\nCollected Rs ${cash} COD cash.` : ''}`
-      );
-      setActiveTrip(null);
-      setOtpInput('');
-      syncBroadcasts();
-    } catch (err: any) {
-      Alert.alert('Incorrect OTP', err?.message || 'Customer 4-digit delivery OTP does not match.');
-    }
-  };
-
-  if (!isAuthenticated) {
+  if (booting) {
     return (
-      <SafeAreaView style={styles.authContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#17090E" />
-        <View style={styles.authCard}>
-          <View style={styles.authHeader}>
-            <View style={styles.brandIconCircle}>
-              <Bike size={36} color="#22C08A" />
-            </View>
-            <Text style={styles.authTitle}>Quick Bites Rider</Text>
-            <Text style={styles.authSubtitle}>Delivery Logistics & Navigation</Text>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Rider Email or Phone</Text>
-            <TextInput
-              style={styles.textInput}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder="you@quickbite.app"
-              placeholderTextColor="#8A7A72"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.textInput}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="••••••"
-              placeholderTextColor="#8A7A72"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Server / Cloud Tunnel URL</Text>
-            <TextInput
-              style={styles.textInput}
-              value={apiUrl}
-              onChangeText={setApiUrl}
-              autoCapitalize="none"
-              placeholder="http://10.0.2.2:5000/api"
-              placeholderTextColor="#8A7A72"
-            />
-          </View>
-
-          <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-            <Text style={styles.loginBtnText}>Check In For Shift</Text>
-          </TouchableOpacity>
-
-          {__DEV__ && (
-
-
-            <View style={styles.demoPill}>
-            <Sparkles size={16} color="#22C08A" />
-            <Text style={styles.demoPillText}>Default Login: rider@quickbite.app / pass123</Text>
-
-
-            </View>
-
-
-          )}
-        </View>
+      <SafeAreaView style={s.boot}>
+        <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
+        <ActivityIndicator color={t.color.go} size="large" />
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.mainContainer}>
-      <StatusBar barStyle="light-content" backgroundColor="#17090E" />
+  if (!token) {
+    return (
+      <LoginScreen
+        apiUrl={apiUrl}
+        onApiUrlChange={setApiUrl}
+        onSubmit={handleLogin}
+        busy={loggingIn}
+        error={loginError}
+      />
+    );
+  }
 
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View>
-          <Text style={styles.riderName}>{rider.fullName}</Text>
-          <View style={styles.shiftMetaRow}>
-            <View style={[styles.statusDot, { backgroundColor: rider.isOnline ? '#22C08A' : '#E15D5D' }]} />
-            <Text style={styles.statusText}>{rider.isOnline ? 'Online (Accepting Jobs)' : 'Offline (On Break)'}</Text>
-            <Text style={styles.vehicleBadge}>{rider.vehicleType}</Text>
+  const renderTab = () => {
+    switch (tab) {
+      case 'home':
+        return (
+          <DashboardScreen
+            data={dashboard}
+            loading={loadingDashboard}
+            refreshing={refreshing}
+            onRefresh={refreshAll}
+            onOpenTrip={() => setTab('trips')}
+            onOpenEarnings={() => setTab('earnings')}
+            onOpenIncentives={() => setSubScreen('incentives')}
+            onOpenRatings={() => setSubScreen('ratings')}
+            onOpenWeekly={() => setSubScreen('weekly')}
+            onCompleteProfile={() => setSubScreen('documents')}
+            onGoOnline={() => setShift(true)}
+          />
+        );
+      case 'trips':
+        return (
+          <TripScreen
+            trip={activeTrip}
+            offers={offers}
+            isOnline={isOnline}
+            profileComplete={profileComplete}
+            refreshing={refreshing}
+            busy={busy}
+            locationDenied={locationDenied}
+            telemetryCount={telemetryCount}
+            onRefresh={refreshAll}
+            onAdvanceStage={advanceStage}
+            onVerifyPickup={verifyPickup}
+            onCompleteDelivery={completeDelivery}
+            onCancelTrip={cancelTrip}
+            onAcceptOffer={acceptOffer}
+            onDeclineOffer={declineOffer}
+            onGoOnline={() => setShift(true)}
+            onCompleteProfile={() => setSubScreen('documents')}
+            onSos={() => setSubScreen('safety')}
+          />
+        );
+      case 'earnings':
+        return (
+          <EarningsScreen
+            data={dashboard}
+            refreshing={refreshing}
+            onRefresh={refreshAll}
+            onOpenWeekly={() => setSubScreen('weekly')}
+            onOpenIncentives={() => setSubScreen('incentives')}
+            onOpenRatings={() => setSubScreen('ratings')}
+          />
+        );
+      case 'profile':
+        return (
+          <ProfileScreen
+            data={dashboard}
+            refreshing={refreshing}
+            onRefresh={refreshAll}
+            onSaveProfile={saveProfile}
+            onOpenDocuments={() => setSubScreen('documents')}
+            onOpenRatings={() => setSubScreen('ratings')}
+            onOpenPolicies={() => setSubScreen('policies')}
+            onOpenSafety={() => setSubScreen('safety')}
+            onChangePassword={handleChangePassword}
+            onLogout={handleLogout}
+          />
+        );
+    }
+  };
+
+  const renderSubScreen = () => {
+    switch (subScreen) {
+      case 'documents':
+        return <DocumentsScreen ctx={ctx} onChanged={() => loadDashboard({ silent: true })} />;
+      case 'ratings':
+        return <RatingsScreen ctx={ctx} />;
+      case 'incentives':
+        return <IncentivesScreen ctx={ctx} />;
+      case 'weekly':
+        return <WeeklyTripsScreen ctx={ctx} />;
+      case 'safety':
+        return <SafetyScreen ctx={ctx} activeOrderId={activeTrip?.id} />;
+      case 'policies':
+        return <PoliciesScreen ctx={ctx} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <SafeAreaView style={s.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
+
+      {subScreen ? (
+        <View style={s.subHeader}>
+          <TouchableOpacity
+            onPress={() => setSubScreen(null)}
+            style={s.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <ChevronLeft size={24} color={t.color.text} />
+          </TouchableOpacity>
+          <Text style={s.subHeaderTitle}>{SUB_SCREEN_TITLE[subScreen]}</Text>
+        </View>
+      ) : (
+        <View style={s.header}>
+          <Avatar uri={rider?.profilePhotoUrl} name={rider?.fullName} size={44} ring={isOnline} />
+          <View style={s.headerText}>
+            <Text style={s.headerName} numberOfLines={1}>
+              {rider?.fullName || 'Quick Bites Rider'}
+            </Text>
+            <View style={s.headerMeta}>
+              <View style={[s.statusDot, { backgroundColor: isOnline ? t.color.go : t.color.textMuted }]} />
+              <Text style={s.headerStatus}>
+                {isOnline ? (liveConnected ? 'Online · listening for offers' : 'Online') : 'Offline'}
+              </Text>
+            </View>
+          </View>
+          <View style={s.shiftControl}>
+            {shiftSaving ? (
+              <ActivityIndicator color={t.color.go} style={{ marginRight: t.space[2] }} />
+            ) : null}
+            <Switch
+              value={isOnline}
+              onValueChange={setShift}
+              disabled={shiftSaving}
+              trackColor={{ false: t.color.border, true: t.color.goSoft }}
+              thumbColor={isOnline ? t.color.go : t.color.textMuted}
+              ios_backgroundColor={t.color.border}
+            />
           </View>
         </View>
+      )}
 
-        <TouchableOpacity
-          style={[styles.shiftToggleBtn, { backgroundColor: rider.isOnline ? '#0A3D2E' : '#3E1E28' }]}
-          onPress={toggleShift}
-        >
-          <Power size={18} color={rider.isOnline ? '#4ADFA8' : '#A8968E'} />
+      <View style={{ flex: 1 }}>{subScreen ? renderSubScreen() : renderTab()}</View>
+
+      {!subScreen ? (
+        <View style={s.tabBar}>
+          <TabButton
+            label="Home"
+            active={tab === 'home'}
+            icon={<LayoutDashboard size={20} color={tab === 'home' ? t.color.go : t.color.textMuted} />}
+            onPress={() => setTab('home')}
+          />
+          <TabButton
+            label="Trips"
+            active={tab === 'trips'}
+            badge={activeTrip ? '1' : offers.length ? String(offers.length) : undefined}
+            icon={<NavigationIcon size={20} color={tab === 'trips' ? t.color.go : t.color.textMuted} />}
+            onPress={() => setTab('trips')}
+          />
+          <TabButton
+            label="Earnings"
+            active={tab === 'earnings'}
+            icon={<IndianRupee size={20} color={tab === 'earnings' ? t.color.go : t.color.textMuted} />}
+            onPress={() => setTab('earnings')}
+          />
+          <TabButton
+            label="Profile"
+            active={tab === 'profile'}
+            icon={<CircleUser size={20} color={tab === 'profile' ? t.color.go : t.color.textMuted} />}
+            onPress={() => setTab('profile')}
+          />
+        </View>
+      ) : null}
+
+      {/* SOS is reachable from anywhere except the SOS screen itself. */}
+      {subScreen !== 'safety' ? (
+        <TouchableOpacity style={s.sosFab} onPress={() => setSubScreen('safety')} activeOpacity={0.85}>
+          <ShieldAlert size={18} color="#FFFFFF" />
+          <Text style={s.sosFabText}>SOS</Text>
         </TouchableOpacity>
-      </View>
+      ) : null}
 
-      {/* Tab Navigation */}
-      <View style={styles.tabNav}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'deliveries' && styles.tabItemActive]}
-          onPress={() => setActiveTab('deliveries')}
-        >
-          <Navigation size={18} color={activeTab === 'deliveries' ? '#22C08A' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'deliveries' && styles.tabLabelActive]}>Logistics</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'earnings' && styles.tabItemActive]}
-          onPress={() => setActiveTab('earnings')}
-        >
-          <DollarSign size={18} color={activeTab === 'earnings' ? '#22C08A' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'earnings' && styles.tabLabelActive]}>Earnings</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'profile' && styles.tabItemActive]}
-          onPress={() => setActiveTab('profile')}
-        >
-          <ShieldCheck size={18} color={activeTab === 'profile' ? '#22C08A' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>Rider KYC</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-        {activeTab === 'deliveries' && (
-          <View>
-            {/* Active Delivery Card */}
-            {activeTrip ? (
-              <View style={styles.activeTripCard}>
-                <View style={styles.tripHeader}>
-                  <View>
-                    <Text style={styles.tripOrderNumber}>Order #{activeTrip.orderNumber}</Text>
-                    <Text style={styles.tripRestName}>{activeTrip.restaurantName}</Text>
-                  </View>
-                  <View style={styles.stagePill}>
-                    <Text style={styles.stagePillText}>{tripStage.replace(/_/g, ' ')}</Text>
-                  </View>
-                </View>
-
-                {/* Routing & Address Display */}
-                <View style={styles.routeBox}>
-                  <View style={styles.routeStep}>
-                    <MapPin size={16} color="#FF4F18" />
-                    <View style={{ marginLeft: 8, flex: 1 }}>
-                      <Text style={styles.stepLabel}>Pickup Location</Text>
-                      <Text style={styles.stepAddress}>{activeTrip.pickupAddress}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.routeDivider} />
-
-                  <View style={styles.routeStep}>
-                    <MapPin size={16} color="#22C08A" />
-                    <View style={{ marginLeft: 8, flex: 1 }}>
-                      <Text style={styles.stepLabel}>Customer Doorstep</Text>
-                      <Text style={styles.stepAddress}>{activeTrip.dropAddress}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* OpenStreetMap Route Navigation Polyline Simulation */}
-                <View style={styles.mapSimContainer}>
-                  <Navigation size={24} color="#22C08A" />
-                  <Text style={styles.mapSimText}>
-                    Navigating to the drop ({activeTrip.distanceKm} km)
-                  </Text>
-                  {tripStage === 'OUT_FOR_DELIVERY' && (
-                    locationDenied ? (
-                      <Text style={styles.telemetryWarn}>
-                        Location permission denied — the customer cannot see where you are.
-                        Enable location access for Quick Bites Rider in Settings.
-                      </Text>
-                    ) : (
-                      <Text style={styles.telemetryText}>
-                        Sharing live location with the customer ({telemetryCount} updates sent)
-                      </Text>
-                    )
-                  )}
-                </View>
-
-                {/* Handshake Stages */}
-                {tripStage === 'HEADING_TO_RESTAURANT' && (
-                  <TouchableOpacity
-                    style={styles.primaryActionBtn}
-                    onPress={() => setTripStage('AT_RESTAURANT')}
-                  >
-                    <Text style={styles.primaryActionText}>Arrived at Restaurant</Text>
-                  </TouchableOpacity>
-                )}
-
-                {tripStage === 'AT_RESTAURANT' && (
-                  <View style={styles.handshakeBox}>
-                    <Text style={styles.handshakeTitle}>Pickup Verification</Text>
-                    <Text style={styles.handshakeSubtitle}>Kitchen staff must confirm pickup code.</Text>
-                    <TextInput
-                      style={styles.pickupCodeInput}
-                      value={pickupCodeInput}
-                      onChangeText={setPickupCodeInput}
-                      placeholder="Enter 4-Digit Pickup Code (e.g. 4821)"
-                      placeholderTextColor="#8A7A72"
-                      keyboardType="number-pad"
-                      maxLength={4}
-                    />
-                    <TouchableOpacity style={styles.primaryActionBtn} onPress={verifyPickupHandshake}>
-                      <Text style={styles.primaryActionText}>Confirm Food Picked Up</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {tripStage === 'OUT_FOR_DELIVERY' && (
-                  <TouchableOpacity
-                    style={styles.primaryActionBtn}
-                    onPress={() => setTripStage('AT_DOORSTEP')}
-                  >
-                    <Text style={styles.primaryActionText}>Arrived at Customer Doorstep</Text>
-                  </TouchableOpacity>
-                )}
-
-                {tripStage === 'AT_DOORSTEP' && (
-                  <View style={styles.handshakeBox}>
-                    <Text style={styles.handshakeTitle}>Doorstep 4-Digit Delivery OTP</Text>
-                    <Text style={styles.handshakeSubtitle}>Ask customer for the 4-digit code shown on their app.</Text>
-
-                    {activeTrip.paymentMode === 'COD' && (
-                      <View style={styles.codAlertBox}>
-                        <DollarSign size={18} color="#E08E0B" />
-                        <Text style={styles.codAlertText}>
-                          Collect Rs {activeTrip.cashToCollect.toFixed(2)} Cash from Customer
-                        </Text>
-                      </View>
-                    )}
-
-                    <TextInput
-                      style={styles.pickupCodeInput}
-                      value={otpInput}
-                      onChangeText={setOtpInput}
-                      placeholder="Enter Customer 4-Digit OTP"
-                      placeholderTextColor="#8A7A72"
-                      keyboardType="number-pad"
-                      maxLength={4}
-                    />
-                    <TouchableOpacity style={styles.completeBtn} onPress={completeDeliveryOtp}>
-                      <CheckCircle2 size={18} color="#FFFFFF" />
-                      <Text style={styles.primaryActionText}>Verify OTP & Complete Trip</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View>
-                {/* Available Broadcast Jobs */}
-                {incomingBroadcast ? (
-                  <View style={styles.broadcastCard}>
-                    <View style={styles.broadcastTop}>
-                      <View>
-                        <Text style={styles.broadcastAlert}>15s Broadcast Available</Text>
-                        <Text style={styles.broadcastRestName}>{incomingBroadcast.restaurantName}</Text>
-                      </View>
-                      <View style={styles.timerBadge}>
-                        <Clock size={14} color="#E15D5D" />
-                        <Text style={styles.timerText}>{incomingBroadcast.timerSeconds}s</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.broadcastDetailsRow}>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Trip Pay</Text>
-                        <Text style={styles.detailValue}>Rs {incomingBroadcast.estimatedEarnings.toFixed(2)}</Text>
-                      </View>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Distance</Text>
-                        <Text style={styles.detailValue}>{incomingBroadcast.distanceKm} km</Text>
-                      </View>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Payment</Text>
-                        <Text style={styles.detailValue}>{incomingBroadcast.paymentMode}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.broadcastActionRow}>
-                      <TouchableOpacity
-                        style={styles.declineBtn}
-                        onPress={() => setIncomingBroadcast(null)}
-                      >
-                        <Text style={styles.declineBtnText}>Pass</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.acceptJobBtn} onPress={acceptBroadcast}>
-                        <Text style={styles.acceptJobBtnText}>Accept Delivery</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.idleCard}>
-                    <Bike size={48} color="#55303A" />
-                    <Text style={styles.idleTitle}>Waiting for Nearby Delivery Jobs</Text>
-                    <Text style={styles.idleSubtitle}>
-                      {rider.isOnline
-                        ? 'Stay online. Broadcast cards appear here when restaurants accept orders.'
-                        : 'You are currently offline. Turn on your shift switch above to receive jobs.'}
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.idleRefreshBtn, isSyncing && { opacity: 0.6 }]}
-                      onPress={() => syncBroadcasts()}
-                      disabled={isSyncing}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.acceptJobBtnText}>
-                        {isSyncing ? 'Checking…' : liveConnected ? 'Listening for jobs' : 'Check for Jobs'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-        )}
-
-        {activeTab === 'earnings' && (
-          <View>
-            <Text style={styles.sectionTitle}>Rider Wallet & Payouts</Text>
-            <View style={styles.walletCard}>
-              <Text style={styles.walletLabel}>Withdrawable Wallet Balance</Text>
-              <Text style={styles.walletBalance}>Rs {rider.walletBalance.toFixed(2)}</Text>
-              <Text style={styles.walletSub}>Paid out to your registered bank account</Text>
-            </View>
-
-            <View style={styles.earningsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNum}>{rider.todayTrips}</Text>
-                <Text style={styles.statLbl}>Trips Completed</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNum}>Rs {rider.codCashInHand.toFixed(2)}</Text>
-                <Text style={styles.statLbl}>Cash in Hand</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={[styles.statNum, { fontSize: 15 }]}>
-                  {rider.kycStatus === 'ACTIVE' ? 'Verified' : 'Pending'}
-                </Text>
-                <Text style={styles.statLbl}>KYC Status</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {activeTab === 'profile' && (
-          <View>
-            <Text style={styles.sectionTitle}>Rider Profile & KYC Credentials</Text>
-            <View style={styles.kycActiveCard}>
-              <ShieldCheck size={28} color="#22C08A" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.kycActiveTitle}>Background Check Approved</Text>
-                <Text style={styles.kycActiveDesc}>Driving License #KA032021008899 verified.</Text>
-              </View>
-            </View>
-
-            <View style={styles.docCard}>
-              <Text style={styles.docTitle}>Driving License</Text>
-              <Text style={styles.docDesc}>KA032021008899 (Motorcycle with Gear)</Text>
-              <Text style={styles.docStatusBadge}>Approved</Text>
-            </View>
-
-            <View style={styles.docCard}>
-              <Text style={styles.docTitle}>Vehicle Registration (RC)</Text>
-              <Text style={styles.docDesc}>KA04EJ4321 (Hero Splendor Plus)</Text>
-              <Text style={styles.docStatusBadge}>Approved</Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
+      <NewOrderModal
+        trip={pendingOffer}
+        busy={busy}
+        onAccept={acceptOffer}
+        onDecline={declineOffer}
+        onExpire={() => {
+          // An expired offer is not a decline: another rider may simply have
+          // been quicker, and the rider should not be penalised for that.
+          dismissOffer();
+          syncOffers({ announce: false });
+        }}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  authContainer: { flex: 1, backgroundColor: '#17090E', justifyContent: 'center', padding: 24 },
-  authCard: { backgroundColor: '#26111A', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#3E1E28' },
-  authHeader: { alignItems: 'center', marginBottom: 28 },
-  brandIconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#3E1E28', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  authTitle: { fontSize: 24, fontWeight: '800', color: '#FBF3EE' },
-  authSubtitle: { fontSize: 14, color: '#A8968E', marginTop: 4 },
-  inputGroup: { marginBottom: 18 },
-  inputLabel: { fontSize: 13, color: '#D8C9C0', marginBottom: 8, fontWeight: '600' },
-  textInput: { backgroundColor: '#17090E', borderRadius: 14, height: 50, paddingHorizontal: 16, color: '#FBF3EE', fontSize: 15, borderWidth: 1, borderColor: '#3E1E28' },
-  loginBtn: { backgroundColor: '#22C08A', borderRadius: 14, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
-  loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  demoPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3E1E28', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginTop: 20, alignSelf: 'center' },
-  demoPillText: { color: '#D8C9C0', fontSize: 12, marginLeft: 6 },
-  mainContainer: { flex: 1, backgroundColor: '#17090E' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#26111A' },
-  riderName: { fontSize: 20, fontWeight: '800', color: '#FBF3EE' },
-  shiftMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  statusText: { fontSize: 13, color: '#A8968E', marginRight: 10 },
-  vehicleBadge: { backgroundColor: '#3E1E28', color: '#38BDF8', fontSize: 11, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  shiftToggleBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  tabNav: { flexDirection: 'row', backgroundColor: '#26111A', borderBottomWidth: 1, borderBottomColor: '#3E1E28' },
-  tabItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 6 },
-  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#22C08A' },
-  tabLabel: { fontSize: 12, color: '#A8968E', fontWeight: '600' },
-  tabLabelActive: { color: '#22C08A', fontWeight: '700' },
-  scrollArea: { flex: 1 },
-  scrollContent: { padding: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#FBF3EE', marginBottom: 16 },
-  idleCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 36, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
-  idleTitle: { fontSize: 16, fontWeight: '700', color: '#FBF3EE', marginTop: 12 },
-  idleSubtitle: { fontSize: 13, color: '#A8968E', marginTop: 6, textAlign: 'center', lineHeight: 19 },
-  idleRefreshBtn: {
-    marginTop: 20,
-    height: 46,
-    paddingHorizontal: 28,
-    justifyContent: 'center',
+const TabButton: React.FC<{
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  badge?: string;
+  onPress: () => void;
+}> = ({ label, icon, active, badge, onPress }) => (
+  <TouchableOpacity style={s.tabButton} onPress={onPress} activeOpacity={0.7}>
+    <View>
+      {icon}
+      {badge ? (
+        <View style={s.tabBadge}>
+          <Text style={s.tabBadgeText}>{badge}</Text>
+        </View>
+      ) : null}
+    </View>
+    <Text style={[s.tabLabel, active && { color: t.color.go }]}>{label}</Text>
+  </TouchableOpacity>
+);
+
+/**
+ * The live channel that makes an offer arrive rather than be waited for.
+ *
+ * Kept here rather than in the shared hook because the rider app only ever
+ * joins one room, and the reconnect behaviour it needs — rejoin on every
+ * connect, and re-sync on reconnect in case something arrived while the
+ * socket was down — is specific to dispatch.
+ */
+function useLiveOffers(apiUrl: string | null, token: string | null, onEvent: () => void) {
+  const [connected, setConnected] = useState(false);
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    if (!apiUrl || !token) {
+      setConnected(false);
+      return;
+    }
+
+    // Required lazily: pulling socket.io in at module scope delays first paint
+    // on a cold start for a screen that may never need it.
+    const { io } = require('socket.io-client');
+    const origin = apiUrl.replace(/\/api(\/v1)?\/?$/, '');
+    const socket = io(origin, {
+      transports: ['websocket', 'polling'],
+      auth: { token },
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
+    });
+
+    socket.on('connect', () => {
+      setConnected(true);
+      socket.emit('join:riders');
+      onEventRef.current();
+    });
+    socket.on('disconnect', () => setConnected(false));
+    socket.on('connect_error', () => setConnected(false));
+    socket.on('order:available', () => onEventRef.current());
+    socket.on('order:status_update', () => onEventRef.current());
+
+    return () => {
+      socket.removeAllListeners();
+      socket.disconnect();
+      setConnected(false);
+    };
+  }, [apiUrl, token]);
+
+  return { connected };
+}
+
+const s = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: t.color.bg,
+    // SafeAreaView leaves the Android status bar alone, so without this the
+    // rider's name renders on top of the clock and the battery icon.
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0
+  },
+  boot: { flex: 1, backgroundColor: t.color.bg, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#22C08A',
-    borderRadius: 12
+    paddingHorizontal: t.space[4],
+    paddingVertical: t.space[3],
+    borderBottomWidth: 1,
+    borderBottomColor: t.color.border
   },
-  broadcastCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 20, borderWidth: 2, borderColor: '#22C08A' },
-  broadcastTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  broadcastAlert: { fontSize: 12, color: '#22C08A', fontWeight: '800', textTransform: 'uppercase' },
-  broadcastRestName: { fontSize: 18, fontWeight: '800', color: '#FBF3EE', marginTop: 2 },
-  timerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#450A0A', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
-  timerText: { color: '#EC8080', fontSize: 12, fontWeight: '700' },
-  broadcastDetailsRow: { flexDirection: 'row', backgroundColor: '#17090E', padding: 14, borderRadius: 14, marginVertical: 14 },
-  detailItem: { flex: 1, alignItems: 'center' },
-  detailLabel: { fontSize: 11, color: '#A8968E' },
-  detailValue: { fontSize: 16, fontWeight: '800', color: '#FBF3EE', marginTop: 2 },
-  broadcastActionRow: { flexDirection: 'row', gap: 12 },
-  declineBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#3E1E28', borderRadius: 12 },
-  declineBtnText: { color: '#A8968E', fontWeight: '700' },
-  acceptJobBtn: { flex: 2, height: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: '#22C08A', borderRadius: 12 },
-  acceptJobBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
-  activeTripCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#3E1E28' },
-  tripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tripOrderNumber: { fontSize: 14, color: '#A8968E', fontWeight: '600' },
-  tripRestName: { fontSize: 18, fontWeight: '800', color: '#FBF3EE' },
-  stagePill: { backgroundColor: '#0A3D2E', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  stagePillText: { color: '#4ADFA8', fontSize: 11, fontWeight: '700' },
-  routeBox: { backgroundColor: '#17090E', borderRadius: 14, padding: 14, marginVertical: 14 },
-  routeStep: { flexDirection: 'row', alignItems: 'flex-start' },
-  routeDivider: { height: 16, width: 1, backgroundColor: '#3E1E28', marginLeft: 8, marginVertical: 4 },
-  stepLabel: { fontSize: 11, color: '#8A7A72', fontWeight: '600' },
-  stepAddress: { fontSize: 13, color: '#FBF3EE', fontWeight: '600', marginTop: 1 },
-  mapSimContainer: { backgroundColor: '#0A3D2E', padding: 14, borderRadius: 14, alignItems: 'center', marginBottom: 14 },
-  mapSimText: { color: '#4ADFA8', fontSize: 13, fontWeight: '700', marginTop: 4 },
-  telemetryWarn: {
-    fontSize: 12,
-    color: '#F0A6A6',
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 17,
-    fontWeight: '600'
+  headerText: { flex: 1, marginLeft: t.space[3] },
+  headerName: { color: t.color.text, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
+  headerMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  headerStatus: { color: t.color.textMuted, fontSize: t.font.size.xs },
+  shiftControl: { flexDirection: 'row', alignItems: 'center' },
+  subHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: t.space[3],
+    paddingVertical: t.space[3],
+    borderBottomWidth: 1,
+    borderBottomColor: t.color.border
   },
-  telemetryText: { color: '#A7F3D0', fontSize: 11, marginTop: 2 },
-  primaryActionBtn: { backgroundColor: '#22C08A', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  primaryActionText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  handshakeBox: { backgroundColor: '#17090E', padding: 16, borderRadius: 16 },
-  handshakeTitle: { fontSize: 15, fontWeight: '800', color: '#FBF3EE' },
-  handshakeSubtitle: { fontSize: 12, color: '#A8968E', marginTop: 2, marginBottom: 12 },
-  pickupCodeInput: { backgroundColor: '#26111A', height: 48, borderRadius: 12, paddingHorizontal: 14, color: '#FFFFFF', fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#3E1E28', marginBottom: 12 },
-  codAlertBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#451A03', padding: 10, borderRadius: 10, gap: 6, marginBottom: 12 },
-  codAlertText: { color: '#FBBF24', fontSize: 12, fontWeight: '700' },
-  completeBtn: { flexDirection: 'row', backgroundColor: '#22C08A', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 6 },
-  walletCard: { backgroundColor: '#26111A', padding: 22, borderRadius: 20, borderWidth: 1, borderColor: '#3E1E28', marginBottom: 16 },
-  walletLabel: { fontSize: 13, color: '#A8968E', fontWeight: '600' },
-  walletBalance: { fontSize: 32, fontWeight: '800', color: '#22C08A', marginVertical: 6 },
-  walletSub: { fontSize: 12, color: '#8A7A72' },
-  earningsGrid: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: '#26111A', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
-  statNum: { fontSize: 18, fontWeight: '800', color: '#FBF3EE' },
-  statLbl: { fontSize: 11, color: '#A8968E', marginTop: 4 },
-  kycActiveCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0A3D2E', padding: 16, borderRadius: 16, marginBottom: 16 },
-  kycActiveTitle: { fontSize: 15, fontWeight: '800', color: '#4ADFA8' },
-  kycActiveDesc: { fontSize: 12, color: '#A7F3D0', marginTop: 2 },
-  docCard: { backgroundColor: '#26111A', padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#3E1E28' },
-  docTitle: { fontSize: 14, fontWeight: '700', color: '#FBF3EE' },
-  docDesc: { fontSize: 12, color: '#A8968E', marginTop: 2 },
-  docStatusBadge: { alignSelf: 'flex-start', backgroundColor: '#0A3D2E', color: '#4ADFA8', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 8 }
+  backButton: { padding: t.space[1] },
+  subHeaderTitle: {
+    color: t.color.text,
+    fontSize: t.font.size.md,
+    fontWeight: t.font.weight.bold,
+    marginLeft: t.space[2]
+  },
+  tabBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: t.color.border,
+    backgroundColor: t.color.surfaceSunken,
+    paddingTop: t.space[2],
+    paddingBottom: Platform.OS === 'ios' ? t.space[5] : t.space[3]
+  },
+  tabButton: { flex: 1, alignItems: 'center' },
+  tabLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 4, fontWeight: t.font.weight.semibold },
+  tabBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -9,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: t.color.go,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4
+  },
+  tabBadgeText: { color: '#04231A', fontSize: 10, fontWeight: t.font.weight.extrabold },
+  sosFab: {
+    position: 'absolute',
+    right: t.space[4],
+    bottom: 96,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: t.color.danger,
+    paddingHorizontal: t.space[4],
+    paddingVertical: t.space[3],
+    borderRadius: t.radius.full,
+    ...t.shadow.lifted
+  },
+  sosFabText: { color: '#FFFFFF', fontSize: t.font.size.sm, fontWeight: t.font.weight.extrabold, marginLeft: 6 }
 });
 
 export default function App() {
   return (
-    <ErrorBoundary appName="Quick Bites Rider" accent="#22C08A">
+    <ErrorBoundary>
       <DeliveryApp />
     </ErrorBoundary>
   );

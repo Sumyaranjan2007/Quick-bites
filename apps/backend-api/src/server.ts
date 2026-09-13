@@ -10,6 +10,7 @@ import {
   closeDatabase
 } from './db/postgresStore.ts';
 import { seedDatabase, SEED_VERSION } from './db/seed.ts';
+import { adminRoleRepository } from './db/repositories/adminRoleRepository.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -53,6 +54,13 @@ if (!hydrated) {
 } else {
   console.log('[INFO] Existing data hydrated successfully.');
 }
+
+// Runs on every boot, not only after a seed. The shipped roles are part of the
+// build: a release that adds a permission has to reach the role meant to hold
+// it, and a store hydrated from before roles existed needs them created before
+// the first administrator signs in.
+await adminRoleRepository.ensureSystemRoles();
+await flushStore();
 
 const app = createApp();
 

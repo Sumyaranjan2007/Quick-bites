@@ -65,6 +65,19 @@ export const config = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_samplekey123',
   RAZORPAY_KEY_SECRET: requireSecret('RAZORPAY_KEY_SECRET', process.env.RAZORPAY_KEY_SECRET),
 
+  /**
+   * Whether a password-reset code is returned in the API response.
+   *
+   * There is no mail or SMS provider wired up, so a reset code has to reach the
+   * person somehow. Echoing it in the response is convenient and is exactly how
+   * an account is stolen by anyone who knows an email address, so it is off in
+   * production unless someone deliberately turns it on. In production the code
+   * is written to the server log instead, where support can read it out.
+   */
+  PASSWORD_RESET_ECHO: IS_PRODUCTION
+    ? process.env.PASSWORD_RESET_ECHO === 'true'
+    : process.env.PASSWORD_RESET_ECHO !== 'false',
+
   // Security
   CORS_WHITELIST: [
     'http://localhost:3000',

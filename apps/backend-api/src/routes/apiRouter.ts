@@ -8,6 +8,7 @@ import { addressRouter } from './addressRouter.ts';
 import { riderRouter } from './riderRouter.ts';
 import { walletRouter } from './walletRouter.ts';
 import { restaurantRouter } from './restaurantRouter.ts';
+import { supportRouter } from './supportRouter.ts';
 import { getHealth } from '../controllers/healthController.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -58,6 +59,10 @@ apiRouter.use('/kyc', authMiddleware(), kycRouter);
 apiRouter.use('/admin', authMiddleware('admin'), adminRouter);
 apiRouter.use('/riders', authMiddleware('rider'), riderRouter);
 apiRouter.use('/wallets', authMiddleware(), walletRouter);
+// Complaints and refund requests raised from the customer, partner and rider
+// apps. Authentication is applied inside the router, which also decides who may
+// see which case.
+apiRouter.use('/support', supportRouter);
 apiRouter.use('/addresses', authMiddleware(), addressRouter);
 apiRouter.use('/restaurants', restaurantRouter);
 apiRouter.use('/orders', orderRouter);

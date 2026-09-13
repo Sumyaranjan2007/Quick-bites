@@ -27,6 +27,24 @@ export interface DbStore {
   kycDocuments: Map<string, any>;
   /** Customer/rider conversation about an order, keyed by message id. */
   orderMessages: Map<string, any>;
+  /** Partner requests to add or change a menu item, awaiting admin review. */
+  menuRequests: Map<string, any>;
+  /** Emergency alerts raised by riders from the Safety & SOS screen. */
+  sosAlerts: Map<string, any>;
+  /** Incentive milestones already paid out, so a target pays exactly once. */
+  riderIncentives: Map<string, any>;
+  /** Named permission sets an administrator account can be assigned. */
+  adminRoles: Map<string, any>;
+  /** Immutable record of every administrative action, newest written last. */
+  auditLogs: Map<string, any>;
+  /** Return/refund cases raised by customers and riders, awaiting a decision. */
+  refundRequests: Map<string, any>;
+  /** Complaints and questions raised from any of the four apps. */
+  supportTickets: Map<string, any>;
+  /** Platform-wide food categories used for discovery and coupon targeting. */
+  categories: Map<string, any>;
+  /** Key-value platform settings an administrator can change at runtime. */
+  settings: Map<string, any>;
   /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
   meta: Map<string, any>;
 }
@@ -45,6 +63,15 @@ export const memoryStore: DbStore = {
   walletTransactions: new Map(),
   kycDocuments: new Map(),
   orderMessages: new Map(),
+  menuRequests: new Map(),
+  sosAlerts: new Map(),
+  riderIncentives: new Map(),
+  adminRoles: new Map(),
+  auditLogs: new Map(),
+  refundRequests: new Map(),
+  supportTickets: new Map(),
+  categories: new Map(),
+  settings: new Map(),
   meta: new Map()
 };
 

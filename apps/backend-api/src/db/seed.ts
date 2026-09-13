@@ -8,6 +8,9 @@ import { riderRepository } from './repositories/riderRepository.ts';
 import { walletRepository } from './repositories/walletRepository.ts';
 import { kycRepository } from './repositories/kycRepository.ts';
 import { memoryStore } from './client.ts';
+import { SEED_RIDER_PHOTO, SEED_RIDER_LICENCE_SCAN, SEED_RIDER_RC_SCAN } from './seedAssets.ts';
+import { adminRoleRepository } from './repositories/adminRoleRepository.ts';
+import { categoryRepository } from './repositories/categoryRepository.ts';
 
 console.log('====================================================');
 console.log('       QUICK BITE PLATFORM - MULTI-DEVICE SEED      ');
@@ -20,7 +23,7 @@ console.log('====================================================\n');
  * an old snapshot silently wins and edits to this file never reach a running
  * deployment. The stamp lets startup notice the mismatch and re-seed.
  */
-export const SEED_VERSION = '2026-09-13-harohalli';
+export const SEED_VERSION = '2026-09-14-admin-console-rbac';
 
 /**
  * The seed creates staff, partner and rider accounts. Locally they share the well-known
@@ -53,16 +56,44 @@ export async function seedDatabase() {
   const defaultPasswordHash = await bcrypt.hash(resolveSeedPassword(), 10);
 
   // 1. Users for each of the 4 Devices
+  // The roles have to exist before any account can be pointed at one.
+  await adminRoleRepository.ensureSystemRoles();
+
   await userRepository.create({
     id: 'usr_admin_01',
     email: 'admin@quickbite.app',
     passwordHash: defaultPasswordHash,
     fullName: 'Ananya Iyer',
-    role: 'admin',
+    // The platform owner. Holds every permission by virtue of the role itself,
+    // which is why it is the only account that can hand roles to anybody else.
+    role: 'super_admin',
+    adminRoleId: 'rol_super_admin',
     isGold: true,
     preferredLanguage: 'en',
     createdAt: new Date().toISOString()
   });
+
+  // Role-scoped staff accounts, so restricted access is something that can
+  // actually be signed into and checked rather than only described.
+  const scopedStaff: Array<{ id: string; email: string; fullName: string; roleId: string }> = [
+    { id: 'usr_admin_ops', email: 'ops@quickbite.app', fullName: 'Rohit Menon', roleId: 'rol_operations_admin' },
+    { id: 'usr_admin_fin', email: 'finance@quickbite.app', fullName: 'Priya Nair', roleId: 'rol_finance_admin' },
+    { id: 'usr_admin_sup', email: 'support@quickbite.app', fullName: 'Imran Qureshi', roleId: 'rol_support_admin' }
+  ];
+  for (const staff of scopedStaff) {
+    await userRepository.create({
+      id: staff.id,
+      email: staff.email,
+      passwordHash: defaultPasswordHash,
+      fullName: staff.fullName,
+      role: 'admin',
+      adminRoleId: staff.roleId,
+      isGold: false,
+      preferredLanguage: 'en',
+      createdAt: new Date().toISOString()
+    });
+  }
+  console.log('[PASS] Admin roles seeded with scoped staff accounts (ops, finance, support).');
 
   await userRepository.create({
     id: 'usr_partner_01',
@@ -131,16 +162,26 @@ export async function seedDatabase() {
   console.log('[PASS] Customer wallet (Rs 500) and Rider wallet (Rs 240) seeded.');
 
   // 3. Delivery Rider Profile
+  //
+  // Seeded complete — photograph, partner ID and approved papers — because a
+  // rider is now blocked from going on shift until all of those exist. Starts
+  // off shift: whether a rider is available is theirs to decide, and seeding
+  // them Online put a rider on the dispatch list who was not at their handlebars.
   await riderRepository.create({
     id: 'rdr_vikram_01',
     userId: 'usr_rider_01',
+    driverCode: 'QB-RID-0001',
     fullName: 'Vikram Singh',
     phone: '+91-98765-11223',
+    profilePhotoUrl: SEED_RIDER_PHOTO,
     vehicleType: 'BIKE',
     licenseNumber: 'KA032021008899',
     vehicleRcNumber: 'KA04EJ4321',
     kycStatus: 'ACTIVE',
-    isOnline: true,
+    isOnline: false,
+    codCashInHand: 0,
+    offersReceived: 0,
+    offersAccepted: 0,
     currentCoordinates: { latitude: 12.6830, longitude: 77.4760 }
   });
   console.log('[PASS] Active Delivery Rider seeded.');
@@ -473,7 +514,10 @@ export async function seedDatabase() {
     fileUrl: 'https://assets.quickbite.app/kyc/fssai-sample-license.jpg'
   });
 
-  await kycRepository.submitDocument({
+  // The demo rider's papers are seeded already approved, so the account can go
+  // on shift out of the box; the restaurant's FSSAI above stays pending so the
+  // admin review queue still has something in it to review.
+  const riderLicence = await kycRepository.submitDocument({
     entityType: 'RIDER',
     entityId: 'rdr_vikram_01',
     entityName: 'Vikram Singh',
@@ -481,28 +525,73 @@ export async function seedDatabase() {
     documentNumber: 'KA03 2021 0008899',
     entityCity: 'Bengaluru',
     entityPhone: '+91-98765-11223',
-    fileUrl: 'https://assets.quickbite.app/kyc/dl-sample-license.jpg'
+    fileUrl: SEED_RIDER_LICENCE_SCAN
   });
+  await kycRepository.reviewDocument(riderLicence.id, 'APPROVED');
+
+  const riderRc = await kycRepository.submitDocument({
+    entityType: 'RIDER',
+    entityId: 'rdr_vikram_01',
+    entityName: 'Vikram Singh',
+    documentType: 'VEHICLE_RC',
+    documentNumber: 'KA04EJ4321',
+    entityCity: 'Bengaluru',
+    entityPhone: '+91-98765-11223',
+    fileUrl: SEED_RIDER_RC_SCAN
+  });
+  await kycRepository.reviewDocument(riderRc.id, 'APPROVED');
   console.log('[PASS] Demo KYC documents seeded for Admin review queue.');
 
   // 7. Active Promo Coupons
   memoryStore.coupons.set('WELCOME50', {
     code: 'WELCOME50',
+    title: 'Welcome offer',
+    description: '50% off your first Quick Bites order, up to Rs 100.',
     discountType: 'PERCENTAGE',
     discountValue: 50,
     maxDiscountCap: 100,
     minOrderValue: 200,
-    isActive: true
+    perUserLimit: 1,
+    timesUsed: 0,
+    applicableRestaurantIds: [],
+    applicableCategories: [],
+    isActive: true,
+    createdAt: new Date().toISOString()
   });
 
   memoryStore.coupons.set('FREEDEL', {
     code: 'FREEDEL',
+    title: 'Free delivery',
+    description: 'No delivery fee on orders over Rs 150.',
     discountType: 'FREE_DELIVERY',
     discountValue: 100,
     minOrderValue: 150,
-    isActive: true
+    timesUsed: 0,
+    applicableRestaurantIds: [],
+    applicableCategories: [],
+    isActive: true,
+    createdAt: new Date().toISOString()
   });
   console.log('[PASS] Promo coupons seeded (WELCOME50, FREEDEL)');
+
+  // 8. Platform categories, so discovery and coupon targeting have something to
+  // work with on a fresh deployment.
+  const seedCategories = [
+    'Biryani',
+    'North Indian',
+    'South Indian',
+    'Chinese',
+    'Pizza',
+    'Burgers',
+    'Desserts',
+    'Beverages',
+    'Healthy',
+    'Street Food'
+  ];
+  for (const [index, name] of seedCategories.entries()) {
+    await categoryRepository.create({ name, sortOrder: index + 1 });
+  }
+  console.log(`[PASS] ${seedCategories.length} platform categories seeded.`);
 
   memoryStore.meta.set('seedVersion', SEED_VERSION);
 

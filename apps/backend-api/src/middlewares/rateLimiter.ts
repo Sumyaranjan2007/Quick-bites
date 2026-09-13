@@ -87,6 +87,30 @@ export function authRateLimiterMiddleware(req: Request, res: Response, next: Nex
   next();
 }
 
+/**
+ * Empties the credential buckets.
+ *
+ * Exists for the test suites, which sign several accounts in and out within one
+ * run and would otherwise trip a limiter that is doing exactly its job. Relaxing
+ * the limit for `NODE_ENV=test` was the alternative and is worse: it makes the
+ * throttle something that can be switched off by an environment variable, and
+ * leaves the tests exercising a configuration production never runs.
+ */
+export function resetAuthRateLimit(): void {
+  authBuckets.clear();
+}
+
+/**
+ * Empties the general request bucket.
+ *
+ * The end-to-end suites drive four portals through a whole day of activity in a
+ * few seconds, which is well past a limit meant for one person on one phone.
+ * Clearing the bucket keeps the limit itself exactly as production runs it.
+ */
+export function resetRequestRateLimit(): void {
+  buckets.clear();
+}
+
 export function rateLimiterMiddleware(req: Request, res: Response, next: NextFunction): void {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now() / 1000;

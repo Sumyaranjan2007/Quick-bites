@@ -311,6 +311,34 @@ export function emitOrderAvailableForPickup(order: {
   }));
 }
 
+/**
+ * Raises a rider's emergency in the operations control room.
+ *
+ * Sent to the admin room rather than a support queue: an SOS is not a message
+ * waiting to be picked up, and must not sit behind ordinary questions.
+ */
+export function emitSosAlert(alert: {
+  id: string;
+  riderId: string;
+  riderName: string;
+  category: string;
+  orderId?: string;
+  coordinates?: { latitude: number; longitude: number };
+  raisedAt: string;
+}): void {
+  if (!ioInstance) return;
+  ioInstance.to('admin:control_tower').emit('rider:sos', alert);
+  console.log(JSON.stringify({
+    level: 'ERROR',
+    timestamp: alert.raisedAt,
+    event: 'RIDER_SOS_RAISED',
+    alertId: alert.id,
+    riderId: alert.riderId,
+    category: alert.category,
+    orderId: alert.orderId
+  }));
+}
+
 /** Delivers a chat message to everyone watching that order. */
 export function emitOrderMessage(orderId: string, message: unknown): void {
   if (!ioInstance) return;
@@ -365,4 +393,28 @@ export function emitMenuUpdated(restaurantId: string): void {
   };
   ioInstance.to(`restaurant:${restaurantId}`).emit('menu:updated', payload);
   ioInstance.to(`menu:${restaurantId}`).emit('menu:updated', payload);
+}
+
+/** Puts a partner's menu change in front of whoever is watching the review queue. */
+export function emitMenuRequestSubmitted(request: { id: string; restaurantId: string }): void {
+  if (!ioInstance) return;
+  ioInstance.to('admin:control_tower').emit('menu_request:submitted', {
+    requestId: request.id,
+    restaurantId: request.restaurantId,
+    submittedAt: new Date().toISOString()
+  });
+}
+
+/** Tells the partner what an administrator decided about their menu request. */
+export function emitMenuRequestReviewed(request: {
+  id: string;
+  restaurantId: string;
+  status: string;
+}): void {
+  if (!ioInstance) return;
+  ioInstance.to(`restaurant:${request.restaurantId}`).emit('menu_request:reviewed', {
+    requestId: request.id,
+    status: request.status,
+    reviewedAt: new Date().toISOString()
+  });
 }

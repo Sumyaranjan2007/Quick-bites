@@ -2,7 +2,7 @@
   "expo": {
     "name": "Quick Bites Rider",
     "slug": "quick-bite-rider",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbiterider",
@@ -14,10 +14,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.quickbite.rider",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleDisplayName": "Quick Bites Rider"
+        "CFBundleDisplayName": "Quick Bites Rider",
+        "NSCameraUsageDescription": "Quick Bites needs the camera so you can photograph your licence, vehicle registration and profile picture for verification.",
+        "NSPhotoLibraryUsageDescription": "Quick Bites needs access to your photos so you can upload a licence, registration or profile picture you have already taken."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
@@ -94,7 +96,7 @@
     },
     "android": {
       "package": "com.quickbite.rider",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F8A5F"
@@ -103,12 +105,14 @@
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA"
+        "android.permission.RECORD_AUDIO"
       ],
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "newArchEnabled": false,
@@ -132,6 +136,22 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "kotlinVersion": "1.9.25"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Quick Bites needs access to your photos so you can upload your documents and profile picture.",
+          "cameraPermission": "Quick Bites needs the camera so you can photograph your documents and profile picture."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#22C08A",
+          "sounds": [
+            "./assets/new_order.wav"
+          ]
         }
       ],
       "../../packages/config/expo-plugins/withReleaseSigning",
