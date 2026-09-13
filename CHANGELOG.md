@@ -575,6 +575,32 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-13] -- Claude Opus 5 -- Session 19 (Portal Interconnection)
+**Description:** Closed the gaps between the four portals. The staff apps had no live channel and no polling either, so a kitchen learned about an order only when someone tapped "Sync Orders" and a rider only when they tapped "Check for Jobs".
+**Chunks Modified:** 02 (backend), 05-08 (apps)
+**Changes:**
+- Modified: `apps/backend-api/src/sockets/socketServer.ts` (added the `riders:available` and `menu:<restaurantId>` rooms; `emitOrderStatusUpdate` now also reaches the restaurant cooking the order)
+- Modified: `apps/backend-api/src/modules/orders/orderService.ts` (offers a packed order to waiting riders)
+- Modified: `apps/backend-api/src/routes/restaurantRouter.ts` (`toggle-stock` now announces the change; it previously emitted nothing)
+- Modified: `apps/backend-api/src/routes/riderRouter.ts` (status emits carry the restaurant id)
+- Created: `apps/{restaurant,delivery,admin}-mobile/src/lib/useLiveUpdates.ts` and wired each App.tsx
+- Modified: `apps/customer-mobile/src/lib/useOrderSocket.ts` (added `useMenuSocket`) and `RestaurantDetailScreen.tsx`
+- Created: `apps/backend-api/src/test/pipeline.test.ts` (27 checks, wired into `npm test`)
+- Created: `DOWNLOAD.md`
+
+**Build Status:** 10/10 chunks complete
+**Known Issues:**
+- Customers must never be put in the `restaurant:` socket room: it carries whole order objects for every order that kitchen receives. Menu pings go to a separate `menu:` room for exactly this reason, and the pipeline test asserts no order leaks into it.
+- The hosted API returns 502. `env.ts` now refuses to boot in production without `JWT_SECRET` and `RAZORPAY_KEY_SECRET`, and the Railway deployment has neither set. All four apps point at that URL, so they cannot sign in until it is fixed.
+- `git push` is rejected with 403 for this repository from this machine, for both concurrent sessions. Origin is behind by several commits.
+- The three staff mobile apps still hardcode their colours instead of sharing the customer app's token module. The palettes agree today; nothing enforces that they stay in step.
+
+**NEXT AI SHOULD:** Once push access and the Railway variables are restored, publish the four APKs and confirm a real order travels customer -> kitchen -> rider -> customer against the hosted API rather than a local one.
+
+**Notes:** A second session worked in this tree throughout, covering auth hardening, rate limiting, CORS and the portal sign-in gates. Commits were kept separate deliberately.
+
+---
+
 ## Session Log Template (For Future Sessions)
 ```markdown
 ## [YYYY-MM-DD] -- [AI Model] -- Session [N]
