@@ -29,6 +29,7 @@ import {
   ArrowRight
 } from 'lucide-react-native';
 import { apiFetch } from './src/lib/apiFetch';
+import { useLiveUpdates } from './src/lib/useLiveUpdates';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -174,6 +175,15 @@ function DeliveryApp() {
   };
 
   // Login handler
+  // While on shift the rider is told the moment a kitchen packs an order,
+  // instead of having to tap "Check for Jobs" and hope.
+  const { connected: liveConnected } = useLiveUpdates(
+    isAuthenticated && rider.isOnline ? { kind: 'riders' } : null,
+    apiUrl,
+    authToken,
+    () => { syncBroadcasts(); }
+  );
+
   const handleLogin = async () => {
     try {
       const res = await apiFetch(`${apiUrl}/auth/login`, {
@@ -603,7 +613,7 @@ function DeliveryApp() {
                       activeOpacity={0.85}
                     >
                       <Text style={styles.acceptJobBtnText}>
-                        {isSyncing ? 'Checking…' : 'Check for Jobs'}
+                        {isSyncing ? 'Checking…' : liveConnected ? 'Listening for jobs' : 'Check for Jobs'}
                       </Text>
                     </TouchableOpacity>
                   </View>

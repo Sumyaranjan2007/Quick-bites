@@ -127,7 +127,8 @@ riderRouter.post('/orders/:id/claim', async (req, res) => {
     emitOrderStatusUpdate(order.id, {
       orderId: order.id,
       status: 'RIDER_ASSIGNED',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      restaurantId: order.restaurantId
     });
 
     return res.json({
@@ -166,7 +167,8 @@ riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchem
     emitOrderStatusUpdate(result.order!.id, {
       orderId: result.order!.id,
       status: 'OUT_FOR_DELIVERY',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      restaurantId: result.order!.restaurantId
     });
 
     return res.json({
@@ -216,7 +218,8 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
     emitOrderStatusUpdate(result.order!.id, {
       orderId: result.order!.id,
       status: 'DELIVERED',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      restaurantId: result.order!.restaurantId
     });
 
     return res.json({

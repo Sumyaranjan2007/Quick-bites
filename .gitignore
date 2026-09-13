@@ -21,3 +21,7 @@ apps/*/ios/
 *.keystore
 !**/debug.keystore
 *.password
+
+# Runtime database snapshot — regenerated from the seed on first boot.
+# Committing it made deploys serve stale data and reset live orders.
+apps/backend-api/data/store.json

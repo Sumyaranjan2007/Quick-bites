@@ -433,7 +433,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                 style={styles.sheetInput}
                 value={form.addressLine}
                 onChangeText={v => setForm({ ...form, addressLine: v })}
-                placeholder="Flat 402, Green Glen Towers, 100 Feet Road"
+                placeholder="No. 24, Shivanandha Layout, Harohalli"
                 placeholderTextColor={c.text.muted}
               />
 
@@ -442,7 +442,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                 style={styles.sheetInput}
                 value={form.landmark}
                 onChangeText={v => setForm({ ...form, landmark: v })}
-                placeholder="Opposite Indiranagar Metro"
+                placeholder="Opposite Harohalli Bus Stand"
                 placeholderTextColor={c.text.muted}
               />
 
@@ -462,7 +462,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                     style={styles.sheetInput}
                     value={form.pincode}
                     onChangeText={v => setForm({ ...form, pincode: v.replace(/[^0-9]/g, '').slice(0, 6) })}
-                    placeholder="560038"
+                    placeholder="562112"
                     placeholderTextColor={c.text.muted}
                     keyboardType="number-pad"
                   />

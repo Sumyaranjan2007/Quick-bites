@@ -132,6 +132,24 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       socket.join('admin:control_tower');
     });
 
+    // Riders on shift wait here to be told about food that is ready to collect.
+    // Without it the rider app only learns of work when someone taps refresh.
+    socket.on('join:riders', () => {
+      socket.join('riders:available');
+      console.log(JSON.stringify({
+        level: 'INFO',
+        timestamp: new Date().toISOString(),
+        event: 'SOCKET_ROOM_JOINED',
+        socketId: socket.id,
+        room: 'riders:available',
+        userId
+      }));
+    });
+
+    socket.on('leave:riders', () => {
+      socket.leave('riders:available');
+    });
+
     // Rider live telemetry ping
     socket.on('rider:location', (data: { orderId: string; lat: number; lng: number; bearing?: number }) => {
       if (!data?.orderId) return;
@@ -215,6 +233,8 @@ export function emitOrderStatusUpdate(
     prepMinutes?: number;
     estimatedDeliveryTime?: string;
     updatedAt?: string;
+    /** Lets the kitchen that is cooking this order see the change too. */
+    restaurantId?: string;
   }
 ): void {
   if (!ioInstance) return;
@@ -226,6 +246,11 @@ export function emitOrderStatusUpdate(
 
   ioInstance.to(`order:${orderId}`).emit('order:status_update', payload);
   ioInstance.to('admin:control_tower').emit('order:status_update', payload);
+  // The restaurant only used to hear about orders being created, so a rider
+  // claiming or collecting an order never reached the kitchen screen.
+  if (data.restaurantId) {
+    ioInstance.to(`restaurant:${data.restaurantId}`).emit('order:status_update', payload);
+  }
 
   console.log(JSON.stringify({
     level: 'INFO',
@@ -234,6 +259,40 @@ export function emitOrderStatusUpdate(
     orderId,
     status: data.status,
     prepMinutes: data.prepMinutes
+  }));
+}
+
+/**
+ * Offers a packed order to every rider waiting for work.
+ *
+ * The rider app had no live channel at all: an order sat in the broadcast list
+ * until the rider happened to refresh. This pushes it the moment the kitchen
+ * marks it ready.
+ */
+export function emitOrderAvailableForPickup(order: {
+  id: string;
+  orderNumber?: string;
+  restaurantId?: string;
+  restaurantName?: string;
+}): void {
+  if (!ioInstance) return;
+
+  const payload = {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    restaurantId: order.restaurantId,
+    restaurantName: order.restaurantName,
+    updatedAt: new Date().toISOString()
+  };
+
+  ioInstance.to('riders:available').emit('order:available', payload);
+
+  console.log(JSON.stringify({
+    level: 'INFO',
+    timestamp: payload.updatedAt,
+    event: 'SOCKET_EMIT_ORDER_AVAILABLE',
+    orderId: order.id,
+    orderNumber: order.orderNumber
   }));
 }
 

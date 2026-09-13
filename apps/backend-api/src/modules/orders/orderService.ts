@@ -8,7 +8,7 @@ import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
 import { razorpayAdapter } from '../payments/razorpayAdapter.ts';
-import { emitOrderCreated, emitOrderStatusUpdate } from '../../sockets/socketServer.ts';
+import { emitOrderCreated, emitOrderStatusUpdate, emitOrderAvailableForPickup } from '../../sockets/socketServer.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod } from '@quick-bites/shared-types';
@@ -257,13 +257,25 @@ export const orderService = {
       throw new AppError(`Failed to update order status for order ID: ${orderId}`, 500, 'STATUS_UPDATE_FAILED');
     }
 
-    // 1. Emit Socket.IO real-time event to order room and admin control tower
+    // 1. Emit Socket.IO real-time event to the customer, the kitchen and admin
     emitOrderStatusUpdate(orderId, {
       orderId,
       status: nextStatus,
       prepMinutes,
-      updatedAt: updated.updatedAt
+      updatedAt: updated.updatedAt,
+      restaurantId: updated.restaurantId
     });
+
+    // Packed food is offered to every rider waiting for work, rather than
+    // sitting in a list until one of them refreshes.
+    if (nextStatus === 'READY_FOR_PICKUP') {
+      emitOrderAvailableForPickup({
+        id: updated.id,
+        orderNumber: updated.orderNumber,
+        restaurantId: updated.restaurantId,
+        restaurantName: (updated as any).restaurantName
+      });
+    }
 
     // 2. Dispatch FCM push notifications per status
     if (nextStatus === 'PREPARING') {

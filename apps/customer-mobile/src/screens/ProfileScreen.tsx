@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -29,10 +29,30 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
   const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number>(500.00);
   const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api');
+  // The customer's real saved addresses. This panel used to render one
+  // hardcoded line, so it showed the wrong place for every actual user.
+  const [addresses, setAddresses] = useState<any[] | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!apiUrl || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (!cancelled && data.success && Array.isArray(data.data?.addresses)) {
+          setAddresses(data.data.addresses);
+        }
+      } catch {
+        if (!cancelled) setAddresses([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [apiUrl, token]);
 
   const handleDeleteAccount = async () => {
     if (!apiUrl) return;
@@ -182,10 +202,26 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
           <MapPin size={18} color={c.text.secondary} />
           <Text style={styles.sectionHeader}>Saved Addresses</Text>
         </View>
-        <View style={styles.addressBox}>
-          <Text style={styles.addressTitle}>Home</Text>
-          <Text style={styles.addressText}>100 Feet Road, Indiranagar, Bengaluru, 560038</Text>
-        </View>
+        {addresses === null ? (
+          <View style={styles.addressBox}>
+            <Text style={styles.addressText}>Loading your addresses…</Text>
+          </View>
+        ) : addresses.length === 0 ? (
+          <View style={styles.addressBox}>
+            <Text style={styles.addressText}>No saved addresses yet. Add one at checkout.</Text>
+          </View>
+        ) : (
+          addresses.map((a: any) => (
+            <View key={a.id} style={styles.addressBox}>
+              <Text style={styles.addressTitle}>
+                {a.label || 'Saved'}{a.isDefault ? ' · Default' : ''}
+              </Text>
+              <Text style={styles.addressText}>
+                {[a.addressLine, a.city, a.pincode].filter(Boolean).join(', ')}
+              </Text>
+            </View>
+          ))
+        )}
       </View>
 
       {/* Log Out Button */}

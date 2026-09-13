@@ -15,9 +15,10 @@
     "test:search": "node --experimental-strip-types src/test/search.test.ts",
     "test:sockets": "node --experimental-strip-types src/test/sockets.test.ts",
     "test:security": "node --experimental-strip-types src/test/security.test.ts",
-    "test": "node --experimental-strip-types src/test/health.test.ts && node --experimental-strip-types src/test/db.test.ts && node --experimental-strip-types src/test/orders.test.ts && node --experimental-strip-types src/test/search.test.ts && node --experimental-strip-types src/test/sockets.test.ts && node --experimental-strip-types src/test/security.test.ts",
+    "test": "node --experimental-strip-types src/test/health.test.ts && node --experimental-strip-types src/test/db.test.ts && node --experimental-strip-types src/test/orders.test.ts && node --experimental-strip-types src/test/search.test.ts && node --experimental-strip-types src/test/sockets.test.ts && node --experimental-strip-types src/test/security.test.ts && node --experimental-strip-types src/test/pipeline.test.ts",
     "db:seed": "node --experimental-strip-types src/db/seed.ts",
-    "search:sync": "node --experimental-strip-types src/scripts/syncSearch.ts"
+    "search:sync": "node --experimental-strip-types src/scripts/syncSearch.ts",
+    "test:pipeline": "node --experimental-strip-types src/test/pipeline.test.ts"
   },
   "dependencies": {
     "@quick-bites/pricing-engine": "*",

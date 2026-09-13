@@ -29,6 +29,7 @@ import {
   ArrowUpRight
 } from 'lucide-react-native';
 import { apiFetch } from './src/lib/apiFetch';
+import { useLiveUpdates } from './src/lib/useLiveUpdates';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -123,6 +124,15 @@ function AdminApp() {
   };
 
   // Handle Login
+  // The control tower reflects platform activity as it happens; the LIVE badge
+  // is only honest once this is connected.
+  const { connected: liveConnected } = useLiveUpdates(
+    isAuthenticated ? { kind: 'admin' } : null,
+    apiUrl,
+    authToken,
+    () => { syncPlatformData(); }
+  );
+
   const handleLogin = async () => {
     try {
       const res = await apiFetch(`${apiUrl}/auth/login`, {
@@ -270,7 +280,7 @@ function AdminApp() {
         </View>
         <TouchableOpacity style={styles.liveIndicator} onPress={() => syncPlatformData()} disabled={isSyncing}>
           <View style={styles.pulsingDot} />
-          <Text style={styles.liveText}>{isSyncing ? 'SYNC' : 'LIVE'}</Text>
+          <Text style={styles.liveText}>{isSyncing ? 'SYNC' : liveConnected ? 'LIVE' : 'IDLE'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -464,7 +474,7 @@ function AdminApp() {
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.policyTitle}>Automated Refund Rule</Text>
                 <Text style={styles.policyDesc}>
-                  All approved refunds credit customer's QuickBite Wallet balance atomically with zero banking delay.
+                  All approved refunds credit customer's Quick Bites Wallet balance atomically with zero banking delay.
                 </Text>
               </View>
             </View>

@@ -30,6 +30,7 @@ import {
   Sparkles
 } from 'lucide-react-native';
 import { apiFetch } from './src/lib/apiFetch';
+import { useLiveUpdates } from './src/lib/useLiveUpdates';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -164,6 +165,15 @@ function RestaurantApp() {
       setIsSyncing(false);
     }
   };
+
+  // A new order, or any change to one, now lands on the kitchen screen by
+  // itself. Sync Orders stays as a manual fallback for blocked networks.
+  const { connected: liveConnected } = useLiveUpdates(
+    isAuthenticated && restaurant.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
+    apiUrl,
+    authToken,
+    () => { syncRestaurantData(); }
+  );
 
   // Handle Login
   const handleLogin = async () => {
@@ -422,7 +432,9 @@ function RestaurantApp() {
               <Text style={styles.sectionTitle}>Incoming & Active Orders</Text>
               <TouchableOpacity style={styles.soundBadge} onPress={() => syncRestaurantData()} disabled={isSyncing}>
                 <Bell size={14} color="#22C08A" />
-                <Text style={styles.soundBadgeText}>{isSyncing ? 'Syncing...' : 'Sync Orders'}</Text>
+                <Text style={styles.soundBadgeText}>
+                  {isSyncing ? 'Syncing...' : liveConnected ? 'Live' : 'Sync Orders'}
+                </Text>
               </TouchableOpacity>
             </View>
 
