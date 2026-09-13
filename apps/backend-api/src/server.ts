@@ -1,15 +1,29 @@
 import { createApp } from './app.ts';
 import { config } from './config/env.ts';
 import { initSocketServer, closeSocketServer } from './sockets/socketServer.ts';
-import { loadStoreFromFile, saveStoreToFile } from './db/client.ts';
-import { seedDatabase } from './db/seed.ts';
+import { loadStoreFromFile, saveStoreToFile, clearStore, memoryStore } from './db/client.ts';
+import { seedDatabase, SEED_VERSION } from './db/seed.ts';
 
-// Hydrate database from disk persistence or initialize with seed data
+// Hydrate the database from the snapshot on disk, or seed it if there is none.
+//
+// A snapshot written by an older revision of the seed is discarded rather than
+// trusted: it is hydrated first, so the version stamp can be read, and then
+// thrown away. Without this, changing the seed had no effect on any environment
+// that already had a snapshot on disk - the deployment kept serving the old data.
 if (!loadStoreFromFile()) {
   console.log('[INFO] No existing persistent store found on disk. Initializing and seeding database...');
   await seedDatabase();
   saveStoreToFile();
   console.log('[INFO] Seed data initialized and persisted to data/store.json.');
+} else if (memoryStore.meta.get('seedVersion') !== SEED_VERSION) {
+  console.log(
+    `[INFO] Snapshot on disk was written by seed "${memoryStore.meta.get('seedVersion') ?? 'unversioned'}", ` +
+    `current seed is "${SEED_VERSION}". Re-seeding.`
+  );
+  clearStore();
+  await seedDatabase();
+  saveStoreToFile();
+  console.log('[INFO] Database re-seeded from the current seed revision.');
 } else {
   console.log('[INFO] Persistent database hydrated successfully from disk.');
 }

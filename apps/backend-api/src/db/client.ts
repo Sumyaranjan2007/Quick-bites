@@ -25,6 +25,8 @@ export interface DbStore {
   wallets: Map<string, any>;
   walletTransactions: Map<string, any>;
   kycDocuments: Map<string, any>;
+  /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
+  meta: Map<string, any>;
 }
 
 // Global in-memory singleton data store
@@ -39,8 +41,22 @@ export const memoryStore: DbStore = {
   riders: new Map(),
   wallets: new Map(),
   walletTransactions: new Map(),
-  kycDocuments: new Map()
+  kycDocuments: new Map(),
+  meta: new Map()
 };
+
+/**
+ * Empties every collection in the store.
+ *
+ * Used when a snapshot on disk was written by an older revision of the seed: the
+ * stale rows are dropped so the current seed can repopulate from scratch,
+ * instead of the two being silently merged.
+ */
+export function clearStore(): void {
+  for (const map of Object.values(memoryStore)) {
+    (map as Map<string, any>).clear();
+  }
+}
 
 /**
  * Persists the entire in-memory data store to a JSON file on disk.
