@@ -218,7 +218,7 @@ function AdminApp() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholder="admin@quickbite.app"
+              placeholder="you@quickbite.app"
               placeholderTextColor="#8A7A72"
             />
           </View>
@@ -230,7 +230,7 @@ function AdminApp() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              placeholder="pass123"
+              placeholder="••••••"
               placeholderTextColor="#8A7A72"
             />
           </View>

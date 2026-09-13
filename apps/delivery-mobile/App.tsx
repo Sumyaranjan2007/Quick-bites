@@ -329,7 +329,7 @@ function DeliveryApp() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholder="rider@quickbite.app"
+              placeholder="you@quickbite.app"
               placeholderTextColor="#8A7A72"
             />
           </View>
@@ -341,7 +341,7 @@ function DeliveryApp() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              placeholder="pass123"
+              placeholder="••••••"
               placeholderTextColor="#8A7A72"
             />
           </View>

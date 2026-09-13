@@ -76,8 +76,35 @@ with NDK 26.1.10909125.
 Upload the **`.aab`** to Play. The `.apk` in `build/apk/` exists only for
 sideloading via a direct link and is not a valid Play artifact.
 
-`versionCode` must increase on every upload — it is currently `1` in each
-`app.json`. Bump it before each release or Play will reject the duplicate.
+### The two builds differ, deliberately
+
+```bash
+./gradlew assembleRelease -PqbPhoneAbisOnly   # shareable APK, ~27 MB
+./gradlew bundleRelease                       # for Play, every ABI
+```
+
+`-PqbPhoneAbisOnly` drops the x86 and x86_64 native libraries, which were 24 MB
+of a 51 MB APK and run on no shipping Android phone. That matters for a file
+someone forwards over mobile data.
+
+**Never pass that flag to `bundleRelease`.** Play generates a per-device APK
+from the bundle, so each user already downloads only their own slice — removing
+x86_64 saves them nothing and silently drops Chromebooks, x86 tablets and
+Windows Subsystem for Android from the listing. The filter lives behind a Gradle
+property for exactly this reason: forgetting it produces a fat APK, which is
+merely wasteful, while the opposite default would produce an ARM-only Play
+listing that looks fine until a user reports they cannot install it.
+
+Note that `splits.abi` is ignored when building a bundle but `ndk.abiFilters`
+is not, so the filter has to be conditional rather than simply declared.
+
+### Testing on an emulator
+
+A flagged APK will not install on a standard Android emulator, which is x86_64
+on most machines. Build without the flag, or use an ARM system image.
+
+`versionCode` must increase on every upload — it is `3` in each `app.json` as of
+version 1.1.0. Bump it before each release or Play will reject the duplicate.
 
 ---
 

@@ -124,7 +124,8 @@
           }
         }
       ],
-      "../../packages/config/expo-plugins/withReleaseSigning"
+      "../../packages/config/expo-plugins/withReleaseSigning",
+      "../../packages/config/expo-plugins/withArmOnlyAbis"
     ]
   }
 }
