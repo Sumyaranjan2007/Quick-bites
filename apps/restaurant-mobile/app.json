@@ -2,7 +2,7 @@
   "expo": {
     "name": "Quick Bites Partner",
     "slug": "quick-bite-partner",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbitepartner",
@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.quickbite.partner",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDisplayName": "Quick Bites Partner"
@@ -94,7 +94,7 @@
     },
     "android": {
       "package": "com.quickbite.partner",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#5B0E20"

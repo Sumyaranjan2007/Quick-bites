@@ -1,793 +1,282 @@
-import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  SafeAreaView,
-  StatusBar,
-  Alert
-} from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import {
-  ChefHat,
-  Bell,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  ToggleLeft,
-  ToggleRight,
-  TrendingUp,
-  FileText,
-  ShieldCheck,
-  AlertTriangle,
-  Store,
-  Layers,
-  LogOut,
-  Sparkles
-} from 'lucide-react-native';
-import { apiFetch } from './src/lib/apiFetch';
+import { c, radii, spacing } from './src/theme';
+import { configureApi, fetchOwnedRestaurant, setKitchenOpen } from './src/lib/partnerApi';
 import { useLiveUpdates } from './src/lib/useLiveUpdates';
+import { prepareOrderAlerts, releaseOrderAlerts, stopOrderAlert } from './src/lib/orderAlert';
+import { SignInScreen } from './src/screens/SignInScreen';
+import { DashboardScreen } from './src/screens/DashboardScreen';
+import { LiveOrdersScreen } from './src/screens/LiveOrdersScreen';
+import { OrderHistoryScreen } from './src/screens/OrderHistoryScreen';
+import { MenuScreen } from './src/screens/MenuScreen';
+import { DocumentsScreen } from './src/screens/DocumentsScreen';
+import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
+import { ErrorNote } from './src/components/ui';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
-function RestaurantApp() {
-  // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authToken, setAuthToken] = useState('');
-  const [email, setEmail] = useState(__DEV__ ? 'partner@quickbite.app' : '');
-  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
-  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'kyc' | 'settlements'>('orders');
+type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help';
 
-  // Restaurant & Kitchen state
-  // Resolved from the signed-in owner rather than assumed.
-  const [restaurant, setRestaurant] = useState<any>({
-    id: 'rst_bbh_01',
-    name: '',
-    kycStatus: 'PENDING',
-    isOpen: false,
-    ratingAverage: 0,
-    todayGmv: 0
-  });
+const TABS: Array<{ key: Tab; label: string; icon: any }> = [
+  { key: 'dashboard', label: 'Home', icon: LayoutDashboard },
+  { key: 'orders', label: 'Orders', icon: Bell },
+  { key: 'history', label: 'History', icon: History },
+  { key: 'menu', label: 'Menu', icon: Layers },
+  { key: 'documents', label: 'Docs', icon: ShieldCheck },
+  { key: 'help', label: 'Help', icon: LifeBuoy }
+];
 
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [allOrders, setAllOrders] = useState<any[]>([]);
-  const [menuItems, setMenuItems] = useState<any[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
+/**
+ * The partner app shell.
+ *
+ * Each tab owns its own scroll container. The previous version wrapped all four
+ * tabs in one shared ScrollView, so the scroll offset carried between them and
+ * was re-clamped whenever a background refresh changed the content height — which
+ * is what the partner saw as the page jumping back to the top.
+ */
+function PartnerApp() {
+  const [token, setToken] = useState('');
+  const [user, setUser] = useState<any | null>(null);
+  const [restaurant, setRestaurant] = useState<any | null>(null);
 
-  // Selected order for action
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
-  const [prepMinutes, setPrepMinutes] = useState(20);
-  const [pickupInput, setPickupInput] = useState('');
+  const [tab, setTab] = useState<Tab>('dashboard');
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [togglingKitchen, setTogglingKitchen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Settlement is derived from delivered orders rather than invented. The
-  // restaurant's share is what the pricing engine recorded on each bill.
-  const settlement = React.useMemo(() => {
-    const delivered = allOrders.filter((o: any) => o.status === 'DELIVERED' && o.bill);
-    const grossSales = delivered.reduce((sum: number, o: any) => sum + (Number(o.bill.itemsTotal) || 0), 0);
-    const netPayout = delivered.reduce(
-      (sum: number, o: any) => sum + (Number(o.bill.restaurantNetPayout) || 0),
-      0
-    );
-    const prepTimes = allOrders
-      .map((o: any) => Number(o.preparationMinutes))
-      .filter((n: number) => Number.isFinite(n) && n > 0);
-    const avgPrep = prepTimes.length
-      ? Math.round(prepTimes.reduce((a: number, b: number) => a + b, 0) / prepTimes.length)
-      : null;
-    return { grossSales, netPayout, deliveredCount: delivered.length, totalCount: allOrders.length, avgPrep };
-  }, [allOrders]);
+  /** Incremented on every live event, so screens can refresh without remounting. */
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
-  const authHeaders = (token?: string): Record<string, string> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const effective = token || authToken;
-    if (effective) headers['Authorization'] = `Bearer ${effective}`;
-    return headers;
-  };
+  const loadProfile = useCallback(async (ownerId: string) => {
+    setLoadingProfile(true);
+    const res = await fetchOwnedRestaurant(ownerId);
+    setLoadingProfile(false);
 
-  const loadRestaurantProfile = async (ownerId: string, token?: string) => {
-    try {
-      const res = await apiFetch(`${apiUrl}/restaurants/owner/${ownerId}`, { headers: authHeaders(token) });
-      const data = await res.json();
-      if (data.success && data.data?.restaurant) {
-        const r = data.data.restaurant;
-        setRestaurant({
-          id: r.id,
-          name: r.name || 'Your restaurant',
-          kycStatus: r.kycStatus || 'PENDING',
-          isOpen: Boolean(r.isOpen),
-          ratingAverage: Number(r.ratingAverage) || 0,
-          todayGmv: 0
-        });
-        return r.id as string;
-      }
-    } catch {
-      // Fall through; the caller keeps the default id.
-    }
-    return null;
-  };
-
-  // Load live orders + menu from the backend
-  const syncRestaurantData = async (token?: string) => {
-    setIsSyncing(true);
-    try {
-      const [ordersRes, menuRes] = await Promise.all([
-        apiFetch(`${apiUrl}/restaurants/${restaurant.id}/orders`, { headers: authHeaders(token) }),
-        apiFetch(`${apiUrl}/restaurants/${restaurant.id}/menu`, { headers: authHeaders(token) })
-      ]);
-
-      const ordersData = await ordersRes.json();
-      if (ordersData.success && Array.isArray(ordersData.data?.orders)) {
-        setAllOrders(ordersData.data.orders);
-        setActiveOrders(
-          ordersData.data.orders
-            .filter((o: any) => !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status))
-            .map((o: any) => ({
-              id: o.id,
-              orderNumber: o.orderNumber,
-              customerName: o.customerName || 'Customer',
-              items: (o.items || []).map((it: any) => ({
-                name: it.name,
-                quantity: it.quantity,
-                variant: it.selectedOptions?.[0]?.optionName
-              })),
-              totalAmount: o.bill?.totalAmount ?? 0,
-              status: o.status,
-              prepMinutes: o.preparationMinutes,
-              pickupCode: o.pickupCode
-            }))
-        );
-      }
-
-      const menuData = await menuRes.json();
-      if (menuData.success && menuData.data?.menu?.categories) {
-        const flattened: any[] = [];
-        for (const cat of menuData.data.menu.categories) {
-          for (const item of cat.items || []) {
-            flattened.push({
-              id: item.id,
-              name: item.name,
-              price: Number(item.price) || 0,
-              isAvailable: item.isAvailable !== false,
-              isVeg: Boolean(item.isVeg)
-            });
-          }
-        }
-        setMenuItems(flattened);
-      }
-    } catch {
-      Alert.alert('Sync Failed', 'Could not reach the Quick Bites server. Pull to retry.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // A new order, or any change to one, now lands on the kitchen screen by
-  // itself. Sync Orders stays as a manual fallback for blocked networks.
-  const { connected: liveConnected } = useLiveUpdates(
-    isAuthenticated && restaurant.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
-    apiUrl,
-    authToken,
-    () => { syncRestaurantData(); }
-  );
-
-  // Handle Login
-  const handleLogin = async () => {
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role: 'restaurant_owner' })
-      });
-      const data = await res.json();
-      if (data.success && data.data?.token) {
-        setAuthToken(data.data.token);
-        setIsAuthenticated(true);
-        const ownerId = data.data.user?.id;
-        if (ownerId) await loadRestaurantProfile(ownerId, data.data.token);
-        syncRestaurantData(data.data.token);
-      } else {
-        Alert.alert('Login Failed', data.error?.message || data.error || 'Invalid credentials');
-      }
-    } catch {
-      Alert.alert('Error', 'Unable to reach backend server. Check network connection.');
-    }
-  };
-
-  // Toggle Kitchen Status
-  const toggleKitchenStatus = async () => {
-    const nextState = !restaurant.isOpen;
-    setRestaurant({ ...restaurant, isOpen: nextState });
-    try {
-      const res = await apiFetch(`${apiUrl}/restaurants/${restaurant.id}/kitchen-status`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ isKitchenActive: nextState })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || data.error);
-    } catch (err: any) {
-      setRestaurant({ ...restaurant, isOpen: !nextState });
-      Alert.alert('Update Failed', err?.message || 'Kitchen status was not saved. Please try again.');
-    }
-  };
-
-  // Toggle Dish Stock
-  const toggleStock = async (dishId: string, current: boolean) => {
-    const previous = menuItems;
-    setMenuItems(menuItems.map(m => m.id === dishId ? { ...m, isAvailable: !current } : m));
-    try {
-      const res = await apiFetch(`${apiUrl}/restaurants/${restaurant.id}/menu/toggle-stock`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ dishId, isAvailable: !current })
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || data.error);
-    } catch (err: any) {
-      setMenuItems(previous);
-      Alert.alert('Update Failed', err?.message || 'Stock status was not saved. Please try again.');
-    }
-  };
-
-  // Push an order status transition to the backend, rolling back on failure
-  const pushOrderStatus = async (orderId: string, status: string, preparationMinutes?: number) => {
-    const previous = activeOrders;
-    setActiveOrders(prev =>
-      prev.map(o => (o.id === orderId ? { ...o, status, prepMinutes: preparationMinutes ?? o.prepMinutes } : o))
-    );
-    try {
-      const res = await apiFetch(`${apiUrl}/orders/${orderId}/status`, {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify(
-          preparationMinutes !== undefined ? { status, preparationMinutes } : { status }
-        )
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || 'Status update rejected by server.');
-      return true;
-    } catch (err: any) {
-      setActiveOrders(previous);
-      Alert.alert('Update Failed', err?.message || 'Could not reach the server. Please try again.');
-      return false;
-    }
-  };
-
-  // Accept Order
-  const acceptOrder = async (orderId: string, mins: number) => {
-    const ok = await pushOrderStatus(orderId, 'PREPARING', mins);
-    if (ok) {
-      setSelectedOrder(null);
-      Alert.alert('Order Accepted', `Order moved to kitchen queue with ${mins} minutes prep time.`);
-    }
-  };
-
-  // Mark Ready for Pickup
-  const markReady = async (orderId: string) => {
-    const ok = await pushOrderStatus(orderId, 'READY_FOR_PICKUP');
-    if (ok) {
-      Alert.alert('Food Ready', 'Delivery partner has been notified that food is packed.');
-    }
-  };
-
-  // Verify Pickup Code
-  const verifyPickup = async (orderId: string) => {
-    const order = activeOrders.find(o => o.id === orderId);
-    if (!order) return;
-    if (pickupInput.trim() !== order.pickupCode) {
-      Alert.alert('Invalid Code', 'The 4-digit pickup code does not match.');
+    if (!res.ok || !res.data?.restaurant) {
+      // No restaurant linked is a real state, not an error to hide: a newly
+      // registered owner has an account before they have an approved kitchen.
+      setProfileError(
+        res.message ||
+          'No restaurant is linked to this account yet. Our team links your kitchen once your documents are verified.'
+      );
       return;
     }
-    const ok = await pushOrderStatus(orderId, 'OUT_FOR_DELIVERY');
-    if (ok) {
-      setActiveOrders(prev => prev.filter(o => o.id !== orderId));
-      setPickupInput('');
-      setSelectedOrder(null);
-      Alert.alert('Pickup Confirmed', 'Food handed over to delivery partner successfully.');
-    }
+    setProfileError(null);
+    setRestaurant(res.data.restaurant);
+  }, []);
+
+  const onSignedIn = async (nextToken: string, nextUser: any) => {
+    configureApi(DEFAULT_API_URL, nextToken);
+    setToken(nextToken);
+    setUser(nextUser);
+    await prepareOrderAlerts();
+    if (nextUser?.id) await loadProfile(nextUser.id);
   };
 
-  if (!isAuthenticated) {
+  const signOut = async () => {
+    await releaseOrderAlerts();
+    configureApi(DEFAULT_API_URL, '');
+    setToken('');
+    setUser(null);
+    setRestaurant(null);
+    setTab('dashboard');
+  };
+
+  const { connected } = useLiveUpdates(
+    token && restaurant?.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
+    DEFAULT_API_URL,
+    token,
+    () => setRefreshSignal(n => n + 1)
+  );
+
+  const toggleKitchen = async () => {
+    if (!restaurant) return;
+    const next = !restaurant.isOpen;
+
+    setTogglingKitchen(true);
+    const res = await setKitchenOpen(restaurant.id, next);
+    setTogglingKitchen(false);
+
+    if (!res.ok) {
+      setProfileError(res.message || 'Could not change your kitchen status.');
+      return;
+    }
+    // Trust the server's answer rather than assuming the toggle took. The old
+    // version set local state optimistically and never persisted, which is why it
+    // showed Online after being switched to Offline.
+    setProfileError(null);
+    setRestaurant((r: any) => ({ ...r, isOpen: res.data?.isOpen ?? next }));
+    if (!next) stopOrderAlert();
+  };
+
+  useEffect(() => {
+    return () => {
+      releaseOrderAlerts();
+    };
+  }, []);
+
+  if (!token) {
     return (
-      <SafeAreaView style={styles.authContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#17090E" />
-        <View style={styles.authCard}>
-          <View style={styles.authHeader}>
-            <View style={styles.brandIconCircle}>
-              <ChefHat size={36} color="#F5A623" />
-            </View>
-            <Text style={styles.authTitle}>Quick Bites Partner</Text>
-            <Text style={styles.authSubtitle}>Kitchen Terminal & Store Management</Text>
-          </View>
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+        <SignInScreen onSignedIn={onSignedIn} />
+      </SafeAreaView>
+    );
+  }
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Partner Email</Text>
-            <TextInput
-              style={styles.textInput}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder="you@quickbite.app"
-              placeholderTextColor="#8A7A72"
-            />
-          </View>
+  if (loadingProfile) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.centre]}>
+        <ActivityIndicator color={c.brand} size="large" />
+      </SafeAreaView>
+    );
+  }
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.textInput}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="••••••"
-              placeholderTextColor="#8A7A72"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Server / Cloud Tunnel URL</Text>
-            <TextInput
-              style={styles.textInput}
-              value={apiUrl}
-              onChangeText={setApiUrl}
-              autoCapitalize="none"
-              placeholder="http://10.0.2.2:5000/api"
-              placeholderTextColor="#8A7A72"
-            />
-          </View>
-
-          <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-            <Text style={styles.loginBtnText}>Launch Kitchen Terminal</Text>
+  if (!restaurant) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+        <View style={styles.blocked}>
+          <ShieldCheck size={40} color={c.warning} />
+          <Text style={styles.blockedTitle}>Kitchen not linked yet</Text>
+          <Text style={styles.blockedBody}>{profileError}</Text>
+          <TouchableOpacity style={styles.blockedBtn} onPress={signOut}>
+            <Text style={styles.blockedBtnText}>Sign out</Text>
           </TouchableOpacity>
-
-          {__DEV__ && (
-
-
-            <View style={styles.demoPill}>
-            <Sparkles size={16} color="#F5A623" />
-            <Text style={styles.demoPillText}>Default Login: partner@quickbite.app / pass123</Text>
-
-
-            </View>
-
-
-          )}
         </View>
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.mainContainer}>
-      <StatusBar barStyle="light-content" backgroundColor="#17090E" />
+  const open = Boolean(restaurant.isOpen);
 
-      {/* Top App Bar */}
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.storeName}>{restaurant.name}</Text>
-          <View style={styles.storeMetaRow}>
-            <View style={[styles.statusDot, { backgroundColor: restaurant.isOpen ? '#22C08A' : '#E15D5D' }]} />
-            <Text style={styles.statusText}>{restaurant.isOpen ? 'Kitchen Online' : 'Kitchen Closed'}</Text>
-            <Text style={styles.ratingText}>★ {restaurant.ratingAverage}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.storeName} numberOfLines={1}>
+            {restaurant.name}
+          </Text>
+          <View style={styles.storeMeta}>
+            <View style={[styles.dot, { backgroundColor: open ? c.success : c.textMuted }]} />
+            <Text style={styles.storeMetaText}>{open ? 'Taking orders' : 'Closed'}</Text>
+            {connected && <Text style={styles.liveTag}>LIVE</Text>}
           </View>
         </View>
 
-        <TouchableOpacity style={styles.toggleBtn} onPress={toggleKitchenStatus}>
-          {restaurant.isOpen ? (
-            <ToggleRight size={38} color="#22C08A" />
+        <TouchableOpacity
+          style={[styles.kitchenToggle, open ? styles.kitchenOn : styles.kitchenOff]}
+          onPress={toggleKitchen}
+          disabled={togglingKitchen}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: open }}
+        >
+          {togglingKitchen ? (
+            <ActivityIndicator size="small" color={open ? '#FFFFFF' : c.textSoft} />
           ) : (
-            <ToggleLeft size={38} color="#A8968E" />
+            <Text style={[styles.kitchenToggleText, open && { color: '#FFFFFF' }]}>
+              {open ? 'Online' : 'Offline'}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* Tab Navigation */}
-      <View style={styles.tabNav}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'orders' && styles.tabItemActive]}
-          onPress={() => setActiveTab('orders')}
-        >
-          <Bell size={18} color={activeTab === 'orders' ? '#F5A623' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'orders' && styles.tabLabelActive]}>
-            Live Orders ({activeOrders.length})
-          </Text>
-        </TouchableOpacity>
+      {!!profileError && (
+        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}>
+          <ErrorNote message={profileError} />
+        </View>
+      )}
 
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'menu' && styles.tabItemActive]}
-          onPress={() => setActiveTab('menu')}
-        >
-          <Layers size={18} color={activeTab === 'menu' ? '#F5A623' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'menu' && styles.tabLabelActive]}>Menu Stock</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'kyc' && styles.tabItemActive]}
-          onPress={() => setActiveTab('kyc')}
-        >
-          <ShieldCheck size={18} color={activeTab === 'kyc' ? '#F5A623' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'kyc' && styles.tabLabelActive]}>KYC Docs</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'settlements' && styles.tabItemActive]}
-          onPress={() => setActiveTab('settlements')}
-        >
-          <TrendingUp size={18} color={activeTab === 'settlements' ? '#F5A623' : '#A8968E'} />
-          <Text style={[styles.tabLabel, activeTab === 'settlements' && styles.tabLabelActive]}>Payouts</Text>
-        </TouchableOpacity>
+      <View style={styles.body}>
+        {tab === 'dashboard' && <DashboardScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
+        {tab === 'orders' && (
+          <LiveOrdersScreen
+            restaurantId={restaurant.id}
+            refreshSignal={refreshSignal}
+            soundEnabled={soundEnabled}
+            onToggleSound={setSoundEnabled}
+          />
+        )}
+        {tab === 'history' && <OrderHistoryScreen restaurantId={restaurant.id} />}
+        {tab === 'menu' && <MenuScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
+        {tab === 'documents' && <DocumentsScreen restaurantId={restaurant.id} />}
+        {tab === 'help' && (
+          <HelpCentreScreen restaurantName={restaurant.name} ownerEmail={user?.email} onSignOut={signOut} />
+        )}
       </View>
 
-      {/* Main Content Area */}
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-        {activeTab === 'orders' && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Incoming & Active Orders</Text>
-              <TouchableOpacity style={styles.soundBadge} onPress={() => syncRestaurantData()} disabled={isSyncing}>
-                <Bell size={14} color="#22C08A" />
-                <Text style={styles.soundBadgeText}>
-                  {isSyncing ? 'Syncing...' : liveConnected ? 'Live' : 'Sync Orders'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {activeOrders.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <ChefHat size={48} color="#55303A" />
-                <Text style={styles.emptyTitle}>Kitchen Queue Empty</Text>
-                <Text style={styles.emptySubtitle}>New customer orders will appear here automatically.</Text>
-              </View>
-            ) : (
-              activeOrders.map(order => (
-                <View key={order.id} style={styles.orderCard}>
-                  <View style={styles.orderCardTop}>
-                    <View>
-                      <Text style={styles.orderNumber}>Order #{order.orderNumber}</Text>
-                      <Text style={styles.orderCustomer}>{order.customerName}</Text>
-                    </View>
-                    <View style={styles.timerBadge}>
-                      <Clock size={14} color="#F5A623" />
-                      <Text style={styles.timerText}>{order.timerSeconds}s</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.itemsList}>
-                    {order.items.map((item: any, idx: number) => (
-                      <View key={idx} style={styles.itemRow}>
-                        <Text style={styles.itemQty}>{item.quantity}x</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.itemName}>{item.name}</Text>
-                          {item.variant && <Text style={styles.itemVariant}>{item.variant}</Text>}
-                          {item.notes && <Text style={styles.itemNotes}>Note: {item.notes}</Text>}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.orderCardFooter}>
-                    <Text style={styles.orderPrice}>Bill Total: Rs {order.totalAmount.toFixed(2)}</Text>
-                    <Text style={styles.pickupCodeText}>Pickup Code: {order.pickupCode}</Text>
-                  </View>
-
-                  {(order.status === 'ORDER_PLACED' || order.status === 'ACCEPTED') && (
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity
-                        style={styles.rejectBtn}
-                        onPress={() => pushOrderStatus(order.id, 'CANCELLED')}
-                      >
-                        <XCircle size={18} color="#E15D5D" />
-                        <Text style={styles.rejectBtnText}>Reject</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.acceptBtn}
-                        onPress={() => setSelectedOrder(order)}
-                      >
-                        <CheckCircle2 size={18} color="#FFFFFF" />
-                        <Text style={styles.acceptBtnText}>Accept Order</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {order.status === 'PREPARING' && (
-                    <View style={styles.prepRow}>
-                      <Text style={styles.prepNotice}>Cooking ({order.prepMinutes} mins allocated)</Text>
-                      <TouchableOpacity
-                        style={styles.readyBtn}
-                        onPress={() => markReady(order.id)}
-                      >
-                        <CheckCircle2 size={16} color="#FFFFFF" />
-                        <Text style={styles.readyBtnText}>Food Ready</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {order.status === 'READY_FOR_PICKUP' && (
-                    <View style={styles.pickupVerifyRow}>
-                      <TextInput
-                        style={styles.pickupInput}
-                        value={pickupInput}
-                        onChangeText={setPickupInput}
-                        placeholder="Enter 4-Digit Pickup Code"
-                        placeholderTextColor="#8A7A72"
-                        keyboardType="number-pad"
-                        maxLength={4}
-                      />
-                      <TouchableOpacity
-                        style={styles.verifyPickupBtn}
-                        onPress={() => verifyPickup(order.id)}
-                      >
-                        <Text style={styles.verifyPickupBtnText}>Hand Over</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              ))
-            )}
-          </View>
-        )}
-
-        {activeTab === 'menu' && (
-          <View>
-            <Text style={styles.sectionTitle}>Real-Time Menu Stock Manager</Text>
-            <Text style={styles.sectionSubtitle}>Turn dishes out of stock instantly if ingredients run out.</Text>
-
-            {menuItems.map(item => (
-              <View key={item.id} style={styles.menuItemCard}>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.menuItemHeader}>
-                    <View style={[styles.vegBadge, { borderColor: item.isVeg ? '#0F8A3C' : '#E23744' }]}>
-                      <View style={[styles.vegDot, { backgroundColor: item.isVeg ? '#0F8A3C' : '#E23744' }]} />
-                    </View>
-                    <Text style={styles.menuItemName}>{item.name}</Text>
-                  </View>
-                  <Text style={styles.menuItemPrice}>Rs {item.price.toFixed(2)}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.stockToggleBtn, { backgroundColor: item.isAvailable ? '#0A3D2E' : '#5E1F1F' }]}
-                  onPress={() => toggleStock(item.id, item.isAvailable)}
-                >
-                  <Text style={[styles.stockToggleText, { color: item.isAvailable ? '#4ADFA8' : '#EC8080' }]}>
-                    {item.isAvailable ? 'In Stock' : 'Out of Stock'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'kyc' && (
-          <View>
-            <Text style={styles.sectionTitle}>KYC & Legal Documentation</Text>
-            <View style={styles.kycStatusCard}>
-              <ShieldCheck size={28} color="#22C08A" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.kycStatusTitle}>Status: VERIFIED & ACTIVE</Text>
-                <Text style={styles.kycStatusDesc}>FSSAI License #11223344556677 approved by Admin.</Text>
-              </View>
-            </View>
-
-            <View style={styles.docItemCard}>
-              <FileText size={22} color="#A8968E" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.docName}>FSSAI Central Food Safety License</Text>
-                <Text style={styles.docNumber}>11223344556677 (Valid till Dec 2028)</Text>
-              </View>
-              <Text style={styles.verifiedBadge}>Verified</Text>
-            </View>
-
-            <View style={styles.docItemCard}>
-              <FileText size={22} color="#A8968E" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.docName}>GST Identification Number (GSTIN)</Text>
-                <Text style={styles.docNumber}>29ABCDE1234F1Z5</Text>
-              </View>
-              <Text style={styles.verifiedBadge}>Verified</Text>
-            </View>
-
-            <View style={styles.docItemCard}>
-              <Store size={22} color="#A8968E" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.docName}>Kitchen Payout Account</Text>
-                <Text style={styles.docNumber}>Not linked yet — add a bank account to receive payouts</Text>
-              </View>
-              <Text style={styles.pendingBadge}>Pending</Text>
-            </View>
-          </View>
-        )}
-
-        {activeTab === 'settlements' && (
-          <View>
-            <Text style={styles.sectionTitle}>Settlement & Earnings Ledger</Text>
-            <View style={styles.revenueCard}>
-              <Text style={styles.revenueLabel}>Net Payout (Delivered Orders)</Text>
-              <Text style={styles.revenueAmount}>Rs {settlement.netPayout.toFixed(2)}</Text>
-              <Text style={styles.revenueSub}>
-                Gross sales: Rs {settlement.grossSales.toFixed(2)} — less platform commission and TDS
-              </Text>
-            </View>
-
-            <View style={styles.statsGrid}>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{settlement.deliveredCount}</Text>
-                <Text style={styles.statLabel}>Delivered</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>
-                  {settlement.avgPrep !== null ? `${settlement.avgPrep}m` : '—'}
-                </Text>
-                <Text style={styles.statLabel}>Avg Prep Time</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{settlement.totalCount}</Text>
-                <Text style={styles.statLabel}>Total Orders</Text>
-              </View>
-            </View>
-
-            {settlement.totalCount === 0 && (
-              <Text style={styles.revenueSub}>
-                No orders yet. Figures appear here once customers start ordering.
-              </Text>
-            )}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Prep Time Selection Modal */}
-      <Modal visible={!!selectedOrder} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Declare Preparation Time</Text>
-            <Text style={styles.modalSubtitle}>How long will it take to prepare this meal?</Text>
-
-            <View style={styles.prepBtnRow}>
-              {[15, 25, 40].map(mins => (
-                <TouchableOpacity
-                  key={mins}
-                  style={[styles.prepOptionBtn, prepMinutes === mins && styles.prepOptionBtnActive]}
-                  onPress={() => setPrepMinutes(mins)}
-                >
-                  <Clock size={20} color={prepMinutes === mins ? '#FFFFFF' : '#F5A623'} />
-                  <Text style={[styles.prepOptionText, prepMinutes === mins && styles.prepOptionTextActive]}>
-                    {mins} Mins
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={styles.confirmAcceptBtn}
-              onPress={() => acceptOrder(selectedOrder.id, prepMinutes)}
-            >
-              <Text style={styles.confirmAcceptText}>Confirm & Start Cooking</Text>
+      <View style={styles.tabBar}>
+        {TABS.map(t => {
+          const Icon = t.icon;
+          const active = tab === t.key;
+          return (
+            <TouchableOpacity key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
+              <Icon size={19} color={active ? c.brand : c.textMuted} />
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.cancelModalBtn} onPress={() => setSelectedOrder(null)}>
-              <Text style={styles.cancelModalText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+          );
+        })}
+      </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  authContainer: { flex: 1, backgroundColor: '#17090E', justifyContent: 'center', padding: 24 },
-  authCard: { backgroundColor: '#26111A', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: '#3E1E28' },
-  authHeader: { alignItems: 'center', marginBottom: 28 },
-  brandIconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#3E1E28', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  authTitle: { fontSize: 24, fontWeight: '800', color: '#FBF3EE' },
-  authSubtitle: { fontSize: 14, color: '#A8968E', marginTop: 4 },
-  inputGroup: { marginBottom: 18 },
-  inputLabel: { fontSize: 13, color: '#D8C9C0', marginBottom: 8, fontWeight: '600' },
-  textInput: { backgroundColor: '#17090E', borderRadius: 14, height: 50, paddingHorizontal: 16, color: '#FBF3EE', fontSize: 15, borderWidth: 1, borderColor: '#3E1E28' },
-  loginBtn: { backgroundColor: '#F5A623', borderRadius: 14, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
-  loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  demoPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3E1E28', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginTop: 20, alignSelf: 'center' },
-  demoPillText: { color: '#D8C9C0', fontSize: 12, marginLeft: 6 },
-  mainContainer: { flex: 1, backgroundColor: '#17090E' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#26111A' },
-  storeName: { fontSize: 20, fontWeight: '800', color: '#FBF3EE' },
-  storeMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  statusText: { fontSize: 13, color: '#A8968E', marginRight: 12 },
-  ratingText: { fontSize: 13, color: '#E08E0B', fontWeight: '700' },
-  toggleBtn: { padding: 4 },
-  tabNav: { flexDirection: 'row', backgroundColor: '#26111A', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#3E1E28' },
-  tabItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 6 },
-  tabItemActive: { borderBottomWidth: 2, borderBottomColor: '#F5A623' },
-  tabLabel: { fontSize: 12, color: '#A8968E', fontWeight: '600' },
-  tabLabelActive: { color: '#F5A623', fontWeight: '700' },
-  scrollArea: { flex: 1 },
-  scrollContent: { padding: 20 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#FBF3EE' },
-  sectionSubtitle: { fontSize: 13, color: '#A8968E', marginTop: 4, marginBottom: 16 },
-  soundBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0A3D2E', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 },
-  soundBadgeText: { color: '#4ADFA8', fontSize: 11, fontWeight: '700' },
-  emptyCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 36, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#FBF3EE', marginTop: 12 },
-  emptySubtitle: { fontSize: 13, color: '#A8968E', marginTop: 4, textAlign: 'center' },
-  orderCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: '#3E1E28' },
-  orderCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#3E1E28', paddingBottom: 12 },
-  orderNumber: { fontSize: 16, fontWeight: '800', color: '#FBF3EE' },
-  orderCustomer: { fontSize: 13, color: '#A8968E', marginTop: 2 },
-  timerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#451A03', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
-  timerText: { color: '#FB923C', fontSize: 12, fontWeight: '700' },
-  itemsList: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#3E1E28' },
-  itemRow: { flexDirection: 'row', marginBottom: 8 },
-  itemQty: { fontSize: 14, fontWeight: '700', color: '#F5A623', width: 28 },
-  itemName: { fontSize: 14, fontWeight: '600', color: '#FBF3EE' },
-  itemVariant: { fontSize: 12, color: '#A8968E' },
-  itemNotes: { fontSize: 12, color: '#E08E0B', fontStyle: 'italic' },
-  orderCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  orderPrice: { fontSize: 15, fontWeight: '800', color: '#FBF3EE' },
-  pickupCodeText: { fontSize: 12, color: '#38BDF8', fontWeight: '700' },
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 6 },
-  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#450A0A', borderRadius: 12, height: 44, gap: 6 },
-  rejectBtnText: { color: '#EC8080', fontWeight: '700', fontSize: 14 },
-  acceptBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#22C08A', borderRadius: 12, height: 44, gap: 6 },
-  acceptBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  prepRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, backgroundColor: '#17090E', padding: 12, borderRadius: 12 },
-  prepNotice: { color: '#E08E0B', fontSize: 13, fontWeight: '600' },
-  readyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0284C7', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, gap: 6 },
-  readyBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  pickupVerifyRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  pickupInput: { flex: 1, backgroundColor: '#17090E', height: 44, borderRadius: 10, paddingHorizontal: 14, color: '#FFFFFF', fontSize: 14, borderWidth: 1, borderColor: '#3E1E28' },
-  verifyPickupBtn: { backgroundColor: '#22C08A', paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-  verifyPickupBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  menuItemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#26111A', padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#3E1E28' },
-  menuItemHeader: { flexDirection: 'row', alignItems: 'center' },
-  vegBadge: { width: 14, height: 14, borderWidth: 1.5, borderRadius: 3, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
-  vegDot: { width: 6, height: 6, borderRadius: 3 },
-  menuItemName: { fontSize: 15, fontWeight: '700', color: '#FBF3EE' },
-  menuItemPrice: { fontSize: 13, color: '#A8968E', marginTop: 2 },
-  stockToggleBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  stockToggleText: { fontSize: 12, fontWeight: '700' },
-  kycStatusCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0A3D2E', padding: 16, borderRadius: 16, marginBottom: 16 },
-  kycStatusTitle: { fontSize: 15, fontWeight: '800', color: '#4ADFA8' },
-  kycStatusDesc: { fontSize: 12, color: '#A7F3D0', marginTop: 2 },
-  docItemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#26111A', padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#3E1E28' },
-  docName: { fontSize: 14, fontWeight: '700', color: '#FBF3EE' },
-  docNumber: { fontSize: 12, color: '#A8968E', marginTop: 2 },
-  pendingBadge: { color: '#E08E0B', fontSize: 12, fontWeight: '700' },
-  verifiedBadge: { backgroundColor: '#0A3D2E', color: '#4ADFA8', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  revenueCard: { backgroundColor: '#26111A', borderRadius: 20, padding: 22, marginBottom: 16, borderWidth: 1, borderColor: '#3E1E28' },
-  revenueLabel: { fontSize: 13, color: '#A8968E', fontWeight: '600' },
-  revenueAmount: { fontSize: 32, fontWeight: '800', color: '#22C08A', marginVertical: 6 },
-  revenueSub: { fontSize: 12, color: '#8A7A72' },
-  statsGrid: { flexDirection: 'row', gap: 12 },
-  statBox: { flex: 1, backgroundColor: '#26111A', padding: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28' },
-  statNumber: { fontSize: 20, fontWeight: '800', color: '#FBF3EE' },
-  statLabel: { fontSize: 11, color: '#A8968E', marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#26111A', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#FBF3EE' },
-  modalSubtitle: { fontSize: 13, color: '#A8968E', marginTop: 4, marginBottom: 20 },
-  prepBtnRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  prepOptionBtn: { flex: 1, backgroundColor: '#17090E', paddingVertical: 14, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#3E1E28', gap: 6 },
-  prepOptionBtnActive: { backgroundColor: '#F5A623', borderColor: '#F5A623' },
-  prepOptionText: { fontSize: 14, fontWeight: '700', color: '#F5A623' },
-  prepOptionTextActive: { color: '#FFFFFF' },
-  confirmAcceptBtn: { backgroundColor: '#22C08A', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  confirmAcceptText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  cancelModalBtn: { height: 44, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
-  cancelModalText: { color: '#A8968E', fontSize: 14 }
-});
-
 export default function App() {
   return (
-    <ErrorBoundary appName="Quick Bites Partner" accent="#F5A623">
-      <RestaurantApp />
+    <ErrorBoundary>
+      <PartnerApp />
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.bg },
+  centre: { justifyContent: 'center', alignItems: 'center' },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: c.surface,
+    gap: spacing.md
+  },
+  storeName: { fontSize: 19, fontWeight: '800', color: c.text },
+  storeMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  storeMetaText: { fontSize: 13, color: c.textMuted },
+  liveTag: { fontSize: 10, color: c.success, fontWeight: '800', letterSpacing: 0.5, marginLeft: 4 },
+  kitchenToggle: {
+    minWidth: 88,
+    height: 38,
+    borderRadius: radii.pill,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1
+  },
+  kitchenOn: { backgroundColor: c.success, borderColor: c.success },
+  kitchenOff: { backgroundColor: 'transparent', borderColor: c.border },
+  kitchenToggleText: { fontSize: 13, fontWeight: '800', color: c.textSoft },
+  body: { flex: 1 },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: c.surface,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    paddingVertical: spacing.sm
+  },
+  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 6, gap: 3 },
+  tabLabel: { fontSize: 10, color: c.textMuted, fontWeight: '700' },
+  tabLabelActive: { color: c.brand },
+  blocked: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl },
+  blockedTitle: { fontSize: 20, fontWeight: '800', color: c.text, marginTop: spacing.lg },
+  blockedBody: { fontSize: 14, color: c.textMuted, textAlign: 'center', marginTop: spacing.md, lineHeight: 21 },
+  blockedBtn: { marginTop: spacing.xxl, paddingVertical: spacing.md, paddingHorizontal: spacing.xxl },
+  blockedBtnText: { color: c.brand, fontSize: 15, fontWeight: '800' }
+});

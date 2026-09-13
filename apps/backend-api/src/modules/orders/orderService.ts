@@ -5,8 +5,10 @@ import { menuRepository } from '../../db/repositories/menuRepository.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
+import { calculateDistanceKm } from '../../db/client.ts';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
+import { couponRepository } from '../../db/repositories/couponRepository.ts';
 import { razorpayAdapter } from '../payments/razorpayAdapter.ts';
 import { emitOrderCreated, emitOrderStatusUpdate, emitOrderAvailableForPickup } from '../../sockets/socketServer.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
@@ -43,6 +45,16 @@ export const orderService = {
     }
     if (restaurant.status !== 'ACTIVE') {
       throw new AppError('Restaurant is currently not accepting orders.', 409, 'RESTAURANT_INACTIVE');
+    }
+    // The comment above claimed "Exists & Open" but only status was checked, so a
+    // kitchen that had switched itself offline still took orders — food ordered
+    // from a closed kitchen, with nobody there to cook it.
+    if (restaurant.isOpen === false) {
+      throw new AppError(
+        `${restaurant.name} is closed right now and is not taking orders.`,
+        409,
+        'RESTAURANT_CLOSED'
+      );
     }
 
     // 3. Validate User Profile
@@ -133,7 +145,10 @@ export const orderService = {
     let validatedCoupon = undefined;
     if (input.couponCode) {
       const rawSubtotal = orderItems.reduce((sum, i) => sum + i.totalPrice, 0);
-      const couponCheck = couponService.validateCoupon(input.couponCode, rawSubtotal);
+      const couponCheck = couponService.validateCoupon(input.couponCode, rawSubtotal, {
+        customerId: input.customerId,
+        restaurantId: input.restaurantId
+      });
       if (couponCheck.valid) {
         validatedCoupon = {
           discountType: couponCheck.discountType!,
@@ -145,6 +160,21 @@ export const orderService = {
     }
 
     // 6. Calculate Pricing Engine Bill Breakdown
+    //
+    // Prefer a distance measured between the two real points over whatever the
+    // client claimed, falling back to the client's figure (and then to a nominal
+    // 3.5 km) only when either end has no coordinates recorded.
+    const measuredDistanceKm =
+      restaurant.coordinates && address.coordinates
+        ? calculateDistanceKm(
+            restaurant.coordinates.latitude,
+            restaurant.coordinates.longitude,
+            address.coordinates.latitude,
+            address.coordinates.longitude
+          )
+        : undefined;
+    const tripDistanceKm = measuredDistanceKm ?? input.distanceKm ?? 3.5;
+
     const bill = calculateOrderPricing({
       items: orderItems.map(i => ({
         unitPrice: i.unitPrice,
@@ -152,7 +182,7 @@ export const orderService = {
         addonsTotal: i.addonsTotal
       })),
       packagingFee: Number(restaurant.packagingFee),
-      distanceKm: input.distanceKm || 3.5,
+      distanceKm: tripDistanceKm,
       isGold: customer.isGold,
       coupon: validatedCoupon
     });
@@ -176,17 +206,36 @@ export const orderService = {
         .join(', '),
       // Carried onto the order so live tracking has a destination to measure against.
       deliveryCoordinates: address.coordinates,
+      // Where the rider collects. Without these the rider app had nothing to show
+      // for the pickup beyond the restaurant's name, and no coordinates to hand to
+      // a maps app — "navigate to the restaurant" had nowhere to navigate to.
+      restaurantAddressText: [restaurant.addressLine, restaurant.city, restaurant.pincode]
+        .filter(Boolean)
+        .join(', '),
+      restaurantCoordinates: restaurant.coordinates,
+      restaurantPhone: restaurant.phone,
+      distanceKm: tripDistanceKm,
       status: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'ORDER_PLACED' : 'PAYMENT_PENDING',
       paymentStatus: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'PENDING' : 'PENDING',
       paymentMethod: input.paymentMethod,
       items: orderItems,
       bill,
+      // Recorded only when it actually applied: a code that was typed but
+      // rejected did not pay for anything, and showing it on the order would
+      // make the campaign look as though it had.
+      couponCode: validatedCoupon ? String(input.couponCode).trim().toUpperCase() : undefined,
       deliveryOtp,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     await orderRepository.create(order);
+
+    // Counted once the order exists, so a usage limit reflects codes that were
+    // actually spent rather than every checkout that looked at one.
+    if (order.couponCode) {
+      await couponRepository.recordRedemption(order.couponCode);
+    }
 
     // 8. Payment Initiation
     let paymentParams = null;

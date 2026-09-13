@@ -58,6 +58,35 @@ export const restaurantRepository = {
     if (!existing) return null;
     existing.status = status;
     memoryStore.restaurants.set(id, existing);
+    triggerAutoSave();
+    return existing;
+  },
+
+  /** Moves the restaurant through verification as its documents are reviewed. */
+  async updateKycStatus(id: string, kycStatus: Restaurant['kycStatus']): Promise<Restaurant | null> {
+    const existing = memoryStore.restaurants.get(id);
+    if (!existing) return null;
+    existing.kycStatus = kycStatus;
+    memoryStore.restaurants.set(id, existing);
+    triggerAutoSave();
+    return existing;
+  },
+
+  /**
+   * Opens or closes the kitchen.
+   *
+   * The route used to assign `restaurant.isOpen` directly and never call
+   * triggerAutoSave, so the toggle was never written down: it survived in memory
+   * until the next restart and then reverted, which is exactly the "I switched it
+   * to Offline and it still says Online" the partner reported.
+   */
+  async setOpenState(id: string, isOpen: boolean): Promise<Restaurant | null> {
+    const existing = memoryStore.restaurants.get(id);
+    if (!existing) return null;
+    existing.isOpen = isOpen;
+    existing.kitchenStatusChangedAt = new Date().toISOString();
+    memoryStore.restaurants.set(id, existing);
+    triggerAutoSave();
     return existing;
   },
 

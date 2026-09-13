@@ -203,7 +203,17 @@ const StatusTransitionSchema = z.object({
     'DELIVERED',
     'CANCELLED'
   ]),
-  preparationMinutes: z.number().int().positive().optional(),
+  /**
+   * A kitchen cannot plausibly cook and pack in under ten minutes, and the figure
+   * is shown to the customer as a promise. Enforced here rather than only in the
+   * partner app, because the app is the part a partner can bypass.
+   */
+  preparationMinutes: z
+    .number()
+    .int('Preparation time must be a whole number of minutes')
+    .min(10, 'Preparation time cannot be less than 10 minutes')
+    .max(180, 'Preparation time cannot be more than 3 hours')
+    .optional(),
   otp: z.string().length(4).optional()
 });
 
@@ -275,7 +285,11 @@ orderRouter.put('/:id/status', authMiddleware(), validate({ body: StatusTransiti
 
 const RatingSchema = z.object({
   rating: z.number().int().min(1, 'Rating must be between 1 and 5').max(5, 'Rating must be between 1 and 5'),
-  comment: z.string().max(500).optional()
+  comment: z.string().max(500).optional(),
+  /** The rider is scored separately from the food, so a slow kitchen does not
+   *  cost the rider their rating. Omitted, the order's rating counts for both. */
+  riderRating: z.number().int().min(1).max(5).optional(),
+  riderComment: z.string().max(500).optional()
 });
 
 /**
@@ -300,7 +314,13 @@ orderRouter.post('/:id/rating', authMiddleware('customer'), validate({ body: Rat
       throw new AppError('This order has already been rated.', 409, 'ALREADY_RATED');
     }
 
-    const updated = await orderRepository.setRating(order.id, req.body.rating, req.body.comment);
+    const updated = await orderRepository.setRating(
+      order.id,
+      req.body.rating,
+      req.body.comment,
+      req.body.riderRating,
+      req.body.riderComment
+    );
     await restaurantRepository.addRating(order.restaurantId, req.body.rating);
 
     res.json({

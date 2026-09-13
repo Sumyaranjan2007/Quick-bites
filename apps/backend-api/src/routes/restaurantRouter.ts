@@ -3,12 +3,21 @@ import { z } from 'zod';
 import type { Restaurant } from '@quick-bites/shared-types';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { menuRepository } from '../db/repositories/menuRepository.ts';
+import { menuRequestRepository } from '../db/repositories/menuRequestRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { calculateDistanceKm } from '../db/client.ts';
-import { emitKitchenStatus, emitMenuUpdated } from '../sockets/socketServer.ts';
+import { emitKitchenStatus, emitMenuUpdated, emitMenuRequestSubmitted } from '../sockets/socketServer.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
+import { buildRestaurantDashboard } from '../modules/restaurants/restaurantInsights.ts';
+import {
+  buildDocumentOverview,
+  RESTAURANT_DOCUMENT_TYPES,
+  ACCEPTED_FORMATS,
+  MAX_UPLOAD_MB
+} from '../modules/restaurants/restaurantDocuments.ts';
+import { kycRepository } from '../db/repositories/kycRepository.ts';
 
 export const restaurantRouter = Router();
 
@@ -245,18 +254,21 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
   try {
     await assertOwnsRestaurant(req, req.params.id);
     const { isKitchenActive } = req.body;
-    const restaurant = await restaurantRepository.findById(req.params.id);
+
+    // Goes through the repository so the change is persisted. Assigning isOpen on
+    // the object skipped triggerAutoSave, so the kitchen reverted to its previous
+    // state on the next restart and the partner saw "Online" after going offline.
+    const restaurant = await restaurantRepository.setOpenState(req.params.id, Boolean(isKitchenActive));
     if (!restaurant) {
       return res.status(404).json({ success: false, error: 'Restaurant not found' });
     }
 
-    restaurant.isOpen = Boolean(isKitchenActive);
     emitKitchenStatus(restaurant.id, { isKitchenActive: restaurant.isOpen });
 
     return res.json({
       success: true,
       message: `Kitchen is now ${restaurant.isOpen ? 'ONLINE' : 'OFFLINE'}`,
-      data: { isOpen: restaurant.isOpen }
+      data: { isOpen: restaurant.isOpen, changedAt: restaurant.kitchenStatusChangedAt }
     });
   } catch (err) {
     next(err);
@@ -267,3 +279,254 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
 // first registration, so it never ran — but it omitted the assertOwnsRestaurant check,
 // and would have silently reopened the cross-restaurant write hole if the routes were
 // ever reordered. The guarded definition above is the only one.
+
+// ---------------------------------------------------------------------------
+// Menu change requests
+//
+// A partner asks for a dish to be added or changed; an administrator approves it
+// before it reaches a customer. Nothing here writes to the live menu — approval,
+// in adminRouter, is the only path that does.
+// ---------------------------------------------------------------------------
+
+const MenuRequestSchema = z.object({
+  kind: z.enum(['ADD_ITEM', 'EDIT_ITEM']).optional().default('ADD_ITEM'),
+  dishId: z.string().min(1).optional(),
+  name: z.string().trim().min(1, 'Dish name is required').max(120),
+  description: z.string().trim().max(400).optional(),
+  price: z.number().positive('Price must be greater than zero').max(100000),
+  isVeg: z.boolean(),
+  categoryName: z.string().trim().min(1, 'Category is required').max(80),
+  imageUrl: z.string().url('Image URL must be a valid link').optional()
+});
+
+// POST /api/restaurants/:id/menu/requests — partner submits a menu change for review
+restaurantRouter.post(
+  '/:id/menu/requests',
+  authMiddleware('restaurant_owner'),
+  validate({ body: MenuRequestSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await assertOwnsRestaurant(req, req.params.id);
+      const { kind, dishId, ...payload } = req.body;
+
+      if (kind === 'EDIT_ITEM' && !dishId) {
+        throw new AppError('An edit request must name the dish it changes.', 400, 'DISH_ID_REQUIRED');
+      }
+
+      const request = await menuRequestRepository.create({
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        requestedByUserId: req.user!.id,
+        kind,
+        dishId,
+        payload
+      });
+
+      emitMenuRequestSubmitted(request);
+      res.status(201).json({
+        success: true,
+        data: { request },
+        message: 'Sent for review. You will see the dish on your menu once it is approved.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /api/restaurants/:id/menu/requests — the partner's own request history
+restaurantRouter.get('/:id/menu/requests', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    await assertOwnsRestaurant(req, req.params.id);
+    const requests = await menuRequestRepository.listByRestaurant(req.params.id);
+    res.json({ success: true, data: { requests } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Partner dashboard and order history
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/restaurants/:id/dashboard — the numbers behind the partner's home screen.
+ *
+ * Computed from the restaurant's own orders on every request rather than kept as a
+ * running total, so a refund or a cancellation is reflected immediately and there
+ * is no second copy of the figures to drift.
+ */
+restaurantRouter.get('/:id/dashboard', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    const restaurant = await assertOwnsRestaurant(req, req.params.id);
+    const [orders, menu] = await Promise.all([
+      orderRepository.listByRestaurantId(req.params.id),
+      menuRepository.findByRestaurantId(req.params.id)
+    ]);
+
+    const dashboard = buildRestaurantDashboard(orders, menu);
+    res.json({
+      success: true,
+      data: {
+        dashboard,
+        restaurant: {
+          id: restaurant.id,
+          name: restaurant.name,
+          isOpen: restaurant.isOpen,
+          status: restaurant.status,
+          kycStatus: restaurant.kycStatus,
+          ratingAverage: restaurant.ratingAverage,
+          ratingCount: restaurant.ratingCount
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/restaurants/:id/orders/history — past orders, newest first.
+ *
+ * Separate from /orders, which is the live queue: the kitchen screen wants what is
+ * cooking now, and this wants what already happened. `scope` selects completed,
+ * cancelled or everything; the OTP is stripped here as it is on the live queue.
+ */
+restaurantRouter.get('/:id/orders/history', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    await assertOwnsRestaurant(req, req.params.id);
+
+    const scope = String(req.query.scope || 'all').toLowerCase();
+    const limit = Math.min(Number(req.query.limit) || 100, 200);
+
+    const all = await orderRepository.listByRestaurantId(req.params.id);
+    const terminal = all.filter(o =>
+      ['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status)
+    );
+
+    const filtered =
+      scope === 'completed'
+        ? terminal.filter(o => o.status === 'DELIVERED')
+        : scope === 'cancelled'
+          ? terminal.filter(o => o.status === 'CANCELLED' || o.status === 'REFUNDED')
+          : terminal;
+
+    const orders = filtered.slice(0, limit).map(({ deliveryOtp, ...rest }: any) => rest);
+
+    res.json({
+      success: true,
+      data: {
+        orders,
+        counts: {
+          all: terminal.length,
+          completed: terminal.filter(o => o.status === 'DELIVERED').length,
+          cancelled: terminal.filter(o => o.status === 'CANCELLED' || o.status === 'REFUNDED').length
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Document verification
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/restaurants/:id/documents — what is required, and where each one stands.
+ *
+ * Returns the catalogue merged with the restaurant's submissions, so the partner
+ * app can render one list showing what is needed, why, the accepted formats and
+ * the current status, instead of an opaque panel that never explained itself.
+ */
+restaurantRouter.get('/:id/documents', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    const restaurant = await assertOwnsRestaurant(req, req.params.id);
+    const documents = await kycRepository.findByEntity('RESTAURANT', restaurant.id);
+    const overview = buildDocumentOverview(documents);
+
+    res.json({
+      success: true,
+      data: {
+        ...overview,
+        kycStatus: restaurant.kycStatus,
+        acceptedFormats: ACCEPTED_FORMATS,
+        maxSizeMb: MAX_UPLOAD_MB
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const UploadDocumentSchema = z.object({
+  documentType: z.enum(RESTAURANT_DOCUMENT_TYPES),
+  documentNumber: z.string().trim().min(1, 'Enter the number printed on the document').max(40),
+  fileUrl: z.string().min(1, 'A file is required')
+});
+
+/**
+ * POST /api/restaurants/:id/documents — upload, or re-upload after a rejection.
+ *
+ * A new submission for a type supersedes the previous one rather than editing it,
+ * so the review history is preserved: an administrator can see that a document was
+ * rejected once and what was sent the second time.
+ */
+restaurantRouter.post(
+  '/:id/documents',
+  authMiddleware('restaurant_owner'),
+  validate({ body: UploadDocumentSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await assertOwnsRestaurant(req, req.params.id);
+      const { documentType, documentNumber, fileUrl } = req.body;
+
+      const existing = await kycRepository.findByEntity('RESTAURANT', restaurant.id);
+      const current = existing
+        .filter(d => d.documentType === documentType)
+        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
+
+      // Re-uploading over something already approved would quietly un-verify a
+      // trading restaurant, so it is refused rather than silently accepted.
+      if (current?.status === 'APPROVED') {
+        throw new AppError(
+          `Your ${documentType} is already verified. Contact support if it needs to change.`,
+          409,
+          'DOCUMENT_ALREADY_APPROVED'
+        );
+      }
+      if (current?.status === 'PENDING') {
+        throw new AppError(
+          `Your ${documentType} is already with our team for review.`,
+          409,
+          'DOCUMENT_UNDER_REVIEW'
+        );
+      }
+
+      const doc = await kycRepository.submitDocument({
+        entityType: 'RESTAURANT',
+        entityId: restaurant.id,
+        entityName: restaurant.name,
+        entityCity: restaurant.city,
+        entityAddress: restaurant.addressLine,
+        entityPhone: restaurant.phone,
+        documentType,
+        documentNumber,
+        fileUrl
+      });
+
+      if (restaurant.kycStatus !== 'ACTIVE') {
+        await restaurantRepository.updateKycStatus(restaurant.id, 'PENDING_APPROVAL');
+      }
+
+      res.status(201).json({
+        success: true,
+        data: { document: doc },
+        message: 'Uploaded. Our team reviews documents within one working day.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
