@@ -15,6 +15,7 @@ import { supportRepository } from '../db/repositories/supportRepository.ts';
 import { refundRepository } from '../db/repositories/refundRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
+import { riderRepository } from '../db/repositories/riderRepository.ts';
 
 export const supportRouter = Router();
 
@@ -137,11 +138,9 @@ supportRouter.post('/refund-requests', validate({ body: RefundRequestSchema }), 
     const order = await orderRepository.findById(req.body.orderId);
     if (!order) throw new AppError('That order could not be found.', 404, 'ORDER_NOT_FOUND');
 
-    const isCustomer = order.customerId === req.user!.id;
-    const isRider = Boolean(order.riderId) && order.riderId === req.user!.id;
-    if (!isCustomer && !isRider) {
-      // A rider raises a case by their rider id; look that up before refusing.
-      const { riderRepository } = await import('../db/repositories/riderRepository.ts');
+    // The customer is identified by their user id; a rider is identified by
+    // their rider id, which is not the same value, so that has to be looked up.
+    if (order.customerId !== req.user!.id) {
       const rider = await riderRepository.findByUserId(req.user!.id);
       if (!rider || rider.id !== order.riderId) {
         throw new AppError('You can only raise a request about your own order.', 403, 'NOT_YOUR_ORDER');

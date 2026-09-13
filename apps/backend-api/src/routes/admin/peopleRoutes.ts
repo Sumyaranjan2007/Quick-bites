@@ -16,7 +16,7 @@ import { kycRepository } from '../../db/repositories/kycRepository.ts';
 import { payoutRepository } from '../../db/repositories/payoutRepository.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { summariseOrder, matchesQuery, paginate } from './shared.ts';
-import { memoryStore } from '../../db/client.ts';
+import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import type { Order } from '@quick-bites/shared-types';
 
 export const peopleRoutes = Router();
@@ -425,7 +425,6 @@ peopleRoutes.patch(
         if (status !== 'ACTIVE') restaurant.isOpen = false;
       }
       memoryStore.restaurants.set(restaurant.id, restaurant);
-      const { triggerAutoSave } = await import('../../db/client.ts');
       triggerAutoSave();
 
       recordAudit(req, {

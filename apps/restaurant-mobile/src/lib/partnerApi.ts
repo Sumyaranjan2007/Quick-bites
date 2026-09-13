@@ -239,3 +239,54 @@ export function raiseSupportTicket(input: { subject: string; category: string; m
 export function fetchSupportTickets() {
   return request<{ tickets: any[] }>('/support/tickets');
 }
+
+// ---------------------------------------------------------------------------
+// Password and profile
+//
+// A partner who forgets their password had no way back in: the sign-in screen
+// offered only "try again". These are the same endpoints every Quick Bites app
+// uses, so a password changed here works everywhere the owner signs in.
+// ---------------------------------------------------------------------------
+
+export function requestPasswordReset(email: string) {
+  return request<{ sent: boolean; resetCode?: string; expiresInMinutes: number }>(
+    '/auth/forgot-password',
+    { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) },
+    'Could not start a password reset.'
+  );
+}
+
+export function resetPassword(input: { email: string; code: string; newPassword: string }) {
+  return request<{ reset: boolean; token: string }>(
+    '/auth/reset-password',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        email: input.email.trim().toLowerCase(),
+        code: input.code.trim(),
+        newPassword: input.newPassword
+      })
+    },
+    'That reset code was not accepted.'
+  );
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return request<{ changed: boolean }>(
+    '/auth/change-password',
+    { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
+    'Your password could not be changed.'
+  );
+}
+
+export function updateProfile(changes: { fullName?: string; phone?: string }) {
+  return request<{ user: any }>(
+    '/auth/me',
+    { method: 'PATCH', body: JSON.stringify(changes) },
+    'Your profile could not be saved.'
+  );
+}
+
+export function signOut() {
+  return request<{ loggedOut: boolean }>('/auth/logout', { method: 'POST' }, 'Could not sign out cleanly.');
+}

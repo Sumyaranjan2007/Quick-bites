@@ -8,7 +8,7 @@ import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
-import { riderRepository } from '../../db/repositories/riderRepository.ts';
+import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { orderService } from '../../modules/orders/orderService.ts';
 import { emitOrderStatusUpdate } from '../../sockets/socketServer.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
@@ -254,15 +254,11 @@ orderRoutes.post(
       order.updatedAt = order.cancelledAt;
       memoryStore.orders.set(order.id, order);
 
-      // A rider already on the trip has to be released, or dispatch keeps
-      // believing they are busy and stops offering them work.
-      if (order.riderId) {
-        await riderRepository.update(order.riderId, {});
-      }
-
+      // A rider who was on this trip is freed by the cancellation itself: an
+      // active trip is derived from the order's status, so there is no separate
+      // flag to clear.
       let refund: { amount: number } | null = null;
       if (req.body.refund && order.paymentStatus === 'PAID') {
-        const { walletRepository } = await import('../../db/repositories/walletRepository.ts');
         const amount = Number(order.bill?.totalAmount) || 0;
         await walletRepository.credit(
           order.customerId,

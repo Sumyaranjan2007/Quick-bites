@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.quickbite.app",
-      "buildNumber": "2",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDisplayName": "Quick Bites"
@@ -142,7 +142,8 @@
         }
       ],
       "../../packages/config/expo-plugins/withReleaseSigning",
-      "../../packages/config/expo-plugins/withArmOnlyAbis"
+      "../../packages/config/expo-plugins/withArmOnlyAbis",
+      "../../packages/config/expo-plugins/withLocalDevCleartext"
     ]
   }
 }

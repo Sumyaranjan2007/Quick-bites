@@ -10,8 +10,26 @@ partner and rider apps on other phones to watch an order travel end to end.
 | **Quick Bites Rider** | Delivery partners | [`QuickBites-Rider.apk`](build/apk/QuickBites-Rider.apk) |
 | **Quick Bites Operations** | Platform admin | [`QuickBites-Admin.apk`](build/apk/QuickBites-Admin.apk) |
 
-All four are version 1.1.0 (versionCode 2), signed with the Quick Bites upload
+All four are version 1.2.0 (versionCode 5), signed with the Quick Bites upload
 keys, and built for `arm64-v8a` and `armeabi-v7a`.
+
+### What is new in 1.2.0
+
+The admin app is a full operations console rather than a four-tab monitor. It now
+carries a platform dashboard, every order with its complete file, live
+deliveries, directories for customers, delivery partners and restaurants, return
+and refund case handling, menu and category management, coupons, reviews,
+payments, revenue and driver payouts, support complaints, and role-based access
+control with an audit log.
+
+Every one of those permissions is enforced by the server, not only hidden in the
+app: a restricted administrator who types a URL or replays a request is refused
+by the API. Sign in as `ops@`, `finance@` or `support@quickbite.app` to see a
+narrower console than `admin@`.
+
+All four apps also gained password recovery (forgot, reset and change), and the
+customer app can now raise a complaint or a refund request from inside the app —
+both land in the administrator's queue.
 
 ## Installing
 
@@ -64,3 +82,8 @@ All four ship pointing at the hosted API. If that deployment is down or has no
 `JWT_SECRET` set, the apps will sign in with an error — the binaries are fine,
 the server is not. The customer app's **Server settings** on the sign-in screen
 can be pointed at any other instance, including one on your own machine.
+
+A build can now actually reach a backend on your own machine: releases permit
+cleartext HTTP for `10.0.2.2`, `10.0.3.2` and `localhost` only, which is the
+Android emulator's route to the host. Every other destination stays TLS-only, so
+this does not weaken the app against a real network.

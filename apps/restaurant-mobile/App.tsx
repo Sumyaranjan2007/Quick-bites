@@ -206,7 +206,12 @@ function PartnerApp() {
         {tab === 'menu' && <MenuScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
         {tab === 'documents' && <DocumentsScreen restaurantId={restaurant.id} />}
         {tab === 'help' && (
-          <HelpCentreScreen restaurantName={restaurant.name} ownerEmail={user?.email} onSignOut={signOut} />
+          <HelpCentreScreen
+            restaurantName={restaurant.name}
+            ownerEmail={user?.email}
+            ownerName={user?.fullName}
+            onSignOut={signOut}
+          />
         )}
       </View>
 

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingV
 import { ChefHat, CheckCircle2 } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Button, Field, PasswordField, ErrorNote } from '../components/ui';
-import { login, createAccount } from '../lib/partnerApi';
+import { login, createAccount, requestPasswordReset, resetPassword } from '../lib/partnerApi';
 
 interface Props {
   onSignedIn: (token: string, user: any) => void;
@@ -19,7 +19,7 @@ interface Props {
  * would then refuse every request.
  */
 export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
-  const [mode, setMode] = useState<'signin' | 'create'>('signin');
+  const [mode, setMode] = useState<'signin' | 'create' | 'forgot' | 'reset'>('signin');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +31,63 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [registered, setRegistered] = useState(false);
+
+  // Password recovery. The code is delivered by the server; on a deployment
+  // without a mail provider it comes straight back in the response, and this
+  // screen says which happened rather than telling the owner to check an inbox
+  // nothing was sent to.
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const doForgot = async () => {
+    setFormError(null);
+    setNotice(null);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      setFieldErrors({ email: 'Enter the email address on your account.' });
+      return;
+    }
+    setBusy(true);
+    const res = await requestPasswordReset(email);
+    setBusy(false);
+
+    if (!res.ok) {
+      setFormError(res.message || 'Could not start a password reset.');
+      return;
+    }
+    if (res.data?.resetCode) {
+      setResetCode(String(res.data.resetCode));
+      setNotice(`Your reset code is ${res.data.resetCode}. It expires in ${res.data.expiresInMinutes} minutes.`);
+    } else {
+      setNotice('If that address is on an account, a reset code has been sent to it.');
+    }
+    setMode('reset');
+  };
+
+  const doReset = async () => {
+    setFormError(null);
+    if (resetCode.trim().length !== 6) {
+      setFieldErrors({ resetCode: 'The code is six digits.' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setFieldErrors({ newPassword: 'Use at least 8 characters.' });
+      return;
+    }
+    setBusy(true);
+    const res = await resetPassword({ email, code: resetCode, newPassword });
+    setBusy(false);
+
+    if (!res.ok) {
+      setFormError(res.message || 'That code was not accepted.');
+      return;
+    }
+    setPassword(newPassword);
+    setNewPassword('');
+    setResetCode('');
+    setNotice('Your password has been changed. Sign in with it now.');
+    setMode('signin');
+  };
 
   const validateCreate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -113,10 +170,17 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           </View>
           <Text style={styles.title}>Quick Bites Partner</Text>
           <Text style={styles.subtitle}>
-            {mode === 'signin' ? 'Sign in to your kitchen' : 'Register your restaurant'}
+            {mode === 'signin'
+              ? 'Sign in to your kitchen'
+              : mode === 'create'
+                ? 'Register your restaurant'
+                : mode === 'forgot'
+                  ? 'We will send you a reset code'
+                  : 'Enter the code and choose a new password'}
           </Text>
         </View>
 
+        {mode !== 'forgot' && mode !== 'reset' && (
         <View style={styles.switcher}>
           <TouchableOpacity
             style={[styles.switchTab, mode === 'signin' && styles.switchTabActive]}
@@ -139,8 +203,10 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             <Text style={[styles.switchText, mode === 'create' && styles.switchTextActive]}>Create account</Text>
           </TouchableOpacity>
         </View>
+        )}
 
         {!!formError && <ErrorNote message={formError} />}
+        {!!notice && <Text style={styles.notice}>{notice}</Text>}
 
         {mode === 'create' && (
           <>
@@ -172,15 +238,38 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           error={fieldErrors.email}
         />
 
-        <PasswordField
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          placeholder={mode === 'create' ? 'At least 8 characters' : 'Your password'}
-          hint={mode === 'create' ? 'Use at least 8 characters.' : undefined}
-          error={fieldErrors.password}
-          textContentType={mode === 'create' ? 'newPassword' : 'password'}
-        />
+        {mode !== 'forgot' && mode !== 'reset' && (
+          <PasswordField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder={mode === 'create' ? 'At least 8 characters' : 'Your password'}
+            hint={mode === 'create' ? 'Use at least 8 characters.' : undefined}
+            error={fieldErrors.password}
+            textContentType={mode === 'create' ? 'newPassword' : 'password'}
+          />
+        )}
+
+        {mode === 'reset' && (
+          <>
+            <Field
+              label="Six-digit code"
+              value={resetCode}
+              onChangeText={setResetCode}
+              placeholder="123456"
+              keyboardType="number-pad"
+              error={fieldErrors.resetCode}
+            />
+            <PasswordField
+              label="New password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="At least 8 characters"
+              error={fieldErrors.newPassword}
+              textContentType="newPassword"
+            />
+          </>
+        )}
 
         {mode === 'create' && (
           <PasswordField
@@ -193,11 +282,48 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
         )}
 
         <Button
-          label={mode === 'signin' ? 'Sign in' : 'Create account'}
-          onPress={mode === 'signin' ? doSignIn : doCreate}
+          label={
+            mode === 'signin'
+              ? 'Sign in'
+              : mode === 'create'
+                ? 'Create account'
+                : mode === 'forgot'
+                  ? 'Send the code'
+                  : 'Set the new password'
+          }
+          onPress={
+            mode === 'signin' ? doSignIn : mode === 'create' ? doCreate : mode === 'forgot' ? doForgot : doReset
+          }
           busy={busy}
           style={{ marginTop: spacing.sm }}
         />
+
+        {mode === 'signin' && (
+          <TouchableOpacity
+            onPress={() => {
+              setMode('forgot');
+              setFormError(null);
+              setNotice(null);
+              setFieldErrors({});
+            }}
+            style={styles.linkRow}
+          >
+            <Text style={styles.link}>Forgot your password?</Text>
+          </TouchableOpacity>
+        )}
+
+        {(mode === 'forgot' || mode === 'reset') && (
+          <TouchableOpacity
+            onPress={() => {
+              setMode(mode === 'reset' ? 'forgot' : 'signin');
+              setFormError(null);
+              setFieldErrors({});
+            }}
+            style={styles.linkRow}
+          >
+            <Text style={styles.link}>{mode === 'reset' ? 'Send another code' : 'Back to sign in'}</Text>
+          </TouchableOpacity>
+        )}
 
         {mode === 'create' && (
           <Text style={styles.legal}>
@@ -237,6 +363,17 @@ const styles = StyleSheet.create({
   switchText: { fontSize: 14, color: c.textMuted, fontWeight: '700' },
   switchTextActive: { color: c.brand },
   legal: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: spacing.lg, lineHeight: 18 },
+  linkRow: { alignItems: 'center', paddingVertical: spacing.lg },
+  link: { color: c.brand, fontSize: 14, fontWeight: '700' },
+  notice: {
+    color: c.success,
+    backgroundColor: c.successSoft,
+    borderRadius: radii.sm,
+    padding: spacing.md,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: spacing.lg
+  },
   doneCard: {
     flex: 1,
     justifyContent: 'center',

@@ -1,0 +1,374 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState } from './ui';
+import { tokens, formatMoney, formatDateTime, humanise, toneForStatus } from '../theme/tokens';
+import { useSession } from '../lib/session';
+import { useResource } from '../lib/useResource';
+
+const c = tokens.colors;
+
+/**
+ * One order, whole.
+ *
+ * This is the screen the console exists for: the customer, the restaurant, the
+ * delivery partner, every line of the bill, the timeline, and anything raised
+ * against it afterwards — in one place, so nobody has to hold four screens in
+ * their head to answer "what happened to this order?".
+ *
+ * Used from Orders, Live Deliveries and a refund case, because all three
+ * ultimately want the same view.
+ */
+export const OrderDetailSheet: React.FC<{
+  orderId: string | null;
+  onClose: () => void;
+  onChanged?: () => void;
+}> = ({ orderId, onClose, onChanged }) => {
+  const { api, can } = useSession();
+  const [action, setAction] = useState<'none' | 'refund' | 'cancel'>('none');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const resource = useResource(
+    () => api.get<any>(`/admin/orders/${orderId}`),
+    [orderId],
+    { enabled: Boolean(orderId) }
+  );
+
+  const close = () => {
+    setAction('none');
+    setReason('');
+    setAmount('');
+    onClose();
+  };
+
+  const submitRefund = async () => {
+    if (!resource.data) return;
+    setBusy(true);
+    try {
+      const result = await api.post<any>(`/admin/orders/${orderId}/refund`, {
+        ...(amount ? { amount: Number(amount) } : {}),
+        reason: reason || 'Admin dispute resolution'
+      });
+      Alert.alert('Refund issued', `${formatMoney(result.refundAmount)} credited to the customer's wallet.`);
+      setAction('none');
+      await resource.reload();
+      onChanged?.();
+    } catch (err: any) {
+      Alert.alert('Refund failed', err?.message || 'Nothing was refunded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitCancel = async () => {
+    if (!reason.trim()) {
+      Alert.alert('A reason is required', 'Record why this order is being cancelled.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(`/admin/orders/${orderId}/cancel`, { reason, refund: true });
+      Alert.alert('Order cancelled', 'The customer and the restaurant have been told.');
+      setAction('none');
+      setReason('');
+      await resource.reload();
+      onChanged?.();
+    } catch (err: any) {
+      Alert.alert('Could not cancel', err?.message || 'The order was not changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const data = resource.data;
+  const order = data?.order;
+
+  return (
+    <Sheet
+      visible={Boolean(orderId)}
+      onClose={close}
+      title={order ? `Order #${order.orderNumber}` : 'Order'}
+      subtitle={order ? `${humanise(order.status)} · ${formatDateTime(order.createdAt)}` : undefined}
+      footer={
+        order && action === 'none' ? (
+          <>
+            {can('orders.cancel') && !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(order.status) ? (
+              <Button label="Cancel order" variant="danger" full onPress={() => setAction('cancel')} />
+            ) : null}
+            {can('finance.refunds.manage', 'orders.refunds.handle') && order.status !== 'REFUNDED' ? (
+              <Button
+                label="Issue refund"
+                full
+                onPress={() => {
+                  setAmount(String(order.bill?.totalAmount ?? ''));
+                  setAction('refund');
+                }}
+              />
+            ) : null}
+          </>
+        ) : undefined
+      }
+    >
+      {resource.loading && !data ? <Loading label="Opening the order…" /> : null}
+      {!resource.loading && !data ? (
+        <EmptyState
+          title={resource.denied ? 'Not available on your role' : 'Could not open this order'}
+          message={resource.error || undefined}
+        />
+      ) : null}
+
+      {data && action === 'refund' ? (
+        <Card>
+          <Text style={s.blockTitle}>Issue a refund</Text>
+          <Text style={s.blockBody}>
+            The amount is credited to the customer's Quick Bites wallet immediately and recorded against this order.
+          </Text>
+          <Field label="Amount (₹)" value={amount} onChangeText={setAmount} keyboardType="numeric" hint={`Order total ${formatMoney(order.bill?.totalAmount)}`} />
+          <Field label="Reason" value={reason} onChangeText={setReason} placeholder="Missing item, spilled food, late delivery…" multiline />
+          <View style={s.actionRow}>
+            <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
+            <Button label="Credit the wallet" full loading={busy} onPress={submitRefund} />
+          </View>
+        </Card>
+      ) : null}
+
+      {data && action === 'cancel' ? (
+        <Card>
+          <Text style={s.blockTitle}>Cancel this order</Text>
+          <Text style={s.blockBody}>
+            The customer and the restaurant are told straight away. If the order was paid for, the money is returned in
+            the same step.
+          </Text>
+          <Field label="Reason" value={reason} onChangeText={setReason} placeholder="Restaurant closed, rider unavailable…" multiline />
+          <View style={s.actionRow}>
+            <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
+            <Button label="Cancel and refund" variant="danger" full loading={busy} onPress={submitCancel} />
+          </View>
+        </Card>
+      ) : null}
+
+      {data && action === 'none' ? (
+        <>
+          <View style={s.badgeRow}>
+            <Badge label={order.status} tone={toneForStatus(order.status)} />
+            <Badge label={order.paymentStatus} tone={toneForStatus(order.paymentStatus)} />
+            <Badge label={order.paymentMethod} tone="neutral" />
+            {order.couponCode ? <Badge label={order.couponCode} tone="amber" /> : null}
+          </View>
+
+          {/* The relationship, in one card */}
+          <Card>
+            <Text style={s.cardHeading}>Who was involved</Text>
+            <KeyValue label="Customer" value={data.customer?.fullName} tone="strong" />
+            <KeyValue label="Phone" value={data.customer?.phone} />
+            <KeyValue label="Email" value={data.customer?.email} />
+            <Divider />
+            <KeyValue label="Restaurant" value={data.restaurant?.name} tone="strong" />
+            <KeyValue label="Restaurant phone" value={data.restaurant?.phone} />
+            <KeyValue label="Kitchen" value={data.restaurant ? `${humanise(data.restaurant.status)}${data.restaurant.isOpen ? ' · open' : ' · closed'}` : '—'} />
+            <Divider />
+            <KeyValue label="Delivery partner" value={data.rider?.fullName || 'Not yet assigned'} tone="strong" />
+            <KeyValue label="Partner ID" value={data.rider?.driverCode} />
+            <KeyValue label="Partner phone" value={data.rider?.phone} />
+          </Card>
+
+          {/* Items */}
+          <Card>
+            <Text style={s.cardHeading}>Items</Text>
+            {(order.items || []).map((item: any, index: number) => (
+              <View key={`${item.dishId}-${index}`} style={s.itemRow}>
+                <View style={s.itemQty}>
+                  <Text style={s.itemQtyText}>{item.quantity}×</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.itemName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={s.itemUnit}>{formatMoney(item.unitPrice, true)} each</Text>
+                </View>
+                <Text style={s.itemTotal}>{formatMoney(item.totalPrice, true)}</Text>
+              </View>
+            ))}
+          </Card>
+
+          {/* Bill */}
+          <Card>
+            <Text style={s.cardHeading}>Bill</Text>
+            <KeyValue label="Items total" value={formatMoney(order.bill?.itemsTotal, true)} />
+            <KeyValue label="GST" value={formatMoney(order.bill?.gstAmount, true)} />
+            <KeyValue label="Packaging" value={formatMoney(order.bill?.packagingFee, true)} />
+            <KeyValue label="Delivery fee" value={formatMoney(order.bill?.deliveryFee, true)} />
+            <KeyValue label="Platform fee" value={formatMoney(order.bill?.platformFee, true)} />
+            {order.bill?.couponDiscount ? (
+              <KeyValue
+                label={order.couponCode ? `Discount (${order.couponCode})` : 'Discount'}
+                value={`− ${formatMoney(order.bill.couponDiscount, true)}`}
+              />
+            ) : null}
+            {order.bill?.walletAmountUsed ? (
+              <KeyValue label="Paid from wallet" value={formatMoney(order.bill.walletAmountUsed, true)} />
+            ) : null}
+            <Divider />
+            <KeyValue label="Total charged" value={formatMoney(order.bill?.totalAmount, true)} tone="money" />
+          </Card>
+
+          {/* Money split */}
+          <Card>
+            <Text style={s.cardHeading}>Where the money went</Text>
+            <KeyValue label="Restaurant payout" value={formatMoney(data.economics?.restaurantPayout, true)} />
+            <KeyValue label="Rider payout" value={formatMoney(data.economics?.riderPayout, true)} />
+            <KeyValue label="Commission" value={formatMoney(data.economics?.commission, true)} />
+            <KeyValue label="GST collected" value={formatMoney(data.economics?.tax, true)} />
+            <Divider />
+            <KeyValue label="Platform net" value={formatMoney(data.economics?.netRevenue, true)} tone="money" />
+          </Card>
+
+          {/* Delivery */}
+          <Card>
+            <Text style={s.cardHeading}>Delivery</Text>
+            <KeyValue label="Address" value={data.delivery?.addressText} />
+            <KeyValue label="Distance" value={data.delivery?.distanceKm ? `${data.delivery.distanceKm} km` : '—'} />
+            <KeyValue label="Rider stage" value={data.delivery?.riderStage ? humanise(data.delivery.riderStage) : '—'} />
+            {data.delivery?.riderCoordinates ? (
+              <KeyValue
+                label="Last rider position"
+                value={`${data.delivery.riderCoordinates.latitude.toFixed(4)}, ${data.delivery.riderCoordinates.longitude.toFixed(4)}`}
+              />
+            ) : null}
+            <KeyValue label="Position updated" value={formatDateTime(data.delivery?.locationUpdatedAt)} />
+          </Card>
+
+          {/* Timeline */}
+          <Card>
+            <Text style={s.cardHeading}>Timeline</Text>
+            {(data.timeline || []).map((step: any, index: number) => (
+              <View key={`${step.label}-${index}`} style={s.timelineRow}>
+                <View style={s.timelineMarker}>
+                  <View style={[s.timelineDot, index === (data.timeline.length - 1) && s.timelineDotLast]} />
+                  {index < data.timeline.length - 1 ? <View style={s.timelineLine} /> : null}
+                </View>
+                <View style={{ flex: 1, paddingBottom: tokens.space[4] }}>
+                  <Text style={s.timelineLabel}>{step.label}</Text>
+                  <Text style={s.timelineTime}>{formatDateTime(step.at)}</Text>
+                  {step.detail ? <Text style={s.timelineDetail}>{step.detail}</Text> : null}
+                </View>
+              </View>
+            ))}
+          </Card>
+
+          {/* Rating */}
+          {order.rating ? (
+            <Card>
+              <Text style={s.cardHeading}>Customer review</Text>
+              <KeyValue label="Order rating" value={`${order.rating} / 5`} tone="strong" />
+              {order.ratingComment ? <Text style={s.quote}>“{order.ratingComment}”</Text> : null}
+              {order.riderRating ? <KeyValue label="Rider rating" value={`${order.riderRating} / 5`} /> : null}
+            </Card>
+          ) : null}
+
+          {/* Anything raised against it */}
+          {(data.refundRequests || []).length > 0 ? (
+            <Card>
+              <Text style={s.cardHeading}>Refund cases</Text>
+              {data.refundRequests.map((request: any) => (
+                <View key={request.id} style={s.caseRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.caseTitle}>{humanise(request.reasonCode)}</Text>
+                    <Text style={s.caseBody} numberOfLines={2}>
+                      {request.description}
+                    </Text>
+                    <Text style={s.caseMeta}>
+                      Asked for {formatMoney(request.requestedAmount)} · {formatDateTime(request.createdAt)}
+                    </Text>
+                  </View>
+                  <Badge label={request.status} />
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
+          {(data.supportTickets || []).length > 0 ? (
+            <Card>
+              <Text style={s.cardHeading}>Complaints</Text>
+              {data.supportTickets.map((ticket: any) => (
+                <View key={ticket.id} style={s.caseRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.caseTitle}>{ticket.subject}</Text>
+                    <Text style={s.caseBody} numberOfLines={2}>
+                      {ticket.message}
+                    </Text>
+                  </View>
+                  <Badge label={ticket.status} />
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
+          {(data.walletCredits || []).length > 0 ? (
+            <Card>
+              <Text style={s.cardHeading}>Wallet credits against this order</Text>
+              {data.walletCredits.map((tx: any) => (
+                <KeyValue key={tx.id} label={formatDateTime(tx.createdAt)} value={formatMoney(tx.amount, true)} tone="money" />
+              ))}
+            </Card>
+          ) : null}
+        </>
+      ) : null}
+    </Sheet>
+  );
+};
+
+const s = StyleSheet.create({
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[2], marginBottom: tokens.space[3] },
+  cardHeading: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.heavy,
+    color: c.text.muted,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: tokens.space[2]
+  },
+  blockTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  blockBody: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4, marginBottom: tokens.space[4], lineHeight: 19 },
+  actionRow: { flexDirection: 'row', gap: tokens.space[3] },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.space[3], paddingVertical: tokens.space[2] },
+  itemQty: {
+    minWidth: 32,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 7,
+    backgroundColor: c.bg.sunken,
+    alignItems: 'center'
+  },
+  itemQtyText: { color: c.brand.amberText, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold },
+  itemName: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  itemUnit: { color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: 2 },
+  itemTotal: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
+  timelineRow: { flexDirection: 'row', gap: tokens.space[3] },
+  timelineMarker: { width: 14, alignItems: 'center' },
+  timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.border.strong, marginTop: 4 },
+  timelineDotLast: { backgroundColor: c.brand.amber },
+  timelineLine: { flex: 1, width: 1.5, backgroundColor: c.border.subtle, marginVertical: 3 },
+  timelineLabel: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  timelineTime: { color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: 2 },
+  timelineDetail: { color: c.text.secondary, fontSize: tokens.font.size.xs, marginTop: 3 },
+  quote: {
+    color: c.text.secondary,
+    fontSize: tokens.font.size.sm,
+    fontStyle: 'italic',
+    marginTop: tokens.space[2],
+    lineHeight: 20
+  },
+  caseRow: {
+    flexDirection: 'row',
+    gap: tokens.space[3],
+    alignItems: 'flex-start',
+    paddingVertical: tokens.space[2],
+    borderTopWidth: 1,
+    borderTopColor: c.border.subtle
+  },
+  caseTitle: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  caseBody: { color: c.text.secondary, fontSize: tokens.font.size.xs, marginTop: 3, lineHeight: 17 },
+  caseMeta: { color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: 4 }
+});

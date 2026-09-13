@@ -3,11 +3,13 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Linking, R
 import { ChevronDown, ChevronUp, LifeBuoy, Phone, Mail, MessageSquare, LogOut } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
-import { raiseSupportTicket, fetchSupportTickets } from '../lib/partnerApi';
+import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile } from '../lib/partnerApi';
+import { PasswordField } from '../components/ui';
 
 interface Props {
   restaurantName: string;
   ownerEmail?: string;
+  ownerName?: string;
   onSignOut: () => void;
 }
 
@@ -58,8 +60,65 @@ const FAQS = [
  * to go. Answers to the common questions come first because most are answerable
  * without us; the contact routes are underneath for when they are not.
  */
-export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, onSignOut }) => {
+export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, onSignOut }) => {
   const [expanded, setExpanded] = useState<number | null>(null);
+
+  // Account management lives here rather than behind another tab: the partner
+  // app is used at the pass with one hand, and a seventh tab would push the row
+  // off the edge of the screen.
+  const [accountMode, setAccountMode] = useState<'none' | 'profile' | 'password'>('none');
+  const [profileName, setProfileName] = useState(ownerName || '');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountNotice, setAccountNotice] = useState<string | null>(null);
+
+  const saveProfile = async () => {
+    setAccountError(null);
+    if (profileName.trim().length < 2) {
+      setAccountError('Enter the name your account should show.');
+      return;
+    }
+    setAccountBusy(true);
+    const res = await updateProfile({
+      fullName: profileName.trim(),
+      ...(profilePhone.trim() ? { phone: profilePhone.trim() } : {})
+    });
+    setAccountBusy(false);
+
+    if (!res.ok) {
+      setAccountError(res.message || 'Your profile could not be saved.');
+      return;
+    }
+    setAccountMode('none');
+    setAccountNotice('Your details have been saved.');
+  };
+
+  const savePassword = async () => {
+    setAccountError(null);
+    if (!currentPassword) {
+      setAccountError('Enter your current password.');
+      return;
+    }
+    if (nextPassword.length < 8) {
+      setAccountError('The new password needs at least 8 characters.');
+      return;
+    }
+    setAccountBusy(true);
+    const res = await changePassword(currentPassword, nextPassword);
+    setAccountBusy(false);
+
+    if (!res.ok) {
+      setAccountError(res.message || 'Your password could not be changed.');
+      return;
+    }
+    setCurrentPassword('');
+    setNextPassword('');
+    setAccountMode('none');
+    setAccountNotice('Your password has been changed.');
+  };
   const [tickets, setTickets] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -188,7 +247,76 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 
         <Card style={{ marginTop: spacing.xl }}>
           <SectionHeading title="Account" sub={ownerEmail} />
-          <Button label="Sign out" variant="ghost" onPress={onSignOut} />
+
+          {accountMode === 'none' && (
+            <>
+              <Button
+                label="Edit your details"
+                variant="ghost"
+                onPress={() => {
+                  setProfileName(ownerName || '');
+                  setAccountMode('profile');
+                  setAccountError(null);
+                  setAccountNotice(null);
+                }}
+              />
+              <View style={{ height: spacing.md }} />
+              <Button
+                label="Change password"
+                variant="ghost"
+                onPress={() => {
+                  setAccountMode('password');
+                  setAccountError(null);
+                  setAccountNotice(null);
+                }}
+              />
+              <View style={{ height: spacing.md }} />
+              <Button label="Sign out" variant="ghost" onPress={onSignOut} />
+            </>
+          )}
+
+          {accountMode === 'profile' && (
+            <>
+              {!!accountError && <ErrorNote message={accountError} />}
+              <Field label="Your name" value={profileName} onChangeText={setProfileName} placeholder="Sunita Deshmukh" />
+              <Field
+                label="Mobile number"
+                value={profilePhone}
+                onChangeText={setProfilePhone}
+                placeholder="98765 43210"
+                keyboardType="phone-pad"
+              />
+              <View style={styles.accountRow}>
+                <Button label="Cancel" variant="ghost" onPress={() => setAccountMode('none')} />
+                <Button label="Save" onPress={saveProfile} busy={accountBusy} />
+              </View>
+            </>
+          )}
+
+          {accountMode === 'password' && (
+            <>
+              {!!accountError && <ErrorNote message={accountError} />}
+              <PasswordField
+                label="Current password"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                placeholder="Your password now"
+              />
+              <PasswordField
+                label="New password"
+                value={nextPassword}
+                onChangeText={setNextPassword}
+                placeholder="At least 8 characters"
+                textContentType="newPassword"
+              />
+              <View style={styles.accountRow}>
+                <Button label="Cancel" variant="ghost" onPress={() => setAccountMode('none')} />
+                <Button label="Change it" onPress={savePassword} busy={accountBusy} />
+              </View>
+            </>
+          )}
+
+          {!!accountNotice && <Text style={styles.accountNotice}>{accountNotice}</Text>}
         </Card>
       </ScrollView>
 
@@ -238,6 +366,8 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 };
 
 const styles = StyleSheet.create({
+  accountRow: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', marginTop: spacing.sm },
+  accountNotice: { color: c.success, fontSize: 13, marginTop: spacing.md, lineHeight: 18 },
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xl, paddingBottom: 48 },
   sentNote: { backgroundColor: c.successSoft, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },

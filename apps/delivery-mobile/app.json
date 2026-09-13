@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.quickbite.rider",
-      "buildNumber": "2",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDisplayName": "Quick Bites Rider",
@@ -155,7 +155,8 @@
         }
       ],
       "../../packages/config/expo-plugins/withReleaseSigning",
-      "../../packages/config/expo-plugins/withArmOnlyAbis"
+      "../../packages/config/expo-plugins/withArmOnlyAbis",
+      "../../packages/config/expo-plugins/withLocalDevCleartext"
     ]
   }
 }
