@@ -596,6 +596,12 @@ function DeliveryApp() {
             <ChevronLeft size={24} color={t.color.text} />
           </TouchableOpacity>
           <Text style={s.subHeaderTitle}>{SUB_SCREEN_TITLE[subScreen]}</Text>
+          {subScreen !== 'safety' ? (
+            <TouchableOpacity style={s.sosButton} onPress={() => setSubScreen('safety')} activeOpacity={0.85}>
+              <ShieldAlert size={15} color="#FFFFFF" />
+              <Text style={s.sosButtonText}>SOS</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : (
         <View style={s.header}>
@@ -612,6 +618,15 @@ function DeliveryApp() {
             </View>
           </View>
           <View style={s.shiftControl}>
+            {/* SOS lives in the header rather than floating over the content.
+                As a floating button it sat on top of whatever was underneath —
+                the doorstep OTP field, the sign-out button, an incentive's
+                remaining-trips line — which is the last thing an emergency
+                control should do. */}
+            <TouchableOpacity style={s.sosButton} onPress={() => setSubScreen('safety')} activeOpacity={0.85}>
+              <ShieldAlert size={15} color="#FFFFFF" />
+              <Text style={s.sosButtonText}>SOS</Text>
+            </TouchableOpacity>
             {shiftSaving ? (
               <ActivityIndicator color={t.color.go} style={{ marginRight: t.space[2] }} />
             ) : null}
@@ -657,14 +672,6 @@ function DeliveryApp() {
             onPress={() => setTab('profile')}
           />
         </View>
-      ) : null}
-
-      {/* SOS is reachable from anywhere except the SOS screen itself. */}
-      {subScreen !== 'safety' ? (
-        <TouchableOpacity style={s.sosFab} onPress={() => setSubScreen('safety')} activeOpacity={0.85}>
-          <ShieldAlert size={18} color="#FFFFFF" />
-          <Text style={s.sosFabText}>SOS</Text>
-        </TouchableOpacity>
       ) : null}
 
       <NewOrderModal
@@ -789,7 +796,8 @@ const s = StyleSheet.create({
     color: t.color.text,
     fontSize: t.font.size.md,
     fontWeight: t.font.weight.bold,
-    marginLeft: t.space[2]
+    marginLeft: t.space[2],
+    flex: 1
   },
   tabBar: {
     flexDirection: 'row',
@@ -814,19 +822,16 @@ const s = StyleSheet.create({
     paddingHorizontal: 4
   },
   tabBadgeText: { color: '#04231A', fontSize: 10, fontWeight: t.font.weight.extrabold },
-  sosFab: {
-    position: 'absolute',
-    right: t.space[4],
-    bottom: 96,
+  sosButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: t.color.danger,
-    paddingHorizontal: t.space[4],
-    paddingVertical: t.space[3],
+    paddingHorizontal: t.space[3],
+    paddingVertical: 7,
     borderRadius: t.radius.full,
-    ...t.shadow.lifted
+    marginRight: t.space[3]
   },
-  sosFabText: { color: '#FFFFFF', fontSize: t.font.size.sm, fontWeight: t.font.weight.extrabold, marginLeft: 6 }
+  sosButtonText: { color: '#FFFFFF', fontSize: t.font.size.xs, fontWeight: t.font.weight.extrabold, marginLeft: 5 }
 });
 
 export default function App() {

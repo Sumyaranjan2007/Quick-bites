@@ -31,6 +31,25 @@ All four apps also gained password recovery (forgot, reset and change), and the
 customer app can now raise a complaint or a refund request from inside the app —
 both land in the administrator's queue.
 
+The rider app was rebuilt around the same idea. It opens on a dashboard of
+figures the server computes from the trips actually delivered — today's and this
+week's earnings, trips, acceptance rate, rating, cash in hand and incentive
+progress — and every one of them moves the moment a delivery is completed,
+cancelled or accepted, rather than being counted by the app and lost on restart.
+
+A trip offer now arrives as a full-screen card with a chime that repeats until it
+is answered and a vibration pattern, and as a notification carrying the same
+sound when the app is in the background. Accepting one shows the restaurant's
+address and coordinates, with a navigate and a call button for each leg of the
+trip, so a rider is routed to the kitchen and then to the door.
+
+Going online requires a complete profile — name, photograph, partner ID, and an
+approved driving licence and registration — and the rule is enforced by the
+server, not just the app. Documents are photographed in the app, tracked through
+review and re-uploaded if rejected. Incentive targets pay into the wallet
+automatically when they are met. Safety & SOS is one tap from every screen and
+leads with 112, because an app alert is not an ambulance.
+
 ## Installing
 
 Android blocks apps from outside the Play Store until you allow it, once, per
@@ -71,6 +90,8 @@ anywhere:
 5. The rider quotes the restaurant's pickup code and collects the food.
 6. The customer watches the rider move on a live street map.
 7. The rider enters the customer's 4-digit doorstep OTP to complete delivery.
+8. The rider's earnings, trips, acceptance rate and incentive progress update
+   on their dashboard before they have put the phone away.
 
 Orders survive restarts and redeploys when the deployment has a Postgres
 database attached (`DATABASE_URL`). Without one it falls back to a local JSON

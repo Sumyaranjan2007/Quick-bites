@@ -90,7 +90,7 @@ export const SafetyScreen: React.FC<{ ctx: ApiContext; activeOrderId?: string }>
         <View style={{ flex: 1, marginLeft: t.space[4] }}>
           <Text style={s.emergencyTitle}>Call 112 — emergency services</Text>
           <Text style={s.emergencyBody}>
-            For injury, fire or immediate danger, call this first. Quick Bites cannot dispatch an ambulance.
+            Call this first for injury, fire or danger. SOS alerts Quick Bites, not an ambulance.
           </Text>
         </View>
       </TouchableOpacity>
@@ -185,7 +185,7 @@ export const SafetyScreen: React.FC<{ ctx: ApiContext; activeOrderId?: string }>
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   emergencyCard: {
     flexDirection: 'row',
     alignItems: 'center',

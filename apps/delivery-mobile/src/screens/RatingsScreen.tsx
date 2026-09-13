@@ -92,7 +92,7 @@ export const RatingsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   summary: { flexDirection: 'row', alignItems: 'center' },
   summaryLeft: { alignItems: 'center', paddingRight: t.space[5], borderRightWidth: 1, borderRightColor: t.color.border },
   average: { color: t.color.text, fontSize: t.font.size.display, fontWeight: t.font.weight.extrabold },

@@ -228,7 +228,7 @@ export const DocumentsScreen: React.FC<{ ctx: ApiContext; onChanged: () => void 
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   introTitle: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
   introBody: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 20 },
   docHead: { flexDirection: 'row', alignItems: 'center' },

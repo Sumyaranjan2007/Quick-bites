@@ -107,7 +107,7 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   summaryCard: { alignItems: 'flex-start' },
   summaryLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   summaryValue: {

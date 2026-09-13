@@ -159,7 +159,7 @@ export const WeeklyTripsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   rangeRow: { flexDirection: 'row', marginBottom: t.space[4] },
   rangeChip: {
     paddingHorizontal: t.space[4],

@@ -336,7 +336,7 @@ const LinkRow: React.FC<{ icon: React.ReactNode; label: string; onPress: () => v
 );
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   identityCard: { alignItems: 'center', paddingVertical: t.space[6] },
   avatarWrap: { position: 'relative' },
   avatarBadge: {

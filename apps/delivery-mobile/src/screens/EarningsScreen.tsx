@@ -155,7 +155,7 @@ export const EarningsScreen: React.FC<{
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   walletCard: { paddingVertical: t.space[5] },
   walletHead: { flexDirection: 'row', alignItems: 'center' },
   walletLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginLeft: 8 },
@@ -170,7 +170,7 @@ const s = StyleSheet.create({
   },
   cashNoteText: { color: t.color.money, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   tileRow: { flexDirection: 'row' },
-  rateHead: { flexDirection: 'row', alignItems: 'baseline', marginBottom: t.space[3] },
+  rateHead: { flexDirection: 'row', alignItems: 'center', marginBottom: t.space[3] },
   rateValue: {
     color: t.color.text,
     fontSize: t.font.size.xxl,

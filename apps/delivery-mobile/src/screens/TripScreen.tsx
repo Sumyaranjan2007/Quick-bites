@@ -395,7 +395,7 @@ export const TripScreen: React.FC<{
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   stageBar: { flexDirection: 'row', alignItems: 'flex-start' },
   stageItem: { flex: 1, alignItems: 'center' },
   stageDot: {

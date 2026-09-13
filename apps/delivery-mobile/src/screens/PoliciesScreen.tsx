@@ -108,7 +108,7 @@ export const PoliciesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[4] },
   rowTitle: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
   rowSummary: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },

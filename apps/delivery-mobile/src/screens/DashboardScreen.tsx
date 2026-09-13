@@ -270,7 +270,7 @@ export const DashboardScreen: React.FC<{
 };
 
 const s = StyleSheet.create({
-  content: { padding: t.space[4], paddingBottom: 132 },
+  content: { padding: t.space[4], paddingBottom: t.space[10] },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
