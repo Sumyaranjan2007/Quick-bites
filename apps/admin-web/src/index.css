@@ -457,3 +457,10 @@ a {
   .console-main { padding: var(--space-5) var(--space-4) var(--space-10); }
   .audit li { grid-template-columns: 1fr; gap: 2px; }
 }
+
+.password-wrap { position: relative; display: flex; align-items: center; }
+.password-eye { position: absolute; right: 8px; background: none; border: 0; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; }
+.inline-ok { background: rgba(46,158,98,0.14); color: #2E9E62; padding: var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-4); }
+.perm-details { margin-top: var(--space-4); }
+.perm-details summary { cursor: pointer; font-size: var(--font-size-sm); color: var(--color-primary-500); font-weight: 600; }
+.perm-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px; margin-top: var(--space-3); color: var(--text-secondary); }

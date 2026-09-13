@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   Moon,
   Sun,
-  LogOut
+  LogOut,
+  UserCog
 } from 'lucide-react';
 import { LoginGate } from './components/LoginGate';
 import { Overview } from './components/console/Overview';
@@ -21,6 +22,7 @@ import { AllOrders, LiveDeliveries } from './components/console/OrdersSection';
 import { MenuApprovals, DocumentReview } from './components/console/Approvals';
 import { RevenueSection, PaymentsSection, PayoutsSection } from './components/console/Finance';
 import { SupportSection, AccessSection } from './components/console/AccessAndSupport';
+import { ProfileSection } from './components/console/Profile';
 import { NoPermission, Loading, Failed } from './components/console/primitives';
 import { fetchAccess, can, type AdminAccess } from './lib/adminApi';
 import { clearSession, getSession } from './lib/session';
@@ -35,7 +37,8 @@ type SectionKey =
   | 'menus'
   | 'documents'
   | 'support'
-  | 'access';
+  | 'access'
+  | 'profile';
 
 interface SectionDef {
   key: SectionKey;
@@ -63,7 +66,9 @@ const SECTIONS: SectionDef[] = [
   { key: 'menus', label: 'Menu approvals', icon: UtensilsCrossed, permissions: ['catalog.menus.view', 'catalog.menus.review'], render: () => <MenuApprovals /> },
   { key: 'documents', label: 'Documents', icon: FileCheck, permissions: ['documents.view'], render: () => <DocumentReview /> },
   { key: 'support', label: 'Support', icon: LifeBuoy, permissions: ['support.tickets.view'], render: () => <SupportSection /> },
-  { key: 'access', label: 'Roles & access', icon: ShieldCheck, permissions: ['admin.roles.manage', 'admin.accounts.manage'], render: access => <AccessSection access={access} /> }
+  { key: 'access', label: 'Roles & access', icon: ShieldCheck, permissions: ['admin.roles.manage', 'admin.accounts.manage'], render: access => <AccessSection access={access} /> },
+  // No permission: every operator has an account of their own to manage.
+  { key: 'profile', label: 'Your account', icon: UserCog, permissions: [], render: access => <ProfileSection access={access} /> }
 ];
 
 function Console() {
@@ -102,9 +107,10 @@ function Console() {
   if (loading) return <div className="console-boot"><Loading label="Signing you in" /></div>;
   if (error) return <div className="console-boot"><Failed message={error} onRetry={load} /></div>;
 
-  const visible = SECTIONS.filter(s => can(access, ...s.permissions));
+  // A section with no declared permission is open to any signed-in operator.
+  const visible = SECTIONS.filter(s => s.permissions.length === 0 || can(access, ...s.permissions));
   const current = SECTIONS.find(s => s.key === section);
-  const allowed = current ? can(access, ...current.permissions) : false;
+  const allowed = current ? current.permissions.length === 0 || can(access, ...current.permissions) : false;
 
   return (
     <div className="console">
