@@ -23,5 +23,11 @@
   "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=22.6.0"
+  },
+  "overrides": {
+    "react-native-svg": "15.8.0"
+  },
+  "dependencies": {
+    "react-native-svg": "15.8.0"
   }
 }

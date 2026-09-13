@@ -2,7 +2,7 @@
   "expo": {
     "name": "Quick Bites Operations",
     "slug": "quick-bite-admin",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbiteadmin",
@@ -94,7 +94,7 @@
     },
     "android": {
       "package": "com.quickbite.admin",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2A0710"
@@ -120,7 +120,7 @@
             "buildToolsVersion": "35.0.0",
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "kotlinVersion": "1.9.24"
+            "kotlinVersion": "1.9.25"
           }
         }
       ],

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Quick Bites Rider",
     "slug": "quick-bite-rider",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbiterider",
@@ -94,7 +94,7 @@
     },
     "android": {
       "package": "com.quickbite.rider",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F8A5F"
@@ -130,7 +130,7 @@
             "buildToolsVersion": "35.0.0",
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "kotlinVersion": "1.9.24"
+            "kotlinVersion": "1.9.25"
           }
         }
       ],
