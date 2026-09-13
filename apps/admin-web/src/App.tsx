@@ -1,123 +1,159 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { ThemeProvider, useTheme, I18nProvider, ErrorBoundary } from '@quick-bites/design-system';
 import {
-  ThemeProvider,
-  useTheme,
-  I18nProvider,
-  useTranslation,
-  SUPPORTED_LANGUAGES,
-  SupportedLanguage,
-  ErrorBoundary
-} from '@quick-bites/design-system';
-import { OperationsControlTower } from './components/OperationsControlTower';
-import { RestaurantKycPipeline } from './components/RestaurantKycPipeline';
-import { DisputeResolutionConsole } from './components/DisputeResolutionConsole';
-import { DemoDataGenerator } from './components/DemoDataGenerator';
+  Activity,
+  ShoppingBag,
+  Truck,
+  IndianRupee,
+  CreditCard,
+  Wallet,
+  UtensilsCrossed,
+  FileCheck,
+  LifeBuoy,
+  ShieldCheck,
+  Moon,
+  Sun,
+  LogOut
+} from 'lucide-react';
 import { LoginGate } from './components/LoginGate';
-import { ShieldCheck, Moon, Sun, Globe, Activity, FileCheck, AlertCircle, Sparkles } from 'lucide-react';
+import { Overview } from './components/console/Overview';
+import { AllOrders, LiveDeliveries } from './components/console/OrdersSection';
+import { MenuApprovals, DocumentReview } from './components/console/Approvals';
+import { RevenueSection, PaymentsSection, PayoutsSection } from './components/console/Finance';
+import { SupportSection, AccessSection } from './components/console/AccessAndSupport';
+import { NoPermission, Loading, Failed } from './components/console/primitives';
+import { fetchAccess, can, type AdminAccess } from './lib/adminApi';
+import { clearSession, getSession } from './lib/session';
 
-export function AppContent() {
-  const [activeTab, setActiveTab] = useState<'tower' | 'kyc' | 'disputes' | 'demo'>('tower');
+type SectionKey =
+  | 'overview'
+  | 'orders'
+  | 'deliveries'
+  | 'revenue'
+  | 'payments'
+  | 'payouts'
+  | 'menus'
+  | 'documents'
+  | 'support'
+  | 'access';
+
+interface SectionDef {
+  key: SectionKey;
+  label: string;
+  icon: any;
+  /** Any one of these is enough; a Super Admin passes everything. */
+  permissions: string[];
+  render: (access: AdminAccess | null) => React.ReactNode;
+}
+
+/**
+ * The sections, each declaring the permission that reveals it.
+ *
+ * Hiding a section is a convenience so an operator is not shown doors that will
+ * not open. It is not the control — every endpoint behind these screens enforces
+ * the same permission server-side, which is what actually protects the data.
+ */
+const SECTIONS: SectionDef[] = [
+  { key: 'overview', label: 'Control tower', icon: Activity, permissions: ['analytics.dashboard.view'], render: () => <Overview /> },
+  { key: 'orders', label: 'All orders', icon: ShoppingBag, permissions: ['orders.view'], render: () => <AllOrders /> },
+  { key: 'deliveries', label: 'Live deliveries', icon: Truck, permissions: ['orders.deliveries.manage'], render: () => <LiveDeliveries /> },
+  { key: 'revenue', label: 'Revenue', icon: IndianRupee, permissions: ['finance.revenue.view'], render: () => <RevenueSection /> },
+  { key: 'payments', label: 'Payments', icon: CreditCard, permissions: ['finance.payments.view'], render: () => <PaymentsSection /> },
+  { key: 'payouts', label: 'Driver payouts', icon: Wallet, permissions: ['finance.payouts.view'], render: () => <PayoutsSection /> },
+  { key: 'menus', label: 'Menu approvals', icon: UtensilsCrossed, permissions: ['catalog.menus.view', 'catalog.menus.review'], render: () => <MenuApprovals /> },
+  { key: 'documents', label: 'Documents', icon: FileCheck, permissions: ['documents.view'], render: () => <DocumentReview /> },
+  { key: 'support', label: 'Support', icon: LifeBuoy, permissions: ['support.tickets.view'], render: () => <SupportSection /> },
+  { key: 'access', label: 'Roles & access', icon: ShieldCheck, permissions: ['admin.roles.manage', 'admin.accounts.manage'], render: access => <AccessSection access={access} /> }
+];
+
+function Console() {
   const { resolvedTheme, toggleTheme } = useTheme();
-  const { language, setLanguage, t } = useTranslation();
+  const [access, setAccess] = React.useState<AdminAccess | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [section, setSection] = React.useState<SectionKey>('overview');
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const me = await fetchAccess();
+      setAccess(me);
+      // Land on the first section this role can actually open, so a limited
+      // operator does not arrive at a locked screen.
+      const first = SECTIONS.find(s => me.isSuperAdmin || s.permissions.some(p => me.permissions.includes(p)));
+      if (first) setSection(first.key);
+    } catch (err: any) {
+      setError(err?.message || 'Could not load your account.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  const signOut = () => {
+    clearSession();
+    window.location.reload();
+  };
+
+  if (loading) return <div className="console-boot"><Loading label="Signing you in" /></div>;
+  if (error) return <div className="console-boot"><Failed message={error} onRetry={load} /></div>;
+
+  const visible = SECTIONS.filter(s => can(access, ...s.permissions));
+  const current = SECTIONS.find(s => s.key === section);
+  const allowed = current ? can(access, ...current.permissions) : false;
 
   return (
-    <div>
-      {/* Admin Header */}
-      <header className="admin-header">
-        <div className="admin-brand">
-          <img src="/favicon.png" alt="Quick Bites" className="admin-brand-logo" />
-          <div style={{ minWidth: 0 }}>
-            <div className="admin-brand-name">
-              Quick Bites <span style={{ color: 'var(--color-primary-500)' }}>Admin</span>
-            </div>
-            <div className="admin-brand-sub">{t('admin.portalTitle')}</div>
+    <div className="console">
+      <aside className="console-nav">
+        <div className="console-brand">
+          <img src="/favicon.png" alt="" className="console-logo" />
+          <div>
+            <strong>Quick Bites</strong>
+            <span>Admin</span>
           </div>
         </div>
 
-        {/* Center Tabs */}
-        <nav className="admin-nav">
-          <button
-            className={`admin-nav-tab ${activeTab === 'tower' ? 'active' : ''}`}
-            onClick={() => setActiveTab('tower')}
-          >
-            <Activity size={16} />
-            <span>{t('admin.navControlTower')}</span>
-          </button>
-          <button
-            className={`admin-nav-tab ${activeTab === 'kyc' ? 'active' : ''}`}
-            onClick={() => setActiveTab('kyc')}
-          >
-            <FileCheck size={16} />
-            <span>{t('admin.navKycPipeline')}</span>
-          </button>
-          <button
-            className={`admin-nav-tab ${activeTab === 'disputes' ? 'active' : ''}`}
-            onClick={() => setActiveTab('disputes')}
-          >
-            <AlertCircle size={16} />
-            <span>{t('admin.navDisputes')}</span>
-          </button>
-          <button
-            className={`admin-nav-tab ${activeTab === 'demo' ? 'active' : ''}`}
-            onClick={() => setActiveTab('demo')}
-          >
-            <Sparkles size={16} />
-            <span>{t('admin.navDemoData')}</span>
-          </button>
+        <nav>
+          {visible.map(s => {
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.key}
+                className={`console-nav-item${section === s.key ? ' active' : ''}`}
+                onClick={() => setSection(s.key)}
+              >
+                <Icon size={17} />
+                <span>{s.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Right Tools (Language & Theme) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          {/* Language Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Globe size={16} color="var(--text-secondary)" />
-            <select
-              value={language}
-              onChange={e => setLanguage(e.target.value as SupportedLanguage)}
-              style={{
-                backgroundColor: 'transparent',
-                border: '1px solid var(--border-medium)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '4px 8px',
-                fontSize: 'var(--font-size-xs)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer'
-              }}
-            >
-              {SUPPORTED_LANGUAGES.map(lang => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.nativeLabel}
-                </option>
-              ))}
-            </select>
+        <div className="console-foot">
+          <div className="console-who">
+            <strong>{access?.user.fullName}</strong>
+            <span>
+              {access?.isSuperAdmin ? 'Super Admin' : access?.role?.name || access?.user.role}
+            </span>
           </div>
-
-          {/* Theme Toggle Button */}
-          <button
-            onClick={toggleTheme}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border-medium)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '6px',
-              cursor: 'pointer',
-              display: 'flex',
-              color: 'var(--text-primary)'
-            }}
-            aria-label="Toggle Theme"
-          >
-            {resolvedTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <div className="console-foot-actions">
+            <button className="btn btn-ghost btn-sm" onClick={toggleTheme} title="Switch theme">
+              {resolvedTheme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={signOut} title="Sign out">
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
-      </header>
+      </aside>
 
-      {/* Main Container */}
-      <main className="admin-container">
-        <ErrorBoundary fallbackTitle="Error Loading Admin Portal">
-          {activeTab === 'tower' && <OperationsControlTower />}
-          {activeTab === 'kyc' && <RestaurantKycPipeline />}
-          {activeTab === 'disputes' && <DisputeResolutionConsole />}
-          {activeTab === 'demo' && <DemoDataGenerator />}
+      <main className="console-main">
+        <ErrorBoundary fallbackTitle="This section could not be displayed">
+          {allowed && current ? current.render(access) : <NoPermission section="this section" />}
         </ErrorBoundary>
       </main>
     </div>
@@ -129,7 +165,7 @@ export function App() {
     <ThemeProvider defaultTheme="system">
       <I18nProvider defaultLanguage="en">
         <LoginGate>
-          <AppContent />
+          <Console />
         </LoginGate>
       </I18nProvider>
     </ThemeProvider>
