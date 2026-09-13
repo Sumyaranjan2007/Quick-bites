@@ -16,6 +16,7 @@ import { tokens } from '../theme/tokens';
 import { Lock, Mail, User, Phone, Server, Sparkles } from 'lucide-react-native';
 import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
+import { parseApiError } from '../lib/apiErrors';
 
 const c = tokens.colors;
 
@@ -35,18 +36,29 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   const [phone, setPhone] = useState('9876543210');
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
+  // Field-level problems returned by the server, shown under the field they
+  // name. An alert saying "validation failed" tells the user nothing.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!email || !password) {
-      Alert.alert('Required Fields', 'Please enter your email and password.');
+    const local: Record<string, string> = {};
+    if (!email.trim()) local.email = 'Enter your email address.';
+    if (!password) local.password = 'Enter your password.';
+    if (isRegistering) {
+      if (!fullName.trim()) local.fullName = 'Enter your full name.';
+      // Checked here as well as on the server so the user is told before a
+      // round trip, using the same wording the server would use.
+      if (password && password.length < 8) local.password = 'Password must be at least 8 characters.';
+    }
+    if (Object.keys(local).length) {
+      setFieldErrors(local);
+      setFormError(null);
       return;
     }
 
-    if (isRegistering && !fullName) {
-      Alert.alert('Required Field', 'Please enter your full name.');
-      return;
-    }
-
+    setFieldErrors({});
+    setFormError(null);
     setLoading(true);
     try {
       const endpoint = isRegistering ? `${apiUrl}/auth/register` : `${apiUrl}/auth/login`;
@@ -64,14 +76,15 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
       if (res.ok && data.success && data.data?.token) {
         onLoginSuccess(data.data.token, data.data.user, apiUrl);
       } else {
-        const errorMsg = data.error?.message || data.error || 'Authentication failed.';
-        Alert.alert('Login Error', errorMsg);
+        const parsed = parseApiError(
+          data,
+          isRegistering ? 'Could not create your account.' : 'Email or password is incorrect.'
+        );
+        setFieldErrors(parsed.fieldErrors);
+        setFormError(Object.keys(parsed.fieldErrors).length ? null : parsed.message);
       }
     } catch (err: any) {
-      Alert.alert(
-        'Connection Error',
-        `Unable to connect to backend server at ${apiUrl}.\n\nPlease ensure the backend server is running and the URL is correct for your device/emulator.`
-      );
+      setFormError(`Could not reach Quick Bites. Check your connection and try again.`);
     } finally {
       setLoading(false);
     }
@@ -99,14 +112,14 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
           <View style={styles.tabs}>
             <TouchableOpacity
               style={[styles.tab, !isRegistering && styles.tabActive]}
-              onPress={() => setIsRegistering(false)}
+              onPress={() => { setIsRegistering(false); setFieldErrors({}); setFormError(null); }}
               activeOpacity={0.85}
             >
               <Text style={[styles.tabText, !isRegistering && styles.tabTextActive]}>Sign In</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, isRegistering && styles.tabActive]}
-              onPress={() => setIsRegistering(true)}
+              onPress={() => { setIsRegistering(true); setFieldErrors({}); setFormError(null); }}
               activeOpacity={0.85}
             >
               <Text style={[styles.tabText, isRegistering && styles.tabTextActive]}>Create Account</Text>
@@ -116,7 +129,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
           {isRegistering && (
             <>
               <Text style={styles.label}>Full Name</Text>
-              <View style={styles.field}>
+              <View style={[styles.field, !!fieldErrors.fullName && styles.fieldError]}>
                 <User size={17} color={c.text.muted} />
                 <TextInput
                   style={styles.input}
@@ -126,6 +139,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                   placeholderTextColor={c.text.muted}
                 />
               </View>
+              {!!fieldErrors.fullName && <Text style={styles.fieldErrorText}>{fieldErrors.fullName}</Text>}
 
               <Text style={styles.label}>Phone</Text>
               <View style={styles.field}>
@@ -139,11 +153,12 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                   keyboardType="phone-pad"
                 />
               </View>
+              {!!fieldErrors.phone && <Text style={styles.fieldErrorText}>{fieldErrors.phone}</Text>}
             </>
           )}
 
           <Text style={styles.label}>Email Address</Text>
-          <View style={styles.field}>
+          <View style={[styles.field, !!fieldErrors.email && styles.fieldError]}>
             <Mail size={17} color={c.text.muted} />
             <TextInput
               style={styles.input}
@@ -155,9 +170,10 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
               keyboardType="email-address"
             />
           </View>
+          {!!fieldErrors.email && <Text style={styles.fieldErrorText}>{fieldErrors.email}</Text>}
 
           <Text style={styles.label}>Password</Text>
-          <View style={styles.field}>
+          <View style={[styles.field, !!fieldErrors.password && styles.fieldError]}>
             <Lock size={17} color={c.text.muted} />
             <TextInput
               style={styles.input}
@@ -168,6 +184,16 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
               secureTextEntry
             />
           </View>
+          {!!fieldErrors.password ? (
+            <Text style={styles.fieldErrorText}>{fieldErrors.password}</Text>
+          ) : isRegistering ? (
+            <Text style={styles.fieldHint}>At least 8 characters.</Text>
+          ) : null}
+          {!!formError && (
+            <View style={styles.formErrorBox}>
+              <Text style={styles.formErrorText}>{formError}</Text>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
@@ -252,6 +278,37 @@ const styles = StyleSheet.create({
   tabText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.muted },
   tabTextActive: { color: c.primary[500], fontWeight: tokens.font.weight.extrabold },
 
+  fieldError: {
+    borderColor: c.semantic.error,
+    backgroundColor: '#FDECEC'
+  },
+  fieldErrorText: {
+    color: c.semantic.error,
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginTop: -6,
+    marginBottom: 10
+  },
+  fieldHint: {
+    color: c.text.muted,
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 10
+  },
+  formErrorBox: {
+    backgroundColor: '#FDECEC',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: c.semantic.error
+  },
+  formErrorText: {
+    color: c.semantic.error,
+    fontSize: 13,
+    fontWeight: '600'
+  },
   label: {
     fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.bold,

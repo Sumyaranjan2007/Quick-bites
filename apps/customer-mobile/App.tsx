@@ -138,6 +138,7 @@ function AppRoot() {
             orderId={activeOrder.orderId}
             apiUrl={apiUrl}
             token={authToken}
+            currentUserId={currentUser?.id}
             onHome={() => setCurrentScreen('feed')}
           />
         )}

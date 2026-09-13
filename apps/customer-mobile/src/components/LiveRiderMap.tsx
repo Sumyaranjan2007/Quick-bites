@@ -79,8 +79,11 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
   const H = 190;
 
   if (!rider || !destination) {
+    // Deliberately the same height as the map it stands in for. It used to be
+    // 92px against a 190px map, so the page grew by ~100px the moment a rider
+    // position arrived and the list jumped under the reader's thumb.
     return (
-      <View style={styles.placeholder}>
+      <View style={[styles.placeholder, { height: H }]}>
         <Text style={styles.placeholderText}>
           {rider
             ? 'Waiting for the delivery address position.'
@@ -209,7 +212,6 @@ const styles = StyleSheet.create({
   },
   attributionText: { fontSize: 9, color: c.text.secondary },
   placeholder: {
-    height: 92,
     borderRadius: tokens.radii.md,
     backgroundColor: c.surface.sunken,
     alignItems: 'center',

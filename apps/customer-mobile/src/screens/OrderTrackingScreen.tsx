@@ -7,13 +7,25 @@ import {
   StyleSheet
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { Bike, Phone, ArrowLeft, Check } from 'lucide-react-native';
+import { Linking, Alert } from 'react-native';
+import { Bike, Phone, ArrowLeft, Check, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';
 import { Card } from '../components/ui';
 import { LiveRiderMap } from '../components/LiveRiderMap';
+import { OrderChat } from '../components/OrderChat';
+import { RatingSheet } from '../components/RatingSheet';
 import { useOrderSocket } from '../lib/useOrderSocket';
 import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
+
+/** "1:18 PM" — the local time the order actually arrived. */
+function deliveredTime(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, '0');
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 === 0 ? 12 : h % 12}:${m} ${suffix}`;
+}
 
 interface Props {
   orderNumber: string;
@@ -23,6 +35,7 @@ interface Props {
   orderId?: string;
   apiUrl?: string;
   token?: string;
+  currentUserId?: string;
 }
 
 // Backend order status -> index in the customer-facing progress tracker
@@ -44,11 +57,25 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   onHome,
   orderId,
   apiUrl,
-  token
+  token,
+  currentUserId
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [order, setOrder] = useState<any | null>(null);
   const [tracking, setTracking] = useState<any | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [submittedRating, setSubmittedRating] = useState<number | null>(null);
+  // Bills are read in public - at a doorstep, on a bus. Hidden by default is
+  // wrong (most people want to see it), so it is shown with a one-tap cover.
+  const [billHidden, setBillHidden] = useState(false);
+
+  // Derived from the order the server reports, never from the local step index:
+  // the step is a display detail, delivery is a fact about the order.
+  const status: string = order?.status ?? '';
+  const isDelivered = status === 'DELIVERED';
+  const isClosed = isDelivered || status === 'CANCELLED' || status === 'REFUNDED';
+  const riderAssigned = Boolean(order?.riderName) && !isClosed;
 
   // Push updates arrive instantly; the poll below is only a fallback for
   // networks where websockets are blocked.
@@ -102,6 +129,39 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 
   const restaurantName = order?.restaurantName || 'the restaurant';
   const riderName = order?.riderName;
+  const riderPhone: string | undefined = order?.riderPhone || tracking?.riderPhone;
+  const existingRating: number | null = order?.rating ?? null;
+  const shownRating = submittedRating ?? existingRating;
+
+  // A rough countdown that at least moves with the order rather than sitting at
+  // a constant "~25 min" from placement to doorstep.
+  const etaMinutes = (() => {
+    const prep = Number(order?.preparationMinutes) || 20;
+    switch (status) {
+      case 'OUT_FOR_DELIVERY':
+        return 10;
+      case 'RIDER_ASSIGNED':
+      case 'READY_FOR_PICKUP':
+        return 15;
+      case 'PREPARING':
+        return prep;
+      default:
+        return prep + 10;
+    }
+  })();
+
+  const callRider = async () => {
+    if (!riderPhone) return;
+    const url = `tel:${riderPhone.replace(/[^+0-9]/g, '')}`;
+    const supported = await Linking.canOpenURL(url).catch(() => false);
+    if (!supported) {
+      Alert.alert('Calling not available', `Dial ${riderPhone} from your phone app.`);
+      return;
+    }
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Could not start the call', `Dial ${riderPhone} from your phone app.`)
+    );
+  };
 
   const steps = [
     { title: 'Order Confirmed', desc: `Received by ${restaurantName}` },
@@ -111,7 +171,10 @@ export const OrderTrackingScreen: React.FC<Props> = ({
       title: 'Out for Delivery',
       desc: riderName ? `${riderName} is on the way` : 'Rider assigned and on the way'
     },
-    { title: 'Delivered', desc: 'Verify with 4-digit OTP upon arrival' }
+    {
+      title: 'Delivered',
+      desc: isDelivered ? 'Handed over and confirmed' : 'Verify with 4-digit OTP upon arrival'
+    }
   ];
 
   const done = (i: number) => i < currentStep;
@@ -124,12 +187,19 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           <ArrowLeft size={17} color={c.text.primary} />
           <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>
-        <View style={styles.liveTag}>
-          <View style={[styles.liveDot, !liveConnected && { backgroundColor: c.text.muted }]} />
-          <Text style={[styles.liveText, !liveConnected && { color: c.text.muted }]}>
-            {liveConnected ? 'LIVE TRACKING' : 'RECONNECTING'}
-          </Text>
-        </View>
+        {isClosed ? (
+          <View style={[styles.liveTag, styles.doneTag]}>
+            <Check size={12} color={c.dietary.veg} />
+            <Text style={[styles.liveText, { color: c.dietary.veg }]}>DELIVERY COMPLETED</Text>
+          </View>
+        ) : (
+          <View style={styles.liveTag}>
+            <View style={[styles.liveDot, !liveConnected && { backgroundColor: c.text.muted }]} />
+            <Text style={[styles.liveText, !liveConnected && { color: c.text.muted }]}>
+              {liveConnected ? 'LIVE TRACKING' : 'RECONNECTING'}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Status hero */}
@@ -140,10 +210,19 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             <Text style={styles.statusTitle}>{steps[currentStep]?.title ?? 'Order Confirmed'}</Text>
             <Text style={styles.statusSub}>{steps[currentStep]?.desc ?? ''}</Text>
           </View>
-          <View style={styles.etaBox}>
-            <Text style={styles.etaLabel}>ARRIVING IN</Text>
-            <Text style={styles.etaValue}>~25 min</Text>
-          </View>
+          {isDelivered ? (
+            <View style={[styles.etaBox, styles.deliveredBox]}>
+              <Text style={[styles.etaLabel, { color: c.dietary.veg }]}>DELIVERED</Text>
+              <Text style={[styles.etaValue, { color: c.dietary.veg, fontSize: 15 }]}>
+                {order?.deliveredAt ? deliveredTime(order.deliveredAt) : 'Complete'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.etaBox}>
+              <Text style={styles.etaLabel}>ARRIVING IN</Text>
+              <Text style={styles.etaValue}>~{etaMinutes} min</Text>
+            </View>
+          )}
         </View>
 
         {/* Stepper */}
@@ -171,8 +250,9 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         </View>
       </Card>
 
-      {/* OTP */}
-      {!!otp && (
+      {/* Doorstep OTP - removed the moment the handover is verified, because a
+          spent code is both useless and confusing to keep showing. */}
+      {!!otp && !isClosed && (
         <View style={styles.otpCard}>
           <Text style={styles.otpLabel}>DELIVERY VERIFICATION OTP</Text>
           <Text style={styles.otpValue}>{otp.split('').join('  ')}</Text>
@@ -180,20 +260,61 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         </View>
       )}
 
-      {/* Live rider position */}
-      {riderName && (
+      {/* Completion, and the rating it unlocks */}
+      {isDelivered && (
+        <Card style={styles.block}>
+          <View style={styles.doneRow}>
+            <View style={styles.doneIcon}>
+              <Check size={19} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.doneTitle}>Delivery completed</Text>
+              <Text style={styles.doneSub}>
+                {riderName ? `Handed over by ${riderName}.` : 'Your order was handed over.'} Enjoy your meal.
+              </Text>
+            </View>
+          </View>
+
+          {shownRating ? (
+            <View style={styles.ratedRow}>
+              {[1, 2, 3, 4, 5].map(v => (
+                <Star
+                  key={v}
+                  size={18}
+                  color={v <= shownRating ? c.accent[500] : c.border.strong}
+                  fill={v <= shownRating ? c.accent[500] : 'transparent'}
+                />
+              ))}
+              <Text style={styles.ratedText}>Thanks for rating this order</Text>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.rateBtn} onPress={() => setRatingOpen(true)} activeOpacity={0.88}>
+              <Star size={17} color="#FFFFFF" />
+              <Text style={styles.rateBtnText}>Rate this order</Text>
+            </TouchableOpacity>
+          )}
+        </Card>
+      )}
+
+      {/* Live rider position - only while a delivery is actually in progress */}
+      {riderAssigned && (
         <Card style={styles.block}>
           <Text style={styles.blockTitle}>Live location</Text>
           <LiveRiderMap
             rider={tracking?.riderCoordinates ?? null}
-            destination={tracking?.destinationCoordinates ?? null}
+            /* Falls back to the order's own delivery coordinates. A rider ping
+               can arrive over the socket before the first tracking fetch
+               returns, and the merge then produces a rider with no destination -
+               leaving the map stuck on "waiting for the delivery address"
+               even though the order has carried that address all along. */
+            destination={tracking?.destinationCoordinates ?? order?.deliveryCoordinates ?? null}
             updatedAt={tracking?.riderLocationUpdatedAt}
-            riderName={tracking?.riderName}
+            riderName={tracking?.riderName ?? riderName}
           />
         </Card>
       )}
 
-      {/* Rider */}
+      {/* Delivery partner */}
       {riderName ? (
         <Card style={styles.block}>
           <View style={styles.riderRow}>
@@ -202,12 +323,33 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.riderName}>{riderName}</Text>
-              <Text style={styles.riderMeta}>{order?.riderPhone || 'Verified delivery partner'}</Text>
-            </View>
-            <View style={styles.callBtn}>
-              <Phone size={17} color={c.dietary.veg} />
+              <Text style={styles.riderMeta}>
+                {isClosed ? 'Delivered this order' : riderPhone || 'Verified delivery partner'}
+              </Text>
             </View>
           </View>
+
+          {!isClosed && (
+            <View style={styles.contactRow}>
+              <TouchableOpacity
+                style={[styles.contactBtn, !riderPhone && { opacity: 0.45 }]}
+                onPress={callRider}
+                disabled={!riderPhone}
+                activeOpacity={0.85}
+              >
+                <Phone size={16} color={c.dietary.veg} />
+                <Text style={[styles.contactText, { color: c.dietary.veg }]}>Call</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.contactBtn}
+                onPress={() => setChatOpen(true)}
+                activeOpacity={0.85}
+              >
+                <MessageCircle size={16} color={c.primary[500]} />
+                <Text style={[styles.contactText, { color: c.primary[500] }]}>Chat</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </Card>
       ) : (
         <Card style={styles.block}>
@@ -215,32 +357,132 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         </Card>
       )}
 
-      {/* Summary */}
+      {/* Summary. The bill can be covered: it is read at doorsteps and on buses,
+          where what you ordered and what you paid is nobody else's business. */}
       <Card style={styles.block}>
-        <Text style={styles.blockTitle}>Order summary</Text>
+        <View style={styles.blockHeaderRow}>
+          <Text style={[styles.blockTitle, { marginBottom: 0 }]}>Order summary</Text>
+          <TouchableOpacity
+            style={styles.billToggle}
+            onPress={() => setBillHidden(h => !h)}
+            activeOpacity={0.75}
+            accessibilityLabel={billHidden ? 'Show bill' : 'Hide bill'}
+          >
+            {billHidden ? <Eye size={15} color={c.text.secondary} /> : <EyeOff size={15} color={c.text.secondary} />}
+            <Text style={styles.billToggleText}>{billHidden ? 'Show bill' : 'Hide bill'}</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Restaurant</Text>
           <Text style={styles.summaryValue}>{restaurantName}</Text>
         </View>
-        {order?.items?.map((it: any, i: number) => (
-          <View key={i} style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>
-              {it.quantity}× {it.name}
-            </Text>
-            <Text style={styles.summaryValue}>₹{(it.totalPrice ?? 0).toFixed(0)}</Text>
+
+        {billHidden ? (
+          <View style={styles.billHiddenBox}>
+            <Text style={styles.billHiddenText}>Bill hidden · tap “Show bill” to reveal</Text>
           </View>
-        ))}
-        <View style={styles.summaryTotal}>
-          <Text style={styles.summaryTotalLabel}>Total paid</Text>
-          <Text style={styles.summaryTotalValue}>₹{total.toFixed(2)}</Text>
-        </View>
+        ) : (
+          <>
+            {order?.items?.map((it: any, i: number) => (
+              <View key={i} style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>
+                  {it.quantity}× {it.name}
+                </Text>
+                <Text style={styles.summaryValue}>₹{(it.totalPrice ?? 0).toFixed(0)}</Text>
+              </View>
+            ))}
+            <View style={styles.summaryTotal}>
+              <Text style={styles.summaryTotalLabel}>Total paid</Text>
+              <Text style={styles.summaryTotalValue}>₹{total.toFixed(2)}</Text>
+            </View>
+          </>
+        )}
       </Card>
+
+      <OrderChat
+        visible={chatOpen}
+        onClose={() => setChatOpen(false)}
+        orderId={orderId}
+        apiUrl={apiUrl}
+        token={token}
+        riderName={riderName}
+        canSend={!isClosed}
+        currentUserId={currentUserId}
+      />
+
+      <RatingSheet
+        visible={ratingOpen}
+        onClose={() => setRatingOpen(false)}
+        onRated={value => setSubmittedRating(value)}
+        orderId={orderId}
+        apiUrl={apiUrl}
+        token={token}
+        restaurantName={restaurantName}
+        riderName={riderName}
+      />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
+  doneTag: { backgroundColor: c.dietary.vegBg },
+  deliveredBox: { backgroundColor: c.dietary.vegBg },
+  doneRow: { flexDirection: 'row', alignItems: 'center' },
+  doneIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: c.dietary.veg,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  doneTitle: { fontSize: 15.5, fontWeight: '800', color: c.text.primary },
+  doneSub: { fontSize: 12.5, color: c.text.secondary, marginTop: 2, lineHeight: 17 },
+  rateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: c.primary[500],
+    borderRadius: 13,
+    paddingVertical: 13,
+    marginTop: 14
+  },
+  rateBtnText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '800' },
+  ratedRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 14 },
+  ratedText: { marginLeft: 8, fontSize: 12.5, color: c.text.secondary, fontWeight: '600' },
+  contactRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  contactBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    borderRadius: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    backgroundColor: c.surface.card
+  },
+  contactText: { fontSize: 14, fontWeight: '700' },
+  billToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  billToggleText: { fontSize: 12.5, fontWeight: '700', color: c.text.secondary },
+  billHiddenBox: {
+    backgroundColor: c.surface.sunken,
+    borderRadius: 12,
+    paddingVertical: 22,
+    alignItems: 'center',
+    marginTop: 4
+  },
+  billHiddenText: { color: c.text.muted, fontSize: 13, fontWeight: '600' },
+  blockHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10
+  },
   content: { padding: 16, paddingBottom: 40 },
 
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
