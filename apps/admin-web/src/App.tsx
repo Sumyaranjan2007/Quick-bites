@@ -27,6 +27,7 @@ import { ProfileSection } from './components/console/Profile';
 import { RefundsSection } from './components/console/Refunds';
 import { NoPermission, Loading, Failed } from './components/console/primitives';
 import { fetchAccess, can, type AdminAccess } from './lib/adminApi';
+import type { AdminPermission } from '@quick-bites/shared-types';
 import { clearSession, getSession } from './lib/session';
 
 type SectionKey =
@@ -47,8 +48,14 @@ interface SectionDef {
   key: SectionKey;
   label: string;
   icon: any;
-  /** Any one of these is enough; a Super Admin passes everything. */
-  permissions: string[];
+  /**
+   * Any one of these is enough; a Super Admin passes everything.
+   *
+   * Typed against the server's own catalogue rather than free strings: a slug
+   * that drifts from what requirePermission expects is a nav entry that leads
+   * straight to a 403, and as plain strings nothing would catch it.
+   */
+  permissions: AdminPermission[];
   render: (access: AdminAccess | null) => React.ReactNode;
 }
 
