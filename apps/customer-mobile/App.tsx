@@ -205,7 +205,12 @@ function AppRoot() {
         )}
 
         {currentScreen === 'support' && (
-          <SupportScreen onBack={() => setCurrentScreen('profile')} customerEmail={currentUser?.email} />
+          <SupportScreen
+            onBack={() => setCurrentScreen('profile')}
+            customerEmail={currentUser?.email}
+            apiUrl={apiUrl}
+            token={authToken}
+          />
         )}
       </View>
 

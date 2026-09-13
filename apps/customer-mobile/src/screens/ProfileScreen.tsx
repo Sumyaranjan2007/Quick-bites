@@ -20,6 +20,7 @@ import {
   Bell,
   Wallet,
   ChevronRight,
+  Lock,
   LogOut,
   Check,
   X,
@@ -79,6 +80,49 @@ export const ProfileScreen: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
+
+  // Changing a password without losing the session: the current password is
+  // required, so an unlocked phone left on a table cannot lock its owner out.
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordDone, setPasswordDone] = useState(false);
+
+  const changePassword = async () => {
+    setPasswordError(null);
+    if (!currentPassword) {
+      setPasswordError('Enter your current password.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('Your new password needs at least 8 characters.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setPasswordError(parseApiError(data, 'Your password could not be changed.').message);
+        return;
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setPasswordDone(true);
+      setPasswordOpen(false);
+      setTimeout(() => setPasswordDone(false), 4000);
+    } catch {
+      setPasswordError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
 
   useEffect(() => {
     setFullName(user?.fullName ?? '');
@@ -310,6 +354,21 @@ export const ProfileScreen: React.FC<Props> = ({
         />
       </Card>
 
+      {/* Security */}
+      <Text style={styles.sectionLabel}>Security</Text>
+      <Card style={styles.group}>
+        <Row
+          icon={<Lock size={18} color={c.primary[500]} />}
+          title="Change password"
+          sub={passwordDone ? 'Your password was changed' : 'Update the password you sign in with'}
+          onPress={() => {
+            setPasswordError(null);
+            setPasswordOpen(true);
+          }}
+          last
+        />
+      </Card>
+
       {/* Help */}
       <Text style={styles.sectionLabel}>{t('profile.support')}</Text>
       <Card style={styles.group}>
@@ -374,6 +433,59 @@ export const ProfileScreen: React.FC<Props> = ({
               activeOpacity={0.88}
             >
               {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change password */}
+      <Modal visible={passwordOpen} animationType="slide" transparent onRequestClose={() => setPasswordOpen(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Change password</Text>
+              <TouchableOpacity onPress={() => setPasswordOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>Current password</Text>
+            <TextInput
+              style={styles.input}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+              placeholder="Your password now"
+              placeholderTextColor={c.text.muted}
+            />
+
+            <Text style={styles.label}>New password</Text>
+            <TextInput
+              style={styles.input}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              placeholder="At least 8 characters"
+              placeholderTextColor={c.text.muted}
+            />
+
+            <Text style={styles.helper}>
+              You stay signed in on this phone. Use the new password the next time you sign in anywhere else.
+            </Text>
+
+            {!!passwordError && <Text style={styles.error}>{passwordError}</Text>}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, passwordBusy && { opacity: 0.5 }]}
+              onPress={changePassword}
+              disabled={passwordBusy}
+              activeOpacity={0.88}
+            >
+              {passwordBusy ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Change password</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

@@ -41,6 +41,77 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Password recovery. Without it, a customer who forgets their password loses
+  // their addresses, wallet balance and order history — and the only way back
+  // was to create a second account.
+  const [recovery, setRecovery] = useState<'off' | 'request' | 'code'>('off');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const requestResetCode = async () => {
+    if (!email.trim()) {
+      setFieldErrors({ email: 'Enter the email address on your account.' });
+      return;
+    }
+    setLoading(true);
+    setFormError(null);
+    setNotice(null);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setFormError(parseApiError(data, 'Could not start a password reset.').message);
+        return;
+      }
+      if (data.data?.resetCode) {
+        setResetCode(String(data.data.resetCode));
+        setNotice(`Your reset code is ${data.data.resetCode}. It expires in ${data.data.expiresInMinutes} minutes.`);
+      } else {
+        setNotice('If that address is on an account, a reset code has been sent to it.');
+      }
+      setRecovery('code');
+    } catch {
+      setFormError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyResetCode = async () => {
+    if (resetCode.trim().length !== 6 || newPassword.length < 8) {
+      setFormError('Enter the six-digit code and a new password of at least 8 characters.');
+      return;
+    }
+    setLoading(true);
+    setFormError(null);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), code: resetCode.trim(), newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setFormError(parseApiError(data, 'That reset code was not accepted.').message);
+        return;
+      }
+      setPassword(newPassword);
+      setNewPassword('');
+      setResetCode('');
+      setRecovery('off');
+      setNotice('Your password has been changed. Sign in with it now.');
+    } catch {
+      setFormError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const local: Record<string, string> = {};
     if (!email.trim()) local.email = 'Enter your email address.';
@@ -189,6 +260,41 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
           ) : isRegistering ? (
             <Text style={styles.fieldHint}>At least 8 characters.</Text>
           ) : null}
+          {recovery === 'code' && (
+            <>
+              <Text style={styles.label}>Six-digit code</Text>
+              <View style={styles.field}>
+                <Lock size={16} color={c.text.muted} />
+                <TextInput
+                  style={styles.input}
+                  value={resetCode}
+                  onChangeText={setResetCode}
+                  keyboardType="number-pad"
+                  placeholder="123456"
+                  placeholderTextColor={c.text.muted}
+                />
+              </View>
+              <Text style={styles.label}>New password</Text>
+              <View style={styles.field}>
+                <Lock size={16} color={c.text.muted} />
+                <TextInput
+                  style={styles.input}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                  placeholder="At least 8 characters"
+                  placeholderTextColor={c.text.muted}
+                />
+              </View>
+            </>
+          )}
+
+          {!!notice && (
+            <View style={styles.noticeBox}>
+              <Text style={styles.noticeText}>{notice}</Text>
+            </View>
+          )}
+
           {!!formError && (
             <View style={styles.formErrorBox}>
               <Text style={styles.formErrorText}>{formError}</Text>
@@ -197,16 +303,47 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
           <TouchableOpacity
             style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
-            onPress={handleSubmit}
+            onPress={
+              recovery === 'request' ? requestResetCode : recovery === 'code' ? applyResetCode : handleSubmit
+            }
             disabled={loading}
             activeOpacity={0.88}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryBtnText}>{isRegistering ? 'Create Account' : 'Sign In'}</Text>
+              <Text style={styles.primaryBtnText}>
+                {recovery === 'request'
+                  ? 'Send reset code'
+                  : recovery === 'code'
+                    ? 'Set new password'
+                    : isRegistering
+                      ? 'Create Account'
+                      : 'Sign In'}
+              </Text>
             )}
           </TouchableOpacity>
+
+          {!isRegistering && (
+            <TouchableOpacity
+              style={styles.recoveryLink}
+              onPress={() => {
+                setFormError(null);
+                setNotice(null);
+                setFieldErrors({});
+                setRecovery(recovery === 'off' ? 'request' : recovery === 'code' ? 'request' : 'off');
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.recoveryLinkText}>
+                {recovery === 'off'
+                  ? 'Forgot your password?'
+                  : recovery === 'code'
+                    ? 'Send another code'
+                    : 'Back to sign in'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {__DEV__ && (
             <TouchableOpacity style={styles.demoBtn} onPress={handleQuickDemoLogin} activeOpacity={0.85}>
@@ -251,6 +388,15 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
+  noticeBox: {
+    backgroundColor: c.dietary.vegBg,
+    borderRadius: tokens.radii.md,
+    padding: 12,
+    marginTop: 12
+  },
+  noticeText: { color: c.dietary.veg, fontSize: 13, lineHeight: 18 },
+  recoveryLink: { alignItems: 'center', paddingVertical: 14 },
+  recoveryLinkText: { color: c.primary[500], fontSize: 14, fontWeight: '700' },
   content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
 
   brand: { alignItems: 'center', marginBottom: 26 },

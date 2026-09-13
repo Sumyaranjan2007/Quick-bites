@@ -1,8 +1,30 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Linking, Alert } from 'react-native';
-import { ArrowLeft, Phone, Mail, MessageCircle, ChevronRight, ShieldCheck } from 'lucide-react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Linking,
+  Alert,
+  Modal,
+  ActivityIndicator
+} from 'react-native';
+import {
+  ArrowLeft,
+  Phone,
+  Mail,
+  MessageCircle,
+  MessageSquarePlus,
+  ChevronRight,
+  ShieldCheck,
+  X
+} from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card } from '../components/ui';
+import { apiFetch } from '../lib/apiFetch';
+import { parseApiError } from '../lib/apiErrors';
 import { useTranslation } from '../lib/i18n';
 
 const c = tokens.colors;
@@ -23,10 +45,96 @@ const SUPPORT_WHATSAPP = '918048123456';
 interface Props {
   onBack: () => void;
   customerEmail?: string;
+  apiUrl?: string;
+  token?: string;
 }
 
-export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail }) => {
+/** Must match the server's TicketSchema enum exactly — an unknown value is a 400. */
+const CATEGORIES = [
+  { key: 'ORDER', label: 'An order' },
+  { key: 'DELIVERY', label: 'Delivery' },
+  { key: 'PAYMENT', label: 'Payment' },
+  { key: 'RESTAURANT', label: 'The restaurant' },
+  { key: 'ACCOUNT', label: 'My account' },
+  { key: 'OTHER', label: 'Something else' }
+];
+
+export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, token }) => {
   const { t } = useTranslation();
+
+  // Tickets the customer has raised, and the replies support left on them. The
+  // phone and email routes below still exist; this is the one that reaches an
+  // administrator's queue directly rather than an inbox.
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [cases, setCases] = useState<any[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [category, setCategory] = useState('ORDER');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
+
+  const authed = Boolean(apiUrl && token);
+
+  const loadTickets = useCallback(async () => {
+    if (!authed) return;
+    setLoadingTickets(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const [ticketRes, caseRes] = await Promise.all([
+        apiFetch(`${apiUrl}/support/tickets`, { headers }),
+        apiFetch(`${apiUrl}/support/refund-requests`, { headers })
+      ]);
+      const ticketData = await ticketRes.json().catch(() => ({}));
+      const caseData = await caseRes.json().catch(() => ({}));
+      if (ticketData?.success) setTickets(ticketData.data?.tickets || []);
+      if (caseData?.success) setCases(caseData.data?.requests || []);
+    } catch {
+      // The contact routes below still work offline, so a failed fetch here
+      // leaves the screen usable rather than replacing it with an error.
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, [apiUrl, token, authed]);
+
+  useEffect(() => {
+    void loadTickets();
+  }, [loadTickets]);
+
+  const sendTicket = async () => {
+    setComposerError(null);
+    if (subject.trim().length < 3) {
+      setComposerError('Give your message a short subject.');
+      return;
+    }
+    if (message.trim().length < 10) {
+      setComposerError('Tell us what happened, so support can act on it.');
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await apiFetch(`${apiUrl}/support/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subject: subject.trim(), category, message: message.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setComposerError(parseApiError(data, 'Your message could not be sent.').message);
+        return;
+      }
+      setSubject('');
+      setMessage('');
+      setComposerOpen(false);
+      await loadTickets();
+      Alert.alert('Message sent', 'Our support team has your request and will reply here.');
+    } catch {
+      setComposerError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const open = async (url: string, fallback: string) => {
     try {
@@ -102,6 +210,87 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail }) => {
         ))}
       </Card>
 
+      {authed && (
+        <>
+          <Text style={styles.sectionLabel}>Message support</Text>
+          <Card style={styles.block}>
+            <TouchableOpacity style={styles.row} onPress={() => setComposerOpen(true)} activeOpacity={0.75}>
+              <View style={styles.rowIcon}>
+                <MessageSquarePlus size={18} color={c.primary[500]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Raise a request</Text>
+                <Text style={styles.rowSub}>Goes straight to the Quick Bites support desk</Text>
+              </View>
+              <ChevronRight size={17} color={c.text.muted} />
+            </TouchableOpacity>
+
+            {loadingTickets && tickets.length === 0 ? (
+              <View style={styles.ticketLoading}>
+                <ActivityIndicator color={c.primary[500]} />
+              </View>
+            ) : null}
+
+            {tickets.map(ticket => (
+              <View key={ticket.id} style={styles.ticket}>
+                <View style={styles.ticketHead}>
+                  <Text style={styles.ticketSubject} numberOfLines={1}>
+                    {ticket.subject}
+                  </Text>
+                  <Text style={[styles.ticketStatus, ticket.status === 'RESOLVED' && styles.ticketStatusDone]}>
+                    {String(ticket.status).replace(/_/g, ' ').toLowerCase()}
+                  </Text>
+                </View>
+                <Text style={styles.ticketBody} numberOfLines={2}>
+                  {ticket.message}
+                </Text>
+                {(ticket.replies || []).map((reply: any, index: number) => (
+                  <View key={index} style={styles.reply}>
+                    <Text style={styles.replyWho}>{reply.byName}</Text>
+                    <Text style={styles.replyBody}>{reply.body}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </Card>
+        </>
+      )}
+
+      {cases.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Your refund requests</Text>
+          <Card style={styles.block}>
+            {cases.map(request => (
+              <View key={request.id} style={styles.ticket}>
+                <View style={styles.ticketHead}>
+                  <Text style={styles.ticketSubject} numberOfLines={1}>
+                    Order #{request.orderNumber}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.ticketStatus,
+                      request.status === 'REFUNDED' && styles.ticketStatusDone,
+                      request.status === 'REJECTED' && styles.ticketStatusRejected
+                    ]}
+                  >
+                    {String(request.status).toLowerCase()}
+                  </Text>
+                </View>
+                <Text style={styles.ticketBody} numberOfLines={2}>
+                  {request.description}
+                </Text>
+                <Text style={styles.ticketMeta}>
+                  Asked for ₹{Math.round(request.requestedAmount)}
+                  {request.status === 'REFUNDED' && request.approvedAmount
+                    ? ` · ₹${Math.round(request.approvedAmount)} credited to your wallet`
+                    : ''}
+                </Text>
+              </View>
+            ))}
+          </Card>
+        </>
+      )}
+
       <Text style={styles.sectionLabel}>Common requests</Text>
       <Card style={styles.block}>
         <Text style={styles.faqQ}>My order is late</Text>
@@ -125,11 +314,134 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail }) => {
         <ShieldCheck size={15} color={c.text.muted} />
         <Text style={styles.trustText}>Quick Bites never asks for your password, card PIN or OTP.</Text>
       </View>
+
+      <Modal visible={composerOpen} transparent animationType="slide" onRequestClose={() => setComposerOpen(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>Raise a request</Text>
+              <TouchableOpacity onPress={() => setComposerOpen(false)} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.label}>What is this about?</Text>
+              <View style={styles.categoryWrap}>
+                {CATEGORIES.map(cat => (
+                  <TouchableOpacity
+                    key={cat.key}
+                    style={[styles.category, category === cat.key && styles.categoryActive]}
+                    onPress={() => setCategory(cat.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.categoryText, category === cat.key && styles.categoryTextActive]}>
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.label}>Subject</Text>
+              <TextInput
+                style={styles.input}
+                value={subject}
+                onChangeText={setSubject}
+                placeholder="Order arrived cold"
+                placeholderTextColor={c.text.muted}
+              />
+
+              <Text style={styles.label}>What happened?</Text>
+              <TextInput
+                style={[styles.input, styles.inputMultiline]}
+                value={message}
+                onChangeText={setMessage}
+                placeholder="Tell us what went wrong and what you would like us to do."
+                placeholderTextColor={c.text.muted}
+                multiline
+                textAlignVertical="top"
+              />
+
+              {!!composerError && <Text style={styles.error}>{composerError}</Text>}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, sending && { opacity: 0.5 }]}
+                onPress={sendTicket}
+                disabled={sending}
+                activeOpacity={0.88}
+              >
+                {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Send to support</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  ticketLoading: { paddingVertical: 18, alignItems: 'center' },
+  ticket: { borderTopWidth: 1, borderTopColor: c.border.subtle, paddingVertical: 12 },
+  ticketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  ticketSubject: { flex: 1, fontSize: 14, fontWeight: '700', color: c.text.primary },
+  ticketStatus: { fontSize: 11, fontWeight: '800', color: c.semantic.warning, textTransform: 'capitalize' },
+  ticketStatusDone: { color: c.dietary.veg },
+  ticketStatusRejected: { color: c.semantic.error },
+  ticketBody: { fontSize: 13, color: c.text.secondary, marginTop: 4, lineHeight: 18 },
+  ticketMeta: { fontSize: 11, color: c.text.muted, marginTop: 6 },
+  reply: {
+    backgroundColor: c.surface.sunken,
+    borderRadius: tokens.radii.sm,
+    padding: 10,
+    marginTop: 8
+  },
+  replyWho: { fontSize: 11, color: c.text.muted, fontWeight: '700' },
+  replyBody: { fontSize: 13, color: c.text.primary, marginTop: 3, lineHeight: 18 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(20,10,14,0.6)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: c.surface.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '86%'
+  },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: c.text.primary },
+  label: { fontSize: 12, fontWeight: '700', color: c.text.secondary, marginBottom: 7, marginTop: 10 },
+  input: {
+    backgroundColor: c.surface.sunken,
+    borderRadius: tokens.radii.md,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    paddingHorizontal: 14,
+    height: 46,
+    fontSize: 15,
+    color: c.text.primary
+  },
+  inputMultiline: { height: 108, paddingTop: 12 },
+  categoryWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  category: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: tokens.radii.full,
+    backgroundColor: c.surface.sunken,
+    borderWidth: 1,
+    borderColor: c.border.subtle
+  },
+  categoryActive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
+  categoryText: { fontSize: 13, color: c.text.secondary, fontWeight: '600' },
+  categoryTextActive: { color: '#FFFFFF', fontWeight: '700' },
+  error: { color: c.semantic.error, fontSize: 13, marginTop: 12, lineHeight: 18 },
+  primaryBtn: {
+    backgroundColor: c.primary[500],
+    height: 50,
+    borderRadius: tokens.radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18
+  },
+  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },

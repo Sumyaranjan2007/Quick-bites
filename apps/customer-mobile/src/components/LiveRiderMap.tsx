@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, Linking, TouchableOpacity } from 'react-native';
-import Svg, { Circle, Line, Path, G } from 'react-native-svg';
+import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
 import { Bike } from 'lucide-react-native';
 
@@ -111,26 +111,17 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
   const lastTileX = Math.floor((originX + W) / TILE);
   const lastTileY = Math.floor((originY + H) / TILE);
 
-  const tiles: React.ReactNode[] = [];
-  const maxTile = Math.pow(2, z);
-  for (let tx = firstTileX; tx <= lastTileX; tx++) {
-    for (let ty = firstTileY; ty <= lastTileY; ty++) {
-      const wrappedX = ((tx % maxTile) + maxTile) % maxTile;
-      if (ty < 0 || ty >= maxTile) continue;
-      tiles.push(
-        <Image
-          key={`${z}/${tx}/${ty}`}
-          source={{ uri: TILE_URL(z, wrappedX, ty) }}
-          style={{
-            position: 'absolute',
-            left: tx * TILE - originX,
-            top: ty * TILE - originY,
-            width: TILE,
-            height: TILE
-          }}
-        />
-      );
-    }
+  // A calm street-like ground, aligned to the tile grid so it drifts with the
+  // rider rather than sitting still behind a moving marker.
+  const gridLines: { x1: number; y1: number; x2: number; y2: number; major: boolean }[] = [];
+  const STEP = 34;
+  const offsetX = ((originX % STEP) + STEP) % STEP;
+  const offsetY = ((originY % STEP) + STEP) % STEP;
+  for (let i = 0, x = -offsetX; x <= W; x += STEP, i++) {
+    gridLines.push({ x1: x, y1: 0, x2: x, y2: H, major: i % 3 === 0 });
+  }
+  for (let i = 0, y = -offsetY; y <= H; y += STEP, i++) {
+    gridLines.push({ x1: 0, y1: y, x2: W, y2: y, major: i % 3 === 0 });
   }
 
   const riderX = pr.x - originX;
@@ -141,9 +132,27 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
   return (
     <View>
       <View style={[styles.mapFrame, { height: H }]}>
-        {tiles}
-
         <Svg width={W} height={H} style={StyleSheet.absoluteFill} viewBox={`0 0 ${W} ${H}`}>
+          {/* A drawn ground rather than borrowed imagery. OpenStreetMap's tile
+              policy does not permit an app to pull tiles anonymously, and it
+              enforces that by answering with a grey "access blocked" picture at
+              HTTP 200 - which no error handler can catch and which looked, to a
+              customer, exactly like a broken app. Street imagery needs a keyed
+              provider; the rider's position, the destination and the distance
+              between them are the information, and they are ours to draw. */}
+          <Rect x={0} y={0} width={W} height={H} fill={c.surface.subtle} />
+          {gridLines.map((g, i) => (
+            <Line
+              key={`g${i}`}
+              x1={g.x1}
+              y1={g.y1}
+              x2={g.x2}
+              y2={g.y2}
+              stroke={c.border.subtle}
+              strokeWidth={g.major ? 2 : 1}
+              opacity={g.major ? 0.9 : 0.55}
+            />
+          ))}
           <Line
             x1={riderX}
             y1={riderY}
@@ -169,13 +178,9 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
           </G>
         </Svg>
 
-        <TouchableOpacity
-          style={styles.attribution}
-          onPress={() => Linking.openURL('https://www.openstreetmap.org/copyright')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.attributionText}>© OpenStreetMap contributors</Text>
-        </TouchableOpacity>
+        <View style={styles.attribution}>
+          <Text style={styles.attributionText}>Live position · Harohalli</Text>
+        </View>
       </View>
 
       <View style={styles.legend}>

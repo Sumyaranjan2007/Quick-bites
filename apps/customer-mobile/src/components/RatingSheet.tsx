@@ -39,6 +39,9 @@ export const RatingSheet: React.FC<Props> = ({
   riderName
 }) => {
   const [rating, setRating] = useState(0);
+  // Scored separately so a late kitchen does not cost the rider their rating.
+  // Left untouched, the food's score stands in for both.
+  const [riderRating, setRiderRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +54,11 @@ export const RatingSheet: React.FC<Props> = ({
       const res = await apiFetch(`${apiUrl}/orders/${orderId}/rating`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rating, comment: comment.trim() || undefined })
+        body: JSON.stringify({
+          rating,
+          comment: comment.trim() || undefined,
+          riderRating: riderRating || undefined
+        })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -59,6 +66,7 @@ export const RatingSheet: React.FC<Props> = ({
         return;
       }
       onRated(rating);
+      setRiderRating(0);
       onClose();
     } catch {
       setError('Could not reach Quick Bites. Check your connection.');
@@ -102,6 +110,29 @@ export const RatingSheet: React.FC<Props> = ({
             ))}
           </View>
           <Text style={styles.word}>{WORDS[rating] || 'Tap a star to rate'}</Text>
+
+          {riderName ? (
+            <View style={styles.riderBlock}>
+              <Text style={styles.riderLabel}>And {riderName}, who brought it?</Text>
+              <View style={styles.riderStars}>
+                {[1, 2, 3, 4, 5].map(value => (
+                  <TouchableOpacity
+                    key={value}
+                    onPress={() => setRiderRating(value)}
+                    activeOpacity={0.7}
+                    style={styles.riderStarTap}
+                    accessibilityLabel={`${value} star${value > 1 ? 's' : ''} for the delivery partner`}
+                  >
+                    <Star
+                      size={26}
+                      color={value <= (riderRating || rating) ? c.accent[500] : c.border.strong}
+                      fill={value <= (riderRating || rating) ? c.accent[500] : 'transparent'}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           <TextInput
             style={styles.input}
@@ -155,6 +186,18 @@ const styles = StyleSheet.create({
   },
   stars: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   starTap: { padding: 4 },
+  riderBlock: {
+    backgroundColor: c.surface.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    paddingVertical: 12,
+    marginBottom: 16,
+    alignItems: 'center'
+  },
+  riderLabel: { fontSize: 13, fontWeight: '700', color: c.text.secondary },
+  riderStars: { flexDirection: 'row', marginTop: 6 },
+  riderStarTap: { padding: 3 },
   word: {
     textAlign: 'center',
     marginTop: 8,

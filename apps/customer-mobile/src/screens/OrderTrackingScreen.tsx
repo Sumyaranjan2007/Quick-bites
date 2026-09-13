@@ -80,7 +80,16 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   // Push updates arrive instantly; the poll below is only a fallback for
   // networks where websockets are blocked.
   const { connected: liveConnected } = useOrderSocket(orderId, apiUrl, token, {
-    onStatus: u => setCurrentStep(STATUS_STEP_INDEX[u.status] ?? 0),
+    onStatus: u => {
+      setCurrentStep(STATUS_STEP_INDEX[u.status] ?? 0);
+      // The order object drives everything that must vanish on delivery - OTP,
+      // map, call and chat - so the pushed status has to land on it too. Waiting
+      // for the next poll left a delivered order still showing a live delivery
+      // for up to twenty seconds, which is the whole complaint.
+      setOrder((prev: any) =>
+        prev ? { ...prev, status: u.status, deliveredAt: u.status === 'DELIVERED' ? u.updatedAt : prev.deliveredAt } : prev
+      );
+    },
     onRiderLocation: l =>
       setTracking((prev: any) => ({
         ...(prev ?? {}),
