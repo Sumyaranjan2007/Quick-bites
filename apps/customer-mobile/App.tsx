@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -16,16 +16,43 @@ import { CartAndCheckoutScreen } from './src/screens/CartAndCheckoutScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { OrderHistoryScreen } from './src/screens/OrderHistoryScreen';
+import { SupportScreen } from './src/screens/SupportScreen';
+import { I18nProvider, useTranslation, Language } from './src/lib/i18n';
+import { NotificationsProvider, useNotifications, STATUS_NOTIFICATION } from './src/lib/useNotifications';
+import { NotificationBell } from './src/components/NotificationBell';
+import { useOrderSocket } from './src/lib/useOrderSocket';
 
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentScreen, setCurrentScreen] = useState<'feed' | 'detail' | 'cart' | 'tracking' | 'profile'>('feed');
+  const [currentScreen, setCurrentScreen] = useState<
+    'feed' | 'detail' | 'cart' | 'tracking' | 'profile' | 'orders' | 'support'
+  >('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string; orderId?: string } | null>(null);
   const [apiUrl, setApiUrl] = useState<string>('https://quick-bites-production-9f45.up.railway.app/api');
   const [authToken, setAuthToken] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const { t, setLanguage } = useTranslation();
+  const { notify, enabled: notificationsEnabled, setEnabled: setNotificationsEnabled } = useNotifications();
+
+  // Order updates announce themselves wherever the customer is in the app, not
+  // only on the tracking screen. Without this the phone stayed silent while the
+  // kitchen accepted, cooked and dispatched the order.
+  useOrderSocket(activeOrder?.orderId, apiUrl, authToken, {
+    onStatus: update => {
+      const copy = STATUS_NOTIFICATION[update.status];
+      if (copy) notify(copy.title, copy.body);
+    }
+  });
+
+  // The account's saved language wins on sign-in, so the choice follows the
+  // person to a new phone rather than living only on the one that set it.
+  useEffect(() => {
+    const preferred = currentUser?.preferredLanguage as Language | undefined;
+    if (preferred === 'en' || preferred === 'hi' || preferred === 'kn') setLanguage(preferred);
+  }, [currentUser?.preferredLanguage, setLanguage]);
 
   const handleSelectRestaurant = (restaurant: RestaurantItem) => {
     setSelectedRestaurant(restaurant);
@@ -146,12 +173,39 @@ function AppRoot() {
         {currentScreen === 'profile' && (
           <ProfileScreen
             onBack={() => setCurrentScreen('feed')}
+            onOpenOrders={() => setCurrentScreen('orders')}
+            onOpenSupport={() => setCurrentScreen('support')}
             apiUrl={apiUrl}
             token={authToken}
-            userId={currentUser?.id}
-            onUpdateApiUrl={(newUrl) => setApiUrl(newUrl)}
+            user={currentUser}
+            onUserUpdated={setCurrentUser}
             onLogout={handleLogout}
+            notificationsEnabled={notificationsEnabled}
+            onToggleNotifications={setNotificationsEnabled}
           />
+        )}
+
+        {currentScreen === 'orders' && (
+          <OrderHistoryScreen
+            onBack={() => setCurrentScreen('profile')}
+            onOpenOrder={order => {
+              setActiveOrder({
+                orderNumber: order.orderNumber,
+                total: Number(order.bill?.totalAmount ?? 0),
+                // A past order's OTP is spent; the tracking screen hides it for
+                // anything already closed, and live orders re-fetch their own.
+                otp: order.deliveryOtp ?? '',
+                orderId: order.id
+              });
+              setCurrentScreen('tracking');
+            }}
+            apiUrl={apiUrl}
+            token={authToken}
+          />
+        )}
+
+        {currentScreen === 'support' && (
+          <SupportScreen onBack={() => setCurrentScreen('profile')} customerEmail={currentUser?.email} />
         )}
       </View>
 
@@ -172,7 +226,7 @@ function AppRoot() {
                 currentScreen === 'feed' && styles.navTextActive
               ]}
             >
-              Delivery
+              {t('nav.delivery')}
             </Text>
           </TouchableOpacity>
 
@@ -188,7 +242,7 @@ function AppRoot() {
                 </View>
               )}
             </View>
-            <Text style={styles.navText}>Cart</Text>
+            <Text style={styles.navText}>{t('nav.cart')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -205,7 +259,7 @@ function AppRoot() {
                 currentScreen === 'profile' && styles.navTextActive
               ]}
             >
-              Profile
+              {t('nav.profile')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -266,7 +320,11 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <ErrorBoundary appName="Quick Bites" accent="#5B0E20">
-      <AppRoot />
+      <I18nProvider>
+        <NotificationsProvider>
+          <AppRoot />
+        </NotificationsProvider>
+      </I18nProvider>
     </ErrorBoundary>
   );
 }

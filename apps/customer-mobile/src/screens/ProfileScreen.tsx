@@ -8,279 +8,402 @@ import {
   StyleSheet,
   Switch,
   Modal,
-  Alert
+  ActivityIndicator
 } from 'react-native';
+import {
+  ArrowLeft,
+  User,
+  MapPin,
+  Receipt,
+  LifeBuoy,
+  Globe,
+  Bell,
+  Wallet,
+  ChevronRight,
+  LogOut,
+  Check,
+  X,
+  Sparkles
+} from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
+import { Card } from '../components/ui';
+import { apiFetch } from '../lib/apiFetch';
+import { parseApiError } from '../lib/apiErrors';
+import { useTranslation, LANGUAGES, Language } from '../lib/i18n';
 
 const c = tokens.colors;
-import { User, Sparkles, Globe, MapPin, History, Shield, ArrowLeft, CreditCard, Cloud } from 'lucide-react-native';
-import { apiFetch } from '../lib/apiFetch';
 
 interface Props {
   onBack: () => void;
+  onOpenOrders: () => void;
+  onOpenSupport: () => void;
   apiUrl?: string;
   token?: string;
-  /** The signed-in customer. The wallet used to be fetched for a hardcoded seed id. */
-  userId?: string;
-  onUpdateApiUrl?: (url: string) => void;
+  user?: any;
+  onUserUpdated?: (user: any) => void;
   onLogout?: () => void;
+  notificationsEnabled: boolean;
+  onToggleNotifications: (enabled: boolean) => void;
 }
 
-export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, userId, onUpdateApiUrl, onLogout }) => {
-  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi' | 'kn'>('kn');
-  const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
-  // Null until the server answers. This used to default to 500.00, so a customer whose
-  // wallet failed to load was shown a balance of Rs 500 that was not theirs.
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api');
-  // The customer's real saved addresses. This panel used to render one
-  // hardcoded line, so it showed the wrong place for every actual user.
+/**
+ * The customer's own area.
+ *
+ * Organised by what the person is trying to do - their activity, their account,
+ * their preferences, then help - rather than as one flat list of switches. There
+ * is deliberately no delete-account control: deletion is handled through customer
+ * care, which keeps a route to deletion available without putting an irreversible
+ * action one tap from a wallet balance.
+ */
+export const ProfileScreen: React.FC<Props> = ({
+  onBack,
+  onOpenOrders,
+  onOpenSupport,
+  apiUrl,
+  token,
+  user,
+  onUserUpdated,
+  onLogout,
+  notificationsEnabled,
+  onToggleNotifications
+}) => {
+  const { t, language, setLanguage } = useTranslation();
+
   const [addresses, setAddresses] = useState<any[] | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [wallet, setWallet] = useState<number | null>(null);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const [fullName, setFullName] = useState(user?.fullName ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState(false);
+
+  useEffect(() => {
+    setFullName(user?.fullName ?? '');
+    setPhone(user?.phone ?? '');
+  }, [user?.fullName, user?.phone]);
 
   useEffect(() => {
     if (!apiUrl || !token) return;
     let cancelled = false;
+
     (async () => {
       try {
         const res = await apiFetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
-        if (!cancelled && data.success && Array.isArray(data.data?.addresses)) {
-          setAddresses(data.data.addresses);
-        }
+        if (!cancelled && data.success) setAddresses(data.data?.addresses ?? []);
       } catch {
         if (!cancelled) setAddresses([]);
       }
+
+      try {
+        const res = await apiFetch(`${apiUrl}/wallets/me`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        const balance = data?.data?.wallet?.balance ?? data?.data?.balance;
+        if (!cancelled && typeof balance === 'number') setWallet(balance);
+      } catch {
+        /* The wallet row simply omits the balance if it cannot be read. */
+      }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [apiUrl, token]);
 
-  const handleDeleteAccount = async () => {
-    if (!apiUrl) return;
-    setIsDeleting(true);
-    setDeleteError(null);
+  const saveProfile = async () => {
+    if (!apiUrl || !token) return;
+    setSaving(true);
+    setSaveError(null);
     try {
       const res = await apiFetch(`${apiUrl}/auth/me`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ password: deletePassword })
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fullName: fullName.trim(), phone: phone.trim() || undefined })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data?.error?.message || 'Account could not be deleted.');
+        setSaveError(parseApiError(data, 'Your profile could not be saved.').message);
+        return;
       }
-      setShowDeleteConfirm(false);
-      Alert.alert('Account deleted', 'Your account and personal data have been removed.');
-      onLogout?.();
-    } catch (err: any) {
-      setDeleteError(err?.message || 'Account could not be deleted. Please try again.');
+      onUserUpdated?.(data.data.user);
+      setEditOpen(false);
+      setSavedNote(true);
+      setTimeout(() => setSavedNote(false), 2200);
+    } catch {
+      setSaveError('Could not reach Quick Bites. Check your connection.');
     } finally {
-      setIsDeleting(false);
+      setSaving(false);
     }
   };
 
-  React.useEffect(() => {
-    // The wallet belongs to whoever is signed in. Requesting a fixed seed id returned
-    // another account's balance, and the server now refuses it outright.
-    if (!apiUrl || !token || !userId) return;
+  /** Language is stored on the account too, so it follows the user to a new phone. */
+  const chooseLanguage = async (next: Language) => {
+    setLanguage(next);
+    setLangOpen(false);
+    if (!apiUrl || !token) return;
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/me`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ preferredLanguage: next })
+      });
+      const data = await res.json();
+      if (data.success) onUserUpdated?.(data.data.user);
+    } catch {
+      /* The interface has already switched; the server copy catches up later. */
+    }
+  };
 
-    apiFetch(`${apiUrl}/wallets/${userId}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data?.wallet?.balance !== undefined) {
-          setWalletBalance(data.data.wallet.balance);
-        }
-      })
-      .catch(() => {});
-  }, [apiUrl, token, userId]);
+  const defaultAddress = addresses?.find(a => a.isDefault) ?? addresses?.[0];
+  const initials = (user?.fullName ?? 'Q B')
+    .split(' ')
+    .map((p: string) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <ArrowLeft size={20} color={c.text.primary} />
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity>
+  const activeLanguage = LANGUAGES.find(l => l.code === language);
 
-      {/* User Card */}
-      <View style={styles.userCard}>
-        <View style={styles.avatar}>
-          <User size={28} color={c.surface.card} />
-        </View>
-        <View style={{ flex: 1, marginLeft: 14 }}>
-          <Text style={styles.userName}>Rahul Sharma</Text>
-          <Text style={styles.userContact}>+91-98765-43210 • customer@quickbite.app</Text>
-          <View style={styles.goldBadge}>
-            <Sparkles size={12} color="#D97706" />
-            <Text style={styles.goldText}>QUICK BITE GOLD ACTIVE</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Quick Bites Cash Wallet Card */}
-      <View style={styles.walletCard}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <CreditCard size={18} color="#16A34A" />
-            <Text style={styles.walletHeader}>QUICK BITE CASH WALLET</Text>
-          </View>
-          <Text style={styles.walletBalance}>
-            {walletBalance === null ? 'Rs --' : `Rs ${walletBalance.toFixed(2)}`}
+  const Row = ({
+    icon,
+    title,
+    sub,
+    onPress,
+    right,
+    last
+  }: {
+    icon: React.ReactNode;
+    title: string;
+    sub?: string;
+    onPress?: () => void;
+    right?: React.ReactNode;
+    last?: boolean;
+  }) => (
+    <TouchableOpacity
+      style={[styles.row, !last && styles.rowDivider]}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.75 : 1}
+      disabled={!onPress}
+    >
+      <View style={styles.rowIcon}>{icon}</View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        {!!sub && (
+          <Text style={styles.rowSub} numberOfLines={1}>
+            {sub}
           </Text>
-        </View>
-        <Text style={styles.walletSubtitle}>Preloaded instant checkout balance. Fast 1-tap ordering.</Text>
-      </View>
-
-      {/* Cloud & Public Tunnel Configuration */}
-      <View style={styles.sectionCard}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <Cloud size={18} color={tokens.colors.primary[500]} />
-          <Text style={styles.sectionHeader}>Backend Server & Tunnel URL</Text>
-        </View>
-        <Text style={{ fontSize: 12, color: c.text.secondary, marginBottom: 8 }}>
-          Connects to your local or public Cloudflare tunnel endpoint across 4 physical devices.
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput
-            style={styles.serverInput}
-            value={customServerUrl}
-            onChangeText={setCustomServerUrl}
-            placeholder="http://10.0.2.2:5000/api"
-            autoCapitalize="none"
-          />
-          <TouchableOpacity
-            style={styles.saveServerBtn}
-            onPress={() => onUpdateApiUrl && onUpdateApiUrl(customServerUrl)}
-          >
-            <Text style={styles.saveServerText}>SAVE</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Preferences Section */}
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionHeader}>Preferences & Localization</Text>
-
-        {/* Language Selection */}
-        <View style={styles.row}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Globe size={18} color={c.text.secondary} />
-            <Text style={styles.rowLabel}>App Language</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {(['en', 'hi', 'kn'] as const).map(lang => (
-              <TouchableOpacity
-                key={lang}
-                style={[styles.langChip, selectedLanguage === lang && styles.langChipActive]}
-                onPress={() => setSelectedLanguage(lang)}
-              >
-                <Text style={[styles.langChipText, selectedLanguage === lang && styles.langChipTextActive]}>
-                  {lang === 'en' ? 'EN' : lang === 'hi' ? 'HI' : 'KN'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Veg-Only Mode Switch */}
-        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: c.surface.sunken, paddingTop: 12, marginTop: 12 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={styles.vegDot} />
-            <Text style={styles.rowLabel}>Always Show Pure Veg First</Text>
-          </View>
-          <Switch
-            value={vegOnlyDefault}
-            onValueChange={setVegOnlyDefault}
-            trackColor={{ false: c.border.medium, true: tokens.colors.dietary.veg }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      </View>
-
-      {/* Saved Addresses */}
-      <View style={styles.sectionCard}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <MapPin size={18} color={c.text.secondary} />
-          <Text style={styles.sectionHeader}>Saved Addresses</Text>
-        </View>
-        {addresses === null ? (
-          <View style={styles.addressBox}>
-            <Text style={styles.addressText}>Loading your addresses…</Text>
-          </View>
-        ) : addresses.length === 0 ? (
-          <View style={styles.addressBox}>
-            <Text style={styles.addressText}>No saved addresses yet. Add one at checkout.</Text>
-          </View>
-        ) : (
-          addresses.map((a: any) => (
-            <View key={a.id} style={styles.addressBox}>
-              <Text style={styles.addressTitle}>
-                {a.label || 'Saved'}{a.isDefault ? ' · Default' : ''}
-              </Text>
-              <Text style={styles.addressText}>
-                {[a.addressLine, a.city, a.pincode].filter(Boolean).join(', ')}
-              </Text>
-            </View>
-          ))
         )}
       </View>
+      {right ?? (onPress ? <ChevronRight size={17} color={c.text.muted} /> : null)}
+    </TouchableOpacity>
+  );
 
-      {/* Log Out Button */}
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+          <ArrowLeft size={18} color={c.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.title}>{t('profile.title')}</Text>
+      </View>
+
+      {/* Identity */}
+      <Card style={styles.identity}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 14 }}>
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>
+              {user?.fullName || 'Quick Bites customer'}
+            </Text>
+            {user?.isGold && (
+              <View style={styles.goldChip}>
+                <Sparkles size={11} color={c.dietary.gold} />
+                <Text style={styles.goldChipText}>GOLD</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.email} numberOfLines={1}>
+            {user?.email}
+          </Text>
+          {!!user?.phone && <Text style={styles.email}>{user.phone}</Text>}
+        </View>
+        <TouchableOpacity style={styles.editBtn} onPress={() => setEditOpen(true)} activeOpacity={0.85}>
+          <Text style={styles.editBtnText}>Edit</Text>
+        </TouchableOpacity>
+      </Card>
+
+      {savedNote && (
+        <View style={styles.savedBanner}>
+          <Check size={14} color={c.dietary.veg} />
+          <Text style={styles.savedText}>{t('common.saved')}</Text>
+        </View>
+      )}
+
+      {/* Activity */}
+      <Text style={styles.sectionLabel}>{t('profile.activity')}</Text>
+      <Card style={styles.group}>
+        <Row
+          icon={<Receipt size={18} color={c.primary[500]} />}
+          title={t('profile.orders')}
+          sub={t('profile.ordersSub')}
+          onPress={onOpenOrders}
+        />
+        <Row
+          icon={<Wallet size={18} color={c.dietary.gold} />}
+          title={t('profile.wallet')}
+          sub={wallet !== null ? `₹${wallet.toFixed(2)} available` : 'Balance and refunds'}
+          last
+        />
+      </Card>
+
+      {/* Account */}
+      <Text style={styles.sectionLabel}>{t('profile.account')}</Text>
+      <Card style={styles.group}>
+        <Row
+          icon={<User size={18} color={c.primary[500]} />}
+          title={t('profile.editProfile')}
+          sub={t('profile.editProfileSub')}
+          onPress={() => setEditOpen(true)}
+        />
+        <Row
+          icon={<MapPin size={18} color={c.semantic.error} />}
+          title={t('profile.addresses')}
+          sub={
+            defaultAddress
+              ? [defaultAddress.addressLine, defaultAddress.pincode].filter(Boolean).join(', ')
+              : addresses === null
+                ? 'Loading…'
+                : 'No saved addresses yet'
+          }
+          last
+        />
+      </Card>
+
+      {/* Preferences */}
+      <Text style={styles.sectionLabel}>{t('profile.preferences')}</Text>
+      <Card style={styles.group}>
+        <Row
+          icon={<Globe size={18} color={c.primary[500]} />}
+          title={t('profile.language')}
+          sub={activeLanguage ? `${activeLanguage.native} · ${activeLanguage.label}` : 'English'}
+          onPress={() => setLangOpen(true)}
+        />
+        <Row
+          icon={<Bell size={18} color={c.accent[600]} />}
+          title={t('profile.notifications')}
+          sub={t('profile.notificationsSub')}
+          right={
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={onToggleNotifications}
+              trackColor={{ false: c.border.strong, true: c.primary[300] }}
+              thumbColor={notificationsEnabled ? c.primary[500] : '#FFFFFF'}
+            />
+          }
+          last
+        />
+      </Card>
+
+      {/* Help */}
+      <Text style={styles.sectionLabel}>{t('profile.support')}</Text>
+      <Card style={styles.group}>
+        <Row
+          icon={<LifeBuoy size={18} color={c.dietary.veg} />}
+          title={t('profile.support')}
+          sub={t('profile.supportSub')}
+          onPress={onOpenSupport}
+          last
+        />
+      </Card>
+
       {onLogout && (
-        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-          <Text style={styles.logoutButtonText}>Log Out of Quick Bites</Text>
+        <TouchableOpacity style={styles.logout} onPress={onLogout} activeOpacity={0.85}>
+          <LogOut size={17} color={c.semantic.error} />
+          <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
       )}
 
-      {/* Account deletion — required by Google Play for apps with sign-up */}
-      <TouchableOpacity style={styles.deleteAccountButton} onPress={() => setShowDeleteConfirm(true)}>
-        <Text style={styles.deleteAccountText}>Delete my account</Text>
-      </TouchableOpacity>
-      <Text style={styles.deleteAccountHint}>
-        Permanently removes your profile, saved addresses and wallet. Past orders are kept by
-        restaurants for tax records, with your personal details removed.
-      </Text>
+      <Text style={styles.version}>Quick Bites · Harohalli, Kanakapura Road</Text>
 
-      <Modal visible={showDeleteConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete your account?</Text>
-            <Text style={styles.modalBody}>
-              This cannot be undone. Enter your password to confirm.
-            </Text>
-            <TextInput
-              style={styles.modalInput}
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              placeholder="Your password"
-              placeholderTextColor={c.text.muted}
-              secureTextEntry
-            />
-            {deleteError ? <Text style={styles.modalError}>{deleteError}</Text> : null}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={() => {
-                  setShowDeleteConfirm(false);
-                  setDeleteError(null);
-                  setDeletePassword('');
-                }}
-              >
-                <Text style={styles.modalCancelText}>Keep my account</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalDelete, isDeleting && { opacity: 0.6 }]}
-                onPress={handleDeleteAccount}
-                disabled={isDeleting}
-              >
-                <Text style={styles.modalDeleteText}>{isDeleting ? 'Deleting…' : 'Delete forever'}</Text>
+      {/* Edit profile */}
+      <Modal visible={editOpen} animationType="slide" transparent onRequestClose={() => setEditOpen(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{t('profile.editProfile')}</Text>
+              <TouchableOpacity onPress={() => setEditOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
               </TouchableOpacity>
             </View>
+
+            <Text style={styles.label}>Full name</Text>
+            <TextInput
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Your name"
+              placeholderTextColor={c.text.muted}
+            />
+
+            <Text style={styles.label}>Phone</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="10-digit mobile"
+              placeholderTextColor={c.text.muted}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={styles.helper}>
+              Your email is your login, so it cannot be changed here. Customer care can move an account to a new address.
+            </Text>
+
+            {!!saveError && <Text style={styles.error}>{saveError}</Text>}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, (saving || !fullName.trim()) && { opacity: 0.5 }]}
+              onPress={saveProfile}
+              disabled={saving || !fullName.trim()}
+              activeOpacity={0.88}
+            >
+              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Language */}
+      <Modal visible={langOpen} animationType="slide" transparent onRequestClose={() => setLangOpen(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{t('profile.language')}</Text>
+              <TouchableOpacity onPress={() => setLangOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            {LANGUAGES.map(l => (
+              <TouchableOpacity
+                key={l.code}
+                style={[styles.langRow, language === l.code && styles.langRowActive]}
+                onPress={() => chooseLanguage(l.code)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.langNative}>{l.native}</Text>
+                  <Text style={styles.langLabel}>{l.label}</Text>
+                </View>
+                {language === l.code && <Check size={19} color={c.primary[500]} />}
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </Modal>
@@ -289,285 +412,155 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, userId, 
 };
 
 const styles = StyleSheet.create({
-  deleteAccountButton: {
-    marginTop: 14,
-    height: 46,
-    borderRadius: tokens.radii.md,
+  screen: { flex: 1, backgroundColor: c.surface.app },
+  content: { padding: 16, paddingBottom: 40 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: c.surface.card,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#F0C9C9',
-    backgroundColor: c.dietary.nonvegBg,
+    borderColor: c.border.subtle
+  },
+  title: { fontSize: 20, fontWeight: '800', color: c.text.primary },
+
+  identity: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: c.primary[500],
     alignItems: 'center',
     justifyContent: 'center'
   },
-  deleteAccountText: {
-    color: c.dietary.nonveg,
-    fontWeight: tokens.font.weight.bold,
-    fontSize: tokens.font.size.base
-  },
-  deleteAccountHint: {
-    fontSize: tokens.font.size.xs,
-    color: c.text.muted,
-    marginTop: 8,
-    lineHeight: 17
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(26,7,16,0.5)',
+  avatarText: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  name: { fontSize: 17, fontWeight: '800', color: c.text.primary, flexShrink: 1 },
+  goldChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24
+    gap: 3,
+    backgroundColor: c.dietary.goldBg,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999
   },
-  modalCard: {
-    width: '100%',
-    backgroundColor: c.surface.card,
-    borderRadius: tokens.radii.xl,
-    padding: 22
-  },
-  modalTitle: {
-    fontSize: tokens.font.size.lg,
-    fontWeight: tokens.font.weight.extrabold,
-    color: c.text.primary
-  },
-  modalBody: {
-    fontSize: tokens.font.size.sm,
-    color: c.text.secondary,
-    marginTop: 8,
-    lineHeight: 20
-  },
-  modalInput: {
-    height: 46,
+  goldChipText: { fontSize: 9.5, fontWeight: '900', color: c.dietary.gold, letterSpacing: 0.4 },
+  email: { fontSize: 12.5, color: c.text.muted, marginTop: 2 },
+  editBtn: {
     borderWidth: 1,
-    borderColor: c.border.medium,
-    borderRadius: tokens.radii.md,
-    paddingHorizontal: 13,
-    marginTop: 16,
-    fontSize: tokens.font.size.base,
-    color: c.text.primary,
-    backgroundColor: c.surface.subtle
+    borderColor: c.primary[500],
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8
   },
-  modalError: {
-    fontSize: tokens.font.size.xs,
-    color: c.dietary.nonveg,
-    marginTop: 8,
-    fontWeight: tokens.font.weight.semibold
+  editBtnText: { color: c.primary[500], fontSize: 13, fontWeight: '800' },
+
+  savedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: c.dietary.vegBg,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 14
   },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  modalCancel: {
-    flex: 1,
-    height: 46,
-    borderRadius: tokens.radii.md,
+  savedText: { color: c.dietary.veg, fontWeight: '700', fontSize: 13 },
+
+  sectionLabel: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: c.text.muted,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginLeft: 4
+  },
+  group: { marginBottom: 16, paddingVertical: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 12 },
+  rowDivider: { borderBottomWidth: 1, borderBottomColor: c.border.subtle },
+  rowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: c.surface.sunken,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  modalCancelText: { color: c.text.primary, fontWeight: tokens.font.weight.bold, fontSize: tokens.font.size.sm },
-  modalDelete: {
-    flex: 1,
-    height: 46,
-    borderRadius: tokens.radii.md,
-    backgroundColor: c.dietary.nonveg,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  modalDeleteText: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.sm },
+  rowTitle: { fontSize: 14.5, fontWeight: '700', color: c.text.primary },
+  rowSub: { fontSize: 12, color: c.text.muted, marginTop: 2 },
 
-  container: {
-    flex: 1,
-    backgroundColor: c.surface.app
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 40
-  },
-  backButton: {
+  logout: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16
-  },
-  backText: {
-    fontSize: 14,
-    color: c.text.primary,
-    fontWeight: '600'
-  },
-  userCard: {
-    backgroundColor: c.surface.card,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: c.border.subtle,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: tokens.colors.primary[500],
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: c.text.primary
-  },
-  userContact: {
-    fontSize: 12,
-    color: c.text.secondary,
-    marginTop: 2
-  },
-  goldBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    gap: 4,
-    marginTop: 8
-  },
-  goldText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#D97706'
-  },
-  sectionCard: {
-    backgroundColor: c.surface.card,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: c.border.subtle,
-    marginBottom: 14
-  },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: c.text.primary
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12
-  },
-  rowLabel: {
-    fontSize: 13,
-    color: c.text.primary,
-    fontWeight: '500'
-  },
-  langChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: c.border.medium,
-    backgroundColor: c.surface.app
-  },
-  langChipActive: {
-    borderColor: tokens.colors.primary[500],
-    backgroundColor: tokens.colors.primary[50]
-  },
-  langChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: c.text.secondary
-  },
-  langChipTextActive: {
-    color: tokens.colors.primary[500]
-  },
-  vegDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: tokens.colors.dietary.veg
-  },
-  addressBox: {
-    backgroundColor: c.surface.app,
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: c.surface.sunken
-  },
-  addressTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: c.text.primary
-  },
-  addressText: {
-    fontSize: 12,
-    color: c.text.secondary,
-    marginTop: 2
-  },
-  complianceText: {
-    fontSize: 12,
-    color: c.text.secondary,
-    lineHeight: 16
-  },
-  walletCard: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16
-  },
-  walletHeader: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#166534',
-    letterSpacing: 0.5
-  },
-  walletBalance: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#166534'
-  },
-  walletSubtitle: {
-    fontSize: 11,
-    color: '#15803D',
-    marginTop: 2
-  },
-  serverInput: {
-    flex: 1,
-    backgroundColor: c.surface.app,
-    borderWidth: 1,
-    borderColor: c.border.medium,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 12,
-    color: c.text.primary
-  },
-  saveServerBtn: {
-    backgroundColor: tokens.colors.primary[500],
-    borderRadius: 8,
-    paddingHorizontal: 16,
     justifyContent: 'center',
-    alignItems: 'center'
-  },
-  saveServerText: {
-    color: c.surface.card,
-    fontWeight: '800',
-    fontSize: 12
-  },
-  logoutButton: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 12,
+    gap: 8,
+    borderRadius: 13,
     paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20
+    borderWidth: 1,
+    borderColor: c.semantic.error,
+    backgroundColor: c.surface.card,
+    marginTop: 4
   },
-  logoutButtonText: {
-    color: '#DC2626',
-    fontWeight: '800',
-    fontSize: 14
-  }
+  logoutText: { color: c.semantic.error, fontSize: 14.5, fontWeight: '800' },
+  version: { textAlign: 'center', color: c.text.muted, fontSize: 11.5, marginTop: 18 },
+
+  backdrop: { flex: 1, backgroundColor: 'rgba(26,16,20,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: c.surface.app,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 20,
+    paddingBottom: 28
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  sheetTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: c.text.primary },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.surface.sunken
+  },
+  label: { fontSize: 12.5, fontWeight: '700', color: c.text.secondary, marginBottom: 6, marginTop: 8 },
+  input: {
+    backgroundColor: c.surface.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.border.medium,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: c.text.primary
+  },
+  helper: { fontSize: 11.5, color: c.text.muted, marginTop: 10, lineHeight: 16 },
+  error: { color: c.semantic.error, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
+  primaryBtn: {
+    backgroundColor: c.primary[500],
+    borderRadius: 13,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 16
+  },
+  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+
+  langRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 14,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    backgroundColor: c.surface.card,
+    marginBottom: 10
+  },
+  langRowActive: { borderColor: c.primary[500], backgroundColor: c.primary[50] },
+  langNative: { fontSize: 16, fontWeight: '700', color: c.text.primary },
+  langLabel: { fontSize: 12, color: c.text.muted, marginTop: 2 }
 });

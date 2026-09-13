@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
-import { Search, MapPin, ChevronDown, Bell, Mic, Heart, Timer } from 'lucide-react-native';
+import { Search, MapPin, ChevronDown, Mic, Heart, Timer, X } from 'lucide-react-native';
+import { NotificationBell } from '../components/NotificationBell';
+import { useTranslation } from '../lib/i18n';
+import { VoiceSearchSheet } from '../components/VoiceSearchSheet';
 import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
@@ -55,6 +58,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [refreshing, setRefreshing] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const { t } = useTranslation();
   // Shown in the header. Read from the customer's saved default address rather
   // than hardcoded, so it follows wherever they actually are.
   const [locality, setLocality] = useState<string | null>(null);
@@ -149,17 +154,16 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
             <Text style={styles.locationName}>{locality ?? 'Set your location'}</Text>
             <ChevronDown size={15} color={c.text.primary} />
           </View>
-          <Text style={styles.locationSub}>Delivering to you</Text>
+          <Text style={styles.locationSub}>{t('feed.deliveringTo')}</Text>
         </View>
-        <TouchableOpacity style={styles.bellButton} activeOpacity={0.8}>
-          <Bell size={18} color={c.text.primary} />
-          <View style={styles.bellDot} />
-        </TouchableOpacity>
+        <NotificationBell />
       </View>
 
       {/* Hero */}
-      <Text style={styles.heroTitle}>WHAT'S YOUR{'\n'}CRAVING?</Text>
-      <Text style={styles.heroSub}>We've got it.</Text>
+      <Text style={styles.heroTitle}>
+        {t('feed.heroLine1')}{'\n'}{t('feed.heroLine2')}
+      </Text>
+      <Text style={styles.heroSub}>{t('feed.heroSub')}</Text>
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -167,12 +171,24 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
           <Search size={18} color={c.text.muted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search for 'Biryani'"
+            placeholder={t('feed.searchPlaceholder')}
             placeholderTextColor={c.text.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-          <Mic size={18} color={c.primary[500]} />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7} accessibilityLabel="Clear search">
+              <X size={16} color={c.text.muted} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => setVoiceOpen(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="Search by voice"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Mic size={18} color={c.primary[500]} />
+          </TouchableOpacity>
         </View>
         <TouchableOpacity
           style={[styles.vegToggle, activeFilter === 'Pure Veg' && styles.vegToggleOn]}
@@ -324,6 +340,11 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
             </Card>
           </TouchableOpacity>
         ))}
+      <VoiceSearchSheet
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onResult={text => setSearchQuery(text)}
+      />
     </ScrollView>
   );
 };

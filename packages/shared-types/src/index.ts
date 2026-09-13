@@ -27,6 +27,46 @@ export interface Coordinates {
   longitude: number;
 }
 
+/** Where a menu change is in the review cycle. */
+export type MenuRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** What the partner is asking to do to their menu. */
+export type MenuRequestKind = 'ADD_ITEM' | 'EDIT_ITEM';
+
+/**
+ * A partner's request to change their own menu, held for admin review.
+ *
+ * Partners do not write to the live menu directly: a dish is what the customer is
+ * charged for and what the kitchen is committed to cooking, so price and
+ * availability changes go through the same queue as the rest of onboarding. The
+ * requested values are kept whole in `payload`, and only copied onto the menu when
+ * an administrator approves.
+ */
+export interface MenuChangeRequest {
+  id: string;
+  restaurantId: string;
+  restaurantName?: string;
+  requestedByUserId: string;
+  kind: MenuRequestKind;
+  /** Present for EDIT_ITEM: the dish the partner wants changed. */
+  dishId?: string;
+  payload: {
+    name: string;
+    description?: string;
+    price: number;
+    isVeg: boolean;
+    categoryName: string;
+    imageUrl?: string;
+  };
+  status: MenuRequestStatus;
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewedByUserId?: string;
+  rejectionReason?: string;
+  /** Set once approved, so the partner can see what the request produced. */
+  resultingDishId?: string;
+}
+
 export interface Restaurant {
   id: string;
   ownerId: string;
@@ -49,7 +89,10 @@ export interface Restaurant {
   bannerUrl?: string;
   costForTwo?: number;
   highlightTag?: string;
+  /** Whether the kitchen is currently accepting orders. Partner-controlled. */
   isOpen: boolean;
+  /** When the kitchen was last opened or closed, for the partner's own reference. */
+  kitchenStatusChangedAt?: string;
 }
 
 export interface OptionItem {

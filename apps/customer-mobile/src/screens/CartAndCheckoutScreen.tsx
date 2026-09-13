@@ -6,16 +6,18 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal
+  Modal,
+  ActivityIndicator
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Card, DietMark } from '../components/ui';
 
 const c = tokens.colors;
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
-import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus } from 'lucide-react-native';
+import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus, Navigation } from 'lucide-react-native';
 import { CartItem } from './RestaurantDetailScreen';
 import { apiFetch } from '../lib/apiFetch';
+import { useDeviceLocation } from '../lib/useDeviceLocation';
 
 interface Props {
   cart: CartItem[];
@@ -55,6 +57,22 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   const [addressError, setAddressError] = useState<string | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [form, setForm] = useState({ label: 'Home', addressLine: '', landmark: '', city: 'Bengaluru', pincode: '' });
+  // Coordinates for the address being entered. An address without them cannot be
+  // shown on the live map, so they are captured here rather than guessed later.
+  const [formCoordinates, setFormCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const { detect, detecting, error: locationError } = useDeviceLocation();
+
+  const useCurrentLocation = async () => {
+    const place = await detect();
+    if (!place) return;
+    setFormCoordinates(place.coordinates);
+    setForm(prev => ({
+      ...prev,
+      addressLine: place.addressLine || prev.addressLine,
+      city: place.city || prev.city,
+      pincode: place.pincode || prev.pincode
+    }));
+  };
 
   const loadAddresses = async () => {
     if (!apiUrl || !token) return;
@@ -83,7 +101,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       const res = await apiFetch(`${apiUrl}/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form)
+        body: JSON.stringify(formCoordinates ? { ...form, coordinates: formCoordinates } : form)
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -92,6 +110,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       setSelectedAddressId(data.data.address.id);
       setShowAddressSheet(false);
       setForm({ label: 'Home', addressLine: '', landmark: '', city: 'Bengaluru', pincode: '' });
+      setFormCoordinates(null);
       await loadAddresses();
     } catch (err: any) {
       setAddressError(err?.message || 'Address could not be saved.');
@@ -414,6 +433,32 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             <Text style={styles.sheetTitle}>Add a delivery address</Text>
 
             <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              <TouchableOpacity
+                style={[styles.locateBtn, formCoordinates && styles.locateBtnDone]}
+                onPress={useCurrentLocation}
+                disabled={detecting}
+                activeOpacity={0.85}
+              >
+                {detecting ? (
+                  <ActivityIndicator size="small" color={c.primary[500]} />
+                ) : (
+                  <Navigation size={16} color={formCoordinates ? c.dietary.veg : c.primary[500]} />
+                )}
+                <Text style={[styles.locateText, formCoordinates && { color: c.dietary.veg }]}>
+                  {detecting
+                    ? 'Finding you…'
+                    : formCoordinates
+                      ? 'Location pinned · tap to update'
+                      : 'Use my current location'}
+                </Text>
+              </TouchableOpacity>
+              {!!locationError && <Text style={styles.locateError}>{locationError}</Text>}
+              {!formCoordinates && !locationError && (
+                <Text style={styles.locateHint}>
+                  Pinning the spot lets you watch your rider approach on the map.
+                </Text>
+              )}
+
               <Text style={styles.fieldLabel}>Label</Text>
               <View style={styles.labelRow}>
                 {['Home', 'Work', 'Other'].map(l => (
@@ -549,6 +594,22 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16
   },
+  locateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: c.primary[500],
+    backgroundColor: c.primary[50],
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 6
+  },
+  locateBtnDone: { borderColor: c.dietary.veg, backgroundColor: c.dietary.vegBg },
+  locateText: { fontSize: 13.5, fontWeight: '800', color: c.primary[500] },
+  locateError: { fontSize: 12, color: c.semantic.error, marginTop: 6, lineHeight: 17 },
+  locateHint: { fontSize: 11.5, color: c.text.muted, marginTop: 6, marginBottom: 4, lineHeight: 16 },
   sheetTitle: {
     fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.extrabold,
