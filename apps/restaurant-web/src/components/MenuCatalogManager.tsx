@@ -8,7 +8,7 @@ import {
   ComponentState
 } from '@quick-bites/design-system';
 import { Plus, Check, X, Edit3, RefreshCw } from 'lucide-react';
-import { fetchRestaurantDetails, toggleDishStock, addMenuItem } from '../api';
+import { fetchRestaurantDetails, toggleDishStock, addMenuItem, currentRestaurantId } from '../api';
 
 interface MenuItemDisplay {
   id: string;
@@ -34,7 +34,7 @@ export const MenuCatalogManager: React.FC = () => {
   const loadMenu = async () => {
     setIsLoading(true);
     try {
-      const res = await fetchRestaurantDetails('rst_bbh_01');
+      const res = await fetchRestaurantDetails(currentRestaurantId());
       if (res.success && res.data?.menu?.categories) {
         const extracted: MenuItemDisplay[] = [];
         res.data.menu.categories.forEach((cat: any) => {
@@ -79,7 +79,7 @@ export const MenuCatalogManager: React.FC = () => {
     setItems(prev => prev.map(i => (i.id === dishId ? { ...i, isAvailable: newStatus } : i)));
 
     try {
-      const res = await toggleDishStock('rst_bbh_01', dishId, newStatus);
+      const res = await toggleDishStock(currentRestaurantId(), dishId, newStatus);
       if (!res.success) throw new Error(res.error?.message || res.error || 'Stock update was rejected.');
     } catch (err: any) {
       setItems(previous);
@@ -98,7 +98,7 @@ export const MenuCatalogManager: React.FC = () => {
     setIsSaving(true);
     setActionError(null);
     try {
-      const res = await addMenuItem('rst_bbh_01', {
+      const res = await addMenuItem(currentRestaurantId(), {
         name: newDishName.trim(),
         price,
         isVeg: newDishIsVeg,

@@ -61,4 +61,5 @@ apiRouter.use('/wallets', authMiddleware(), walletRouter);
 apiRouter.use('/addresses', authMiddleware(), addressRouter);
 apiRouter.use('/restaurants', restaurantRouter);
 apiRouter.use('/orders', orderRouter);
+// Search reads are public; the reindex inside is admin-gated on its own route.
 apiRouter.use('/search', searchRouter);

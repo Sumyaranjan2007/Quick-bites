@@ -19,17 +19,44 @@ function withoutDeliveryOtp<T extends { deliveryOtp?: string }>(order: T): Omit<
   return safe;
 }
 
+/**
+ * Every route here is mounted behind authMiddleware('rider'), which proves the caller
+ * is *a* rider — not *which* rider. These endpoints used to read the rider's identity
+ * out of the request body, so any signed-in rider could act as any other: toggle their
+ * shift, claim on their behalf, or credit their wallet. Identity now comes from the
+ * verified token, and the body fields are ignored.
+ */
+async function requireRiderSelf(req: any) {
+  const rider = await riderRepository.findByUserId(req.user!.id);
+  if (!rider) {
+    throw new AppError('No rider profile exists for this account.', 404, 'RIDER_NOT_FOUND');
+  }
+  return rider;
+}
+
+/**
+ * Trip payout, derived from the order itself rather than supplied by the caller.
+ * A flat base covers the rider's time; the delivery fee the customer was charged
+ * covers distance. Gold orders can carry a zero delivery fee, so the base is a floor.
+ */
+const RIDER_BASE_PAYOUT = 40.0;
+
+function calculateTripPayout(order: { bill?: { deliveryFee?: number } }): number {
+  const distanceComponent = Number(order.bill?.deliveryFee) || 0;
+  return Math.round((RIDER_BASE_PAYOUT + Math.max(0, distanceComponent)) * 100) / 100;
+}
+
 const ShiftStatusSchema = z.object({
-  riderId: z.string().min(1, 'riderId is required'),
   isOnline: z.boolean()
 });
 
 // POST /api/riders/shift
 riderRouter.post('/shift', validate({ body: ShiftStatusSchema }), async (req, res) => {
   try {
-    const { riderId, isOnline } = req.body;
+    const { isOnline } = req.body;
+    const self = await requireRiderSelf(req);
 
-    const rider = await riderRepository.updateOnlineStatus(riderId, Boolean(isOnline));
+    const rider = await riderRepository.updateOnlineStatus(self.id, Boolean(isOnline));
     if (!rider) {
       return res.status(404).json({ success: false, error: 'Rider not found' });
     }
@@ -44,9 +71,17 @@ riderRouter.post('/shift', validate({ body: ShiftStatusSchema }), async (req, re
   }
 });
 
-// GET /api/riders/profile/:userId
+// GET /api/riders/profile/:userId — a rider may read only their own profile and wallet.
 riderRouter.get('/profile/:userId', async (req, res) => {
   try {
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
+    if (req.params.userId !== req.user?.id && !isStaff) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden: you can only view your own rider profile.'
+      });
+    }
+
     const rider = await riderRepository.findByUserId(req.params.userId);
     if (!rider) {
       return res.status(404).json({ success: false, error: 'Rider profile not found' });
@@ -74,18 +109,17 @@ riderRouter.get('/orders/broadcast', async (req, res) => {
   }
 });
 
-const ClaimOrderSchema = z.object({
-  riderId: z.string().min(1, 'riderId is required'),
-  riderName: z.string().min(1, 'riderName is required'),
-  riderPhone: z.string().optional()
-});
-
-// POST /api/riders/orders/:id/claim
-riderRouter.post('/orders/:id/claim', validate({ body: ClaimOrderSchema }), async (req, res) => {
+// POST /api/riders/orders/:id/claim — the caller claims the order for themselves.
+riderRouter.post('/orders/:id/claim', async (req, res) => {
   try {
-    const { riderId, riderName, riderPhone } = req.body;
+    const self = await requireRiderSelf(req);
 
-    const order = await orderRepository.assignRider(req.params.id, riderId, riderName, riderPhone);
+    const order = await orderRepository.assignRider(
+      req.params.id,
+      self.id,
+      self.fullName || req.user!.fullName,
+      self.phone
+    );
     if (!order) {
       return res.status(409).json({ success: false, error: 'Order has already been claimed by another rider or does not exist' });
     }
@@ -111,9 +145,18 @@ const VerifyPickupSchema = z.object({
 });
 
 // POST /api/riders/orders/:id/verify-pickup
-riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchema }), async (req, res) => {
+riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchema }), async (req, res, next) => {
   try {
     const { pickupCode } = req.body;
+    const self = await requireRiderSelf(req);
+
+    const existing = await orderRepository.findById(req.params.id);
+    if (!existing) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+    if (existing.riderId !== self.id) {
+      throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
+    }
 
     const result = await orderRepository.verifyPickup(req.params.id, pickupCode);
     if (!result.success) {
@@ -131,37 +174,44 @@ riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchem
       data: { order: withoutDeliveryOtp(result.order!) },
       message: 'Pickup verified. Order is now out for delivery.'
     });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+  } catch (err) {
+    next(err);
   }
 });
 
 const VerifyOtpSchema = z.object({
-  deliveryOtp: z.string().min(1, 'deliveryOtp is required'),
-  riderUserId: z.string().optional(),
-  tripEarnings: z.number().positive().optional()
+  deliveryOtp: z.string().min(1, 'deliveryOtp is required')
 });
 
 // POST /api/riders/orders/:id/verify-otp
-riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), async (req, res) => {
+riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), async (req, res, next) => {
   try {
-    const { deliveryOtp, riderUserId, tripEarnings } = req.body;
+    const { deliveryOtp } = req.body;
+    const self = await requireRiderSelf(req);
+
+    // Only the rider carrying this order may close it out.
+    const existing = await orderRepository.findById(req.params.id);
+    if (!existing) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+    if (existing.riderId !== self.id) {
+      throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
+    }
 
     const result = await orderRepository.verifyDeliveryOtp(req.params.id, deliveryOtp);
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error });
     }
 
-    // Credit trip earnings to rider wallet
-    if (riderUserId) {
-      const payout = tripEarnings ? Number(tripEarnings) : 65.00;
-      await walletRepository.credit(
-        riderUserId,
-        payout,
-        `Trip Payout for Order #${result.order!.orderNumber}`,
-        result.order!.id
-      );
-    }
+    // The payout is computed server-side from the order. It used to be taken from the
+    // request body along with the destination wallet, so a rider could credit any
+    // account any amount simply by asking.
+    await walletRepository.credit(
+      req.user!.id,
+      calculateTripPayout(result.order!),
+      `Trip Payout for Order #${result.order!.orderNumber}`,
+      result.order!.id
+    );
 
     emitOrderStatusUpdate(result.order!.id, {
       orderId: result.order!.id,
@@ -191,6 +241,8 @@ riderRouter.post('/telemetry', validate({ body: TelemetrySchema }), async (req, 
   try {
     const { orderId, lat, lng, bearing } = req.body;
 
+    const self = await requireRiderSelf(req);
+
     const order = await orderRepository.findById(orderId);
     if (!order) {
       throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
@@ -199,6 +251,9 @@ riderRouter.post('/telemetry', validate({ body: TelemetrySchema }), async (req, 
     // otherwise any signed-in rider could spoof another trip's location.
     if (!order.riderId) {
       throw new AppError('This order has no rider assigned.', 409, 'NO_RIDER_ASSIGNED');
+    }
+    if (order.riderId !== self.id) {
+      throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
     }
 
     const updatedAt = new Date().toISOString();

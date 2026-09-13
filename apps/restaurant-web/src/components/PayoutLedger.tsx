@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Badge, Button, StateView, ComponentState } from '@quick-bites/design-system';
 import { ArrowDownRight, ShieldCheck, Download } from 'lucide-react';
-import { fetchRestaurantOrders, fetchRestaurantDetails } from '../api';
+import { fetchRestaurantOrders, fetchRestaurantDetails, currentRestaurantId } from '../api';
 
 interface LedgerRow {
   orderNumber: string;
@@ -39,11 +39,11 @@ export const PayoutLedger: React.FC = () => {
   const loadLedger = async () => {
     setUiState('loading');
     try {
-      fetchRestaurantDetails('rst_bbh_01')
+      fetchRestaurantDetails(currentRestaurantId())
         .then(r => { if (r.success && r.data?.restaurant) setRestaurant(r.data.restaurant); })
         .catch(() => { /* compliance panel falls back to "not on file" */ });
 
-      const res = await fetchRestaurantOrders('rst_bbh_01');
+      const res = await fetchRestaurantOrders(currentRestaurantId());
       if (!res.success || !Array.isArray(res.data?.orders)) {
         setUiState('error');
         return;

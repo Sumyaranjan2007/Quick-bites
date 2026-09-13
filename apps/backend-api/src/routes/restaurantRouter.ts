@@ -89,12 +89,19 @@ restaurantRouter.get('/:id/menu', async (req, res) => {
 });
 
 // GET /api/restaurants/:id/orders - Incoming restaurant orders
-restaurantRouter.get('/:id/orders', authMiddleware('restaurant_owner'), async (req, res) => {
+restaurantRouter.get('/:id/orders', authMiddleware('restaurant_owner'), async (req, res, next) => {
   try {
+    // Being a partner is not enough — this returns customer names, phone numbers and
+    // delivery addresses, so the caller must own *this* restaurant.
+    await assertOwnsRestaurant(req, req.params.id);
+
     const orders = await orderRepository.listByRestaurantId(req.params.id);
-    return res.json({ success: true, data: { orders } });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    // The doorstep OTP lives on the order record. The kitchen never needs it, and
+    // leaking it would let staff close out a delivery that never happened.
+    const safeOrders = orders.map(({ deliveryOtp, ...rest }: any) => rest);
+    return res.json({ success: true, data: { orders: safeOrders } });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -251,39 +258,7 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
   }
 });
 
-const AddMenuItemSchema = z.object({
-  name: z.string().min(1, 'name is required').max(80),
-  description: z.string().max(300).optional(),
-  price: z.number().positive('price must be greater than zero'),
-  isVeg: z.boolean(),
-  category: z.string().min(1).max(60).optional(),
-  imageUrl: z.string().url().optional()
-});
-
-// POST /api/restaurants/:id/menu/items — partner adds a dish to their menu
-restaurantRouter.post(
-  '/:id/menu/items',
-  authMiddleware('restaurant_owner'),
-  validate({ body: AddMenuItemSchema }),
-  async (req, res, next) => {
-    try {
-      const { name, description, price, isVeg, category, imageUrl } = req.body;
-      const created = await menuRepository.addItem(req.params.id, category || 'Specialities', {
-        name,
-        description: description || '',
-        price,
-        isVeg,
-        isAvailable: true,
-        imageUrl
-      });
-
-      if (!created) {
-        throw new AppError('Restaurant menu not found.', 404, 'MENU_NOT_FOUND');
-      }
-
-      return res.status(201).json({ success: true, data: { item: created } });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
+// NOTE: a second POST /:id/menu/items used to be declared here. Express matches the
+// first registration, so it never ran — but it omitted the assertOwnsRestaurant check,
+// and would have silently reopened the cross-restaurant write hole if the routes were
+// ever reordered. The guarded definition above is the only one.

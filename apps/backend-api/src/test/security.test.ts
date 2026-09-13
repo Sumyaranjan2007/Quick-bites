@@ -194,6 +194,122 @@ async function runSecurityTests() {
     }
     console.log('[PASS] Step 11: Database state successfully persisted to and hydrated from disk');
 
+    /*
+     * Steps 12-16 are regression tests for vulnerabilities found in the September 2026
+     * audit. Each one describes an attack that used to succeed against this server.
+     */
+
+    console.log('Step 12: Testing that self-registration cannot claim a staff role...');
+    const escalationRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'escalate@quickbite.app',
+        password: 'securePassword123!',
+        fullName: 'Privilege Escalation Attempt',
+        role: 'super_admin'
+      })
+    });
+    if (escalationRes.status === 201) {
+      const created = await escalationRes.json();
+      if (created.data?.user?.role !== 'customer') {
+        throw new Error(
+          `Registration honoured a caller-supplied role: got '${created.data?.user?.role}'. ` +
+            'Anyone could mint an administrator account.'
+        );
+      }
+    } else if (escalationRes.status !== 400) {
+      throw new Error(`Unexpected status ${escalationRes.status} registering with role=super_admin`);
+    }
+    console.log('[PASS] Step 12: Caller-supplied role ignored; self-registration yields a customer');
+
+    console.log('Step 13: Testing that a user cannot credit their own wallet...');
+    const selfCreditRes = await fetch(`${baseUrl}/api/v1/wallets/${storedUser.id}/credit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ amount: 999999, description: 'free money' })
+    });
+    if (selfCreditRes.status !== 403) {
+      throw new Error(
+        `Self wallet credit returned ${selfCreditRes.status}, expected 403. ` +
+          'A customer could top themselves up without paying.'
+      );
+    }
+    console.log('[PASS] Step 13: Wallet credits rejected for non-staff (403)');
+
+    console.log('Step 14: Testing that a customer cannot drive another order\'s status...');
+    // Place a genuine order as the seeded customer, then attack it from the unrelated
+    // account created in step 2.
+    const victimLogin = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'customer@quickbite.app', password: 'pass123' })
+    });
+    const victimToken = (await victimLogin.json()).data?.token;
+
+    const victimAddress = Array.from(memoryStore.addresses.values()).find(
+      (a: any) => a.userId === 'usr_customer_01'
+    ) as any;
+    const victimMenu = await (await fetch(`${baseUrl}/api/v1/restaurants/rst_bbh_01/menu`)).json();
+    const firstDish = victimMenu?.data?.menu?.categories?.[0]?.items?.[0];
+
+    let foreignOrderId = '';
+    if (victimToken && victimAddress && firstDish) {
+      const placed = await fetch(`${baseUrl}/api/v1/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${victimToken}` },
+        body: JSON.stringify({
+          restaurantId: 'rst_bbh_01',
+          deliveryAddressId: victimAddress.id,
+          items: [{ dishId: firstDish.id, quantity: 1 }],
+          paymentMethod: 'CASH_ON_DELIVERY',
+          idempotencyKey: `sec-test-${Date.now()}`
+        })
+      });
+      foreignOrderId = (await placed.json())?.data?.order?.id || '';
+    }
+
+    if (foreignOrderId) {
+      const statusRes = await fetch(`${baseUrl}/api/v1/orders/${foreignOrderId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'ACCEPTED' })
+      });
+      if (statusRes.status !== 403) {
+        throw new Error(
+          `Order status transition by an unrelated customer returned ${statusRes.status}, expected 403.`
+        );
+      }
+      console.log('[PASS] Step 14: Order transitions restricted to the parties on the order (403)');
+    } else {
+      console.log('[SKIP] Step 14: no seeded order available to test against');
+    }
+
+    console.log('Step 15: Testing that the search reindex is not publicly triggerable...');
+    const syncRes = await fetch(`${baseUrl}/api/v1/search/sync`, { method: 'POST' });
+    if (syncRes.status !== 401 && syncRes.status !== 403) {
+      throw new Error(`Unauthenticated POST /search/sync returned ${syncRes.status}, expected 401/403.`);
+    }
+    console.log('[PASS] Step 15: Catalogue reindex requires authentication');
+
+    console.log('Step 16: Testing that login is rate limited against brute force...');
+    let sawRateLimit = false;
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      const guess = await fetch(`${baseUrl}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'newuser@quickbite.app', password: `wrong-${attempt}` })
+      });
+      if (guess.status === 429) {
+        sawRateLimit = true;
+        break;
+      }
+    }
+    if (!sawRateLimit) {
+      throw new Error('15 consecutive failed logins were accepted without a 429; brute force is unthrottled.');
+    }
+    console.log('[PASS] Step 16: Repeated failed logins throttled with 429');
+
     console.log('\n====================================================');
     console.log('  ALL SECURITY & PRODUCTION HARDENING CHECKS PASSED! ');
     console.log('====================================================\n');

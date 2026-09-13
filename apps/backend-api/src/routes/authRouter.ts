@@ -6,6 +6,7 @@ import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { config } from '../config/env.ts';
 import { validate } from '../middlewares/validate.ts';
+import { authRateLimiterMiddleware } from '../middlewares/rateLimiter.ts';
 import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
 import type { UserRole } from '@quick-bites/shared-types';
@@ -22,24 +23,41 @@ export function generateToken(user: any): string {
       user_metadata: { name: user.fullName }
     },
     config.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '7d', algorithm: 'HS256' }
   );
 }
 
+/**
+ * Roles a person may hold immediately on sign-up. Staff roles are deliberately absent:
+ * self-service registration previously copied `role` straight out of the request body,
+ * so anyone could POST `{"role":"super_admin"}` and receive an administrator token.
+ * Partner and rider accounts are onboarded through KYC; staff are provisioned directly.
+ */
+const SELF_SERVICE_ROLES = ['customer'] as const;
+
+const RegisterSchema = z.object({
+  email: z.string().email('A valid email address is required').max(254),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password must be at most 128 characters'),
+  fullName: z.string().min(1, 'Full name is required').max(120),
+  phone: z.string().max(20).optional(),
+  role: z.enum(SELF_SERVICE_ROLES).optional()
+});
+
 // POST /api/auth/register
-authRouter.post('/register', async (req, res) => {
+authRouter.post('/register', authRateLimiterMiddleware, validate({ body: RegisterSchema }), async (req, res) => {
   try {
-    const { email, password, fullName, phone, role } = req.body;
-    if (!email || !password || !fullName) {
-      return res.status(400).json({ success: false, error: 'Email, password, and full name are required' });
-    }
+    const { email, password, fullName, phone } = req.body;
 
     const existing = await userRepository.findByEmail(email);
     if (existing) {
       return res.status(409).json({ success: false, error: 'An account with this email already exists' });
     }
 
-    const assignedRole: UserRole = role || 'customer';
+    // Never taken from the request: the only role obtainable by self-registration.
+    const assignedRole: UserRole = 'customer';
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await userRepository.create({
       id: `usr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
@@ -77,7 +95,7 @@ authRouter.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', authRateLimiterMiddleware, async (req, res) => {
   try {
     const { email, password, role } = req.body;
     if (!email || !password) {

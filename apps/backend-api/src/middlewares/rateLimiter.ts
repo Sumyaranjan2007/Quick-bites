@@ -26,6 +26,67 @@ if (cleanupTimer.unref) {
   cleanupTimer.unref();
 }
 
+/**
+ * Credential endpoints get their own, much tighter bucket. The global limit of 100
+ * requests a minute is fine for browsing but permits roughly 144,000 password guesses
+ * a day against a single account, which is a workable online brute force.
+ */
+const AUTH_CAPACITY = 10;
+const AUTH_REFILL_RATE = 10 / 300; // 10 attempts per 5 minutes
+const authBuckets = new Map<string, TokenBucket>();
+
+const authCleanupTimer = setInterval(() => {
+  const currentNow = Date.now() / 1000;
+  for (const [key, b] of authBuckets.entries()) {
+    if (currentNow - b.lastRefill > STALE_THRESHOLD_SEC) {
+      authBuckets.delete(key);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
+
+if (authCleanupTimer.unref) {
+  authCleanupTimer.unref();
+}
+
+export function authRateLimiterMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  // Key on the account being attacked as well as the source, so a botnet spreading
+  // guesses across many IPs still runs into the per-account ceiling.
+  const account = typeof req.body?.email === 'string' ? req.body.email.toLowerCase() : '';
+  const now = Date.now() / 1000;
+
+  for (const key of [`ip:${ip}`, account ? `acct:${account}` : `ip:${ip}`]) {
+    let bucket = authBuckets.get(key);
+    if (!bucket) {
+      bucket = { tokens: AUTH_CAPACITY, lastRefill: now };
+      authBuckets.set(key, bucket);
+    } else {
+      const elapsed = now - bucket.lastRefill;
+      bucket.tokens = Math.min(AUTH_CAPACITY, bucket.tokens + elapsed * AUTH_REFILL_RATE);
+      bucket.lastRefill = now;
+    }
+
+    if (bucket.tokens < 1) {
+      res.setHeader('Retry-After', 300);
+      res.status(429).json({
+        success: false,
+        error: {
+          code: 'TOO_MANY_ATTEMPTS',
+          message: 'Too many sign-in attempts. Please wait five minutes and try again.'
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          correlationId: req.correlationId
+        }
+      });
+      return;
+    }
+    bucket.tokens -= 1;
+  }
+
+  next();
+}
+
 export function rateLimiterMiddleware(req: Request, res: Response, next: NextFunction): void {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now() / 1000;

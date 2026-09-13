@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ThemeProvider,
   useTheme,
@@ -11,12 +11,36 @@ import {
 import { LiveOrderTerminal } from './components/LiveOrderTerminal';
 import { MenuCatalogManager } from './components/MenuCatalogManager';
 import { PayoutLedger } from './components/PayoutLedger';
+import { LoginGate } from './components/LoginGate';
 import { UtensilsCrossed, Moon, Sun, Globe, ChefHat, BookOpen, DollarSign } from 'lucide-react';
+import { fetchRestaurantDetails } from './api';
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<'terminal' | 'menu' | 'payout'>('terminal');
   const { resolvedTheme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useTranslation();
+  // The partner's own name and locality, read from the restaurant record. It was
+  // hardcoded, so it kept naming a place the restaurant had moved away from.
+  const [brandSub, setBrandSub] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRestaurantDetails()
+      .then(data => {
+        const r = data?.data?.restaurant ?? data?.data;
+        if (cancelled || !r?.name) return;
+        const locality = String(r.addressLine || '')
+          .split(',')
+          .map((x: string) => x.trim())
+          .filter(Boolean)
+          .pop();
+        setBrandSub([r.name, locality || r.city].filter(Boolean).join(' • '));
+      })
+      .catch(() => {
+        // Header simply shows the portal name until the record loads.
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div>
@@ -28,7 +52,7 @@ export function AppContent() {
             <div className="portal-brand-name">
               Quick Bites <span style={{ color: 'var(--color-primary-500)' }}>Partner</span>
             </div>
-            <div className="portal-brand-sub">Bangalore Biryani House • Indiranagar</div>
+            {brandSub && <div className="portal-brand-sub">{brandSub}</div>}
           </div>
         </div>
 
@@ -118,7 +142,9 @@ export function App() {
   return (
     <ThemeProvider defaultTheme="system">
       <I18nProvider defaultLanguage="en">
-        <AppContent />
+        <LoginGate>
+          <AppContent />
+        </LoginGate>
       </I18nProvider>
     </ThemeProvider>
   );

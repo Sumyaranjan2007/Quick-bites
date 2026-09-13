@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { orderService } from '../modules/orders/orderService.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
+import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { z } from 'zod';
@@ -203,8 +205,51 @@ const StatusTransitionSchema = z.object({
   otp: z.string().length(4).optional()
 });
 
+/**
+ * Who may move an order, and to where. Previously any signed-in account could drive
+ * any order by id — a customer could mark someone else's order DELIVERED, or a
+ * stranger could cancel a restaurant's queue.
+ */
+async function assertMayTransition(req: any, orderId: string, nextStatus: string) {
+  const order = await orderRepository.findById(orderId);
+  if (!order) {
+    throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+  }
+
+  const role = req.user?.role;
+  if (role === 'admin' || role === 'super_admin') return;
+
+  // The kitchen accepts, prepares and hands over its own orders.
+  if (role === 'restaurant_owner') {
+    const restaurant = await restaurantRepository.findById(order.restaurantId);
+    if (!restaurant || restaurant.ownerId !== req.user?.id) {
+      throw new AppError('You do not manage this restaurant.', 403, 'NOT_RESTAURANT_OWNER');
+    }
+    return;
+  }
+
+  // The assigned rider carries it out for delivery and closes it with the OTP.
+  if (role === 'rider') {
+    const rider = await riderRepository.findByUserId(req.user!.id);
+    if (!rider || order.riderId !== rider.id) {
+      throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
+    }
+    return;
+  }
+
+  // A customer may only cancel their own order, and only before the kitchen starts.
+  if (order.customerId !== req.user?.id) {
+    throw new AppError('You do not have permission to update this order.', 403, 'FORBIDDEN');
+  }
+  if (nextStatus !== 'CANCELLED') {
+    throw new AppError('Customers can only cancel an order.', 403, 'CUSTOMER_CANNOT_ADVANCE');
+  }
+}
+
 orderRouter.put('/:id/status', authMiddleware(), validate({ body: StatusTransitionSchema }), async (req, res, next) => {
   try {
+    await assertMayTransition(req, req.params.id, req.body.status);
+
     const updated = await orderService.transitionStatus(
       req.params.id,
       req.body.status,

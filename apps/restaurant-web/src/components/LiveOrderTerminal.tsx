@@ -7,11 +7,14 @@ import {
   ComponentState
 } from '@quick-bites/design-system';
 import { Bell, Clock, CheckCircle2, PackageCheck, Bike, RefreshCw } from 'lucide-react';
-import { fetchRestaurantOrders, updateOrderStatus, getPartnerToken, socketOrigin } from '../api';
+import { fetchRestaurantOrders, updateOrderStatus, currentRestaurantId, socketOrigin } from '../api';
+import { getToken } from '../lib/session';
 import { io, Socket } from 'socket.io-client';
 
 /** The signed-in partner's restaurant. */
-const RESTAURANT_ID = 'rst_bbh_01';
+// Resolved from the signed-in partner rather than assumed: the server now rejects
+// requests for a restaurant the caller does not own. Read at call time, not at module
+// load, because the bundle is evaluated before anyone has signed in.
 
 interface TerminalOrder {
   id: string;
@@ -59,7 +62,7 @@ export const LiveOrderTerminal: React.FC = () => {
   const loadLiveOrders = async () => {
     setIsLoading(true);
     try {
-      const res = await fetchRestaurantOrders(RESTAURANT_ID);
+      const res = await fetchRestaurantOrders(currentRestaurantId());
       if (res.success && Array.isArray(res.data?.orders)) {
         setOrders(
           res.data.orders
@@ -90,7 +93,7 @@ export const LiveOrderTerminal: React.FC = () => {
     let cancelled = false;
 
     (async () => {
-      const token = await getPartnerToken();
+      const token = getToken();
       if (cancelled) return;
 
       socket = io(socketOrigin(), {
@@ -101,7 +104,7 @@ export const LiveOrderTerminal: React.FC = () => {
 
       socket.on('connect', () => {
         setLiveConnected(true);
-        socket?.emit('join:restaurant', { restaurantId: RESTAURANT_ID });
+        socket?.emit('join:restaurant', { restaurantId: currentRestaurantId() });
       });
       socket.on('disconnect', () => setLiveConnected(false));
       socket.on('connect_error', () => setLiveConnected(false));
@@ -116,7 +119,7 @@ export const LiveOrderTerminal: React.FC = () => {
 
     return () => {
       cancelled = true;
-      socket?.emit('leave:restaurant', { restaurantId: RESTAURANT_ID });
+      socket?.emit('leave:restaurant', { restaurantId: currentRestaurantId() });
       socket?.removeAllListeners();
       socket?.disconnect();
       socketRef.current = null;

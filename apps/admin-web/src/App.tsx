@@ -12,6 +12,7 @@ import { OperationsControlTower } from './components/OperationsControlTower';
 import { RestaurantKycPipeline } from './components/RestaurantKycPipeline';
 import { DisputeResolutionConsole } from './components/DisputeResolutionConsole';
 import { DemoDataGenerator } from './components/DemoDataGenerator';
+import { LoginGate } from './components/LoginGate';
 import { ShieldCheck, Moon, Sun, Globe, Activity, FileCheck, AlertCircle, Sparkles } from 'lucide-react';
 
 export function AppContent() {
@@ -127,7 +128,9 @@ export function App() {
   return (
     <ThemeProvider defaultTheme="system">
       <I18nProvider defaultLanguage="en">
-        <AppContent />
+        <LoginGate>
+          <AppContent />
+        </LoginGate>
       </I18nProvider>
     </ThemeProvider>
   );

@@ -72,7 +72,9 @@ export function authMiddleware(requiredRole?: string) {
     
     try {
       const token = authHeader.split(' ')[1];
-      const payload = jwt.verify(token, config.JWT_SECRET) as any;
+      // Pin the algorithm: without this, verification accepts whatever `alg` the
+      // token itself declares, which invites algorithm-confusion attacks.
+      const payload = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'] }) as any;
 
       req.user = {
         id: payload.sub || 'usr_unknown',

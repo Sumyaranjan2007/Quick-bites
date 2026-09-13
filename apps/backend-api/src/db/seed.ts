@@ -1,4 +1,6 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { config } from '../config/env.ts';
 import { userRepository } from './repositories/userRepository.ts';
 import { restaurantRepository } from './repositories/restaurantRepository.ts';
 import { menuRepository } from './repositories/menuRepository.ts';
@@ -11,10 +13,44 @@ console.log('====================================================');
 console.log('       QUICK BITE PLATFORM - MULTI-DEVICE SEED      ');
 console.log('====================================================\n');
 
+/**
+ * Bump this whenever the seed's contents change.
+ *
+ * A snapshot on disk is loaded in preference to re-seeding, so without a marker
+ * an old snapshot silently wins and edits to this file never reach a running
+ * deployment. The stamp lets startup notice the mismatch and re-seed.
+ */
+export const SEED_VERSION = '2026-09-13-harohalli';
+
+/**
+ * The seed creates staff, partner and rider accounts. Locally they share the well-known
+ * password `pass123`, which is convenient and harmless. In production it is a published
+ * backdoor: the value sits in this file, in a public repository, alongside the account
+ * addresses — so `admin@quickbite.app` would be an open administrator login on the live
+ * deployment.
+ *
+ * In production the password must be supplied out of band. If it is not, we seed an
+ * unguessable random one instead, so the demo accounts exist but nobody can sign in to
+ * them until an operator deliberately sets a password.
+ */
+function resolveSeedPassword(): string {
+  if (!config.IS_PRODUCTION) return 'pass123';
+
+  const supplied = process.env.SEED_DEFAULT_PASSWORD;
+  if (supplied && supplied.length >= 12) return supplied;
+
+  console.warn(
+    '[seed] SEED_DEFAULT_PASSWORD is unset or too short. Seeded accounts are being given ' +
+      'a random password and cannot be signed into. Set SEED_DEFAULT_PASSWORD (12+ chars) ' +
+      'to provision them.'
+  );
+  return crypto.randomBytes(32).toString('hex');
+}
+
 export async function seedDatabase() {
   console.log('Seeding role-based authentication accounts...');
 
-  const defaultPasswordHash = await bcrypt.hash('pass123', 10);
+  const defaultPasswordHash = await bcrypt.hash(resolveSeedPassword(), 10);
 
   // 1. Users for each of the 4 Devices
   await userRepository.create({
@@ -83,7 +119,11 @@ export async function seedDatabase() {
     createdAt: new Date().toISOString()
   });
 
-  console.log('[PASS] Core accounts seeded (Admin, Partner, Rider, Customer - password: pass123)');
+  console.log(
+    config.IS_PRODUCTION
+      ? '[PASS] Core accounts seeded (password from SEED_DEFAULT_PASSWORD)'
+      : '[PASS] Core accounts seeded (Admin, Partner, Rider, Customer - password: pass123)'
+  );
 
   // 2. Wallets & Initial Balances
   await walletRepository.credit('usr_customer_01', 500.00, 'Welcome Promotional Wallet Balance');
@@ -427,7 +467,7 @@ export async function seedDatabase() {
     entityName: 'Bangalore Biryani House',
     documentType: 'FSSAI',
     documentNumber: '11223344556677',
-    entityAddress: '100 Feet Road, Indiranagar',
+    entityAddress: 'Kanakapura Main Road, Harohalli',
     entityCity: 'Bengaluru',
     entityPhone: '+91-98765-43210',
     fileUrl: 'https://assets.quickbite.app/kyc/fssai-sample-license.jpg'
@@ -463,6 +503,8 @@ export async function seedDatabase() {
     isActive: true
   });
   console.log('[PASS] Promo coupons seeded (WELCOME50, FREEDEL)');
+
+  memoryStore.meta.set('seedVersion', SEED_VERSION);
 
   console.log('\n====================================================');
   console.log('   DATABASE SEED COMPLETE - ALL 4 PORTALS READY     ');

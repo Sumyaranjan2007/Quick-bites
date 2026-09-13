@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { searchService } from '../modules/search/searchService.ts';
 import { syncService } from '../modules/search/syncService.ts';
+import { authMiddleware } from '../middlewares/auth.ts';
 
 export const searchRouter = Router();
 
@@ -66,8 +67,9 @@ searchRouter.get('/suggestions', async (req: Request, res: Response, next: NextF
   }
 });
 
-// POST /api/v1/search/sync
-searchRouter.post('/sync', async (req: Request, res: Response, next: NextFunction) => {
+// POST /api/v1/search/sync — a full catalogue reindex, so staff-only: left open it was
+// an unauthenticated way to make the server do expensive work on demand.
+searchRouter.post('/sync', authMiddleware('admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const report = await syncService.syncCatalog();
 
