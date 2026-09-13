@@ -25,7 +25,13 @@ browser:
 
 ## Signing in
 
-Every portal uses the same demo password, `pass123`:
+`pass123` works only when the API is run locally. The hosted deployment
+deliberately refuses it — this repository is public, so a password written in
+the source would be an open administrator login on the live server. The hosted
+password is whatever `SEED_DEFAULT_PASSWORD` is set to in the deployment's
+environment variables.
+
+Accounts, in both cases:
 
 | App | Email |
 | --- | --- |
@@ -47,6 +53,9 @@ anywhere:
 5. The rider quotes the restaurant's pickup code and collects the food.
 6. The customer watches the rider move on a live street map.
 7. The rider enters the customer's 4-digit doorstep OTP to complete delivery.
+
+Seeded data is rebuilt on every restart, so test orders do not survive a
+redeploy.
 
 ## The apps need a backend
 
