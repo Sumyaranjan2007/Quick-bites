@@ -147,6 +147,7 @@ function AppRoot() {
             onBack={() => setCurrentScreen('feed')}
             apiUrl={apiUrl}
             token={authToken}
+            userId={currentUser?.id}
             onUpdateApiUrl={(newUrl) => setApiUrl(newUrl)}
             onLogout={handleLogout}
           />

@@ -214,7 +214,7 @@ function DeliveryApp() {
       const res = await apiFetch(`${apiUrl}/riders/shift`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ riderId: rider.id, isOnline: nextState })
+        body: JSON.stringify({ isOnline: nextState })
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || data.error);
@@ -230,13 +230,10 @@ function DeliveryApp() {
     if (!incomingBroadcast) return;
     try {
       const res = await apiFetch(`${apiUrl}/riders/orders/${incomingBroadcast.id}/claim`, {
+        // The claim is made for whoever is signed in; identity comes from the token,
+        // so there is no body to send.
         method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          riderId: rider.id,
-          riderName: rider.fullName,
-          riderPhone: rider.phone
-        })
+        headers: authHeaders()
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || data.error || 'This trip was already claimed.');
@@ -279,26 +276,29 @@ function DeliveryApp() {
       const res = await apiFetch(`${apiUrl}/riders/orders/${activeTrip.id}/verify-otp`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({
-          deliveryOtp: otpInput.trim(),
-          riderUserId: rider.id,
-          tripEarnings: earnings
-        })
+        // The server decides the payout and which wallet it lands in; sending either
+        // from here was how a rider could credit any account any amount.
+        body: JSON.stringify({ deliveryOtp: otpInput.trim() })
       });
       const data = await res.json();
       if (!data.success) {
         throw new Error(data.error?.message || data.error || 'Customer 4-digit delivery OTP does not match.');
       }
 
+      // Use what the server actually credited rather than this screen's estimate.
+      const credited = typeof data.data?.payout === 'number' ? data.data.payout : earnings;
       setRider({
         ...rider,
-        walletBalance: rider.walletBalance + earnings,
+        walletBalance:
+          typeof data.data?.walletBalance === 'number'
+            ? data.data.walletBalance
+            : rider.walletBalance + credited,
         codCashInHand: rider.codCashInHand + cash,
         todayTrips: rider.todayTrips + 1
       });
       Alert.alert(
         'Delivery Complete!',
-        `Order marked DELIVERED.\n+Rs ${earnings.toFixed(2)} credited to your wallet.${cash ? `\nCollected Rs ${cash} COD cash.` : ''}`
+        `Order marked DELIVERED.\n+Rs ${credited.toFixed(2)} credited to your wallet.${cash ? `\nCollected Rs ${cash} COD cash.` : ''}`
       );
       setActiveTrip(null);
       setOtpInput('');

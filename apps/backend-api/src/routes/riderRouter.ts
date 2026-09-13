@@ -208,9 +208,10 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
     // The payout is computed server-side from the order. It used to be taken from the
     // request body along with the destination wallet, so a rider could credit any
     // account any amount simply by asking.
-    await walletRepository.credit(
+    const payout = calculateTripPayout(result.order!);
+    const wallet = await walletRepository.credit(
       req.user!.id,
-      calculateTripPayout(result.order!),
+      payout,
       `Trip Payout for Order #${result.order!.orderNumber}`,
       result.order!.id
     );
@@ -222,13 +223,15 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
       restaurantId: result.order!.restaurantId
     });
 
+    // Report what was actually credited, so the rider's screen shows the real balance
+    // rather than its own estimate of what the trip was worth.
     return res.json({
       success: true,
-      data: { order: result.order },
+      data: { order: result.order, payout, walletBalance: wallet?.balance ?? null },
       message: 'Doorstep OTP verified! Order marked DELIVERED and earnings credited.'
     });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+  } catch (err) {
+    next(err);
   }
 });
 

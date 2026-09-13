@@ -20,14 +20,18 @@ interface Props {
   onBack: () => void;
   apiUrl?: string;
   token?: string;
+  /** The signed-in customer. The wallet used to be fetched for a hardcoded seed id. */
+  userId?: string;
   onUpdateApiUrl?: (url: string) => void;
   onLogout?: () => void;
 }
 
-export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdateApiUrl, onLogout }) => {
+export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, userId, onUpdateApiUrl, onLogout }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'hi' | 'kn'>('kn');
   const [vegOnlyDefault, setVegOnlyDefault] = useState(false);
-  const [walletBalance, setWalletBalance] = useState<number>(500.00);
+  // Null until the server answers. This used to default to 500.00, so a customer whose
+  // wallet failed to load was shown a balance of Rs 500 that was not theirs.
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [customServerUrl, setCustomServerUrl] = useState<string>(apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api');
   // The customer's real saved addresses. This panel used to render one
   // hardcoded line, so it showed the wrong place for every actual user.
@@ -82,11 +86,11 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
   };
 
   React.useEffect(() => {
-    if (!apiUrl) return;
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // The wallet belongs to whoever is signed in. Requesting a fixed seed id returned
+    // another account's balance, and the server now refuses it outright.
+    if (!apiUrl || !token || !userId) return;
 
-    apiFetch(`${apiUrl}/wallets/usr_customer_01`, { headers })
+    apiFetch(`${apiUrl}/wallets/${userId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data?.wallet?.balance !== undefined) {
@@ -94,7 +98,7 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
         }
       })
       .catch(() => {});
-  }, [apiUrl, token]);
+  }, [apiUrl, token, userId]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -125,7 +129,9 @@ export const ProfileScreen: React.FC<Props> = ({ onBack, apiUrl, token, onUpdate
             <CreditCard size={18} color="#16A34A" />
             <Text style={styles.walletHeader}>QUICK BITE CASH WALLET</Text>
           </View>
-          <Text style={styles.walletBalance}>Rs {walletBalance.toFixed(2)}</Text>
+          <Text style={styles.walletBalance}>
+            {walletBalance === null ? 'Rs --' : `Rs ${walletBalance.toFixed(2)}`}
+          </Text>
         </View>
         <Text style={styles.walletSubtitle}>Preloaded instant checkout balance. Fast 1-tap ordering.</Text>
       </View>
