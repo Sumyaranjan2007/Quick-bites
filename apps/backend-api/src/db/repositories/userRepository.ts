@@ -115,5 +115,19 @@ export const userRepository = {
     }
 
     return user;
+  },
+
+  async updateProfile(
+    id: string,
+    changes: { fullName?: string; phone?: string; preferredLanguage?: string }
+  ): Promise<UserRecord | null> {
+    const user = memoryStore.users.get(id);
+    if (!user) return null;
+    if (changes.fullName !== undefined) user.fullName = changes.fullName;
+    if (changes.phone !== undefined) user.phone = changes.phone;
+    if (changes.preferredLanguage !== undefined) user.preferredLanguage = changes.preferredLanguage;
+    memoryStore.users.set(id, user);
+    triggerAutoSave();
+    return user;
   }
 };

@@ -1,4 +1,4 @@
-import { memoryStore, calculateDistanceKm } from '../client.ts';
+import { memoryStore, calculateDistanceKm, triggerAutoSave } from '../client.ts';
 import type { Restaurant } from '@quick-bites/shared-types';
 
 export interface NearbyFilter {
@@ -71,5 +71,24 @@ export const restaurantRepository = {
 
   async listAll(): Promise<Restaurant[]> {
     return Array.from(memoryStore.restaurants.values());
+  },
+
+  /**
+   * Folds one order's rating into the restaurant's running average.
+   *
+   * Stored as an average plus a count rather than a list of every rating: the
+   * individual scores belong to their orders, and keeping a second copy here
+   * would be a second source of truth that could drift.
+   */
+  async addRating(restaurantId: string, rating: number): Promise<void> {
+    const restaurant = memoryStore.restaurants.get(restaurantId);
+    if (!restaurant) return;
+    const count = Number(restaurant.ratingCount) || 0;
+    const average = Number(restaurant.ratingAverage) || 0;
+    const nextCount = count + 1;
+    restaurant.ratingAverage = Math.round(((average * count + rating) / nextCount) * 10) / 10;
+    restaurant.ratingCount = nextCount;
+    memoryStore.restaurants.set(restaurantId, restaurant);
+    triggerAutoSave();
   }
 };

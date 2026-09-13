@@ -142,5 +142,17 @@ export const orderRepository = {
   async listAll(): Promise<Order[]> {
     return Array.from(memoryStore.orders.values())
       .sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async setRating(id: string, rating: number, comment?: string): Promise<Order | null> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return null;
+    order.rating = rating;
+    order.ratingComment = comment;
+    order.ratedAt = new Date().toISOString();
+    order.updatedAt = order.ratedAt;
+    memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return order;
   }
 };

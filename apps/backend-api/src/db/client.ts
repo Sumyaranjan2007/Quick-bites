@@ -25,6 +25,8 @@ export interface DbStore {
   wallets: Map<string, any>;
   walletTransactions: Map<string, any>;
   kycDocuments: Map<string, any>;
+  /** Customer/rider conversation about an order, keyed by message id. */
+  orderMessages: Map<string, any>;
   /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
   meta: Map<string, any>;
 }
@@ -42,6 +44,7 @@ export const memoryStore: DbStore = {
   wallets: new Map(),
   walletTransactions: new Map(),
   kycDocuments: new Map(),
+  orderMessages: new Map(),
   meta: new Map()
 };
 

@@ -7,6 +7,8 @@ import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { z } from 'zod';
 import { AppError } from '../utils/AppError.ts';
+import { messageRepository } from '../db/repositories/messageRepository.ts';
+import { emitOrderMessage } from '../sockets/socketServer.ts';
 
 export const orderRouter = Router();
 
@@ -264,6 +266,124 @@ orderRouter.put('/:id/status', authMiddleware(), validate({ body: StatusTransiti
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+const RatingSchema = z.object({
+  rating: z.number().int().min(1, 'Rating must be between 1 and 5').max(5, 'Rating must be between 1 and 5'),
+  comment: z.string().max(500).optional()
+});
+
+/**
+ * POST /api/orders/:id/rating
+ *
+ * Only the customer who placed it, only once it has actually arrived, and only
+ * once. A rating on an undelivered order would be rating something that has not
+ * happened yet, and re-rating would let one customer move a restaurant's average
+ * as often as they liked.
+ */
+orderRouter.post('/:id/rating', authMiddleware('customer'), validate({ body: RatingSchema }), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.id);
+    if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    if (order.customerId !== req.user?.id) {
+      throw new AppError('You can only rate your own orders.', 403, 'NOT_ORDER_OWNER');
+    }
+    if (order.status !== 'DELIVERED') {
+      throw new AppError('An order can only be rated once it has been delivered.', 409, 'ORDER_NOT_DELIVERED');
+    }
+    if (order.rating) {
+      throw new AppError('This order has already been rated.', 409, 'ALREADY_RATED');
+    }
+
+    const updated = await orderRepository.setRating(order.id, req.body.rating, req.body.comment);
+    await restaurantRepository.addRating(order.restaurantId, req.body.rating);
+
+    res.json({
+      success: true,
+      data: { order: updated },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Everyone involved in an order may read and write its thread.
+ *
+ * `order.riderId` holds the rider RECORD id, not the user id, so a rider has to
+ * be resolved through their rider profile. Comparing it against `req.user.id`
+ * directly never matches - which is why the tracking endpoint's rider check has
+ * always passed only by falling through to its staff clause.
+ */
+async function assertMayUseThread(req: any, orderId: string) {
+  const order = await orderRepository.findById(orderId);
+  if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+
+  const isCustomer = order.customerId === req.user?.id;
+  const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
+
+  let isRider = false;
+  if (order.riderId && req.user?.role === 'rider') {
+    const self = await riderRepository.findByUserId(req.user.id);
+    isRider = Boolean(self && self.id === order.riderId);
+  }
+
+  if (!isCustomer && !isRider && !isStaff) {
+    throw new AppError('You are not part of this order.', 403, 'FORBIDDEN');
+  }
+  return order;
+}
+
+// GET /api/orders/:id/messages
+orderRouter.get('/:id/messages', authMiddleware(), async (req, res, next) => {
+  try {
+    await assertMayUseThread(req, req.params.id);
+    const messages = await messageRepository.listByOrder(req.params.id);
+    res.json({
+      success: true,
+      data: { messages },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const MessageSchema = z.object({
+  body: z.string().trim().min(1, 'A message cannot be empty').max(1000, 'Message is too long')
+});
+
+// POST /api/orders/:id/messages
+orderRouter.post('/:id/messages', authMiddleware(), validate({ body: MessageSchema }), async (req, res, next) => {
+  try {
+    const order = await assertMayUseThread(req, req.params.id);
+
+    // Closed orders are read-only. The thread stays visible in history, but a
+    // delivered order should not remain an open channel to the rider.
+    if (['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(order.status)) {
+      throw new AppError('This order is closed, so its chat is read-only.', 409, 'ORDER_CLOSED');
+    }
+
+    const message = await messageRepository.create({
+      orderId: order.id,
+      senderId: req.user!.id,
+      senderRole: req.user!.role as any,
+      senderName: req.user!.fullName || 'Quick Bites user',
+      body: req.body.body
+    });
+
+    emitOrderMessage(order.id, message);
+
+    res.status(201).json({
+      success: true,
+      data: { message },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
     });
   } catch (err) {
     next(err);

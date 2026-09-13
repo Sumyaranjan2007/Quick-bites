@@ -214,6 +214,26 @@ async function run() {
   check('Customer app receives the rider position live',
     Math.abs((loc.lat ?? loc.latitude) - 12.6830) < 0.001);
 
+  // --- 6b. Customer and rider can talk while the delivery is in flight ---
+  const chatHeard = waitFor(customerSock, 'order:message', 6000);
+  const sent = await api(`/orders/${orderId}/messages`, {
+    method: 'POST', body: { body: 'Please leave it at the gate.' }
+  }, customer.token);
+  check('Customer can message the rider about the order', sent.status === 201,
+    `status ${sent.status} ${JSON.stringify(sent.json).slice(0, 160)}`);
+  await chatHeard;
+  check('The message is pushed live to the order thread', true);
+
+  const thread = await api(`/orders/${orderId}/messages`, {}, rider.token);
+  check('Rider can read the thread', (thread.json?.data?.messages ?? []).length >= 1);
+
+  const outsider = await login('sunita.partner@quickbite.app').catch(() => null);
+  if (outsider) {
+    const peek = await api(`/orders/${orderId}/messages`, {}, outsider.token);
+    check('Someone outside the order cannot read its chat', peek.status === 403,
+      `status ${peek.status}`);
+  }
+
   const tracking = await api(`/orders/${orderId}/tracking`, {}, customer.token);
   check('Tracking endpoint returns the stored rider position',
     tracking.status === 200 && JSON.stringify(tracking.json).includes('12.68'),
@@ -238,6 +258,30 @@ async function run() {
   const final = await api(`/orders/${orderId}`, {}, customer.token);
   check('Order is recorded as delivered', final.json?.data?.order?.status === 'DELIVERED' || final.json?.data?.status === 'DELIVERED',
     JSON.stringify(final.json).slice(0, 200));
+
+  // --- 7b. Profile edit and rating, after the order is complete ---
+  const profile = await api('/auth/me', {
+    method: 'PATCH', body: { fullName: 'Rahul S.', preferredLanguage: 'kn' }
+  }, customer.token);
+  check('Customer can edit their own profile', profile.status === 200 &&
+    profile.json?.data?.user?.fullName === 'Rahul S.',
+    `status ${profile.status} ${JSON.stringify(profile.json).slice(0, 160)}`);
+
+  const rated = await api(`/orders/${orderId}/rating`, {
+    method: 'POST', body: { rating: 5, comment: 'Hot and on time.' }
+  }, customer.token);
+  check('Delivered order can be rated', rated.status === 200,
+    `status ${rated.status} ${JSON.stringify(rated.json).slice(0, 160)}`);
+
+  const twice = await api(`/orders/${orderId}/rating`, {
+    method: 'POST', body: { rating: 1 }
+  }, customer.token);
+  check('The same order cannot be rated twice', twice.status === 409, `status ${twice.status}`);
+
+  const closedChat = await api(`/orders/${orderId}/messages`, {
+    method: 'POST', body: { body: 'hello?' }
+  }, customer.token);
+  check('Chat closes once the order is delivered', closedChat.status === 409, `status ${closedChat.status}`);
 
   // --- 8. A menu change reaches a customer who is browsing that restaurant ---
   const browsingSock = await connect(customer.token);

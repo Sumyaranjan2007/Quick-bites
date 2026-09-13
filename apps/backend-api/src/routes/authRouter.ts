@@ -157,6 +157,36 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res) => {
   }
 });
 
+const UpdateProfileSchema = z.object({
+  fullName: z.string().trim().min(1, 'Full name is required').max(120).optional(),
+  phone: z.string().trim().max(20).optional(),
+  preferredLanguage: z.enum(['en', 'hi', 'kn']).optional()
+});
+
+/**
+ * PATCH /api/auth/me — updates the signed-in user's own profile.
+ *
+ * Deliberately narrow: name, phone and language only. Email is the account
+ * identifier and changing it would silently move the login; role and wallet
+ * balance are not the user's to set, which is the same mistake registration
+ * used to make by trusting `role` from the request body.
+ */
+authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }), async (req, res, next) => {
+  try {
+    const updated = await userRepository.updateProfile(req.user!.id, req.body);
+    if (!updated) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
+
+    const { passwordHash, ...safeUser } = updated as any;
+    res.json({
+      success: true,
+      data: { user: safeUser },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const DeleteAccountSchema = z.object({
   password: z.string().min(1, 'Password confirmation is required')
 });

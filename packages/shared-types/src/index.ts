@@ -158,6 +158,21 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   deliveredAt?: string;
+  /** Customer's rating of the completed order, 1-5, set once after delivery. */
+  rating?: number;
+  ratingComment?: string;
+  ratedAt?: string;
+}
+
+/** A message between the customer and the rider about one order. */
+export interface OrderMessage {
+  id: string;
+  orderId: string;
+  senderId: string;
+  senderRole: 'customer' | 'rider' | 'restaurant_owner' | 'admin' | 'super_admin';
+  senderName: string;
+  body: string;
+  sentAt: string;
 }
 
 export interface DeliveryRider {

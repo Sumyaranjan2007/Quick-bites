@@ -311,6 +311,12 @@ export function emitOrderAvailableForPickup(order: {
   }));
 }
 
+/** Delivers a chat message to everyone watching that order. */
+export function emitOrderMessage(orderId: string, message: unknown): void {
+  if (!ioInstance) return;
+  ioInstance.to(`order:${orderId}`).emit('order:message', message);
+}
+
 export function emitRiderLocation(
   orderId: string,
   location: {
