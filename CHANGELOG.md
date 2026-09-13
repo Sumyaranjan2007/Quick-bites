@@ -512,6 +512,69 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-13] -- Claude Opus 5 -- Session 18 (Release Rebuild & Stale-Seed Fix)
+**Description:** Rebuilt the Android release artifacts, which had fallen a full session behind the source, and fixed the reason the relocated service area never reached the live API.
+**Chunks Modified:** 02 (backend), 05 (customer mobile), 07 (partner web)
+**Changes:**
+- Modified: `apps/backend-api/src/db/client.ts` (added a `meta` collection for snapshot bookkeeping and `clearStore()`)
+- Modified: `apps/backend-api/src/db/seed.ts` (exported `SEED_VERSION`, stamped into the store on seed; KYC entity address moved to Harohalli)
+- Modified: `apps/backend-api/src/server.ts` (a snapshot written by an older seed revision is now discarded and re-seeded instead of being served)
+- Deleted: `apps/backend-api/data/store.json` from version control, and added it to `.gitignore`
+- Modified: `apps/customer-mobile/src/screens/ProfileScreen.tsx` (Saved Addresses now reads `GET /addresses` instead of rendering one hardcoded line)
+- Modified: `apps/customer-mobile/src/screens/CartAndCheckoutScreen.tsx` (landmark and pincode placeholders now reflect the service area)
+- Modified: `apps/{customer,restaurant,delivery,admin}-mobile/app.json` (version 1.1.0, versionCode 2)
+- Rebuilt: the four Android release APKs from current source
+
+**Build Status:** 10/10 chunks complete
+**Known Issues:**
+- The live API served Indiranagar data for an entire session after the seed was changed. `data/store.json` was committed, and startup prefers a snapshot on disk over the seed, so `seedDatabase()` never ran on the deployment. Any future seed change must bump `SEED_VERSION` or it will not reach a running environment.
+- Backend persistence is still an in-memory store with a JSON snapshot; a restart or redeploy can lose recent orders.
+- No online payment — checkout is cash on delivery only.
+- Logo wordmark still reads "Quickbits" while the apps are named "Quick Bites".
+- Play Console / App Store Connect work still needs a human.
+
+**NEXT AI SHOULD:** Wire the backend to the managed Postgres that is already scaffolded — it is now the largest remaining correctness gap, since orders are still lost on redeploy.
+
+**Notes:** A parallel session was editing the same working tree throughout this session (auth middleware, rate limiting, CORS, and a partner-portal login gate). Its unfinished work was deliberately left out of this session's commit: `apps/restaurant-web/` in particular was mid-refactor and did not compile, so the dynamic partner-header fix made here is on disk but uncommitted and belongs to that session's commit. Upload keystores remain at `~/.quickbites-upload-keys/`, outside the repo.
+
+---
+
+## [2026-09-13] -- Claude Opus 5 -- Session 18 (Security Audit)
+
+**Description:** Reviewed the four mobile apps, both web portals and the API for security defects. Seventeen findings; four were exploitable by anyone holding the public URL, with no credentials at all. All seventeen are fixed, with regression tests covering the exploitable paths.
+
+**Chunks Modified:** 02, 04, 07, 08, 09
+
+**Changes:**
+
+- **Privilege escalation through self-registration.** `POST /auth/register` copied `role` out of the request body (`const assignedRole = role || 'customer'`), so `{"role":"super_admin"}` returned a valid administrator token to anyone who asked. Self-registration now only ever produces a customer, and the payload is schema-validated (email format, 8–128 character password).
+- **Published signing keys.** `JWT_SECRET` and `RAZORPAY_KEY_SECRET` both fell back to literals in source. The repository is public, so those were published credentials — enough to forge a token for any account, or a payment signature for a free order. Production now refuses to boot without them; outside production a random per-process value is derived so local work is unaffected.
+- **Demo tokens reachable in production.** `Bearer demo-admin-token` bypasses authentication entirely and was enabled whenever `NODE_ENV` was not exactly `'production'`, so a single misconfigured host variable exposed it. Hard-disabled in production regardless of `DEMO_MODE`.
+- **Both web portals shipped admin credentials to the browser.** `admin-web` and `restaurant-web` signed themselves in from client code with `admin@quickbite.app` / `pass123`, so the credentials sat in the JavaScript bundle served to every visitor as well as on GitHub. The admin console had no sign-in step at all — opening the deployed URL granted KYC approvals, refunds and every order. Both portals now have a real login gate, hold the token in `sessionStorage`, check the account's role, and sign out on 401/403. The partner portal no longer assumes restaurant `rst_bbh_01`; it resolves the restaurant from the signed-in owner.
+- **Wallet top-ups by the wallet's owner.** `POST /wallets/:id/credit` accepted "this is my own wallet" as authorisation, so any signed-in user could set an arbitrary balance and order for free. Moving money is staff-only now.
+- **Rider identity taken from the request body.** Any rider could act as any other — claim on their behalf, toggle their shift, read their wallet — and `verify-otp` accepted both the destination wallet (`riderUserId`) and the amount (`tripEarnings`) from the caller, so a rider could credit any account any sum. Identity comes from the verified token, the payout is computed server-side from the order, and pickup, delivery and telemetry all require the order to be assigned to the caller.
+- **Order status transitions were unrestricted.** `PUT /orders/:id/status` checked only that the caller was logged in, so anyone could cancel or complete anyone's order by id. Restricted to the owning restaurant, the assigned rider, staff, or the customer cancelling their own order before the kitchen starts.
+- **Cross-tenant order leak.** `GET /restaurants/:id/orders` returned any restaurant's orders to any partner, including customer names, phone numbers, addresses and the doorstep OTP. Ownership is enforced and the OTP is stripped.
+- **KYC exposure.** Submit and status accepted any `entityId`, so any signed-in account could read partners' government identity numbers or push a rival's listing into re-verification. Both are scoped to the entity the caller controls.
+- **Hardening:** a dedicated limiter on login and registration (10 per 5 minutes, keyed on source IP *and* target account — the global 100/min permitted roughly 144,000 guesses a day against one account); CORS no longer matches `origin.includes('vercel.app')`, which also matched attacker-controlled hosts like `https://vercel.app.evil.example`; `POST /search/sync` (a full catalogue reindex) required no authentication; route handlers no longer echo raw `error.message`; HS256 pinned on both sign and verify; seeded accounts no longer share the published `pass123` in production.
+- **Removed a duplicate `POST /:id/menu/items`** that omitted the ownership check. Express matched the guarded registration first so it never ran, but reordering would have silently reopened the hole.
+- **Five regression tests** added to `security.test.ts`, each checked against the vulnerable code first — the wallet test returns 200 before the fix and 403 after. The pre-existing suite passed both before and after these fixes, which is why none of this was caught earlier.
+
+**Build Status:** Green. Verified against a fresh clone rather than the working tree: `npm ci` clean, 34/34 diagnostics, 10/10 typecheck, 6/6 suites, CI passing on `23d1fb8`.
+
+**Known Issues:**
+- **Deployment will fail until `JWT_SECRET` and `RAZORPAY_KEY_SECRET` are set on the host.** This is deliberate — booting with a published key is worse than not booting — but it is a breaking change for the existing Railway deployment.
+- **The old JWT secret and `pass123` must be treated as compromised**, as both were public. Rotating `JWT_SECRET` invalidates all existing tokens, which is the desired outcome; the passwords on `admin@quickbite.app` and `partner@quickbite.app` should be changed.
+- Whether the live deployment ever had `JWT_SECRET` set was not tested — that would have meant forging a token against production. If it was unset, the deployment was forgeable for as long as it has been up.
+- Backend persistence is still in-memory with a JSON snapshot; no online payment; the logo wordmark still reads "Quickbits".
+- Android release artifacts still predate Sessions 17 and 18.
+
+**NEXT AI SHOULD:** Rebuild the four AABs and the shareable APK, which now lag two sessions of fixes. Do not skip verifying against a clean clone: a build that passes in the working tree proves nothing while a second session has uncommitted files in it.
+
+**Notes:** A commit in this session (`1fcb853`) swept in a parallel session's half-finished edit to `seed.ts` and broke the pushed tree, because the local build passed against their uncommitted files. `23d1fb8` completed that change rather than reverting it. When two sessions share one checkout, verify against `git clone` output, not the working directory.
+
+---
+
 ## Session Log Template (For Future Sessions)
 ```markdown
 ## [YYYY-MM-DD] -- [AI Model] -- Session [N]
