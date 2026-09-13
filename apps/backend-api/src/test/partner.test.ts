@@ -158,6 +158,11 @@ async function run() {
     admin.token
   );
   check('An admin can approve a document', approve.status === 200, `status ${approve.status}`);
+  check(
+    'Approving a document is persisted, not just held in memory',
+    memoryStore.restaurants.get(RESTAURANT)?.kycStatus === 'ACTIVE',
+    `store shows kycStatus ${memoryStore.restaurants.get(RESTAURANT)?.kycStatus}`
+  );
 
   // -----------------------------------------------------------------------
   // 4. Going online, and the closed-kitchen refusal
