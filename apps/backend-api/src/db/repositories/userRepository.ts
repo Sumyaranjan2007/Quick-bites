@@ -12,8 +12,14 @@ export const userRepository = {
   },
 
   async findByEmail(email: string): Promise<UserRecord | null> {
+    // Trimmed as well as lowercased. Phone keyboards routinely append a space
+    // after an email autocomplete, and an address that differs only by
+    // surrounding whitespace is the same address to every human who types it.
+    // Without this, sign-in failed with "invalid credentials" for a password
+    // that was entirely correct.
+    const normalized = email.trim().toLowerCase();
     for (const user of memoryStore.users.values()) {
-      if (user.email.toLowerCase() === email.toLowerCase()) {
+      if (user.email.trim().toLowerCase() === normalized) {
         return user;
       }
     }

@@ -49,7 +49,10 @@ const RegisterSchema = z.object({
 // POST /api/auth/register
 authRouter.post('/register', authRateLimiterMiddleware, validate({ body: RegisterSchema }), async (req, res) => {
   try {
-    const { email, password, fullName, phone } = req.body;
+    // Stored normalised so the account is found however it is later typed;
+    // lookups trim and lowercase too, but the record itself should be clean.
+    const email = String(req.body.email).trim().toLowerCase();
+    const { password, fullName, phone } = req.body;
 
     const existing = await userRepository.findByEmail(email);
     if (existing) {
