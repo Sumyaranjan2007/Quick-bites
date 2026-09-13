@@ -94,7 +94,7 @@
     },
     "android": {
       "package": "com.quickbite.partner",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#5B0E20"
