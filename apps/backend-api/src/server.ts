@@ -1,31 +1,57 @@
 import { createApp } from './app.ts';
 import { config } from './config/env.ts';
 import { initSocketServer, closeSocketServer } from './sockets/socketServer.ts';
-import { loadStoreFromFile, saveStoreToFile, clearStore, memoryStore } from './db/client.ts';
+import { loadStoreFromFile, clearStore, memoryStore, setPersistenceBackend, flushStore } from './db/client.ts';
+import {
+  isDatabaseConfigured,
+  initDatabase,
+  loadStoreFromDatabase,
+  saveStoreToDatabase,
+  closeDatabase
+} from './db/postgresStore.ts';
 import { seedDatabase, SEED_VERSION } from './db/seed.ts';
 
-// Hydrate the database from the snapshot on disk, or seed it if there is none.
+// Choose where state is persisted before anything reads or writes it.
 //
-// A snapshot written by an older revision of the seed is discarded rather than
+// With DATABASE_URL set, documents live in Postgres and survive a redeploy.
+// Without it, the JSON file beside the code is used, which is right for local
+// development and useless in production: that filesystem is per-container, so
+// every order placed was lost the next time the service restarted.
+const usingDatabase = isDatabaseConfigured();
+
+if (usingDatabase) {
+  // Deliberately not wrapped in a fallback to the file. A deployment that
+  // cannot reach its database should fail to start, not come up looking healthy
+  // while quietly writing orders somewhere they will be discarded.
+  await initDatabase();
+  setPersistenceBackend({ save: saveStoreToDatabase });
+  console.log('[INFO] Persistence: Postgres (DATABASE_URL).');
+} else {
+  console.log('[INFO] Persistence: local JSON snapshot (no DATABASE_URL set).');
+}
+
+const hydrated = usingDatabase ? await loadStoreFromDatabase() : loadStoreFromFile();
+
+// A store written by an older revision of the seed is discarded rather than
 // trusted: it is hydrated first, so the version stamp can be read, and then
 // thrown away. Without this, changing the seed had no effect on any environment
-// that already had a snapshot on disk - the deployment kept serving the old data.
-if (!loadStoreFromFile()) {
-  console.log('[INFO] No existing persistent store found on disk. Initializing and seeding database...');
+// that already had data - the deployment kept serving the old records.
+if (!hydrated) {
+  console.log('[INFO] No existing data found. Initializing and seeding database...');
   await seedDatabase();
-  saveStoreToFile();
-  console.log('[INFO] Seed data initialized and persisted to data/store.json.');
+  await flushStore();
+  console.log('[INFO] Seed data initialized and persisted.');
 } else if (memoryStore.meta.get('seedVersion') !== SEED_VERSION) {
   console.log(
-    `[INFO] Snapshot on disk was written by seed "${memoryStore.meta.get('seedVersion') ?? 'unversioned'}", ` +
+    `[INFO] Stored data was written by seed "${memoryStore.meta.get('seedVersion') ?? 'unversioned'}", ` +
     `current seed is "${SEED_VERSION}". Re-seeding.`
   );
   clearStore();
   await seedDatabase();
-  saveStoreToFile();
+  await flushStore();
   console.log('[INFO] Database re-seeded from the current seed revision.');
 } else {
-  console.log('[INFO] Persistent database hydrated successfully from disk.');
+  console.log('[INFO] Existing data hydrated successfully.');
 }
 
 const app = createApp();
@@ -48,8 +74,15 @@ initSocketServer(server);
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
   console.log(`\nReceived ${signal}. Gracefully closing Quick Bites HTTP and Socket servers...`);
-  saveStoreToFile();
+  // Flush before the connection closes; a debounced write may still be pending,
+  // and the platform sends SIGTERM on every redeploy.
+  try {
+    await flushStore();
+  } catch (err) {
+    console.error('[ERROR] Final persist failed; recent writes may be lost:', err);
+  }
   await closeSocketServer();
+  if (usingDatabase) await closeDatabase();
   server.close(() => {
     console.log('[SUCCESS] HTTP server closed cleanly and data persisted. Exiting process.');
     process.exit(0);

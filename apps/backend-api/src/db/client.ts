@@ -101,6 +101,37 @@ export function loadStoreFromFile(customPath?: string): boolean {
   }
 }
 
+/**
+ * Where mutations are persisted.
+ *
+ * Defaults to the JSON file, which is right for local development. A hosted
+ * deployment installs a database-backed one at boot, because the container
+ * filesystem is discarded on every redeploy — orders written to it did not
+ * survive a restart. Kept as an injected backend rather than an import so this
+ * module stays free of a dependency on any particular database driver.
+ */
+export interface PersistenceBackend {
+  save: () => Promise<void>;
+}
+
+let backend: PersistenceBackend | null = null;
+
+export function setPersistenceBackend(next: PersistenceBackend | null): void {
+  backend = next;
+}
+
+/** Serialises saves so a slow write cannot overlap the next one. */
+let inFlight: Promise<void> = Promise.resolve();
+
+export function flushStore(): Promise<void> {
+  const run = async () => {
+    if (backend) await backend.save();
+    else saveStoreToFile();
+  };
+  inFlight = inFlight.then(run, run);
+  return inFlight;
+}
+
 let autoSaveTimer: NodeJS.Timeout | null = null;
 /**
  * Debounced automatic persistence trigger called after state mutations.
@@ -109,7 +140,11 @@ export function triggerAutoSave(): void {
   if (process.env.NODE_ENV === 'test') return;
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
-    saveStoreToFile();
+    // A persistence failure must be visible: the request has already returned
+    // success to the caller, so silence here means data loss nobody notices.
+    flushStore().catch(err => {
+      console.error('[ERROR] Failed to persist the database store:', err);
+    });
   }, 300);
 }
 

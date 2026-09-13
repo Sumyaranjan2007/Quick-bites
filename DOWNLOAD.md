@@ -54,8 +54,9 @@ anywhere:
 6. The customer watches the rider move on a live street map.
 7. The rider enters the customer's 4-digit doorstep OTP to complete delivery.
 
-Seeded data is rebuilt on every restart, so test orders do not survive a
-redeploy.
+Orders survive restarts and redeploys when the deployment has a Postgres
+database attached (`DATABASE_URL`). Without one it falls back to a local JSON
+file, which is fine for development and loses everything on a hosted restart.
 
 ## The apps need a backend
 
