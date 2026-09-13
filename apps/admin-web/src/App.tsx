@@ -14,7 +14,8 @@ import {
   Moon,
   Sun,
   LogOut,
-  UserCog
+  UserCog,
+  RotateCcw
 } from 'lucide-react';
 import { LoginGate } from './components/LoginGate';
 import { Overview } from './components/console/Overview';
@@ -23,6 +24,7 @@ import { MenuApprovals, DocumentReview } from './components/console/Approvals';
 import { RevenueSection, PaymentsSection, PayoutsSection } from './components/console/Finance';
 import { SupportSection, AccessSection } from './components/console/AccessAndSupport';
 import { ProfileSection } from './components/console/Profile';
+import { RefundsSection } from './components/console/Refunds';
 import { NoPermission, Loading, Failed } from './components/console/primitives';
 import { fetchAccess, can, type AdminAccess } from './lib/adminApi';
 import { clearSession, getSession } from './lib/session';
@@ -34,6 +36,7 @@ type SectionKey =
   | 'revenue'
   | 'payments'
   | 'payouts'
+  | 'refunds'
   | 'menus'
   | 'documents'
   | 'support'
@@ -63,6 +66,7 @@ const SECTIONS: SectionDef[] = [
   { key: 'revenue', label: 'Revenue', icon: IndianRupee, permissions: ['finance.revenue.view'], render: () => <RevenueSection /> },
   { key: 'payments', label: 'Payments', icon: CreditCard, permissions: ['finance.payments.view'], render: () => <PaymentsSection /> },
   { key: 'payouts', label: 'Driver payouts', icon: Wallet, permissions: ['finance.payouts.view'], render: () => <PayoutsSection /> },
+  { key: 'refunds', label: 'Returns & refunds', icon: RotateCcw, permissions: ['orders.refunds.handle', 'finance.refunds.manage', 'support.tickets.view'], render: () => <RefundsSection /> },
   { key: 'menus', label: 'Menu approvals', icon: UtensilsCrossed, permissions: ['catalog.menus.view', 'catalog.menus.review'], render: () => <MenuApprovals /> },
   { key: 'documents', label: 'Documents', icon: FileCheck, permissions: ['documents.view'], render: () => <DocumentReview /> },
   { key: 'support', label: 'Support', icon: LifeBuoy, permissions: ['support.tickets.view'], render: () => <SupportSection /> },
