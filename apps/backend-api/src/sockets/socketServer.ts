@@ -128,6 +128,21 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       socket.leave(`restaurant:${data.restaurantId}`);
     });
 
+    // Customers browsing a restaurant watch its menu here.
+    //
+    // Deliberately not the `restaurant:` room: that one carries whole order
+    // objects for every order the kitchen receives, so putting customers in it
+    // to deliver a menu ping would hand them other people's orders.
+    socket.on('join:menu', (data: { restaurantId: string }) => {
+      if (!data?.restaurantId) return;
+      socket.join(`menu:${data.restaurantId}`);
+    });
+
+    socket.on('leave:menu', (data: { restaurantId: string }) => {
+      if (!data?.restaurantId) return;
+      socket.leave(`menu:${data.restaurantId}`);
+    });
+
     socket.on('join:admin', () => {
       socket.join('admin:control_tower');
     });
@@ -335,11 +350,13 @@ export function emitKitchenStatus(
   ioInstance.to('admin:control_tower').emit('kitchen:status_update', payload);
 }
 
-/** Tells customers viewing this restaurant that its menu changed. */
+/** Tells the kitchen, and every customer browsing it, that a menu changed. */
 export function emitMenuUpdated(restaurantId: string): void {
   if (!ioInstance) return;
-  ioInstance.to(`restaurant:${restaurantId}`).emit('menu:updated', {
+  const payload = {
     restaurantId,
     updatedAt: new Date().toISOString()
-  });
+  };
+  ioInstance.to(`restaurant:${restaurantId}`).emit('menu:updated', payload);
+  ioInstance.to(`menu:${restaurantId}`).emit('menu:updated', payload);
 }

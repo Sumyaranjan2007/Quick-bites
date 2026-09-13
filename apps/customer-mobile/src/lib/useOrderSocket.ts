@@ -77,3 +77,43 @@ export function useOrderSocket(
 
   return { connected };
 }
+
+/**
+ * Watches one restaurant's menu while the customer is looking at it.
+ *
+ * A partner marking a dish sold out, or publishing a new one, used to be
+ * invisible until the customer backed out and reopened the restaurant — so
+ * people could add something to the cart that the kitchen had already pulled.
+ *
+ * This joins a menu-only room. The restaurant's own room carries whole order
+ * objects for every order it receives, so it must never be used for this.
+ */
+export function useMenuSocket(
+  restaurantId: string | undefined,
+  apiUrl: string | undefined,
+  token: string | undefined,
+  onMenuChanged: () => void
+) {
+  const changedRef = useRef(onMenuChanged);
+  changedRef.current = onMenuChanged;
+
+  useEffect(() => {
+    if (!restaurantId || !apiUrl) return;
+
+    const socket = io(socketOriginFrom(apiUrl), {
+      transports: ['websocket', 'polling'],
+      auth: token ? { token } : undefined,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
+    });
+
+    socket.on('connect', () => socket.emit('join:menu', { restaurantId }));
+    socket.on('menu:updated', () => changedRef.current());
+
+    return () => {
+      socket.emit('leave:menu', { restaurantId });
+      socket.removeAllListeners();
+      socket.disconnect();
+    };
+  }, [restaurantId, apiUrl, token]);
+}

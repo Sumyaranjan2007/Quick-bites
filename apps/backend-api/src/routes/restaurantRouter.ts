@@ -225,6 +225,11 @@ restaurantRouter.post('/:id/menu/toggle-stock', authMiddleware('restaurant_owner
     }
 
     await menuRepository.upsert(menu);
+
+    // Adding or editing a dish already announced itself; running out did not, so
+    // a customer could keep adding something the kitchen had just pulled.
+    emitMenuUpdated(req.params.id);
+
     return res.json({ success: true, message: 'Stock status updated successfully', data: { dishId, isAvailable } });
   } catch (err) {
     next(err);

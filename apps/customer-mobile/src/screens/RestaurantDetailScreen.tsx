@@ -13,6 +13,7 @@ import { Card, DietMark, RatingBadge, Button, EmptyState, LoadingState, Skeleton
 import { ArrowLeft, ShoppingBag, ShieldCheck, Heart, Share2, Timer, Tag } from 'lucide-react-native';
 import { RestaurantItem } from './DiscoveryFeedScreen';
 import { apiFetch } from '../lib/apiFetch';
+import { useMenuSocket } from '../lib/useOrderSocket';
 
 const c = tokens.colors;
 
@@ -118,6 +119,10 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   useEffect(() => {
     loadMenu();
   }, [restaurant.id]);
+
+  // Reload when the kitchen changes this menu, so a dish that has just sold out
+  // stops being addable while the customer is still on the page.
+  useMenuSocket(restaurant.id, apiUrl, token, () => { loadMenu(); });
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const categories = Array.from(new Set(dishes.map(d => d.categoryName).filter(Boolean))) as string[];

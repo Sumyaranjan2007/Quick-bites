@@ -239,6 +239,40 @@ async function run() {
   check('Order is recorded as delivered', final.json?.data?.order?.status === 'DELIVERED' || final.json?.data?.status === 'DELIVERED',
     JSON.stringify(final.json).slice(0, 200));
 
+  // --- 8. A menu change reaches a customer who is browsing that restaurant ---
+  const browsingSock = await connect(customer.token);
+  browsingSock.emit('join:menu', { restaurantId: RESTAURANT_ID });
+  await new Promise(r => setTimeout(r, 300));
+
+  // A customer in the menu room must not be able to see the kitchen's orders.
+  let leaked = false;
+  browsingSock.on('order:created', () => { leaked = true; });
+
+  const menuHeard = waitFor(browsingSock, 'menu:updated', 6000);
+  const soldOut = await api(`/restaurants/${RESTAURANT_ID}/menu/toggle-stock`, {
+    method: 'POST', body: { dishId: 'dish_ck_biryani', isAvailable: false }
+  }, partner.token);
+  check('Restaurant marks a dish sold out', soldOut.status === 200,
+    `status ${soldOut.status} ${JSON.stringify(soldOut.json).slice(0, 200)}`);
+  await menuHeard;
+  check('Customer browsing the restaurant is pushed the menu change', true);
+
+  // Place another order so something would be emitted to the kitchen's room.
+  await api('/orders', {
+    method: 'POST',
+    body: {
+      restaurantId: RESTAURANT_ID,
+      deliveryAddressId: 'addr_sample_01',
+      items: [{ dishId: 'dish_ck_biryani', quantity: 1, selectedOptions: [] }],
+      paymentMethod: 'CASH_ON_DELIVERY',
+      idempotencyKey: crypto.randomUUID(),
+      distanceKm: 3.2
+    }
+  }, customer.token);
+  await new Promise(r => setTimeout(r, 500));
+  check('Customers in the menu room are not shown other people\'s orders', !leaked);
+
+  browsingSock.close();
   customerSock.close(); partnerSock.close(); adminSock.close(); riderSock.close();
   closeSocketServer();
   server.close();
