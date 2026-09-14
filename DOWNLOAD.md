@@ -38,8 +38,10 @@ progress — and every one of them moves the moment a delivery is completed,
 cancelled or accepted, rather than being counted by the app and lost on restart.
 
 A trip offer now arrives as a full-screen card with a chime that repeats until it
-is answered and a vibration pattern, and as a notification carrying the same
-sound when the app is in the background. Accepting one shows the restaurant's
+is answered and a vibration pattern. Keep the app open while you are on shift:
+Android freezes a backgrounded app, so an offer that arrives while the app is
+buried behind something else is announced the moment you come back to it rather
+than at the time it was made. Accepting one shows the restaurant's
 address and coordinates, with a navigate and a call button for each leg of the
 trip, so a rider is routed to the kitchen and then to the door.
 

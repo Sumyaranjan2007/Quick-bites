@@ -47,6 +47,7 @@ import {
   startOrderAlert,
   stopOrderAlert
 } from './src/lib/orderAlert';
+import { startShiftService, stopShiftService } from './src/lib/shiftService';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
@@ -157,6 +158,7 @@ function DeliveryApp() {
       /* signing out locally still matters if the call fails */
     }
     await releaseOrderAlerts();
+    await stopShiftService();
     await clearSession();
     setToken(null);
     setUserId(null);
@@ -210,6 +212,18 @@ function DeliveryApp() {
       prepareOrderAlerts();
     }
   }, [token, loadDashboard]);
+
+  // A rider who was on shift when the app last closed is still on shift as far
+  // as dispatch is concerned, so the service that keeps them reachable has to
+  // come back with them.
+  useEffect(() => {
+    if (!token) return;
+    if (isOnline) startShiftService();
+    else stopShiftService();
+    // No alert here: this is the quiet path that restores the service for a
+    // rider who was already on shift when the app was last closed. The toggle
+    // is where a rider is told their phone cannot be reached in the background.
+  }, [token, isOnline]);
 
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
@@ -318,9 +332,19 @@ function DeliveryApp() {
       if (result.isOnline) {
         announcedOffers.current.clear();
         syncOffers({ announce: false });
+        // Without this the process is frozen the moment the rider pockets the
+        // phone, and the offer they were waiting for arrives in silence.
+        const held = await startShiftService();
+        if (!held) {
+          Alert.alert(
+            'Location is off',
+            'You are online, but Quick Bites can only alert you to new offers while the app is open. Allow location access to be told about work with the phone in your pocket.'
+          );
+        }
       } else {
         setOffers([]);
         dismissOffer();
+        await stopShiftService();
       }
       await loadDashboard({ silent: true });
     } catch (err: any) {
