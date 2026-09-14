@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { ChefHat, CheckCircle2 } from 'lucide-react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+import { ChefHat, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Button, Field, PasswordField, ErrorNote } from '../components/ui';
-import { login, createAccount, requestPasswordReset, resetPassword } from '../lib/partnerApi';
+import {
+  login,
+  createAccount,
+  requestPasswordReset,
+  resetPassword,
+  configureApi,
+  currentApiUrl,
+} from '../lib/partnerApi';
 
 interface Props {
   onSignedIn: (token: string, user: any) => void;
@@ -31,6 +38,12 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [registered, setRegistered] = useState(false);
+
+  // Which server this app talks to. The other three apps each expose this; the
+  // kitchen app did not, which left it the only one that could not be pointed at
+  // a staging or on-device backend for testing without rebuilding the APK.
+  const [showServer, setShowServer] = useState(false);
+  const [apiUrl, setApiUrl] = useState(currentApiUrl());
 
   // Password recovery. The code is delivered by the server; on a deployment
   // without a mail provider it comes straight back in the response, and this
@@ -331,6 +344,37 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             goes live.
           </Text>
         )}
+
+        <TouchableOpacity
+          onPress={() => setShowServer(v => !v)}
+          style={styles.serverToggle}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.serverToggleText}>Server settings</Text>
+          {showServer ? (
+            <ChevronUp size={14} color={c.textMuted} />
+          ) : (
+            <ChevronDown size={14} color={c.textMuted} />
+          )}
+        </TouchableOpacity>
+
+        {showServer && (
+          <TextInput
+            style={styles.serverInput}
+            value={apiUrl}
+            onChangeText={value => {
+              setApiUrl(value);
+              // Applied as it is typed so the next sign-in uses it; the token is
+              // cleared with it, because a token from one server is meaningless
+              // to another.
+              configureApi(value.trim(), '');
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="https://api.quickbites.app/api"
+            placeholderTextColor={c.textMuted}
+          />
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -362,6 +406,28 @@ const styles = StyleSheet.create({
   switchTabActive: { backgroundColor: c.border },
   switchText: { fontSize: 14, color: c.textMuted, fontWeight: '700' },
   switchTextActive: { color: c.brand },
+  serverToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  serverToggleText: {
+    color: c.textMuted,
+    fontSize: 13,
+  },
+  serverInput: {
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: c.text,
+    fontSize: 14,
+    marginTop: spacing.xs,
+  },
   legal: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: spacing.lg, lineHeight: 18 },
   linkRow: { alignItems: 'center', paddingVertical: spacing.lg },
   link: { color: c.brand, fontSize: 14, fontWeight: '700' },

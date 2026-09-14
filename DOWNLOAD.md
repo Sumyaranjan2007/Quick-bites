@@ -15,8 +15,11 @@ will not change under a tester when the apps are next rebuilt. Do not circulate
 `raw.githubusercontent.com/.../main/build/apk/...` links: those serve whatever is
 on `main` at the moment they are fetched.
 
-All four are version 1.2.0 (versionCode 5), signed with the Quick Bites upload
-keys, and built for `arm64-v8a` and `armeabi-v7a`.
+All four are version 1.2.1 (versionCode 6), signed with the Quick Bites upload
+keys. They are **universal** builds carrying `arm64-v8a`, `armeabi-v7a`, `x86`
+and `x86_64`, so the same file installs on a phone and in an emulator — which is
+what allows the exact binary that is published to be the one that was launch-
+tested, rather than a same-source rebuild.
 
 ### What is new in 1.2.0
 
@@ -113,8 +116,14 @@ file, which is fine for development and loses everything on a hosted restart.
 
 All four ship pointing at the hosted API. If that deployment is down or has no
 `JWT_SECRET` set, the apps will sign in with an error — the binaries are fine,
-the server is not. The customer app's **Server settings** on the sign-in screen
-can be pointed at any other instance, including one on your own machine.
+the server is not.
+
+The **partner, rider and operations** apps each have a **Server settings**
+control on their sign-in screen that can be pointed at another instance,
+including one on your own machine. The **customer** app deliberately does not:
+that picker is compiled out of release builds, because Play rejects consumer
+apps that look like test harnesses. A release customer build therefore talks
+only to the hosted API.
 
 A build can now actually reach a backend on your own machine: releases permit
 cleartext HTTP for `10.0.2.2`, `10.0.3.2` and `localhost` only, which is the

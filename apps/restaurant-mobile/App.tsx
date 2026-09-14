@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, Acti
 import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { c, radii, spacing } from './src/theme';
-import { configureApi, fetchOwnedRestaurant, setKitchenOpen } from './src/lib/partnerApi';
+import { configureApi, currentApiUrl, fetchOwnedRestaurant, setKitchenOpen } from './src/lib/partnerApi';
 import { useLiveUpdates } from './src/lib/useLiveUpdates';
 import { prepareOrderAlerts, releaseOrderAlerts, stopOrderAlert } from './src/lib/orderAlert';
 import { SignInScreen } from './src/screens/SignInScreen';
@@ -69,7 +69,11 @@ function PartnerApp() {
   }, []);
 
   const onSignedIn = async (nextToken: string, nextUser: any) => {
-    configureApi(DEFAULT_API_URL, nextToken);
+    // currentApiUrl(), not DEFAULT_API_URL: the sign-in screen's Server settings
+    // may have pointed this install at another backend, and forcing the default
+    // back here would send every authenticated call to a server the token is not
+    // valid for.
+    configureApi(currentApiUrl(), nextToken);
     setToken(nextToken);
     setUser(nextUser);
     await prepareOrderAlerts();
@@ -78,7 +82,7 @@ function PartnerApp() {
 
   const signOut = async () => {
     await releaseOrderAlerts();
-    configureApi(DEFAULT_API_URL, '');
+    configureApi(currentApiUrl(), '');
     setToken('');
     setUser(null);
     setRestaurant(null);
@@ -87,7 +91,7 @@ function PartnerApp() {
 
   const { connected } = useLiveUpdates(
     token && restaurant?.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
-    DEFAULT_API_URL,
+    currentApiUrl(),
     token,
     () => setRefreshSignal(n => n + 1)
   );
