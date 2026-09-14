@@ -951,7 +951,10 @@ order history while they were demonstrating it.
 **Feature/Issue:** Cut an immutable GitHub Release so tester download links are pinned to one verified build, document tester credentials outside the public repository, and run full end-to-end integration testing.
 **Status:** Completed
 **Release version:** `v1.2.0` — apps at version 1.2.0, versionCode 5
-**Tag / commit:** tag `v1.2.0` on commit `1e93fad`
+**Tag / commit:** tag `v1.2.0` on commit `79a379f` (the changelog commit written as part of this release; `1e93fad` is the last application-source commit it contains)
+**Release URL:** https://github.com/Sumyaranjan2007/Quick-bites/releases/tag/v1.2.0
+**Published state:** not a draft, not a prerelease; all four assets `state=uploaded`, each byte-for-byte the size of the local file, all four download URLs returning HTTP 200.
+**DOWNLOAD.md** was repointed at these release links in `570ef75`, so the repository no longer circulates `raw/main` URLs that move under a tester.
 
 **Frontend changes:** None. No application source was modified in this session.
 **Backend/API/database changes:** None.
