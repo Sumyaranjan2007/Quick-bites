@@ -901,6 +901,159 @@ order history while they were demonstrating it.
 
 ---
 
+## [2026-09-14 12:03] -- Claude Opus 5 -- Release Verification (1.2.0 / versionCode 5)
+**Feature/Issue:** Confirming the four Android apps are genuinely working before publishing the download links, rather than taking the build at its word.
+**Status:** Completed
+**Chunks Modified:** None — verification only, no source changed.
+
+**Frontend changes:** None.
+**Backend/API/database changes:** None.
+**Build/APK changes:** None built this session. Verified the existing 1.2.0 / versionCode 5 set produced by the parallel session.
+
+**Testing performed:**
+
+*Hosted API* — `https://quick-bites-production-9f45.up.railway.app/api`
+- `GET /health` -> 200, `status: HEALTHY`, `environment: production`, `demoMode: false`, database **UP** on Supabase PostgreSQL + PostGIS, uptime ~3h. **This closes the Session 19 blocker**, which recorded the hosted API returning 502 because Railway had no `JWT_SECRET` set. It is now booting and serving.
+- `GET /restaurants` -> 200 with live seed data on Kanakapura Main Road, Harohalli — the relocated service area from Session 18 is what the live API is actually serving.
+- `POST /auth/login` with a deliberately wrong password -> **401** `Invalid email or password`, not a 500 and not a leak of which half was wrong.
+
+*The four APKs* — every check run against the binaries in `build/apk/`, not against the source that produced them:
+- Hermes bytecode bundle present in all four (magic `c61fbc03`), 2.40–2.53 MB each.
+- ABIs exactly `arm64-v8a` + `armeabi-v7a` in all four — no x86 payload.
+- APK Signing Block (v2/v3) present in all four.
+- Each bundle points at the live hosted API URL.
+- **Zero occurrences of `pass123`** in any of the four bundles — the leak fixed in Session 20 has not regressed.
+- Sizes 26–29 MB.
+
+*Repository state* — working tree clean, `main` level with `origin/main`, nothing unpushed.
+
+*Suites* — `npm test` 6/6 suites pass; `npm run typecheck` 3/3 pass on a real uncached run (14.5s); `node scripts/diagnostics.js` 34/34 checks pass.
+
+*Download links* — all four public raw URLs fetched without credentials: HTTP 200, `Content-Length` byte-for-byte equal to the local file, and the first four bytes are `504b0304` (a real ZIP/APK header), confirming GitHub serves the actual binary rather than an HTML error page or a pointer file.
+
+**Result: pass on every check.**
+
+**Known issues / pending work:**
+- The APKs are served from `raw.githubusercontent.com` on `main`. That means **the link content changes whenever `build/apk/` is rebuilt and pushed** — there is no immutable versioned artifact. Anyone who needs a fixed 1.2.0 binary should be given a GitHub Release asset instead, which is pinned. Worth doing before these links go to real testers.
+- Signing certificate subjects could not be printed here: this machine has no Android SDK build-tools, so `apksigner --print-certs` was unavailable, and the APKs carry v2/v3 signatures only (no v1 `META-INF/*.RSA` block for `keytool` to read). The presence of the signing block is confirmed; the *identity* of the signer was verified at build time by the session that built them, per the Session 20 entry, not re-verified here.
+- Carried forward and still open: no online payment (cash on delivery only); the logo wordmark still reads "Quickbits" while the apps are named "Quick Bites"; Play Console / App Store Connect work still needs a human.
+- The hosted sign-in password is `SEED_DEFAULT_PASSWORD` from the deployment environment, not `pass123`. A tester handed a link without that password cannot sign in.
+
+**Decisions / dependencies / session conflicts:**
+- The parallel session's admin/rider/restaurant build-out — recorded as uncommitted earlier in this file — **has since landed and been pushed** (`12dd0e0`, `7add595`, `9a45a91`, `d4dd656`, `ac90912`, `f73cf24`, plus its own changelog entries). The earlier "UNCOMMITTED WORK IN TREE" entry above is left in place as the historical record it was at the time; it is now resolved and no longer a hazard.
+- Session numbering has diverged between the two concurrent sessions — both used Sessions 19, 20 and 21 for different work. Entries are ordered by timestamp; do not assume a session number is unique.
+
+**NEXT AI SHOULD:** Cut a GitHub Release for 1.2.0 and attach the four APKs, so the download links stop pointing at a moving branch. After that, a real end-to-end order against the hosted API from the installed apps — every check above is static or server-side, and Session 22 is the standing proof that only launching the apps catches a whole class of failure.
+
+---
+
+## [2026-09-14 12:11] -- Claude Opus 5 -- RELEASE v1.2.0 (immutable tester build)
+**Feature/Issue:** Cut an immutable GitHub Release so tester download links are pinned to one verified build, document tester credentials outside the public repository, and run full end-to-end integration testing.
+**Status:** Completed
+**Release version:** `v1.2.0` — apps at version 1.2.0, versionCode 5
+**Tag / commit:** tag `v1.2.0` on commit `1e93fad`
+
+**Frontend changes:** None. No application source was modified in this session.
+**Backend/API/database changes:** None.
+
+**Why a Release and not a branch link.** The previous download links pointed at
+`raw.githubusercontent.com/.../main/build/apk/...`. That path serves whatever is
+on `main` at the moment it is fetched, so every rebuild silently changed what a
+tester downloaded and two testers could report on different binaries while
+quoting the same URL. Release assets are attached to an immutable tag, so a link
+handed out today returns the same bytes next month.
+
+**APK details (all four attached to the release):**
+
+| App | Package | Size | SHA-256 |
+| --- | --- | --- | --- |
+| Customer | `com.quickbite.app` | 29,690,320 b | `32ed68b250a9634f6730aa8f889f176a57c0d50baee0395703088b47ed0acd84` |
+| Partner | `com.quickbite.partner` | 29,426,932 b | `b4c514d7821dff8da42da23c3d5cf50302813b58954b1030adef7d12c139ed88` |
+| Rider | `com.quickbite.rider` | 29,985,298 b | `b926317dd0973b4165655abfe51f38dd8d17976bcb37f7a9b6fdb7ea65254ce8` |
+| Admin | `com.quickbite.admin` | 27,602,239 b | `d110408fd4ec0723b2ce9aff532441c526a2acce740541ecb93b528a565d004b` |
+
+All four: Hermes bytecode (`c61fbc03`), ABIs exactly `arm64-v8a` + `armeabi-v7a`,
+APK Signing Block present, pointing at the hosted API, zero occurrences of
+`pass123` in the bundle.
+
+**Signing keys verified this session** — each app is signed with its own upload
+key, confirmed by reading the keystores at `~/.quickbites-upload-keys/`
+(outside the repository):
+`CN=Quick Bites, OU=customer|partner|rider|admin, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN`,
+certificate SHA-256 fingerprints recorded in the credentials file described below.
+This closes the gap noted in the previous entry, where signer identity could not
+be printed.
+
+**Testing performed:**
+
+*1. Full four-role end-to-end journey against a local API — 42/42 passed.* A real
+order driven over HTTP through every role: customer signs in, browses, places
+`QB-866409` (2 x Special Chicken Dum Biryani); the bill computes to **Rs 702.90**
+and **GST is exactly 5% of the items total** (32 on 640); the idempotency key is
+proven to block a duplicate order; partner accepts with a 20-minute promise, and a
+2-minute promise is refused; kitchen cooks and marks ready; rider goes on shift,
+claims the trip, is refused a wrong pickup code and accepted on the right one;
+GPS telemetry is accepted; a wrong doorstep OTP is refused and the correct one
+completes the delivery; the order reads `DELIVERED`; the customer rates it and
+cannot rate it twice; the order chat is readable by a party to the order; and the
+**rider's dashboard moves to `todayEarnings: 40`** as a result of the trip.
+Security assertions in the same run: an unassigned rider cannot read the order,
+the partner order list does not leak the doorstep OTP, and neither a customer nor
+a partner can reach the admin console.
+
+*2. Live hosted deployment — 14/14 passed.* Health `HEALTHY` in production with
+Supabase PostgreSQL + PostGIS **UP** and demo mode off; a new tester can register
+(and registration yields `customer`, never staff); the live catalogue serves the
+Harohalli service area; an address with map coordinates saves; and **a real order
+`QB-928894` (Rs 406.90) was placed against the live stack and read back from
+Postgres**. `pass123` is correctly refused on the hosted deployment (401).
+
+*3. Suites* — `npm test` 6/6 on a forced uncached run (29.0s); `npm run typecheck`
+3/3 uncached; `node scripts/diagnostics.js` 34/34.
+
+*4. Download links* — all four release asset URLs fetched without credentials.
+
+**Result: 42/42 local end-to-end, 14/14 hosted, 6/6 suites, 3/3 typecheck, 34/34 diagnostics. No failures.**
+
+**Tester credentials — where they live:**
+`~/.quickbites-release/TESTER-CREDENTIALS-v1.2.0.md`, mode 600, **outside the
+repository**, alongside the upload keystores. It carries the hosted URL, the
+customer self-registration route, the staff account list, the keystore
+fingerprints, and the list of environment secrets. **It is not committed and must
+never be** — this repository is public.
+
+**Known issues / pending work:**
+- **Staff apps cannot be handed to testers yet.** The partner, rider and admin
+  apps cannot self-register, so they need the seeded accounts, whose password is
+  `SEED_DEFAULT_PASSWORD` in the Railway environment. That value is not readable
+  from this machine (no Railway CLI, no access), and `pass123` is refused by the
+  hosted deployment. Until the owner sets that variable to a known 12+ character
+  value, redeploys, and records it in the credentials file, **only the customer
+  app is testable against the hosted API**. If the variable is currently unset the
+  server issues a random password and nobody can sign into those accounts at all.
+- `GET /riders/orders/broadcast` returned 200 with zero offers in the local run
+  even though the order was claimable and the claim succeeded a moment later.
+  Not a failure of the journey, but the offer list and the claim path disagree
+  about what a waiting rider should see; worth a look before riders test in bulk.
+- One throwaway customer account and one test order (`QB-928894`) now exist in the
+  production database from this verification. Harmless demo data, but it is real.
+- Carried forward: no online payment (cash on delivery only); the logo wordmark
+  still reads "Quickbits" while the apps are named "Quick Bites"; Play Console /
+  App Store Connect work still needs a human.
+
+**Decisions / dependencies / session conflicts:**
+- Tester links must now be given out as **release asset URLs**, not `raw`/`main`
+  URLs. The `main` links still work and still move; do not circulate them.
+- A future rebuild must cut a new tag (`v1.2.1`, `v1.3.0`) rather than replacing
+  assets on `v1.2.0`, or the immutability this entry exists to establish is lost.
+
+**NEXT AI SHOULD:** Wait for the owner to set `SEED_DEFAULT_PASSWORD`, then re-run
+the four-role journey against the **hosted** API rather than a local one — the
+42-check local run proves the code, not the deployment, and only the customer half
+of it has been proven against Railway.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.
