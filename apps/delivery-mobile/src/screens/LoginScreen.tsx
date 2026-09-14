@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import { SafeScreen } from '../components/SafeScreen';
 import {
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -89,7 +89,7 @@ export const LoginScreen: React.FC<{
   };
 
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeScreen style={s.screen}>
       <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
@@ -224,7 +224,7 @@ export const LoginScreen: React.FC<{
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </SafeScreen>
   );
 };
 

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   StatusBar
 } from 'react-native';
+import { SafeScreen } from './src/components/SafeScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { tokens } from './src/theme/tokens';
 import { Utensils, ShoppingBag, User } from 'lucide-react-native';
@@ -100,7 +100,7 @@ function AppRoot() {
   // If unauthenticated, present the Quick Bites Customer Login Screen
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeScreen style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
         <LoginScreen
           initialApiUrl={apiUrl}
@@ -111,14 +111,14 @@ function AppRoot() {
             setIsAuthenticated(true);
           }}
         />
-      </SafeAreaView>
+      </SafeScreen>
     );
   }
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeScreen style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
 
       {/* Primary Screen View */}
@@ -269,7 +269,7 @@ function AppRoot() {
           </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+    </SafeScreen>
   );
 }
 

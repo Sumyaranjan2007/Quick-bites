@@ -290,3 +290,16 @@ export function updateProfile(changes: { fullName?: string; phone?: string }) {
 export function signOut() {
   return request<{ loggedOut: boolean }>('/auth/logout', { method: 'POST' }, 'Could not sign out cleanly.');
 }
+
+// ---------------------------------------------------------------------------
+// Settlements
+// ---------------------------------------------------------------------------
+
+/** What the platform owes this kitchen, and what it has already transferred. */
+export function fetchSettlements(restaurantId: string) {
+  return request<{ summary: any; pendingOrders: any[]; history: any[] }>(
+    `/restaurants/${restaurantId}/settlements`,
+    {},
+    'Could not load your settlements.'
+  );
+}

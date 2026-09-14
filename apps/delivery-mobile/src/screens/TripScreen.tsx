@@ -17,7 +17,8 @@ import {
   Navigation,
   Phone,
   Store,
-  TriangleAlert
+  TriangleAlert,
+  MessageCircle
 } from 'lucide-react-native';
 import { t } from '../theme';
 import { Button, Card, EmptyState, Pill, Row, SectionTitle } from '../components/ui';
@@ -62,6 +63,10 @@ export const TripScreen: React.FC<{
   onGoOnline: () => void;
   onCompleteProfile: () => void;
   onSos: () => void;
+  /** Opens the conversation with this order's customer. */
+  onOpenChat: () => void;
+  /** Unread messages from the customer, badged on the chat control. */
+  unreadMessages?: number;
 }> = ({
   trip,
   offers,
@@ -78,6 +83,8 @@ export const TripScreen: React.FC<{
   onCancelTrip,
   onAcceptOffer,
   onDeclineOffer,
+  onOpenChat,
+  unreadMessages = 0,
   onGoOnline,
   onCompleteProfile,
   onSos
@@ -266,6 +273,16 @@ export const TripScreen: React.FC<{
             <TouchableOpacity style={s.callBtn} onPress={() => callNumber(trip.customerPhone)} activeOpacity={0.85}>
               <Phone size={18} color={t.color.text} />
             </TouchableOpacity>
+            {/* The customer app has always been able to message its rider. Until
+                this control existed those messages arrived nowhere. */}
+            <TouchableOpacity style={s.callBtn} onPress={onOpenChat} activeOpacity={0.85}>
+              <MessageCircle size={18} color={t.color.text} />
+              {unreadMessages > 0 ? (
+                <View style={s.chatBadge}>
+                  <Text style={s.chatBadgeText}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -395,6 +412,19 @@ export const TripScreen: React.FC<{
 };
 
 const s = StyleSheet.create({
+  chatBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: t.color.danger,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  chatBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
   content: { padding: t.space[4], paddingBottom: t.space[10] },
   stageBar: { flexDirection: 'row', alignItems: 'flex-start' },
   stageItem: { flex: 1, alignItems: 'center' },

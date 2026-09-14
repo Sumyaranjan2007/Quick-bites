@@ -172,6 +172,29 @@ export const api = {
     return request<RatingsResponse>(ctx, '/riders/ratings');
   },
 
+  /**
+   * What the platform owes this rider, and what it has already paid.
+   *
+   * The earnings screen could show what had been earned but never whether it had
+   * been settled; a rider could not answer "have I been paid for Tuesday?".
+   * Reads the same payout records the admin console drafts from.
+   */
+  settlements(ctx: ApiContext) {
+    return request<SettlementsResponse>(ctx, '/riders/settlements');
+  },
+
+  /** The conversation with the customer on the trip in hand. */
+  orderMessages(ctx: ApiContext, orderId: string) {
+    return request<{ messages: OrderMessage[] }>(ctx, `/orders/${orderId}/messages`);
+  },
+
+  sendOrderMessage(ctx: ApiContext, orderId: string, body: string) {
+    return request<{ message: OrderMessage }>(ctx, `/orders/${orderId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body })
+    });
+  },
+
   incentives(ctx: ApiContext) {
     return request<{ incentives: Incentive[]; earnedThisPeriod: number; nextTarget: Incentive | null }>(
       ctx,
@@ -440,4 +463,53 @@ export interface SosAlert {
   note?: string;
   status: string;
   raisedAt: string;
+}
+
+
+/** One message in the customer/rider conversation about an order. */
+export interface OrderMessage {
+  id: string;
+  orderId: string;
+  senderId: string;
+  senderRole: string;
+  senderName: string;
+  body: string;
+  sentAt: string;
+}
+
+export interface SettlementsResponse {
+  summary: {
+    tripsAllTime: number;
+    tripsAwaitingSettlement: number;
+    tripEarningsPending: number;
+    incentivesPending: number;
+    cashInHand: number;
+    netPending: number;
+    paidToDate: number;
+    lastSettledAt: string | null;
+  };
+  history: Array<{
+    id: string;
+    periodStart: string;
+    periodEnd: string;
+    tripsCompleted: number;
+    tripEarnings: number;
+    incentives: number;
+    bonuses: number;
+    deductions: number;
+    netAmount: number;
+    status: string;
+    createdAt: string;
+    paidAt?: string;
+    reference?: string;
+    note?: string;
+  }>;
+  pendingTrips: Array<{
+    orderId: string;
+    orderNumber: string;
+    deliveredAt: string;
+    earning: number;
+    paymentMethod: string;
+    cashCollected: number;
+  }>;
 }

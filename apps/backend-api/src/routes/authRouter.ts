@@ -11,6 +11,7 @@ import { validate } from '../middlewares/validate.ts';
 import { authRateLimiterMiddleware } from '../middlewares/rateLimiter.ts';
 import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
+import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 
 export const authRouter = Router();
@@ -44,7 +45,7 @@ const RegisterSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must be at most 128 characters'),
   fullName: z.string().min(1, 'Full name is required').max(120),
-  phone: z.string().max(20).optional(),
+  phone: phoneSchema,
   role: z.enum(SELF_SERVICE_ROLES).optional()
 });
 
@@ -89,7 +90,9 @@ authRouter.post('/register', authRateLimiterMiddleware, validate({ body: Registe
           fullName: user.fullName,
           phone: user.phone,
           role: user.role,
-          isGold: user.isGold
+          isGold: user.isGold,
+          avatarUrl: user.avatarUrl,
+          favouriteRestaurantIds: user.favouriteRestaurantIds || []
         },
         token: generateToken(user)
       }
@@ -137,7 +140,9 @@ authRouter.post('/login', authRateLimiterMiddleware, async (req, res) => {
           fullName: user.fullName,
           phone: user.phone,
           role: user.role,
-          isGold: user.isGold
+          isGold: user.isGold,
+          avatarUrl: user.avatarUrl,
+          favouriteRestaurantIds: user.favouriteRestaurantIds || []
         },
         token: generateToken(user)
       }
@@ -172,7 +177,7 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res) => {
 
 const UpdateProfileSchema = z.object({
   fullName: z.string().trim().min(1, 'Full name is required').max(120).optional(),
-  phone: z.string().trim().max(20).optional(),
+  phone: optionalPhoneSchema,
   preferredLanguage: z.enum(['en', 'hi', 'kn']).optional()
 });
 

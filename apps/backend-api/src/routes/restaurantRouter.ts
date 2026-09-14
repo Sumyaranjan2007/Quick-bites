@@ -5,6 +5,7 @@ import { restaurantRepository } from '../db/repositories/restaurantRepository.ts
 import { menuRepository } from '../db/repositories/menuRepository.ts';
 import { menuRequestRepository } from '../db/repositories/menuRequestRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { settlementRepository } from '../db/repositories/settlementRepository.ts';
 import { calculateDistanceKm } from '../db/client.ts';
 import { emitKitchenStatus, emitMenuUpdated, emitMenuRequestSubmitted } from '../sockets/socketServer.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
@@ -530,3 +531,59 @@ restaurantRouter.post(
     }
   }
 );
+
+/**
+ * GET /api/restaurants/:id/settlements — what the platform owes this kitchen.
+ *
+ * The partner app could show takings but never what had been paid across, so a
+ * restaurant had no way to reconcile the money it was owed against the money it
+ * had received. Reads the same settlement records the admin console writes.
+ */
+restaurantRouter.get('/:id/settlements', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    const restaurant = await assertOwnsRestaurant(req, req.params.id);
+    const delivered = (await orderRepository.listByRestaurantId(restaurant.id)).filter(
+      o => o.status === 'DELIVERED'
+    );
+    const unsettled = delivered.filter(o => !o.settlementId);
+
+    const COMMISSION_RATE = 0.15;
+    const lineOf = (order: any) => {
+      const grossSales = Number(order.bill?.itemsTotal) || 0;
+      const commission = Math.round(grossSales * COMMISSION_RATE * 100) / 100;
+      const tds = Math.round(commission * 0.01 * 100) / 100;
+      return {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        deliveredAt: order.deliveredAt || order.updatedAt,
+        grossSales,
+        commission,
+        tds,
+        net: Math.round((grossSales - commission - tds) * 100) / 100
+      };
+    };
+
+    const lines = unsettled.map(lineOf);
+    const history = await settlementRepository.list({ restaurantId: restaurant.id });
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          ordersAllTime: delivered.length,
+          ordersAwaitingSettlement: lines.length,
+          grossPending: Math.round(lines.reduce((t, l) => t + l.grossSales, 0) * 100) / 100,
+          commissionPending: Math.round(lines.reduce((t, l) => t + l.commission, 0) * 100) / 100,
+          tdsPending: Math.round(lines.reduce((t, l) => t + l.tds, 0) * 100) / 100,
+          netPending: Math.round(lines.reduce((t, l) => t + l.net, 0) * 100) / 100,
+          paidToDate: await settlementRepository.paidTotal(restaurant.id),
+          lastSettledAt: history.find(s => s.status === 'PAID')?.paidAt || null
+        },
+        pendingOrders: lines,
+        history
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});

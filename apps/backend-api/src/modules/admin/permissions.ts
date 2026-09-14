@@ -69,7 +69,7 @@ export const SYSTEM_ROLE_DEFINITIONS: Array<
   {
     key: 'finance_admin',
     name: 'Finance Admin',
-    description: 'Payments, refunds, revenue analytics and driver payouts.',
+    description: 'Payments, refunds, revenue analytics, driver payouts and restaurant settlements.',
     permissions: [
       'analytics.dashboard.view',
       'orders.view',
@@ -79,6 +79,8 @@ export const SYSTEM_ROLE_DEFINITIONS: Array<
       'finance.refunds.manage',
       'finance.payouts.view',
       'finance.payouts.manage',
+      'finance.settlements.view',
+      'finance.settlements.manage',
       'finance.reports.view',
       'orders.refunds.handle',
       'users.customers.view',

@@ -29,6 +29,18 @@ export interface UserProfile {
    * and rider, and on staff accounts provisioned before roles existed.
    */
   adminRoleId?: string;
+  /**
+   * Profile photo, held as a data URI because this platform has no object
+   * store. Absent means "show the initials", which is what every avatar did
+   * before a photo could be set at all.
+   */
+  avatarUrl?: string;
+  /**
+   * Restaurants the customer has saved. Kept on the account rather than in the
+   * screen's state so the list survives leaving the screen, signing out, and
+   * moving to another device.
+   */
+  favouriteRestaurantIds?: string[];
 }
 
 export type RestaurantStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
@@ -254,6 +266,11 @@ export interface Order {
   /** Set when this trip has been included in a rider settlement, so the next
    *  payout cannot pay for it a second time. */
   payoutId?: string;
+  /**
+   * Set when this order's restaurant share has been drafted into a settlement,
+   * so the next settlement run cannot pay for the same trading twice.
+   */
+  settlementId?: string;
 }
 
 /** How far along a claimed trip the rider is. */
@@ -427,6 +444,8 @@ export type AdminPermission =
   | 'finance.refunds.manage'
   | 'finance.payouts.view'
   | 'finance.payouts.manage'
+  | 'finance.settlements.view'
+  | 'finance.settlements.manage'
   | 'finance.reports.view'
   // Marketing
   | 'marketing.coupons.manage'
@@ -500,6 +519,8 @@ export const ADMIN_PERMISSION_GROUPS: Array<{
       { id: 'finance.refunds.manage', label: 'Manage refunds', description: 'Approve and execute refunds.' },
       { id: 'finance.payouts.view', label: 'View driver payouts', description: 'See what each driver is owed.' },
       { id: 'finance.payouts.manage', label: 'Process driver payouts', description: 'Mark a payout as paid.' },
+      { id: 'finance.settlements.view', label: 'View restaurant settlements', description: 'See what each restaurant is owed.' },
+      { id: 'finance.settlements.manage', label: 'Process restaurant settlements', description: 'Draft and pay a restaurant settlement.' },
       { id: 'finance.reports.view', label: 'View financial reports', description: 'Period summaries and exports.' }
     ]
   },
@@ -754,6 +775,40 @@ export type PayoutStatus = 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED';
  * than read from a running total, so a trip corrected after the fact is reflected
  * in what is actually paid.
  */
+/**
+ * A payment from the platform to a restaurant for a period of trading.
+ *
+ * Deliberately the same shape of record as a rider payout: amounts computed
+ * from delivered orders at the moment the settlement is drafted and then frozen,
+ * so the figure that was actually transferred survives later corrections to the
+ * underlying orders. A restaurant is owed the food value of what it sold, less
+ * the platform's commission and the tax withheld on it.
+ */
+export interface RestaurantSettlement {
+  id: string;
+  restaurantId: string;
+  restaurantName: string;
+  periodStart: string;
+  periodEnd: string;
+  ordersCount: number;
+  /** Food value of the settled orders, before any platform deduction. */
+  grossSales: number;
+  /** Platform commission on those orders. */
+  commission: number;
+  /** Tax withheld at source on the commission. */
+  tds: number;
+  /** Anything else withheld — refunds recovered, penalties, adjustments. */
+  adjustments: number;
+  /** What the restaurant is actually paid: gross less every deduction. */
+  netAmount: number;
+  status: PayoutStatus;
+  createdAt: string;
+  paidAt?: string;
+  processedByUserId?: string;
+  reference?: string;
+  note?: string;
+}
+
 export interface RiderPayout {
   id: string;
   riderId: string;

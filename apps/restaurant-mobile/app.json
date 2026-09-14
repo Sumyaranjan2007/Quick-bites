@@ -126,7 +126,8 @@
       ],
       "../../packages/config/expo-plugins/withReleaseSigning",
       "../../packages/config/expo-plugins/withArmOnlyAbis",
-      "../../packages/config/expo-plugins/withLocalDevCleartext"
+      "../../packages/config/expo-plugins/withLocalDevCleartext",
+      "../../packages/config/expo-plugins/withExternalAppQueries"
     ]
   }
 }

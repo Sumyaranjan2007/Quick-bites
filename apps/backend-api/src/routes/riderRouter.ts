@@ -7,6 +7,7 @@ import {
 } from '../db/repositories/riderRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
+import { payoutRepository } from '../db/repositories/payoutRepository.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
@@ -1137,6 +1138,73 @@ riderRouter.get('/sos', async (req, res, next) => {
     }
     alerts.sort((a, b) => new Date(b.raisedAt).getTime() - new Date(a.raisedAt).getTime());
     res.json({ success: true, data: { alerts } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/riders/settlements — what the platform owes this rider, and what it
+ * has already paid.
+ *
+ * The rider app could show earnings and a wallet balance, but nothing about
+ * settlement: a rider could see that they had earned money without being able to
+ * see whether it had been paid, when, or against which trips. The figures come
+ * from the same records the admin console drafts payouts from, so both sides are
+ * reading one ledger rather than two that can disagree.
+ */
+riderRouter.get('/settlements', async (req, res, next) => {
+  try {
+    const self = await requireRiderSelf(req);
+    const trips = (await orderRepository.listByRiderId(self.id)).filter(o => o.status === 'DELIVERED');
+    const unsettled = trips.filter(o => !o.payoutId);
+    const payouts = await payoutRepository.list({ riderId: self.id });
+
+    const pendingAmount = Math.round(unsettled.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100;
+    const paidToDate = await payoutRepository.paidTotal(self.id);
+
+    // Cash taken at the door belongs to the platform and is netted off the next
+    // payout. Showing it here is the difference between a rider understanding
+    // their settlement and being surprised by a deduction.
+    const cashInHand =
+      Math.round(
+        unsettled
+          .filter(o => o.paymentMethod === 'CASH_ON_DELIVERY')
+          .reduce((t, o) => t + (Number(o.bill?.totalAmount) || 0), 0) * 100
+      ) / 100;
+
+    const incentives = Array.from(memoryStore.riderIncentives.values()).filter(
+      (i: any) => i.riderId === self.id
+    );
+    const incentivesPending =
+      Math.round(incentives.filter((i: any) => !i.payoutId).reduce((t: number, i: any) => t + (i.amount || 0), 0) * 100) /
+      100;
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          tripsAllTime: trips.length,
+          tripsAwaitingSettlement: unsettled.length,
+          tripEarningsPending: pendingAmount,
+          incentivesPending,
+          cashInHand,
+          /** What a payout drafted right now would transfer. */
+          netPending: Math.round((pendingAmount + incentivesPending - cashInHand) * 100) / 100,
+          paidToDate,
+          lastSettledAt: payouts.find(p => p.status === 'PAID')?.paidAt || null
+        },
+        history: payouts,
+        pendingTrips: unsettled.map(o => ({
+          orderId: o.id,
+          orderNumber: o.orderNumber,
+          deliveredAt: o.deliveredAt || o.updatedAt,
+          earning: Number(o.riderPayout) || 0,
+          paymentMethod: o.paymentMethod,
+          cashCollected: o.paymentMethod === 'CASH_ON_DELIVERY' ? Number(o.bill?.totalAmount) || 0 : 0
+        }))
+      }
+    });
   } catch (err) {
     next(err);
   }

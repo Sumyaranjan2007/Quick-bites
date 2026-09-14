@@ -102,6 +102,42 @@ const CreateOrderSchema = z.object({
   distanceKm: z.number().positive().optional()
 });
 
+const QuoteOrderSchema = z.object({
+  restaurantId: z.string().min(1, 'Restaurant ID is required'),
+  deliveryAddressId: z.string().min(1).optional(),
+  items: z.array(z.object({
+    dishId: z.string().min(1),
+    quantity: z.number().int().positive(),
+    selectedOptions: z.array(z.object({
+      groupId: z.string(),
+      optionId: z.string()
+    })).optional()
+  })).min(1, 'Add at least one dish before pricing a basket'),
+  couponCode: z.string().optional(),
+  distanceKm: z.number().positive().optional()
+});
+
+/**
+ * POST /api/orders/quote — what this basket will actually cost.
+ *
+ * The cart screen calls this instead of pricing the order itself. It creates
+ * nothing and charges nothing; it exists so that the bill a customer agrees to
+ * and the bill the server writes are produced by the same code, from the same
+ * account record and the same promo campaign.
+ */
+orderRouter.post('/quote', authMiddleware('customer'), validate({ body: QuoteOrderSchema }), async (req, res, next) => {
+  try {
+    const quote = await orderService.quoteOrder({ ...req.body, customerId: req.user!.id });
+    res.json({
+      success: true,
+      data: quote,
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 orderRouter.post('/', authMiddleware('customer'), validate({ body: CreateOrderSchema }), async (req, res, next) => {
   try {
     const result = await orderService.createOrder({

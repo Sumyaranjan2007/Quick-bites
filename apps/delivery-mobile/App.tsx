@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { SafeScreen } from './src/components/SafeScreen';
+import { TripChat } from './src/components/TripChat';
+import { SettlementScreen } from './src/screens/SettlementScreen';
 import {
   ActivityIndicator,
   Alert,
   AppState,
   AppStateStatus,
   Platform,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Switch,
@@ -52,7 +54,7 @@ import { startShiftService, stopShiftService } from './src/lib/shiftService';
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
 type Tab = 'home' | 'trips' | 'earnings' | 'profile';
-type SubScreen = 'documents' | 'ratings' | 'incentives' | 'weekly' | 'safety' | 'policies';
+type SubScreen = 'documents' | 'ratings' | 'incentives' | 'weekly' | 'safety' | 'policies' | 'settlement';
 
 const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   documents: 'Documents & verification',
@@ -60,7 +62,8 @@ const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   incentives: 'Incentives & bonuses',
   weekly: 'Trips',
   safety: 'Safety & SOS',
-  policies: 'App policies'
+  policies: 'App policies',
+  settlement: 'Settlement & payments'
 };
 
 /** How often the app asks for work when websockets are not getting through. */
@@ -86,6 +89,7 @@ function DeliveryApp() {
   const [pendingOffer, setPendingOffer] = useState<Trip | null>(null);
   const [shiftSaving, setShiftSaving] = useState(false);
 
+  const [chatOpen, setChatOpen] = useState(false);
   const [telemetryCount, setTelemetryCount] = useState(0);
   const [locationDenied, setLocationDenied] = useState(false);
 
@@ -498,10 +502,10 @@ function DeliveryApp() {
 
   if (booting) {
     return (
-      <SafeAreaView style={s.boot}>
+      <SafeScreen style={s.boot}>
         <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
         <ActivityIndicator color={t.color.go} size="large" />
-      </SafeAreaView>
+      </SafeScreen>
     );
   }
 
@@ -556,6 +560,7 @@ function DeliveryApp() {
             onGoOnline={() => setShift(true)}
             onCompleteProfile={() => setSubScreen('documents')}
             onSos={() => setSubScreen('safety')}
+          onOpenChat={() => setChatOpen(true)}
           />
         );
       case 'earnings':
@@ -567,6 +572,7 @@ function DeliveryApp() {
             onOpenWeekly={() => setSubScreen('weekly')}
             onOpenIncentives={() => setSubScreen('incentives')}
             onOpenRatings={() => setSubScreen('ratings')}
+            onOpenSettlement={() => setSubScreen('settlement')}
           />
         );
       case 'profile':
@@ -601,13 +607,15 @@ function DeliveryApp() {
         return <SafetyScreen ctx={ctx} activeOrderId={activeTrip?.id} />;
       case 'policies':
         return <PoliciesScreen ctx={ctx} />;
+      case 'settlement':
+        return <SettlementScreen ctx={ctx} />;
       default:
         return null;
     }
   };
 
   return (
-    <SafeAreaView style={s.screen}>
+    <SafeScreen style={s.screen} edgeToEdge>
       <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
 
       {subScreen ? (
@@ -698,6 +706,16 @@ function DeliveryApp() {
         </View>
       ) : null}
 
+      <TripChat
+        visible={chatOpen}
+        onClose={() => setChatOpen(false)}
+        ctx={ctx}
+        orderId={activeTrip?.id}
+        customerName={activeTrip?.customerName}
+        canSend={Boolean(activeTrip)}
+        selfUserId={rider?.userId}
+      />
+
       <NewOrderModal
         trip={pendingOffer}
         busy={busy}
@@ -710,7 +728,7 @@ function DeliveryApp() {
           syncOffers({ announce: false });
         }}
       />
-    </SafeAreaView>
+    </SafeScreen>
   );
 }
 

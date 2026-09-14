@@ -21,6 +21,8 @@ export interface DbStore {
   menus: Map<string, any>;
   coupons: Map<string, any>;
   payouts: Map<string, any>;
+  /** Payments from the platform to restaurants for periods of trading. */
+  restaurantSettlements: Map<string, any>;
   riders: Map<string, any>;
   wallets: Map<string, any>;
   walletTransactions: Map<string, any>;
@@ -58,6 +60,7 @@ export const memoryStore: DbStore = {
   menus: new Map(),
   coupons: new Map(),
   payouts: new Map(),
+  restaurantSettlements: new Map(),
   riders: new Map(),
   wallets: new Map(),
   walletTransactions: new Map(),

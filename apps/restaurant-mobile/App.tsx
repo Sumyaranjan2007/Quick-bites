@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy } from 'lucide-react-native';
+import { View, Text, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { SafeScreen } from './src/components/SafeScreen';
+import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { c, radii, spacing } from './src/theme';
 import { configureApi, currentApiUrl, fetchOwnedRestaurant, setKitchenOpen } from './src/lib/partnerApi';
 import { useLiveUpdates } from './src/lib/useLiveUpdates';
 import { prepareOrderAlerts, releaseOrderAlerts, stopOrderAlert } from './src/lib/orderAlert';
 import { SignInScreen } from './src/screens/SignInScreen';
+import { SettlementsScreen } from './src/screens/SettlementsScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { LiveOrdersScreen } from './src/screens/LiveOrdersScreen';
 import { OrderHistoryScreen } from './src/screens/OrderHistoryScreen';
@@ -17,12 +19,13 @@ import { ErrorNote } from './src/components/ui';
 
 const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
 
-type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help';
+type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help' | 'settlements';
 
 const TABS: Array<{ key: Tab; label: string; icon: any }> = [
   { key: 'dashboard', label: 'Home', icon: LayoutDashboard },
   { key: 'orders', label: 'Orders', icon: Bell },
   { key: 'history', label: 'History', icon: History },
+  { key: 'settlements', label: 'Payouts', icon: Banknote },
   { key: 'menu', label: 'Menu', icon: Layers },
   { key: 'documents', label: 'Docs', icon: ShieldCheck },
   { key: 'help', label: 'Help', icon: LifeBuoy }
@@ -124,24 +127,24 @@ function PartnerApp() {
 
   if (!token) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeScreen style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={c.bg} />
         <SignInScreen onSignedIn={onSignedIn} />
-      </SafeAreaView>
+      </SafeScreen>
     );
   }
 
   if (loadingProfile) {
     return (
-      <SafeAreaView style={[styles.safe, styles.centre]}>
+      <SafeScreen style={[styles.safe, styles.centre]}>
         <ActivityIndicator color={c.brand} size="large" />
-      </SafeAreaView>
+      </SafeScreen>
     );
   }
 
   if (!restaurant) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeScreen style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={c.bg} />
         <View style={styles.blocked}>
           <ShieldCheck size={40} color={c.warning} />
@@ -151,14 +154,14 @@ function PartnerApp() {
             <Text style={styles.blockedBtnText}>Sign out</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </SafeScreen>
     );
   }
 
   const open = Boolean(restaurant.isOpen);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeScreen style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={c.bg} />
 
       <View style={styles.topBar}>
@@ -207,6 +210,9 @@ function PartnerApp() {
           />
         )}
         {tab === 'history' && <OrderHistoryScreen restaurantId={restaurant.id} />}
+        {tab === 'settlements' && (
+          <SettlementsScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />
+        )}
         {tab === 'menu' && <MenuScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
         {tab === 'documents' && <DocumentsScreen restaurantId={restaurant.id} />}
         {tab === 'help' && (
@@ -219,7 +225,12 @@ function PartnerApp() {
         )}
       </View>
 
-      <View style={styles.tabBar}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabBar}
+        contentContainerStyle={styles.tabBarContent}
+      >
         {TABS.map(t => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -230,8 +241,8 @@ function PartnerApp() {
             </TouchableOpacity>
           );
         })}
-      </View>
-    </SafeAreaView>
+      </ScrollView>
+    </SafeScreen>
   );
 }
 
@@ -274,13 +285,18 @@ const styles = StyleSheet.create({
   kitchenToggleText: { fontSize: 13, fontWeight: '800', color: c.textSoft },
   body: { flex: 1 },
   tabBar: {
-    flexDirection: 'row',
+    flexGrow: 0,
     backgroundColor: c.surface,
     borderTopWidth: 1,
-    borderTopColor: c.border,
-    paddingVertical: spacing.sm
+    borderTopColor: c.border
   },
-  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 6, gap: 3 },
+  tabBarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm
+  },
+  tabItem: { minWidth: 68, alignItems: 'center', paddingVertical: 6, paddingHorizontal: 6, gap: 3 },
   tabLabel: { fontSize: 10, color: c.textMuted, fontWeight: '700' },
   tabLabelActive: { color: c.brand },
   blocked: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl },

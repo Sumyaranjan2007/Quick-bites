@@ -12,6 +12,8 @@ import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { refundRepository } from '../../db/repositories/refundRepository.ts';
 import { payoutRepository } from '../../db/repositories/payoutRepository.ts';
+import { settlementRepository } from '../../db/repositories/settlementRepository.ts';
+import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { emitOrderStatusUpdate } from '../../sockets/socketServer.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { economicsOf, revenueSeries, revenueForPeriod, istDayStart } from '../../modules/admin/analytics.ts';
@@ -637,3 +639,262 @@ financeRoutes.get('/reports/financial', requirePermission('finance.reports.view'
     next(err);
   }
 });
+
+/* -------------------------- Restaurant settlements -------------------------- */
+
+/**
+ * Orders a restaurant has delivered that no settlement has covered yet.
+ *
+ * Cancelled orders are excluded by the status check; a refunded order is not,
+ * because the money it returns to the customer is recovered through the
+ * `adjustments` field rather than by pretending the trading never happened.
+ */
+async function unsettledOrdersFor(restaurantId: string): Promise<Order[]> {
+  const orders = await orderRepository.listByRestaurantId(restaurantId);
+  return orders.filter(o => o.status === 'DELIVERED' && !o.settlementId);
+}
+
+/** What a restaurant is owed for one order, using the same split as analytics. */
+function restaurantShareOf(order: Order) {
+  const economics = economicsOf(order);
+  const grossSales = Number(order.bill?.itemsTotal) || 0;
+  const commission = economics.commission;
+  const tds = Math.round(commission * 0.01 * 100) / 100;
+  return { grossSales, commission, tds, net: Math.round((grossSales - commission - tds) * 100) / 100 };
+}
+
+/**
+ * GET /api/admin/settlements
+ *
+ * One row per restaurant: earned, already paid, outstanding, and the history.
+ * The shape deliberately matches `/payouts` so the console can present paying a
+ * kitchen and paying a rider as the same job.
+ */
+financeRoutes.get('/settlements', requirePermission('finance.settlements.view'), async (req, res, next) => {
+  try {
+    const { q } = req.query as Record<string, string>;
+    const restaurants = await restaurantRepository.listAll();
+
+    let rows = await Promise.all(
+      restaurants.map(async restaurant => {
+        const unsettled = await unsettledOrdersFor(restaurant.id);
+        const shares = unsettled.map(restaurantShareOf);
+        const pending = Math.round(shares.reduce((t, s) => t + s.net, 0) * 100) / 100;
+        const allDelivered = (await orderRepository.listByRestaurantId(restaurant.id)).filter(
+          o => o.status === 'DELIVERED'
+        );
+        return {
+          restaurantId: restaurant.id,
+          restaurantName: restaurant.name,
+          phone: restaurant.phone,
+          city: restaurant.city,
+          ordersAllTime: allDelivered.length,
+          ordersPending: unsettled.length,
+          grossPending: Math.round(shares.reduce((t, s) => t + s.grossSales, 0) * 100) / 100,
+          commissionPending: Math.round(shares.reduce((t, s) => t + s.commission, 0) * 100) / 100,
+          pendingAmount: pending,
+          paidToDate: await settlementRepository.paidTotal(restaurant.id),
+          settlements: await settlementRepository.list({ restaurantId: restaurant.id })
+        };
+      })
+    );
+
+    if (q) rows = rows.filter(r => matchesQuery(q, r.restaurantName, r.restaurantId, r.phone, r.city));
+    rows.sort((a, b) => b.pendingAmount - a.pendingAmount);
+
+    res.json({
+      success: true,
+      data: {
+        settlements: rows,
+        totals: {
+          pending: Math.round(rows.reduce((t, r) => t + r.pendingAmount, 0) * 100) / 100,
+          paid: Math.round(rows.reduce((t, r) => t + r.paidToDate, 0) * 100) / 100
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/settlements/:restaurantId — the detailed breakdown.
+ *
+ * Every order that makes up the outstanding figure, so an administrator paying a
+ * restaurant can see what they are paying for rather than being asked to trust
+ * a total.
+ */
+financeRoutes.get(
+  '/settlements/:restaurantId',
+  requirePermission('finance.settlements.view'),
+  async (req, res, next) => {
+    try {
+      const restaurant = await restaurantRepository.findById(req.params.restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+
+      const unsettled = await unsettledOrdersFor(restaurant.id);
+      const lines = unsettled.map(order => {
+        const share = restaurantShareOf(order);
+        return {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          deliveredAt: order.deliveredAt || order.updatedAt,
+          grossSales: share.grossSales,
+          commission: share.commission,
+          tds: share.tds,
+          net: share.net
+        };
+      });
+
+      res.json({
+        success: true,
+        data: {
+          restaurant: { id: restaurant.id, name: restaurant.name, phone: restaurant.phone, city: restaurant.city },
+          pending: {
+            orders: lines.length,
+            grossSales: Math.round(lines.reduce((t, l) => t + l.grossSales, 0) * 100) / 100,
+            commission: Math.round(lines.reduce((t, l) => t + l.commission, 0) * 100) / 100,
+            tds: Math.round(lines.reduce((t, l) => t + l.tds, 0) * 100) / 100,
+            netAmount: Math.round(lines.reduce((t, l) => t + l.net, 0) * 100) / 100
+          },
+          lines,
+          history: await settlementRepository.list({ restaurantId: restaurant.id }),
+          paidToDate: await settlementRepository.paidTotal(restaurant.id)
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const DraftSettlementSchema = z.object({
+  restaurantId: z.string().min(1),
+  adjustments: z.number().min(0).optional(),
+  note: z.string().trim().max(400).optional()
+});
+
+/**
+ * POST /api/admin/settlements — draft a settlement for everything outstanding.
+ *
+ * The orders are stamped with the settlement id in the same step, so a second
+ * run cannot pay for the same trading again. A settlement that later fails
+ * releases them.
+ */
+financeRoutes.post(
+  '/settlements',
+  requirePermission('finance.settlements.manage'),
+  validate({ body: DraftSettlementSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await restaurantRepository.findById(req.body.restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+
+      const orders = await unsettledOrdersFor(restaurant.id);
+      if (!orders.length) {
+        throw new AppError('There is nothing outstanding for this restaurant.', 409, 'NOTHING_TO_SETTLE');
+      }
+
+      const shares = orders.map(restaurantShareOf);
+      const grossSales = Math.round(shares.reduce((t, s) => t + s.grossSales, 0) * 100) / 100;
+      const commission = Math.round(shares.reduce((t, s) => t + s.commission, 0) * 100) / 100;
+      const tds = Math.round(shares.reduce((t, s) => t + s.tds, 0) * 100) / 100;
+      const adjustments = Number(req.body.adjustments) || 0;
+      const netAmount = Math.round((grossSales - commission - tds - adjustments) * 100) / 100;
+
+      if (netAmount < 0) {
+        throw new AppError('Deductions exceed the amount outstanding.', 400, 'NEGATIVE_SETTLEMENT');
+      }
+
+      const timestamps = orders
+        .map(o => new Date(o.deliveredAt || o.updatedAt || o.createdAt).getTime())
+        .filter(t => Number.isFinite(t));
+
+      const settlement = await settlementRepository.create({
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        periodStart: new Date(Math.min(...timestamps)).toISOString(),
+        periodEnd: new Date(Math.max(...timestamps)).toISOString(),
+        ordersCount: orders.length,
+        grossSales,
+        commission,
+        tds,
+        adjustments,
+        netAmount,
+        note: req.body.note
+      });
+
+      for (const order of orders) {
+        order.settlementId = settlement.id;
+      }
+      triggerAutoSave();
+
+      await recordAudit(req, {
+        action: 'SETTLEMENT_DRAFTED',
+        entityType: 'RESTAURANT_SETTLEMENT',
+        entityId: settlement.id,
+        summary: `Drafted a settlement of Rs ${netAmount} for ${restaurant.name} covering ${orders.length} order(s)`,
+        after: settlement
+      });
+
+      res.status(201).json({ success: true, data: { settlement } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const SettlementStatusSchema = z.object({
+  status: z.enum(['PENDING', 'PROCESSING', 'PAID', 'FAILED']),
+  reference: z.string().trim().max(80).optional(),
+  note: z.string().trim().max(400).optional()
+});
+
+/**
+ * POST /api/admin/settlements/:id/status
+ *
+ * A FAILED settlement releases its orders so the next draft picks them up again;
+ * without that, a bank transfer that bounced would quietly write the money off.
+ */
+financeRoutes.post(
+  '/settlements/:id/status',
+  requirePermission('finance.settlements.manage'),
+  validate({ body: SettlementStatusSchema }),
+  async (req, res, next) => {
+    try {
+      const existing = await settlementRepository.findById(req.params.id);
+      if (!existing) throw new AppError('Settlement not found.', 404, 'SETTLEMENT_NOT_FOUND');
+      if (existing.status === 'PAID' && req.body.status !== 'PAID') {
+        throw new AppError('A settlement that has been paid cannot be reopened.', 409, 'SETTLEMENT_ALREADY_PAID');
+      }
+
+      const settlement = await settlementRepository.setStatus(
+        req.params.id,
+        req.body.status,
+        { userId: req.user!.id },
+        { reference: req.body.reference, note: req.body.note }
+      );
+
+      if (req.body.status === 'FAILED') {
+        const orders = await orderRepository.listByRestaurantId(existing.restaurantId);
+        for (const order of orders) {
+          if (order.settlementId === existing.id) delete (order as any).settlementId;
+        }
+        triggerAutoSave();
+      }
+
+      await recordAudit(req, {
+        action: 'SETTLEMENT_STATUS_CHANGED',
+        entityType: 'RESTAURANT_SETTLEMENT',
+        entityId: existing.id,
+        summary: `Marked ${existing.restaurantName}'s settlement of Rs ${existing.netAmount} as ${req.body.status}`,
+        before: existing,
+        after: settlement
+      });
+
+      res.json({ success: true, data: { settlement } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

@@ -32,19 +32,31 @@ export async function openDirections(destination: Destination | undefined, fallb
     candidates.push(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fallbackQuery)}`);
   }
 
-  for (const url of candidates) {
+  for (let i = 0; i < candidates.length; i++) {
+    const url = candidates[i];
+    const isLastResort = i === candidates.length - 1;
+
+    // `canOpenURL` is only a hint, and on Android 11+ a misleading one: it
+    // answers false for any scheme the manifest has not declared in <queries>,
+    // whether or not a handler is installed. Gating on it is what produced
+    // "No maps app" on phones with Google Maps plainly working. A true answer
+    // still saves a pointless throw, so it is consulted — but a false answer on
+    // the final candidate is overruled rather than believed.
+    const supported = await Linking.canOpenURL(url).catch(() => false);
+    if (!supported && !isLastResort) continue;
+
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-        return;
-      }
+      await Linking.openURL(url);
+      return;
     } catch {
-      // Try the next candidate.
+      // Genuinely unhandled. Fall through to the next candidate.
     }
   }
 
-  Alert.alert('No maps app', `Could not open a maps app for ${label}.`);
+  Alert.alert(
+    'Could not open a map',
+    `No app on this phone offered to show ${label}. Install Google Maps, or open the address manually.`
+  );
 }
 
 export async function callNumber(phone?: string): Promise<void> {
@@ -52,6 +64,8 @@ export async function callNumber(phone?: string): Promise<void> {
     Alert.alert('No number', 'No phone number is on file for this contact.');
     return;
   }
+  // Dialled without a `canOpenURL` gate for the same reason as above: every
+  // phone has a dialler, and asking first is what made this fail on Android 11+.
   const url = `tel:${phone.replace(/[^\d+]/g, '')}`;
   try {
     await Linking.openURL(url);

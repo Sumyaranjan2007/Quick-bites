@@ -30,7 +30,158 @@ export interface CreateOrderInput {
   distanceKm?: number;
 }
 
+export interface QuoteOrderInput {
+  customerId: string;
+  restaurantId: string;
+  deliveryAddressId?: string;
+  items: Array<{
+    dishId: string;
+    quantity: number;
+    selectedOptions?: Array<{ groupId: string; optionId: string }>;
+  }>;
+  couponCode?: string;
+  distanceKm?: number;
+}
+
 export const orderService = {
+  /**
+   * Prices a basket exactly the way checkout will, without creating anything.
+   *
+   * The cart used to compute its own bill: it hardcoded the two seeded promo
+   * codes, assumed every shopper held a Gold subscription, and guessed the
+   * packaging fee and the trip distance. So an administrator could create a
+   * perfectly valid coupon and the app would still answer "not a valid coupon",
+   * because it had never asked; and a customer without Gold was shown a waived
+   * delivery fee and then charged for it, because the server priced the order
+   * from the real account while the screen priced it from a guess.
+   *
+   * There is now one pricing authority and the cart reads from it. Anything the
+   * quote cannot honour comes back as `couponError` — a sentence to show the
+   * customer — rather than as a thrown error, because an unusable promo code
+   * should not stop someone ordering their food.
+   */
+  async quoteOrder(input: QuoteOrderInput) {
+    const restaurant = await restaurantRepository.findById(input.restaurantId);
+    if (!restaurant) {
+      throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+    }
+
+    const customer = await userRepository.findById(input.customerId);
+    if (!customer) {
+      throw new AppError('Customer account not found.', 404, 'CUSTOMER_NOT_FOUND');
+    }
+
+    const menu = await menuRepository.findByRestaurantId(input.restaurantId);
+    if (!menu) {
+      throw new AppError('Restaurant menu not found.', 404, 'MENU_NOT_FOUND');
+    }
+
+    const allDishes = new Map<string, any>();
+    for (const cat of menu.categories) {
+      for (const dish of cat.items) allDishes.set(dish.id, dish);
+    }
+
+    const pricedItems: Array<{
+      dishId: string;
+      name: string;
+      unitPrice: number;
+      quantity: number;
+      addonsTotal: number;
+      totalPrice: number;
+      isAvailable: boolean;
+    }> = [];
+
+    for (const reqItem of input.items) {
+      const dish = allDishes.get(reqItem.dishId);
+      if (!dish) {
+        throw new AppError(`Dish ID ${reqItem.dishId} does not exist in this restaurant menu.`, 400, 'INVALID_DISH_ID');
+      }
+      let addonsTotal = 0;
+      if (reqItem.selectedOptions && dish.optionGroups) {
+        for (const sel of reqItem.selectedOptions) {
+          const group = dish.optionGroups.find((g: any) => g.id === sel.groupId);
+          const opt = group?.options.find((o: any) => o.id === sel.optionId);
+          if (opt) addonsTotal += opt.priceDelta;
+        }
+      }
+      pricedItems.push({
+        dishId: dish.id,
+        name: dish.name,
+        unitPrice: dish.price,
+        quantity: reqItem.quantity,
+        addonsTotal,
+        totalPrice: Math.round((dish.price + addonsTotal) * reqItem.quantity * 100) / 100,
+        // Reported rather than refused: the cart should be able to show which
+        // line went out of stock while it was open, not just fail to price.
+        isAvailable: Boolean(dish.isAvailable)
+      });
+    }
+
+    // The same distance rule checkout uses, so the delivery fee quoted is the
+    // delivery fee charged. Without a chosen address there is no second point to
+    // measure to, and the client's estimate stands in.
+    let address = null;
+    if (input.deliveryAddressId) {
+      address = await addressRepository.findById(input.deliveryAddressId);
+      if (address && address.userId !== input.customerId) address = null;
+    }
+    const measuredDistanceKm =
+      restaurant.coordinates && address?.coordinates
+        ? calculateDistanceKm(
+            restaurant.coordinates.latitude,
+            restaurant.coordinates.longitude,
+            address.coordinates.latitude,
+            address.coordinates.longitude
+          )
+        : undefined;
+    const tripDistanceKm = measuredDistanceKm ?? input.distanceKm ?? 3.5;
+
+    let validatedCoupon = undefined;
+    let couponError: string | undefined;
+    let appliedCode: string | undefined;
+    if (input.couponCode && String(input.couponCode).trim()) {
+      const rawSubtotal = pricedItems.reduce((sum, i) => sum + i.totalPrice, 0);
+      const check = couponService.validateCoupon(input.couponCode, rawSubtotal, {
+        customerId: input.customerId,
+        restaurantId: input.restaurantId
+      });
+      if (check.valid) {
+        validatedCoupon = {
+          discountType: check.discountType!,
+          discountValue: check.discountValue!,
+          maxDiscountCap: check.maxDiscountCap,
+          minOrderValue: check.minOrderValue
+        };
+        appliedCode = String(input.couponCode).trim().toUpperCase();
+      } else {
+        couponError = check.reason || 'That coupon cannot be used on this order.';
+      }
+    }
+
+    const bill = calculateOrderPricing({
+      items: pricedItems.map(i => ({
+        unitPrice: i.unitPrice,
+        quantity: i.quantity,
+        addonsTotal: i.addonsTotal
+      })),
+      packagingFee: Number(restaurant.packagingFee),
+      distanceKm: tripDistanceKm,
+      isGold: customer.isGold,
+      coupon: validatedCoupon
+    });
+
+    return {
+      bill,
+      items: pricedItems,
+      distanceKm: tripDistanceKm,
+      isGold: Boolean(customer.isGold),
+      appliedCouponCode: appliedCode,
+      couponError,
+      restaurantIsOpen: restaurant.isOpen !== false && restaurant.status === 'ACTIVE',
+      unavailableItems: pricedItems.filter(i => !i.isAvailable).map(i => i.name)
+    };
+  },
+
   async createOrder(input: CreateOrderInput) {
     // 1. Check Idempotency Key (Rule 44 & 45)
     const existing = await orderRepository.findByIdempotencyKey(input.idempotencyKey);
