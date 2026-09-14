@@ -32,8 +32,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   // credentials and the server picker exist only in development.
   const [email, setEmail] = useState(__DEV__ ? 'customer@quickbite.app' : '');
   const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
-  const [fullName, setFullName] = useState('Rahul Sharma');
-  const [phone, setPhone] = useState('9876543210');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   // Field-level problems returned by the server, shown under the field they
@@ -71,8 +71,15 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
       if (data.data?.resetCode) {
         setResetCode(String(data.data.resetCode));
         setNotice(`Your reset code is ${data.data.resetCode}. It expires in ${data.data.expiresInMinutes} minutes.`);
-      } else {
+      } else if (data.data?.emailDeliveryConfigured) {
         setNotice('If that address is on an account, a reset code has been sent to it.');
+      } else {
+        // Saying "check your email" when nothing was sent is what made this
+        // flow look broken: the code exists, but this deployment has no mail
+        // provider, so it has to be obtained from support.
+        setNotice(
+          'A reset code has been generated for that address, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.'
+        );
       }
       setRecovery('code');
     } catch {
@@ -218,7 +225,11 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                 <TextInput
                   style={styles.input}
                   value={phone}
-                  onChangeText={setPhone}
+                  // Ten digits is the whole of an Indian mobile number; the
+                  // field used to accept twenty characters of anything, so an
+                  // account could be saved with a number nobody could ring.
+                  onChangeText={v => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
+                  maxLength={10}
                   placeholder="10-digit mobile"
                   placeholderTextColor={c.text.muted}
                   keyboardType="phone-pad"

@@ -71,8 +71,12 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
     if (res.data?.resetCode) {
       setResetCode(String(res.data.resetCode));
       setNotice(`Your reset code is ${res.data.resetCode}. It expires in ${res.data.expiresInMinutes} minutes.`);
-    } else {
+    } else if (res.data?.emailDeliveryConfigured) {
       setNotice('If that address is on an account, a reset code has been sent to it.');
+    } else {
+      // Telling someone to check an inbox nothing was sent to is what made
+      // recovery look broken rather than unconfigured.
+      setNotice('A reset code has been generated, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.');
     }
     setMode('reset');
   };

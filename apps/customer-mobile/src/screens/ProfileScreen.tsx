@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Switch,
   Modal,
+  Image,
   ActivityIndicator
 } from 'react-native';
 import {
@@ -24,12 +25,14 @@ import {
   LogOut,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  Camera
 } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
+import { chooseProfilePhoto } from '../lib/photo';
 import { useTranslation, LANGUAGES, Language } from '../lib/i18n';
 
 const c = tokens.colors;
@@ -38,6 +41,8 @@ interface Props {
   onBack: () => void;
   onOpenOrders: () => void;
   onOpenSupport: () => void;
+  onOpenWallet: () => void;
+  onOpenAddresses: () => void;
   apiUrl?: string;
   token?: string;
   user?: any;
@@ -60,6 +65,8 @@ export const ProfileScreen: React.FC<Props> = ({
   onBack,
   onOpenOrders,
   onOpenSupport,
+  onOpenWallet,
+  onOpenAddresses,
   apiUrl,
   token,
   user,
@@ -72,6 +79,37 @@ export const ProfileScreen: React.FC<Props> = ({
 
   const [addresses, setAddresses] = useState<any[] | null>(null);
   const [wallet, setWallet] = useState<number | null>(null);
+
+  // The profile showed initials and offered no way to change them. A photo is
+  // held on the account as a data URI and sent through the customer router.
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const changeAvatar = async () => {
+    if (!apiUrl || !token) return;
+    const dataUri = await chooseProfilePhoto();
+    if (!dataUri) return;
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      const res = await apiFetch(`${apiUrl}/customers/avatar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarUrl: dataUri })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(
+          data?.error?.details?.[0]?.message || data?.error?.message || 'That photo could not be saved.'
+        );
+      }
+      onUserUpdated?.({ ...(user || {}), avatarUrl: data.data?.avatarUrl || dataUri });
+    } catch (err: any) {
+      setAvatarError(err?.message || 'That photo could not be saved.');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const [editOpen, setEditOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -257,9 +295,26 @@ export const ProfileScreen: React.FC<Props> = ({
 
       {/* Identity */}
       <Card style={styles.identity}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={changeAvatar}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Change your profile photo"
+        >
+          {user?.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{initials}</Text>
+          )}
+          <View style={styles.avatarBadge}>
+            {avatarBusy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Camera size={11} color="#FFFFFF" />
+            )}
+          </View>
+        </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 14 }}>
           <View style={styles.nameRow}>
             <Text style={styles.name} numberOfLines={1}>
@@ -302,6 +357,7 @@ export const ProfileScreen: React.FC<Props> = ({
           icon={<Wallet size={18} color={c.dietary.gold} />}
           title={t('profile.wallet')}
           sub={wallet !== null ? `₹${wallet.toFixed(2)} available` : 'Balance and refunds'}
+          onPress={onOpenWallet}
           last
         />
       </Card>
@@ -325,6 +381,7 @@ export const ProfileScreen: React.FC<Props> = ({
                 ? 'Loading…'
                 : 'No saved addresses yet'
           }
+          onPress={onOpenAddresses}
           last
         />
       </Card>
@@ -549,6 +606,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   avatarText: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 999 },
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: c.primary[500],
+    borderWidth: 2,
+    borderColor: c.surface.card,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  avatarErrorText: { color: c.semantic.error, fontSize: 11, marginTop: 6 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   name: { fontSize: 17, fontWeight: '800', color: c.text.primary, flexShrink: 1 },
   goldChip: {

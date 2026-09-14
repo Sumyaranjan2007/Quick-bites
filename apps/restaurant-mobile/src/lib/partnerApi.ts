@@ -249,7 +249,7 @@ export function fetchSupportTickets() {
 // ---------------------------------------------------------------------------
 
 export function requestPasswordReset(email: string) {
-  return request<{ sent: boolean; resetCode?: string; expiresInMinutes: number }>(
+  return request<{ sent: boolean; resetCode?: string; emailDeliveryConfigured?: boolean; expiresInMinutes: number }>(
     '/auth/forgot-password',
     { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) },
     'Could not start a password reset.'

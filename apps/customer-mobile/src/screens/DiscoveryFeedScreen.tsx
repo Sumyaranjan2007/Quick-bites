@@ -115,20 +115,73 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
   useEffect(() => {
     load();
     loadLocality();
+    loadFavourites();
   }, [apiUrl, token]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load();
+    await Promise.all([load(), loadFavourites()]);
     setRefreshing(false);
   };
 
-  const toggleFavourite = (id: string) =>
+  /**
+   * Favourites live on the account, not in this screen.
+   *
+   * They used to be a `Set` in local state: the heart filled in, and the choice
+   * was gone as soon as the screen unmounted — let alone on another device. The
+   * UI still updates immediately, because a heart that waits for a round trip
+   * feels broken, but the write is what decides, and a failed write puts the
+   * heart back rather than leaving a lie on screen.
+   */
+  const loadFavourites = async () => {
+    if (!apiUrl || !token) return;
+    try {
+      const res = await apiFetch(`${apiUrl}/customers/favourites`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data?.success && Array.isArray(data.data?.restaurantIds)) {
+        setFavourites(new Set<string>(data.data.restaurantIds));
+      }
+    } catch {
+      /* Favourites are not worth blocking the feed for. */
+    }
+  };
+
+  const toggleFavourite = async (id: string) => {
+    if (!apiUrl || !token) return;
+    const wasFavourite = favourites.has(id);
+
     setFavourites(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      wasFavourite ? next.delete(id) : next.add(id);
       return next;
     });
+
+    try {
+      const res = wasFavourite
+        ? await apiFetch(`${apiUrl}/customers/favourites/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        : await apiFetch(`${apiUrl}/customers/favourites`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ restaurantId: id })
+          });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error('rejected');
+      if (Array.isArray(data.data?.restaurantIds)) {
+        setFavourites(new Set<string>(data.data.restaurantIds));
+      }
+    } catch {
+      setFavourites(prev => {
+        const next = new Set(prev);
+        wasFavourite ? next.add(id) : next.delete(id);
+        return next;
+      });
+    }
+  };
 
   const visible = restaurants.filter(r => {
     const q = searchQuery.trim().toLowerCase();

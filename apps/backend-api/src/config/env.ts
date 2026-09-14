@@ -78,6 +78,16 @@ export const config = {
     ? process.env.PASSWORD_RESET_ECHO === 'true'
     : process.env.PASSWORD_RESET_ECHO !== 'false',
 
+  /**
+   * Transactional email. Without these three, password-recovery codes cannot be
+   * delivered and the API says so rather than claiming a send that did not
+   * happen. Any provider accepting `{from, to, subject, text}` as a bearer-
+   * authenticated JSON POST will work.
+   */
+  EMAIL_API_URL: process.env.EMAIL_API_URL || '',
+  EMAIL_API_KEY: process.env.EMAIL_API_KEY || '',
+  EMAIL_FROM: process.env.EMAIL_FROM || '',
+
   // Security
   CORS_WHITELIST: [
     'http://localhost:3000',

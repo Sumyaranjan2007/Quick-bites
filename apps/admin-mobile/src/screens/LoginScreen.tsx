@@ -85,8 +85,10 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
       if (payload.data?.resetCode) {
         setResetCode(String(payload.data.resetCode));
         setNotice(`Your reset code is ${payload.data.resetCode}. It expires in ${payload.data.expiresInMinutes} minutes.`);
-      } else {
+      } else if (payload.data?.emailDeliveryConfigured) {
         setNotice('If that address is on an account, a reset code has been sent. Ask the platform owner if it does not arrive.');
+      } else {
+        setNotice('A reset code has been generated, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.');
       }
       setMode('reset');
     } catch (err: any) {

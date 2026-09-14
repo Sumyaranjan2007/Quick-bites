@@ -12,6 +12,7 @@ import { authRateLimiterMiddleware } from '../middlewares/rateLimiter.ts';
 import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
+import { sendEmail, isEmailConfigured } from '../notifications/emailSender.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 
 export const authRouter = Router();
@@ -283,6 +284,7 @@ authRouter.post(
       const user = await userRepository.findByEmail(email);
 
       let echoCode: string | undefined;
+      let outcome: Awaited<ReturnType<typeof sendEmail>> | undefined;
       if (user) {
         const code = String(crypto.randomInt(100000, 1000000));
         memoryStore.settings.set(`reset:${user.id}`, {
@@ -308,19 +310,44 @@ authRouter.post(
         );
 
         if (config.PASSWORD_RESET_ECHO) echoCode = code;
+
+        outcome = await sendEmail({
+          to: email,
+          subject: 'Your Quick Bites password reset code',
+          text: [
+            `Your Quick Bites password reset code is ${code}.`,
+            '',
+            `It expires in ${RESET_TTL_MS / 60000} minutes and can be used once.`,
+            'If you did not ask to reset your password, you can ignore this message —',
+            'your password has not changed.'
+          ].join('\n')
+        });
       }
+
+      // Whether a code could actually be delivered is said plainly. Claiming a
+      // send that never happened is what left customers waiting for an email
+      // that was only ever going to appear in a server log.
+      const deliverable = isEmailConfigured();
 
       res.json({
         success: true,
         data: {
-          sent: true,
+          sent: outcome?.delivered ?? false,
+          /**
+           * False when the deployment has no mail provider configured. The apps
+           * use it to say how the code can be obtained instead of telling the
+           * customer to check an inbox nothing was sent to.
+           */
+          emailDeliveryConfigured: deliverable,
           // Present only when the deployment has been configured to hand the
-          // code back directly; otherwise the app tells the user to check their
-          // email and support reads it from the log.
+          // code back directly — never in production by default, because that
+          // turns a known email address into an account takeover.
           ...(echoCode ? { resetCode: echoCode } : {}),
           expiresInMinutes: RESET_TTL_MS / 60000
         },
-        message: 'If that address is on an account, a reset code is on its way.'
+        message: deliverable
+          ? 'If that address is on an account, a reset code is on its way.'
+          : 'If that address is on an account, a reset code has been generated. Contact Quick Bites support to receive it.'
       });
     } catch (err) {
       next(err);

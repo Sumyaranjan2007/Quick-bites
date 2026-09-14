@@ -20,6 +20,17 @@ export interface DetectedPlace {
   pincode?: string;
 }
 
+/**
+ * True for an Open Location Code such as "MFM9+7H4" or "7J4VXMFM+7H4".
+ *
+ * These are valid coordinates in a compact form, but they are not an address:
+ * they tell a delivery rider nothing that the map pin has not already told
+ * them, and they read as a typo in a flat-number field.
+ */
+function isPlusCode(value?: string | null): boolean {
+  return !!value && /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$/i.test(value.trim());
+}
+
 export function useDeviceLocation() {
   const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +65,14 @@ export function useDeviceLocation() {
       try {
         const [place] = await Location.reverseGeocodeAsync(coordinates);
         if (place) {
+          // Android returns an Open Location Code ("MFM9+7H4") as the place
+          // `name` wherever it has no street to offer. Pasting that into a flat
+          // number field gave the rider a delivery address nobody could read —
+          // it appeared on a real order — so it is dropped in favour of the
+          // parts that mean something to a person at a door.
           const line = [place.name, place.street, place.district]
-            .filter((part, i, all) => part && all.indexOf(part) === i)
+            .filter(part => part && !isPlusCode(part))
+            .filter((part, i, all) => all.indexOf(part) === i)
             .join(', ');
           return {
             coordinates,

@@ -14,6 +14,8 @@ import { DiscoveryFeedScreen, RestaurantItem } from './src/screens/DiscoveryFeed
 import { RestaurantDetailScreen, CartItem } from './src/screens/RestaurantDetailScreen';
 import { CartAndCheckoutScreen } from './src/screens/CartAndCheckoutScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
+import { WalletScreen } from './src/screens/WalletScreen';
+import { AddressBookScreen } from './src/screens/AddressBookScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { OrderHistoryScreen } from './src/screens/OrderHistoryScreen';
@@ -26,7 +28,7 @@ import { useOrderSocket } from './src/lib/useOrderSocket';
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentScreen, setCurrentScreen] = useState<
-    'feed' | 'detail' | 'cart' | 'tracking' | 'profile' | 'orders' | 'support'
+    'feed' | 'detail' | 'cart' | 'tracking' | 'profile' | 'orders' | 'support' | 'wallet' | 'addresses'
   >('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -175,6 +177,8 @@ function AppRoot() {
             onBack={() => setCurrentScreen('feed')}
             onOpenOrders={() => setCurrentScreen('orders')}
             onOpenSupport={() => setCurrentScreen('support')}
+            onOpenWallet={() => setCurrentScreen('wallet')}
+            onOpenAddresses={() => setCurrentScreen('addresses')}
             apiUrl={apiUrl}
             token={authToken}
             user={currentUser}
@@ -202,6 +206,14 @@ function AppRoot() {
             apiUrl={apiUrl}
             token={authToken}
           />
+        )}
+
+        {currentScreen === 'wallet' && (
+          <WalletScreen onBack={() => setCurrentScreen('profile')} apiUrl={apiUrl} token={authToken} />
+        )}
+
+        {currentScreen === 'addresses' && (
+          <AddressBookScreen onBack={() => setCurrentScreen('profile')} apiUrl={apiUrl} token={authToken} />
         )}
 
         {currentScreen === 'support' && (

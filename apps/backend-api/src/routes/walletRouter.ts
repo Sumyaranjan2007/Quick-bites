@@ -42,6 +42,28 @@ function requireStaff(req: any, res: any, next: any) {
   next();
 }
 
+/**
+ * GET /api/wallets/me — the signed-in user's own wallet and its history.
+ *
+ * Must be declared before `/:userId`, or Express matches "me" as a user id and
+ * the ownership check refuses the request with a 403. That is exactly what was
+ * happening: the customer app asked for `/wallets/me`, was told it could not
+ * access another user's wallet, and quietly showed no balance at all.
+ */
+walletRouter.get('/me', async (req, res, next) => {
+  try {
+    const wallet = await walletRepository.getByUserId(req.user!.id);
+    const transactions = await walletRepository.getTransactions(wallet.id);
+    res.json({
+      success: true,
+      data: { wallet, transactions },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/wallets/:userId
 walletRouter.get('/:userId', checkWalletAccess, async (req, res) => {
   try {

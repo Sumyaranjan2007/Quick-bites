@@ -42,12 +42,26 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   packagingFee,
   distanceKm
 }) => {
-  const [couponCode, setCouponCode] = useState('WELCOME50');
-  const [appliedCoupon, setAppliedCoupon] = useState<string | null>('WELCOME50');
-  const [isGoldMember] = useState(true); // Rahul Sharma is a Quick Bites Gold subscriber
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
+
+  /**
+   * The bill, priced by the server.
+   *
+   * This screen used to compute its own. It hardcoded the two seeded promo codes
+   * — so a coupon an administrator created was rejected here without the server
+   * ever being asked — and it assumed every shopper held a Gold subscription, so
+   * a customer without one was shown a waived delivery fee and then charged for
+   * it. One authority now prices the order, and this screen reads from it.
+   */
+  const [quote, setQuote] = useState<any | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteFailed, setQuoteFailed] = useState(false);
+  /** Collapses the itemised breakdown; the amount payable always stays visible. */
+  const [billHidden, setBillHidden] = useState(false);
 
   // Saved delivery addresses — customers must be able to say where they live,
   // and the server rejects an address that isn't theirs.
@@ -121,42 +135,111 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
   const selectedAddress = addresses.find(a => a.id === selectedAddressId) ?? null;
 
-  // Map cart items for pricing engine
+  // Map cart items for the offline fallback below.
   const pricingItems = cart.map(item => ({
     unitPrice: item.price,
     quantity: item.quantity
   }));
 
-  const pricingResult = calculateOrderPricing({
+  /**
+   * Shown only when the server cannot be reached.
+   *
+   * Deliberately conservative: no coupon and no Gold, so the fallback can
+   * understate a discount but can never promise one that checkout will not
+   * honour. The screen says plainly when this is what is on display.
+   */
+  const fallbackPricing = calculateOrderPricing({
     items: pricingItems,
-    isGold: isGoldMember,
+    isGold: false,
     packagingFee: packagingFee ?? 25.0,
-    distanceKm: distanceKm ?? 2.5,
-    coupon: appliedCoupon === 'WELCOME50'
-      ? {
-          discountType: 'PERCENTAGE',
-          discountValue: 50,
-          maxDiscountCap: 100,
-          minOrderValue: 200
-        }
-      : appliedCoupon === 'FREEDEL'
-      ? {
-          discountType: 'FREE_DELIVERY',
-          discountValue: 0,
-          minOrderValue: 0
-        }
-      : undefined
+    distanceKm: distanceKm ?? 2.5
   });
 
+  const pricingResult = quote?.bill ?? fallbackPricing;
+
+  // Re-price whenever anything that affects the bill changes. The cart is the
+  // dependency that matters: a quantity change alters every downstream figure,
+  // and a stale total is the one thing this screen must never show.
+  const cartSignature = JSON.stringify(
+    cart.map(i => [i.dishId, i.quantity, i.selectedOptions ?? null])
+  );
+
+  useEffect(() => {
+    if (!apiUrl || !token || cart.length === 0) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setQuoting(true);
+      try {
+        const res = await apiFetch(`${apiUrl}/orders/quote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            restaurantId: restaurantId || 'rst_bbh_01',
+            ...(selectedAddressId ? { deliveryAddressId: selectedAddressId } : {}),
+            items: cart.map(item => ({
+              dishId: item.dishId,
+              quantity: item.quantity,
+              ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {})
+            })),
+            ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
+            distanceKm: distanceKm ?? 2.5
+          })
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data?.success && data?.data) {
+          setQuote(data.data);
+          setQuoteFailed(false);
+          // A code the server refused is dropped here rather than left looking
+          // applied: the bill beside it would not include it either way.
+          if (data.data.couponError) {
+            setCouponError(data.data.couponError);
+            setAppliedCoupon(null);
+          } else if (data.data.appliedCouponCode) {
+            setCouponError(null);
+          }
+        } else {
+          setQuoteFailed(true);
+        }
+      } catch {
+        if (!cancelled) setQuoteFailed(true);
+      } finally {
+        if (!cancelled) setQuoting(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSignature, appliedCoupon, selectedAddressId, restaurantId, apiUrl, token, distanceKm]);
+
+  /**
+   * Applying a coupon sets it as the code to quote with; the server decides
+   * whether it holds, and the effect above reports back what it said. Nothing
+   * here knows which codes exist, which is the whole point: one campaign was
+   * created in the admin console and rejected here because this list had never
+   * heard of it.
+   */
   const handleApplyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
-    if (code === 'WELCOME50' || code === 'FREEDEL') {
-      setAppliedCoupon(code);
-      setCouponError(null);
-    } else {
+    if (!code) {
       setAppliedCoupon(null);
-      setCouponError(`'${code || 'This code'}' is not a valid coupon.`);
+      setCouponError('Enter a coupon code first.');
+      return;
     }
+    setCouponError(null);
+    setAppliedCoupon(code);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError(null);
   };
 
   const handleCheckout = async () => {
@@ -362,13 +445,22 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
           {appliedCoupon ? (
-            <Text style={styles.couponSuccess}>'{appliedCoupon}' applied</Text>
+            <View style={styles.couponAppliedRow}>
+              <Text style={styles.couponSuccess}>'{appliedCoupon}' applied</Text>
+              <TouchableOpacity onPress={handleRemoveCoupon} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.couponRemove}>Remove</Text>
+              </TouchableOpacity>
+            </View>
           ) : couponError ? (
             <Text style={styles.couponError}>{couponError}</Text>
           ) : null}
         </Card>
 
-        {isGoldMember && (
+        {/* Gold is a fact about the account, read back from the server's quote.
+            It used to be hardcoded true, which told every customer without a
+            subscription that their delivery was free right up until they were
+            charged for it. */}
+        {quote?.isGold && (
           <View style={styles.goldCard}>
             <Sparkles size={16} color={c.dietary.gold} />
             <Text style={styles.goldText}>
@@ -379,43 +471,76 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
         {/* Bill */}
         <Card style={styles.block}>
-          <Text style={styles.blockTitle}>Bill details</Text>
-
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Item total</Text>
-            <Text style={styles.billValue}>₹{pricingResult.itemsTotal.toFixed(2)}</Text>
-          </View>
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>GST on food (5%)</Text>
-            <Text style={styles.billValue}>₹{pricingResult.gstAmount.toFixed(2)}</Text>
-          </View>
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Packaging</Text>
-            <Text style={styles.billValue}>₹{pricingResult.packagingFee.toFixed(2)}</Text>
-          </View>
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Delivery fee</Text>
-            <Text style={[styles.billValue, pricingResult.deliveryFee === 0 && { color: c.dietary.veg }]}>
-              {pricingResult.deliveryFee === 0 ? 'FREE' : `₹${pricingResult.deliveryFee.toFixed(2)}`}
-            </Text>
-          </View>
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Platform fee</Text>
-            <Text style={styles.billValue}>₹{pricingResult.platformFee.toFixed(2)}</Text>
-          </View>
-          {pricingResult.couponDiscount > 0 && (
-            <View style={styles.billRow}>
-              <Text style={[styles.billLabel, { color: c.dietary.veg }]}>Coupon discount</Text>
-              <Text style={[styles.billValue, { color: c.dietary.veg }]}>
-                -₹{pricingResult.couponDiscount.toFixed(2)}
-              </Text>
+          <View style={styles.billHeader}>
+            <Text style={styles.blockTitle}>Bill details</Text>
+            <View style={styles.billHeaderRight}>
+              {quoting ? <ActivityIndicator size="small" color={c.text.secondary} /> : null}
+              {/* Hiding the breakdown is a display preference, not a way to be
+                  charged less: the amount payable stays on screen either way,
+                  and every line is one tap from being read again. */}
+              <TouchableOpacity
+                onPress={() => setBillHidden(v => !v)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={billHidden ? 'Show the bill breakdown' : 'Hide the bill breakdown'}
+              >
+                <Text style={styles.billToggle}>{billHidden ? 'Show bill' : 'Hide bill'}</Text>
+              </TouchableOpacity>
             </View>
+          </View>
+
+          {billHidden ? (
+            <Text style={styles.billHiddenNote}>
+              Taxes, packaging, delivery and any discount are included in the amount below.
+            </Text>
+          ) : (
+            <>
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel} numberOfLines={1}>Item total</Text>
+                <Text style={styles.billValue}>₹{pricingResult.itemsTotal.toFixed(2)}</Text>
+              </View>
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel} numberOfLines={1}>GST on food (5%)</Text>
+                <Text style={styles.billValue}>₹{pricingResult.gstAmount.toFixed(2)}</Text>
+              </View>
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel} numberOfLines={1}>Packaging</Text>
+                <Text style={styles.billValue}>₹{pricingResult.packagingFee.toFixed(2)}</Text>
+              </View>
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel} numberOfLines={1}>Delivery fee</Text>
+                <Text style={[styles.billValue, pricingResult.deliveryFee === 0 && { color: c.dietary.veg }]}>
+                  {pricingResult.deliveryFee === 0 ? 'FREE' : `₹${pricingResult.deliveryFee.toFixed(2)}`}
+                </Text>
+              </View>
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel} numberOfLines={1}>Platform fee</Text>
+                <Text style={styles.billValue}>₹{pricingResult.platformFee.toFixed(2)}</Text>
+              </View>
+              {pricingResult.couponDiscount > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={[styles.billLabel, { color: c.dietary.veg }]} numberOfLines={1}>
+                    Coupon discount
+                  </Text>
+                  <Text style={[styles.billValue, { color: c.dietary.veg }]}>
+                    -₹{pricingResult.couponDiscount.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+            </>
           )}
 
           <View style={styles.billTotalRow}>
             <Text style={styles.billTotalLabel}>To pay</Text>
             <Text style={styles.billTotalValue}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
           </View>
+
+          {quoteFailed && (
+            <Text style={styles.billEstimate}>
+              Showing an estimate — we could not reach Quick Bites to confirm this bill. The amount charged is
+              calculated when your order is placed.
+            </Text>
+          )}
         </Card>
 
         {checkoutError && (
@@ -763,9 +888,24 @@ const styles = StyleSheet.create({
   },
   goldText: { flex: 1, fontSize: tokens.font.size.sm, color: c.dietary.gold, fontWeight: tokens.font.weight.semibold },
 
-  billRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  billLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary },
-  billValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.medium },
+  billRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 10 },
+  // The label takes the space it needs and the amount is never pushed off the
+  // row; without this the two competed and both were clipped mid-word.
+  billLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 1 },
+  billValue: {
+    fontSize: tokens.font.size.sm,
+    color: c.text.primary,
+    fontWeight: tokens.font.weight.medium,
+    flexShrink: 0,
+    textAlign: 'right'
+  },
+  billHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  billHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  billToggle: { fontSize: tokens.font.size.sm, color: c.primary[500], fontWeight: tokens.font.weight.bold },
+  billHiddenNote: { fontSize: tokens.font.size.xs, color: c.text.secondary, marginTop: 10, lineHeight: 18 },
+  billEstimate: { fontSize: tokens.font.size.xs, color: c.semantic.warning, marginTop: 10, lineHeight: 17 },
+  couponAppliedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  couponRemove: { fontSize: tokens.font.size.sm, color: c.semantic.error, fontWeight: tokens.font.weight.bold },
   billTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

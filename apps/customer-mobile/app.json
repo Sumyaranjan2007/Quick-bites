@@ -102,13 +102,13 @@
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.CAMERA"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
       ]
     },
     "newArchEnabled": false,
@@ -134,6 +134,7 @@
           "locationWhenInUsePermission": "Quick Bites uses your location to set your delivery address and show how far your food is."
         }
       ],
+      "expo-image-picker",
       [
         "expo-speech-recognition",
         {
