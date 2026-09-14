@@ -1057,6 +1057,70 @@ of it has been proven against Railway.
 
 ---
 
+## [2026-09-14 13:54] -- Claude Opus 5 -- RELEASE v1.2.1 (clean-install verified)
+**Feature/Issue:** A tester reported the download link did not work. Investigated, found the real cause was not the link, rebuilt so the published artifact can actually be launch-tested, fixed three defects that surfaced, and verified the downloaded files on a clean device.
+**Status:** Completed
+**Release version:** `v1.2.1` — all four apps 1.2.1 / versionCode 6
+**Tag / commit:** tag `v1.2.1` on commit `1efd1a5`
+**Release URL:** https://github.com/Sumyaranjan2007/Quick-bites/releases/tag/v1.2.1
+
+### The reported issue, and its root cause
+
+A 72-second screen recording was supplied showing the download failing. **The link was never reached.** The recording shows `QuickBites-Customer.apk` — the *file name* — being typed into Chrome's address bar, which Chrome ran as a Google search. The results were unrelated third-party apps (an AppBrain listing for a different "Quick Bites" by APP.FH5, and two unrelated Play Store apps, "Quick Bite" by nopStation and "The quick bites" by Dhananjay srivastava). The user spent the whole recording on those pages and never reached GitHub.
+
+**Root cause: how the link was delivered, not the link or the APK.** The links were given as markdown whose visible label was the bare file name. On a phone the label is what gets copied, and a file name pasted into an address bar is a search query. Verified afterwards that the v1.2.0 asset was always intact: a ranged fetch of its first and last megabyte matched the local file's bytes exactly, and it began with `504b0304`.
+
+**Fix:** download links are now given as complete `https://…` URLs in visible text, and `DOWNLOAD.md` points at the release page as a landing point.
+
+### Three real defects found while verifying
+
+1. **The partner app had no Server settings control** — the only one of the four without it. It could not be pointed at anything but production, which also made it the only app that could not be exercised before a release. Added to `SignInScreen.tsx`, matching the rider and admin screens. `App.tsx` was also resetting the base URL to the compiled-in default on sign-in *and* for the live-updates socket, which would have silently undone the picker; both now read `currentApiUrl()`.
+2. **The admin app was building at versionCode 5** while the other three were at 6, because its `android/` project had never been regenerated from `app.json`. A mismatched versionCode is exactly what made an earlier set of apps refuse to install over one another.
+3. **`DOWNLOAD.md` was wrong about the customer app.** It claimed the customer app's Server settings could be pointed at another instance. That control is behind `__DEV__` and is compiled out of release builds — a release customer build talks only to the hosted API. Corrected.
+
+### The build change that makes verification possible
+
+Release APKs were ARM-only (`arm64-v8a`, `armeabi-v7a`). **An ARM-only APK cannot be installed on an x86_64 emulator**, so the file that shipped could never be the file that was launch-tested — only a same-source rebuild could be. Builds are now **universal** (all four ABIs). The download grows from ~28 MB to ~55 MB; that is the price of publishing the artifact that was actually run, and this project has a documented history (the duplicate `react-native-svg` crash) of a build passing every static check and still dying at launch on every device.
+
+Also fixed in passing: the Gradle build could not run at all, because the machine's default JDK is Java 25 and React Native's Gradle plugin fails to resolve under it (`Error resolving plugin [id: 'com.facebook.react.settings'] > 25.0.1`). Builds now run under the JDK 17 at `/usr/local/opt/openjdk@17`.
+
+**Frontend changes:** `apps/restaurant-mobile/src/screens/SignInScreen.tsx` (Server settings control), `apps/restaurant-mobile/App.tsx` (respect the chosen server for REST and sockets).
+**Backend/API/database changes:** None. No server code was modified.
+**Files/modules affected:** `apps/restaurant-mobile/{App.tsx,src/screens/SignInScreen.tsx,app.json}`, `apps/admin-mobile/{app.json,android/app/build.gradle}`, `apps/{customer,delivery}-mobile/app.json`, `DOWNLOAD.md`, `build/apk/*.apk`
+
+### Testing performed
+
+**Clean-install test — the published files themselves.** All four assets were downloaded from the v1.2.1 release URLs, checksummed against the built artifacts (**all four SHA-256 match**), then all four packages were uninstalled from an Android 15 / API 35 device and **the downloaded files installed and launched**: every one reported `install=Success`, held a live process, resumed its own `MainActivity`, and logged **zero fatal exceptions**.
+
+**Full four-role journey driven through the app interfaces, not the API:**
+- Customer registered a brand-new account **through the UI against the live production API**, and reached a discovery feed with real restaurants, images, categories and the `WELCOME50` banner.
+- An order reached the kitchen UI with customer name, item, `Rs 366.90` and pickup code; **Accept** demanded a preparation promise, and the UI action wrote through to the server (`ACCEPTED`), then `PREPARING`, then `READY_FOR_PICKUP`.
+- The rider received a **full-screen offer card** — "New delivery offer", 30-second countdown, `₹40`, `300 m`, both addresses, `Collect Rs 325`, Pass / Accept delivery.
+- Accepting produced a four-stage trip screen with Navigate and Call for each leg. **A wrong pickup code was refused** ("Invalid pickup verification code"); the correct one advanced to `OUT_FOR_DELIVERY`. A wrong doorstep OTP was refused; the correct one completed the delivery.
+- **The rider's wallet moved Rs 240 → Rs 280 and trips-today went to 1** — the money followed the delivery.
+- Admin console signed in and loaded live platform figures (live orders, drivers online, restaurants open, KYC queue) as `Ananya Iyer / Super Admin`.
+
+**Other suites:** 42/42 API-level end-to-end checks; 14/14 against the live hosted deployment; `npm test` 6/6; typecheck 3/3; diagnostics 34/34. Every APK verified with `apksigner` as signed by its **own** upload key (`OU=customer`/`partner`/`rider`/`admin`).
+
+### A false alarm, recorded so it is not re-investigated
+
+Considerable time was spent on an apparent bug where the rider never received an offer. It was an **instrumentation blind spot, not a product defect**: `uiautomator dump` cannot see React Native `Modal` windows, so the offer card was invisible to text-based polling while being plainly present on screen. It was found by noticing `requestAudioFocus()` from the rider process in logcat — the offer chime — and a modal window being created and disposed ~30 seconds apart, matching the offer countdown. **Verify React Native modals with a screenshot; `uiautomator` will report them as absent.**
+
+**Known issues / pending work:**
+- **Staff apps still cannot be handed to testers against production.** They cannot self-register, so they need the seeded accounts, whose password is `SEED_DEFAULT_PASSWORD` in the Railway environment. That value is not readable from this machine and `pass123` is refused by the hosted deployment. The staff workflows above were therefore verified against a local backend; the customer app was verified against production. Until the owner sets that variable and redeploys, only the customer app is testable against the hosted API.
+- The release APKs are ~55 MB and GitHub warns on every push that they exceed its recommended 50 MB file size. They are committed to the repository *and* attached to the release. Moving `build/apk/` out of version control, or to Git LFS, would be the right next step.
+- The customer app's sign-up form arrives prefilled with `Rahul Sharma` / `9876543210` in a release build. Harmless, but it is demo data on a production screen.
+- Carried forward: no online payment (cash on delivery only); the logo wordmark still reads "Quickbits"; Play Console / App Store Connect work still needs a human.
+
+**Decisions / dependencies / session conflicts:**
+- **Builds must stay universal** unless someone re-establishes another way to launch-test the exact shipping binary. Reverting to `-PqbPhoneAbisOnly` for the shareable APK silently removes the ability to verify what is published.
+- **Gradle must run under JDK 17**, not the machine default. Export `JAVA_HOME=/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
+- A build script must fail loudly if Gradle produces no APK. An earlier version of this session's script copied a **stale** artifact when the build failed, which would have published an old binary as a new release.
+
+**NEXT AI SHOULD:** Get `SEED_DEFAULT_PASSWORD` set on Railway, then re-run the four-role journey against the **hosted** API through the apps — the journey above proves the apps and the code, and production is proven only for the customer path.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.
