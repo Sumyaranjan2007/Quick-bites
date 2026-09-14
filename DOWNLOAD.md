@@ -3,12 +3,17 @@
 Four apps make up the platform. Install the customer app to order; install the
 partner and rider apps on other phones to watch an order travel end to end.
 
-| App | Who it is for | File |
+| App | Who it is for | Download |
 | --- | --- | --- |
-| **Quick Bites** | Customers ordering food | [`QuickBites-Customer.apk`](build/apk/QuickBites-Customer.apk) |
-| **Quick Bites Partner** | Restaurant kitchen screen | [`QuickBites-Partner.apk`](build/apk/QuickBites-Partner.apk) |
-| **Quick Bites Rider** | Delivery partners | [`QuickBites-Rider.apk`](build/apk/QuickBites-Rider.apk) |
-| **Quick Bites Operations** | Platform admin | [`QuickBites-Admin.apk`](build/apk/QuickBites-Admin.apk) |
+| **Quick Bites** | Customers ordering food | [QuickBites-Customer.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Customer.apk) |
+| **Quick Bites Partner** | Restaurant kitchen screen | [QuickBites-Partner.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Partner.apk) |
+| **Quick Bites Rider** | Delivery partners | [QuickBites-Rider.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Rider.apk) |
+| **Quick Bites Operations** | Platform admin | [QuickBites-Admin.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Admin.apk) |
+
+These links point at the **[v1.2.0 release](https://github.com/Sumyaranjan2007/Quick-bites/releases/tag/v1.2.0)**, so they are pinned to one build and
+will not change under a tester when the apps are next rebuilt. Do not circulate
+`raw.githubusercontent.com/.../main/build/apk/...` links: those serve whatever is
+on `main` at the moment they are fetched.
 
 All four are version 1.2.0 (versionCode 5), signed with the Quick Bites upload
 keys, and built for `arm64-v8a` and `armeabi-v7a`.
@@ -64,11 +69,16 @@ browser:
 
 ## Signing in
 
-`pass123` works only when the API is run locally. The hosted deployment
-deliberately refuses it — this repository is public, so a password written in
-the source would be an open administrator login on the live server. The hosted
-password is whatever `SEED_DEFAULT_PASSWORD` is set to in the deployment's
-environment variables.
+The **customer app needs no credentials**: tap Sign up and register with any
+email and a password of 8 characters or more. Self-registration always creates a
+customer account.
+
+The **partner, rider and operations apps cannot self-register** and use the
+seeded staff accounts below. Ask the project owner for the current staff
+password; it is supplied privately and is deliberately not published here.
+`pass123` works only when the API is run locally — the hosted deployment refuses
+it, because this repository is public and a password written in the source would
+be an open administrator login on the live server.
 
 Accounts, in both cases:
 
