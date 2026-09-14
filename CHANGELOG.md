@@ -810,6 +810,61 @@ This is recorded here because it is exactly the information a fresh session cann
 
 ---
 
+## [2026-09-14 05:00] -- Claude Opus 5 -- Session 21 (customer app: the seventeen-item list)
+
+**Description:** Worked the customer-facing list: sign-up errors, the delivered/OTP flow,
+live tracking, call, chat, hide bill, rating, order history, customer care, edit profile,
+profile rebuild, language, notifications, voice search, and removing account deletion.
+
+**Changes:**
+- Backend: `POST /orders/:id/rating` (customer-only, delivered-only, once, folded into the
+  restaurant average), `GET|POST /orders/:id/messages` (order-scoped chat, pushed over the
+  existing order room, read-only once the order closes), `PATCH /auth/me` (name, phone,
+  language only - email is the login and role is not the user's to set).
+- Customer app: delivered state derived from the order's status, so the OTP, live map, call
+  and chat all disappear on delivery and a rating appears; call dials via `tel:`; chat sheet;
+  hide-bill; order history; customer care; rebuilt profile; working language switching;
+  in-app notifications with a generated chime; voice search; GPS capture for new addresses.
+- Removed the in-app delete-account control. Deletion now runs through customer care, which
+  keeps a route to deletion available - Google Play requires one for an app with sign-up -
+  without putting an irreversible action one tap from a wallet balance.
+
+**Bugs found that were not on the list:**
+- `order.riderId` holds the rider RECORD id, not the user id. Comparing it to `req.user.id`
+  never matches; the tracking endpoint has the same comparison and only ever passed by
+  falling through to its staff clause.
+- The live map's placeholder was 92px against a 190px map, so the page grew ~100px the moment
+  a rider position arrived and the list jumped. That was the reported scroll-to-top.
+- A rider ping arriving over the socket before the first tracking fetch produced a rider with
+  no destination, leaving the map stuck on "waiting for the delivery address".
+- Sign-up was not broken: the server returned "Password must be at least 8 characters" and the
+  app replaced it with "Request payload validation failed".
+
+**Known issues:**
+- The live map draws its own ground rather than showing streets. OpenStreetMap does not permit
+  anonymous app tile use and enforces it by returning a grey "access blocked" image at HTTP 200.
+  Street imagery needs a keyed provider on the owner's account; `TILE_URL` is where it goes.
+- Notifications are in-app, driven by the order socket. Push to a closed app needs Firebase.
+
+**CHECKS THAT LIED TO US.** Three times in one day a measurement, not a defect, sent someone
+looking for the wrong thing. Worth reading before trusting a check:
+- `strings` on a Hermes bundle cannot see any string containing a non-ASCII character - Hermes
+  stores those as UTF-16. A zero for "Bill hidden · tap ..." or for Kannada text means nothing.
+  Grep a pure-ASCII marker, or search the bytes for the UTF-16LE encoding as well.
+- A grep for ABIs written `lib/[a-z0-9-]+/` silently drops `lib/x86_64/`, because the character
+  class has no underscore. It reported three ABIs where there were four.
+- A tile server answering a refusal with HTTP 200 and a grey "blocked" image defeats every
+  status-code check and every `onError` handler. The Carto watermark earlier in this project was
+  the same shape. When a remote resource looks wrong, look at the bytes, not the status.
+- And the general case, which caught a versionCode-2 APK built from a gradle file saying 3:
+  verify the artifact, never the input that produced it.
+
+**NEXT AI SHOULD:** Wire the deployment to the Postgres that is already supported - orders are
+still lost whenever the seed version changes, which happened mid-session and wiped the user's
+order history while they were demonstrating it.
+
+---
+
 ## [2026-09-14 04:10] -- Claude Opus 5 -- Session 20 (delivery partner app, rider domain)
 
 **Feature/Issue:** The rider app had three tabs and two of them were fiction. "Trips Completed" and "Cash in Hand" were counters the app incremented in its own memory, so they reset on every launch and never agreed with the wallet the server kept; the KYC tab was a hard-coded licence number. Nothing announced a job unless the rider happened to be looking at the screen. An accepted trip gave the rider the restaurant's name and nothing to steer by, because the restaurant's address never reached the order. The shift toggle did not persist, so a rider who went Online was Offline again after the next restart.
