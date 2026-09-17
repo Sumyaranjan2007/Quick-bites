@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_API_URL } from './src/config';
 import {
   View,
@@ -8,6 +8,8 @@ import {
   StatusBar
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
+import { useHardwareBack } from './src/lib/useHardwareBack';
+import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { tokens } from './src/theme/tokens';
 import { Utensils, ShoppingBag, User } from 'lucide-react-native';
@@ -38,6 +40,9 @@ function AppRoot() {
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_API_URL);
   const [authToken, setAuthToken] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  // Null while the stored session is being read. Rendering the login screen
+  // during that moment would flash it at someone who is already signed in.
+  const [restoringSession, setRestoringSession] = useState(true);
   const { t, setLanguage } = useTranslation();
   const { notify, enabled: notificationsEnabled, setEnabled: setNotificationsEnabled } = useNotifications();
 
@@ -160,13 +165,74 @@ function AppRoot() {
     setCurrentScreen('cart');
   };
 
+  // Restores the previous sign-in before the first paint, so reopening the app
+  // returns the customer to where they were rather than to a password prompt.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await loadStoredSession();
+      if (!cancelled && stored) {
+        setAuthToken(stored.token);
+        setCurrentUser(stored.user);
+        setApiUrl(stored.apiUrl);
+        setIsAuthenticated(true);
+      }
+      if (!cancelled) setRestoringSession(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleLogout = () => {
+    // Cleared first: a sign-out that leaves the token on the device is not a
+    // sign-out, and this runs even if the network call behind it fails.
+    void clearStoredSession();
     setIsAuthenticated(false);
     setAuthToken('');
     setCurrentUser(null);
     setCurrentScreen('feed');
     setCart([]);
   };
+
+  /**
+   * Where the back gesture goes from each screen.
+   *
+   * The two tabs are the top of the stack: backing out of them leaves the app,
+   * which is what closing an app should feel like. Everything else returns to
+   * whatever opened it, so a customer who opens their wallet from the profile
+   * lands back on the profile rather than on their home screen.
+   */
+  const goBack = useCallback(() => {
+    switch (currentScreen) {
+      case 'detail':
+      case 'cart':
+      case 'tracking':
+      case 'profile':
+        setCurrentScreen('feed');
+        return true;
+      case 'orders':
+      case 'support':
+      case 'wallet':
+      case 'addresses':
+        setCurrentScreen('profile');
+        return true;
+      default:
+        return false;
+    }
+  }, [currentScreen]);
+
+  useHardwareBack(goBack);
+
+  // Nothing is rendered until the stored session has been consulted; the splash
+  // stays up for the few milliseconds it takes.
+  if (restoringSession) {
+    return (
+      <SafeScreen style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
+      </SafeScreen>
+    );
+  }
 
   // If unauthenticated, present the Quick Bites Customer Login Screen
   if (!isAuthenticated) {
@@ -180,6 +246,7 @@ function AppRoot() {
             setCurrentUser(user);
             setApiUrl(url);
             setIsAuthenticated(true);
+            void saveStoredSession({ token, user, apiUrl: url });
           }}
         />
       </SafeScreen>
@@ -251,7 +318,12 @@ function AppRoot() {
             apiUrl={apiUrl}
             token={authToken}
             user={currentUser}
-            onUserUpdated={setCurrentUser}
+            onUserUpdated={next => {
+              setCurrentUser(next);
+              // Kept in step with the stored copy, or an edited name would
+              // revert to the old one on the next launch.
+              void saveStoredSession({ token: authToken, user: next, apiUrl });
+            }}
             onLogout={handleLogout}
             notificationsEnabled={notificationsEnabled}
             onToggleNotifications={setNotificationsEnabled}

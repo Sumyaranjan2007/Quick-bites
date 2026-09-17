@@ -50,6 +50,7 @@ import {
   stopOrderAlert
 } from './src/lib/orderAlert';
 import { startShiftService, stopShiftService } from './src/lib/shiftService';
+import { useHardwareBack } from './src/lib/useHardwareBack';
 
 import { DEFAULT_API_URL } from './src/config';
 
@@ -84,6 +85,26 @@ function DeliveryApp() {
 
   const [tab, setTab] = useState<Tab>('home');
   const [subScreen, setSubScreen] = useState<SubScreen | null>(null);
+
+  /**
+   * Android's back gesture. A sub-screen closes back to the tab that opened it;
+   * any tab but Home returns to Home; Home itself leaves the app. Without this
+   * the gesture closed the whole app, which for a rider mid-shift meant losing
+   * the trip screen entirely.
+   */
+  useHardwareBack(
+    useCallback(() => {
+      if (subScreen) {
+        setSubScreen(null);
+        return true;
+      }
+      if (tab !== 'home') {
+        setTab('home');
+        return true;
+      }
+      return false;
+    }, [subScreen, tab])
+  );
 
   const [offers, setOffers] = useState<Trip[]>([]);
   const [pendingOffer, setPendingOffer] = useState<Trip | null>(null);

@@ -15,6 +15,7 @@
     "@quick-bites/design-system": "*",
     "@quick-bites/pricing-engine": "*",
     "@quick-bites/shared-types": "*",
+    "@react-native-async-storage/async-storage": "^1.23.1",
     "expo": "~52.0.0",
     "expo-av": "~15.0.2",
     "expo-build-properties": "~0.13.3",

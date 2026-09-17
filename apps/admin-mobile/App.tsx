@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import {
   LayoutDashboard,
@@ -35,6 +35,9 @@ import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { RolesScreen } from './src/screens/RolesScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { useHardwareBack } from './src/lib/useHardwareBack';
+import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
+import { createClient } from './src/lib/api';
 
 const c = tokens.colors;
 
@@ -184,6 +187,17 @@ const Console: React.FC = () => {
   const { api, can, apiUrl, token } = useSession();
   const [active, setActive] = useState('dashboard');
 
+  // Any section but the dashboard returns to it; the dashboard leaves the app.
+  useHardwareBack(
+    useCallback(() => {
+      if (active !== 'dashboard') {
+        setActive('dashboard');
+        return true;
+      }
+      return false;
+    }, [active])
+  );
+
   // The small, frequently-polled slice behind the navigation badges. It is
   // separate from the dashboard on purpose: this runs every time a live event
   // arrives, and walking every order on the platform for a badge count would
@@ -236,17 +250,73 @@ const Console: React.FC = () => {
 
 function AdminApp() {
   const [session, setSession] = useState<SessionState | null>(null);
+  const [restoring, setRestoring] = useState(true);
+
+  /**
+   * Restores the previous sign-in.
+   *
+   * Only the token and the server address are kept on the device. The role and
+   * its permissions are re-read from /admin/me on every restore rather than
+   * stored, so an administrator whose role was narrowed or disabled while the
+   * app was closed comes back with the access they have now, not the access
+   * they had then. A token the server no longer accepts simply drops through to
+   * the sign-in screen.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await loadStoredSession();
+      if (stored) {
+        try {
+          const client = createClient(stored.apiUrl, stored.token);
+          const access = await client.get<any>('/admin/me');
+          if (!cancelled) {
+            setSession({
+              token: stored.token,
+              apiUrl: stored.apiUrl,
+              user: access.user,
+              roleName: access.role?.name || (access.isSuperAdmin ? 'Super Admin' : 'Unassigned'),
+              roleId: access.role?.id || null,
+              isSuperAdmin: Boolean(access.isSuperAdmin),
+              permissions: access.permissions || [],
+              permissionCatalogue: access.permissionCatalogue || []
+            });
+          }
+        } catch {
+          // Expired, revoked, or the server is unreachable: ask for a password.
+          await clearStoredSession();
+        }
+      }
+      if (!cancelled) setRestoring(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (restoring) return <Screen />;
 
   if (!session) {
     return (
       <SessionProvider>
-        <LoginScreen onSignedIn={setSession} />
+        <LoginScreen
+          onSignedIn={next => {
+            setSession(next);
+            void saveStoredSession({ token: next.token, user: next.user, apiUrl: next.apiUrl });
+          }}
+        />
       </SessionProvider>
     );
   }
 
   return (
-    <SessionProvider key={session.token} onSignOut={() => setSession(null)}>
+    <SessionProvider
+      key={session.token}
+      onSignOut={() => {
+        void clearStoredSession();
+        setSession(null);
+      }}
+    >
       <Bootstrapped session={session} />
     </SessionProvider>
   );

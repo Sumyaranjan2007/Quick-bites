@@ -16,6 +16,8 @@ import { MenuScreen } from './src/screens/MenuScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
 import { ErrorNote } from './src/components/ui';
+import { useHardwareBack } from './src/lib/useHardwareBack';
+import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 
 import { DEFAULT_API_URL } from './src/config';
 
@@ -42,9 +44,25 @@ const TABS: Array<{ key: Tab; label: string; icon: any }> = [
 function PartnerApp() {
   const [token, setToken] = useState('');
   const [user, setUser] = useState<any | null>(null);
+  // Null while the stored session is read, so the sign-in screen does not flash
+  // at an owner who is already signed in.
+  const [restoringSession, setRestoringSession] = useState(true);
   const [restaurant, setRestaurant] = useState<any | null>(null);
 
   const [tab, setTab] = useState<Tab>('dashboard');
+
+  // Any tab but the dashboard returns to it; the dashboard leaves the app.
+  // Previously the gesture closed the app from wherever the kitchen happened
+  // to be, mid-service.
+  useHardwareBack(
+    useCallback(() => {
+      if (tab !== 'dashboard') {
+        setTab('dashboard');
+        return true;
+      }
+      return false;
+    }, [tab])
+  );
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [togglingKitchen, setTogglingKitchen] = useState(false);
@@ -71,6 +89,26 @@ function PartnerApp() {
     setRestaurant(res.data.restaurant);
   }, []);
 
+  // Restores the previous sign-in. A kitchen that gets closed by Android in the
+  // middle of service should come back to its orders, not to a password prompt.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await loadStoredSession();
+      if (!cancelled && stored) {
+        configureApi(stored.apiUrl, stored.token);
+        setToken(stored.token);
+        setUser(stored.user);
+        await prepareOrderAlerts();
+        if (stored.user?.id) await loadProfile(stored.user.id);
+      }
+      if (!cancelled) setRestoringSession(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const onSignedIn = async (nextToken: string, nextUser: any) => {
     // currentApiUrl(), not DEFAULT_API_URL: the sign-in screen's Server settings
     // may have pointed this install at another backend, and forcing the default
@@ -79,11 +117,14 @@ function PartnerApp() {
     configureApi(currentApiUrl(), nextToken);
     setToken(nextToken);
     setUser(nextUser);
+    void saveStoredSession({ token: nextToken, user: nextUser, apiUrl: currentApiUrl() });
     await prepareOrderAlerts();
     if (nextUser?.id) await loadProfile(nextUser.id);
   };
 
   const signOut = async () => {
+    // Cleared first: a sign-out that leaves the token on the device is not one.
+    await clearStoredSession();
     await releaseOrderAlerts();
     configureApi(currentApiUrl(), '');
     setToken('');
@@ -124,6 +165,14 @@ function PartnerApp() {
       releaseOrderAlerts();
     };
   }, []);
+
+  if (restoringSession) {
+    return (
+      <SafeScreen style={styles.safe}>
+        <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+      </SafeScreen>
+    );
+  }
 
   if (!token) {
     return (
