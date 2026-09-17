@@ -67,60 +67,15 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
     }
   };
 
-  const requestReset = async () => {
-    setBusy(true);
-    setError('');
-    setNotice('');
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() })
-      });
-      const payload = await res.json();
-      if (!payload?.success) throw new Error(payload?.error?.message || 'Could not start a reset.');
-
-      // The deployment decides whether the code comes back here or only reaches
-      // the server log; the wording has to be honest about which happened.
-      if (payload.data?.resetCode) {
-        setResetCode(String(payload.data.resetCode));
-        setNotice(`Your reset code is ${payload.data.resetCode}. It expires in ${payload.data.expiresInMinutes} minutes.`);
-      } else if (payload.data?.emailDeliveryConfigured) {
-        setNotice('If that address is on an account, a reset code has been sent. Ask the platform owner if it does not arrive.');
-      } else {
-        setNotice('A reset code has been generated, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.');
-      }
-      setMode('reset');
-    } catch (err: any) {
-      setError(err?.message || 'Could not reach the Quick Bites server.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const applyReset = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), code: resetCode.trim(), newPassword })
-      });
-      const payload = await res.json();
-      if (!payload?.success) throw new Error(payload?.error?.message || 'That code was not accepted.');
-
-      setPassword(newPassword);
-      setNewPassword('');
-      setResetCode('');
-      setNotice('Your password has been changed. Sign in with it now.');
-      setMode('signin');
-    } catch (err: any) {
-      setError(err?.message || 'Could not reach the Quick Bites server.');
-    } finally {
-      setBusy(false);
-    }
-  };
+  /**
+   * Administrators recover their own account by changing ADMIN_PASSWORD on the
+   * host and redeploying — the bootstrap re-applies it at boot.
+   *
+   * There is deliberately no self-service reset for the account that can
+   * approve every partner and rider on the platform, and emailed codes are
+   * gone entirely: no mail provider was ever configured, so the old screen
+   * told people to check an inbox for a message that was never sent.
+   */
 
   return (
     <Screen>
@@ -157,52 +112,22 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
                   }}
                   style={s.linkRow}
                 >
-                  <Text style={s.link}>Forgot your password?</Text>
-                </TouchableOpacity>
-              </>
-            ) : mode === 'forgot' ? (
-              <>
-                <Text style={s.stepTitle}>Reset your password</Text>
-                <Text style={s.stepBody}>
-                  Enter the email on your admin account and we will send a six-digit code.
-                </Text>
-                <Field
-                  label="Admin email"
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="you@quickbite.app"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                {error ? <Text style={s.error}>{error}</Text> : null}
-                <Button label="Send the code" onPress={requestReset} loading={busy} size="lg" />
-                <TouchableOpacity onPress={() => setMode('signin')} style={s.linkRow}>
-                  <Text style={s.link}>Back to sign in</Text>
+                  <Text style={s.link}>Trouble signing in?</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={s.stepTitle}>Enter your code</Text>
-                {notice ? <Text style={s.notice}>{notice}</Text> : null}
-                <Field
-                  label="Six-digit code"
-                  value={resetCode}
-                  onChangeText={setResetCode}
-                  placeholder="123456"
-                  keyboardType="numeric"
-                />
-                <Field
-                  label="New password"
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  placeholder="At least 8 characters"
-                  secureTextEntry
-                  hint="Choose something you have not used on this platform before."
-                />
-                {error ? <Text style={s.error}>{error}</Text> : null}
-                <Button label="Set the new password" onPress={applyReset} loading={busy} size="lg" />
-                <TouchableOpacity onPress={() => setMode('forgot')} style={s.linkRow}>
-                  <Text style={s.link}>Send another code</Text>
+                <Text style={s.stepTitle}>Locked out?</Text>
+                <Text style={s.stepBody}>
+                  Administrator access is set on the server. Change ADMIN_PASSWORD in the
+                  deployment environment and redeploy — the account is re-applied at boot.
+                  {'\n\n'}
+                  If you are a restaurant partner or a delivery rider, telephone operations:
+                  an administrator will set a temporary password for you, and the change is
+                  recorded against their name.
+                </Text>
+                <TouchableOpacity onPress={() => setMode('signin')} style={s.linkRow}>
+                  <Text style={s.link}>Back to sign in</Text>
                 </TouchableOpacity>
               </>
             )}

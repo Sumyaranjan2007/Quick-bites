@@ -223,30 +223,14 @@ export const api = {
   },
 
   /* ---------------------------- Password ------------------------------- *
-   * A rider who forgets their password is locked out of their own shift, so
-   * these do not require being signed in — only `changePassword` does. The
-   * reset code is delivered by the server; where no mail provider is wired up
-   * it comes back in the response and the screen says so.
+   * Emailed reset codes are gone: no mail provider was ever configured, so
+   * that screen told riders to check an inbox for a message that was never
+   * sent. A rider who is locked out telephones operations and an
+   * administrator sets a temporary password, which is recorded against the
+   * administrator who did it. `changePassword` below still requires being
+   * signed in.
    * --------------------------------------------------------------------- */
 
-  forgotPassword(apiUrl: string, email: string) {
-    return request<{ sent: boolean; resetCode?: string; expiresInMinutes: number }>(
-      { apiUrl },
-      '/auth/forgot-password',
-      { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) }
-    );
-  },
-
-  resetPassword(apiUrl: string, input: { email: string; code: string; newPassword: string }) {
-    return request<{ reset: boolean; token: string }>({ apiUrl }, '/auth/reset-password', {
-      method: 'POST',
-      body: JSON.stringify({
-        email: input.email.trim().toLowerCase(),
-        code: input.code.trim(),
-        newPassword: input.newPassword
-      })
-    });
-  },
 
   changePassword(ctx: ApiContext, currentPassword: string, newPassword: string) {
     return request<{ changed: boolean }>(ctx, '/auth/change-password', {

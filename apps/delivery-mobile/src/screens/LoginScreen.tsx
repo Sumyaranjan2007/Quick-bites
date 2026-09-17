@@ -43,53 +43,6 @@ export const LoginScreen: React.FC<{
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const requestCode = async () => {
-    setRecoveryError(null);
-    setNotice(null);
-    if (!email.trim()) {
-      setRecoveryError('Enter the email on your rider account.');
-      return;
-    }
-    setRecoveryBusy(true);
-    try {
-      const result = await api.forgotPassword(apiUrl, email);
-      if (result.resetCode) {
-        setResetCode(String(result.resetCode));
-        setNotice(`Your code is ${result.resetCode}. It expires in ${result.expiresInMinutes} minutes.`);
-      } else if ((result as any).emailDeliveryConfigured) {
-        setNotice('If that address is on an account, a reset code has been sent to it.');
-      } else {
-        setNotice('A reset code has been generated, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.');
-      }
-      setMode('reset');
-    } catch (err: any) {
-      setRecoveryError(err?.message || 'Could not start a password reset.');
-    } finally {
-      setRecoveryBusy(false);
-    }
-  };
-
-  const applyReset = async () => {
-    setRecoveryError(null);
-    if (resetCode.trim().length !== 6 || newPassword.length < 8) {
-      setRecoveryError('Enter the six-digit code and a new password of at least 8 characters.');
-      return;
-    }
-    setRecoveryBusy(true);
-    try {
-      await api.resetPassword(apiUrl, { email, code: resetCode, newPassword });
-      setPassword(newPassword);
-      setNewPassword('');
-      setResetCode('');
-      setNotice('Your password has been changed. Sign in with it now.');
-      setMode('signin');
-    } catch (err: any) {
-      setRecoveryError(err?.message || 'That code was not accepted.');
-    } finally {
-      setRecoveryBusy(false);
-    }
-  };
-
   return (
     <SafeScreen style={s.screen}>
       <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
@@ -103,9 +56,7 @@ export const LoginScreen: React.FC<{
             <Text style={s.subtitle}>
               {mode === 'signin'
                 ? 'Sign in to start your shift'
-                : mode === 'forgot'
-                  ? 'We will send you a reset code'
-                  : 'Enter the code and pick a new password'}
+                : 'Locked out of your account'}
             </Text>
           </View>
 
@@ -139,27 +90,12 @@ export const LoginScreen: React.FC<{
               </>
             ) : null}
 
-            {mode === 'reset' ? (
-              <>
-                <Text style={[s.label, { marginTop: t.space[4] }]}>Six-digit code</Text>
-                <TextInput
-                  style={s.input}
-                  value={resetCode}
-                  onChangeText={setResetCode}
-                  keyboardType="number-pad"
-                  placeholder="123456"
-                  placeholderTextColor={t.color.textMuted}
-                />
-                <Text style={[s.label, { marginTop: t.space[4] }]}>New password</Text>
-                <TextInput
-                  style={s.input}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  secureTextEntry
-                  placeholder="At least 8 characters"
-                  placeholderTextColor={t.color.textMuted}
-                />
-              </>
+            {mode !== 'signin' ? (
+              <Text style={s.notice}>
+                Emailed reset codes are gone. Call Quick Bites operations and an administrator
+                will set a temporary password for you — the change is recorded against their
+                name. Change it from your profile once you are back in.
+              </Text>
             ) : null}
 
             {notice ? <Text style={s.notice}>{notice}</Text> : null}
@@ -167,13 +103,12 @@ export const LoginScreen: React.FC<{
             {recoveryError ? <Text style={s.error}>{recoveryError}</Text> : null}
 
             <Button
-              label={mode === 'signin' ? 'Sign in' : mode === 'forgot' ? 'Send the code' : 'Set the new password'}
+              label={mode === 'signin' ? 'Sign in' : 'Back to sign in'}
               size="lg"
-              loading={mode === 'signin' ? busy : recoveryBusy}
+              loading={mode === 'signin' ? busy : false}
               onPress={() => {
                 if (mode === 'signin') onSubmit(email, password);
-                else if (mode === 'forgot') requestCode();
-                else applyReset();
+                else setMode('signin');
               }}
               style={{ marginTop: t.space[5] }}
             />
@@ -183,12 +118,12 @@ export const LoginScreen: React.FC<{
               onPress={() => {
                 setRecoveryError(null);
                 setNotice(null);
-                setMode(mode === 'signin' ? 'forgot' : mode === 'reset' ? 'forgot' : 'signin');
+                setMode(mode === 'signin' ? 'forgot' : 'signin');
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={s.recoveryLinkText}>
-                {mode === 'signin' ? 'Forgot your password?' : mode === 'reset' ? 'Send another code' : 'Back to sign in'}
+                {mode === 'signin' ? 'Trouble signing in?' : 'Back to sign in'}
               </Text>
             </TouchableOpacity>
 

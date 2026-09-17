@@ -1350,6 +1350,52 @@ Every seeded user record carried an email and no phone — the phone numbers in 
 
 ---
 
+## [2026-09-18 01:30] -- Claude Opus 5 -- Session 23 Phase 2b (phone sign-in in the apps)
+
+**Feature/Issue:** Phase 2a moved identity to the phone on the server and removed the email endpoints. Every app still called them, so all four would have failed at the door. This closes that.
+
+**Status:** Completed
+**Chunks Modified:** 07 (application portals)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 2
+
+### The customer app
+
+`LoginScreen` is now phone → code, with no password and no sign-up tab. A new customer and a returning one walk the same two screens, because verifying a code for an unknown number creates the account.
+
+The name is asked for **after** the code is accepted, and only when the account is genuinely new — asking up front would ask returning customers for something the platform already knows. At that point the account exists and the session is valid, so the step also carries a "Skip for now" that signs them in anyway rather than trapping someone behind a form. If the name fails to save, they are still signed in; a name is not worth blocking a new customer at the door for, and Profile can change it.
+
+When the deployment has no SMS provider the screen says so plainly — "This test build does not send SMS. Enter the verification code you were given" — instead of claiming a message was sent. The resend link counts down against the server's own cooldown rather than guessing.
+
+### The staff apps
+
+Partner, rider and admin all had a working-looking recovery flow pointed at endpoints that no longer exist. Rather than reinstate a mail provider for a few dozen people, each screen now states the path that actually works:
+
+- **Partner and rider:** telephone operations; an administrator sets a temporary password, and the change is recorded against the administrator who made it.
+- **Admin:** change `ADMIN_PASSWORD` on the host and redeploy — the bootstrap re-applies it at boot. There is deliberately no self-service reset for the account that can approve every partner and rider on the platform.
+
+The dead API helpers (`forgotPassword`, `resetPassword`, `requestPasswordReset`) are deleted rather than left to return 404s, so nothing in any app calls a route that is gone. Verified by search: the only remaining matches for `reset-password` are the new admin endpoint and its tests.
+
+**Frontend changes:** `customer-mobile/src/screens/LoginScreen.tsx` rewritten as phone + code + optional name; recovery flows removed from `admin-mobile/src/screens/LoginScreen.tsx`, `delivery-mobile/src/screens/LoginScreen.tsx`, `restaurant-mobile/src/screens/SignInScreen.tsx`; dead helpers removed from `delivery-mobile/src/lib/api.ts` and `restaurant-mobile/src/lib/partnerApi.ts`.
+**Backend/API/database changes:** None — Phase 2a covered them.
+**Build/APK changes:** None. No APK has been rebuilt against any of this yet.
+
+**Files/modified:**
+- Modified: `apps/customer-mobile/src/screens/LoginScreen.tsx`, `apps/admin-mobile/src/screens/LoginScreen.tsx`, `apps/delivery-mobile/src/screens/LoginScreen.tsx`, `apps/delivery-mobile/src/lib/api.ts`, `apps/restaurant-mobile/src/screens/SignInScreen.tsx`, `apps/restaurant-mobile/src/lib/partnerApi.ts`
+
+**Testing performed:** `npm run verify` — secrets clean, diagnostics 34/34, typecheck 3/3, 458 backend checks across 12 suites, 0 failures. Each of the four apps typechecked individually with `npx tsc --noEmit`; all clean. Result: all pass.
+
+**Known issues / pending work:**
+- **None of this has run on a device.** The four apps compile and the server behaviour is covered by tests, but the phone sign-in screen has not been driven by hand. That happens in Phase 10, where every APK is installed and launched before publication.
+- The customer app's server-URL picker still exists on the login screen. Phase 7 moves the default into configuration so a tester never has to type it.
+
+**Decisions / dependencies / session conflicts:**
+- The customer app has no password field anywhere. Do not add one: two credentials on an account whose security model is "possession of the phone" is one credential too many, and `verifyCredentials` now refuses password sign-in for any account without a hash.
+- Staff recovery depends on an administrator existing. Phase 3 creates exactly one, from `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and makes production refuse to start without them.
+
+**NEXT AI SHOULD:** Execute Phase 3 of `MASTER_FIX_PLAN.md` — partner and rider self-registration into a pending state, gated until an administrator approves their KYC, plus the bootstrap administrator. That is what finally retires `SEED_DEFAULT_PASSWORD` and lets testers be handed the staff apps against production.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

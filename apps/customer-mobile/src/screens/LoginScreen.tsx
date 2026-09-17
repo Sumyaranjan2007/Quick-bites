@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { Lock, Mail, User, Phone, Server, Sparkles } from 'lucide-react-native';
+import { Phone, Server, ShieldCheck, User, ArrowLeft } from 'lucide-react-native';
 import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
@@ -25,160 +24,171 @@ interface Props {
   onLoginSuccess: (token: string, user: any, apiUrl: string) => void;
 }
 
+/**
+ * Signing in with a phone number and a code.
+ *
+ * There is no password and no separate sign-up. Verifying a code for a number
+ * nobody holds creates the account, so a new customer and a returning one walk
+ * the same two screens — which is how every delivery app they already use
+ * behaves, and one fewer form to abandon.
+ *
+ * The name step appears only for a genuinely new account, after the code has
+ * been accepted. Asking for it up front would ask returning customers for
+ * something the platform already knows.
+ */
+type Step = 'phone' | 'code' | 'name';
+
 export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
   const [apiUrl, setApiUrl] = useState(initialApiUrl);
-  // Play rejects builds that look like test harnesses, so prefilled demo
-  // credentials and the server picker exist only in development.
-  const [email, setEmail] = useState(__DEV__ ? 'customer@quickbite.app' : '');
-  const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
-  const [fullName, setFullName] = useState('');
+  const [step, setStep] = useState<Step>('phone');
+
   const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [fullName, setFullName] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
-  // Field-level problems returned by the server, shown under the field they
-  // name. An alert saying "validation failed" tells the user nothing.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-
-  // Password recovery. Without it, a customer who forgets their password loses
-  // their addresses, wallet balance and order history — and the only way back
-  // was to create a second account.
-  const [recovery, setRecovery] = useState<'off' | 'request' | 'code'>('off');
-  const [resetCode, setResetCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  const requestResetCode = async () => {
-    if (!email.trim()) {
-      setFieldErrors({ email: 'Enter the email address on your account.' });
-      return;
-    }
-    setLoading(true);
-    setFormError(null);
-    setNotice(null);
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() })
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        setFormError(parseApiError(data, 'Could not start a password reset.').message);
-        return;
-      }
-      if (data.data?.resetCode) {
-        setResetCode(String(data.data.resetCode));
-        setNotice(`Your reset code is ${data.data.resetCode}. It expires in ${data.data.expiresInMinutes} minutes.`);
-      } else if (data.data?.emailDeliveryConfigured) {
-        setNotice('If that address is on an account, a reset code has been sent to it.');
-      } else {
-        // Saying "check your email" when nothing was sent is what made this
-        // flow look broken: the code exists, but this deployment has no mail
-        // provider, so it has to be obtained from support.
-        setNotice(
-          'A reset code has been generated for that address, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.'
-        );
-      }
-      setRecovery('code');
-    } catch {
-      setFormError('Could not reach Quick Bites. Check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  /** False when the deployment has no SMS provider, so the screen can say so. */
+  const [smsConfigured, setSmsConfigured] = useState(true);
+  /** Seconds until the code can be requested again. Drives the resend link. */
+  const [cooldown, setCooldown] = useState(0);
 
-  const applyResetCode = async () => {
-    if (resetCode.trim().length !== 6 || newPassword.length < 8) {
-      setFormError('Enter the six-digit code and a new password of at least 8 characters.');
-      return;
-    }
-    setLoading(true);
-    setFormError(null);
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), code: resetCode.trim(), newPassword })
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        setFormError(parseApiError(data, 'That reset code was not accepted.').message);
-        return;
-      }
-      setPassword(newPassword);
-      setNewPassword('');
-      setResetCode('');
-      setRecovery('off');
-      setNotice('Your password has been changed. Sign in with it now.');
-    } catch {
-      setFormError('Could not reach Quick Bites. Check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Held between verifying the code and naming a new account: the account
+  // exists at that point, so the session is real and only the name is missing.
+  const pendingSession = useRef<{ token: string; user: any } | null>(null);
 
-  const handleSubmit = async () => {
-    const local: Record<string, string> = {};
-    if (!email.trim()) local.email = 'Enter your email address.';
-    if (!password) local.password = 'Enter your password.';
-    if (isRegistering) {
-      if (!fullName.trim()) local.fullName = 'Enter your full name.';
-      // Checked here as well as on the server so the user is told before a
-      // round trip, using the same wording the server would use.
-      if (password && password.length < 8) local.password = 'Password must be at least 8 characters.';
-    }
-    if (Object.keys(local).length) {
-      setFieldErrors(local);
-      setFormError(null);
-      return;
-    }
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown(s => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
+  const clearMessages = () => {
     setFieldErrors({});
     setFormError(null);
+  };
+
+  const requestCode = async (isResend = false) => {
+    if (phone.length !== 10) {
+      setFieldErrors({ phone: 'Enter your 10-digit mobile number.' });
+      return;
+    }
+    clearMessages();
     setLoading(true);
     try {
-      const endpoint = isRegistering ? `${apiUrl}/auth/register` : `${apiUrl}/auth/login`;
-      const bodyPayload = isRegistering
-        ? { email, password, fullName, phone, role: 'customer' }
-        : { email, password, role: 'customer' };
-
-      const res = await apiFetch(endpoint, {
+      const res = await apiFetch(`${apiUrl}/auth/otp/${isResend ? 'resend' : 'request'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
+        body: JSON.stringify({ phone })
       });
-
       const data = await res.json();
-      if (res.ok && data.success && data.data?.token) {
-        onLoginSuccess(data.data.token, data.data.user, apiUrl);
-      } else {
-        const parsed = parseApiError(
-          data,
-          isRegistering ? 'Could not create your account.' : 'Email or password is incorrect.'
+
+      if (res.ok && data.success) {
+        const configured = data.data?.deliveryConfigured !== false;
+        setSmsConfigured(configured);
+        setCooldown(data.data?.retryAfterSeconds || 30);
+        setStep('code');
+        setNotice(
+          configured
+            ? `We have sent a code to ${phone}.`
+            : 'This test build does not send SMS. Enter the verification code you were given.'
         );
+      } else {
+        const parsed = parseApiError(data, 'Could not send a code. Try again in a moment.');
         setFieldErrors(parsed.fieldErrors);
         setFormError(Object.keys(parsed.fieldErrors).length ? null : parsed.message);
       }
-    } catch (err: any) {
-      setFormError(`Could not reach Quick Bites. Check your connection and try again.`);
+    } catch {
+      setFormError('Could not reach Quick Bites. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickDemoLogin = () => {
-    setEmail('customer@quickbite.app');
-    setPassword('pass123');
-    setIsRegistering(false);
-    handleSubmit();
+  const verifyCode = async () => {
+    if (code.length < 4) {
+      setFieldErrors({ code: 'Enter the code we sent you.' });
+      return;
+    }
+    clearMessages();
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success && data.data?.token) {
+        const { token, user, isNewAccount } = data.data;
+        if (isNewAccount) {
+          // The account is already created and the session is valid; only the
+          // name is missing, so this step can be skipped without losing it.
+          pendingSession.current = { token, user };
+          setNotice(null);
+          setStep('name');
+        } else {
+          onLoginSuccess(token, user, apiUrl);
+        }
+      } else {
+        const parsed = parseApiError(data, 'That code is not right. Check it and try again.');
+        setFieldErrors(parsed.fieldErrors);
+        setFormError(Object.keys(parsed.fieldErrors).length ? null : parsed.message);
+      }
+    } catch {
+      setFormError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveName = async (skip = false) => {
+    const session = pendingSession.current;
+    if (!session) return;
+
+    if (skip) {
+      onLoginSuccess(session.token, session.user, apiUrl);
+      return;
+    }
+    if (fullName.trim().length < 2) {
+      setFieldErrors({ fullName: 'Tell us what to call you.' });
+      return;
+    }
+
+    clearMessages();
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/me`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify({ fullName: fullName.trim() })
+      });
+      const data = await res.json();
+      // A name that would not save is not worth blocking a new customer at the
+      // door for: they are signed in either way and can change it in Profile.
+      onLoginSuccess(session.token, data?.data?.user || session.user, apiUrl);
+    } catch {
+      onLoginSuccess(session.token, session.user, apiUrl);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const backToPhone = () => {
+    setStep('phone');
+    setCode('');
+    setNotice(null);
+    clearMessages();
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Brand */}
         <View style={styles.brand}>
           <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.brandName}>Quick Bites</Text>
@@ -186,27 +196,119 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
         </View>
 
         <Card style={styles.card}>
-          {/* Tabs */}
-          <View style={styles.tabs}>
-            <TouchableOpacity
-              style={[styles.tab, !isRegistering && styles.tabActive]}
-              onPress={() => { setIsRegistering(false); setFieldErrors({}); setFormError(null); }}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.tabText, !isRegistering && styles.tabTextActive]}>Sign In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, isRegistering && styles.tabActive]}
-              onPress={() => { setIsRegistering(true); setFieldErrors({}); setFormError(null); }}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.tabText, isRegistering && styles.tabTextActive]}>Create Account</Text>
-            </TouchableOpacity>
-          </View>
-
-          {isRegistering && (
+          {step === 'phone' && (
             <>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.stepTitle}>Sign in or sign up</Text>
+              <Text style={styles.stepBody}>
+                Enter your mobile number. We will send you a verification code — no password needed.
+              </Text>
+
+              <Text style={styles.label}>Mobile Number</Text>
+              <View style={[styles.field, !!fieldErrors.phone && styles.fieldError]}>
+                <Phone size={17} color={c.text.muted} />
+                <Text style={styles.dialCode}>+91</Text>
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={v => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
+                  maxLength={10}
+                  placeholder="10-digit mobile"
+                  placeholderTextColor={c.text.muted}
+                  keyboardType="phone-pad"
+                  autoFocus
+                  returnKeyType="go"
+                  onSubmitEditing={() => requestCode()}
+                />
+              </View>
+              {!!fieldErrors.phone && <Text style={styles.fieldErrorText}>{fieldErrors.phone}</Text>}
+
+              {!!formError && (
+                <View style={styles.formErrorBox}>
+                  <Text style={styles.formErrorText}>{formError}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, loading && styles.btnDisabled]}
+                onPress={() => requestCode()}
+                disabled={loading}
+                activeOpacity={0.9}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Send Code</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {step === 'code' && (
+            <>
+              <TouchableOpacity style={styles.backLink} onPress={backToPhone} activeOpacity={0.7}>
+                <ArrowLeft size={16} color={c.text.secondary} />
+                <Text style={styles.backLinkText}>+91 {phone}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.stepTitle}>Enter the code</Text>
+              {!!notice && (
+                <View style={[styles.noticeBox, !smsConfigured && styles.noticeBoxWarn]}>
+                  <Text style={[styles.noticeText, !smsConfigured && styles.noticeTextWarn]}>{notice}</Text>
+                </View>
+              )}
+
+              <Text style={styles.label}>Verification Code</Text>
+              <View style={[styles.field, !!fieldErrors.code && styles.fieldError]}>
+                <ShieldCheck size={17} color={c.text.muted} />
+                <TextInput
+                  style={[styles.input, styles.codeInput]}
+                  value={code}
+                  onChangeText={v => setCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                  maxLength={6}
+                  placeholder="------"
+                  placeholderTextColor={c.text.muted}
+                  keyboardType="number-pad"
+                  autoFocus
+                  returnKeyType="go"
+                  onSubmitEditing={verifyCode}
+                />
+              </View>
+              {!!fieldErrors.code && <Text style={styles.fieldErrorText}>{fieldErrors.code}</Text>}
+
+              {!!formError && (
+                <View style={styles.formErrorBox}>
+                  <Text style={styles.formErrorText}>{formError}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, loading && styles.btnDisabled]}
+                onPress={verifyCode}
+                disabled={loading}
+                activeOpacity={0.9}
+              >
+                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Verify</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.recoveryLink}
+                onPress={() => requestCode(true)}
+                disabled={cooldown > 0 || loading}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.recoveryLinkText, cooldown > 0 && styles.recoveryLinkMuted]}>
+                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {step === 'name' && (
+            <>
+              <Text style={styles.stepTitle}>Welcome to Quick Bites</Text>
+              <Text style={styles.stepBody}>What should we call you? Your rider will see this name.</Text>
+
+              <Text style={styles.label}>Your Name</Text>
               <View style={[styles.field, !!fieldErrors.fullName && styles.fieldError]}>
                 <User size={17} color={c.text.muted} />
                 <TextInput
@@ -215,168 +317,44 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                   onChangeText={setFullName}
                   placeholder="Your name"
                   placeholderTextColor={c.text.muted}
+                  autoFocus
+                  returnKeyType="go"
+                  onSubmitEditing={() => saveName()}
                 />
               </View>
               {!!fieldErrors.fullName && <Text style={styles.fieldErrorText}>{fieldErrors.fullName}</Text>}
 
-              <Text style={styles.label}>Phone</Text>
-              <View style={styles.field}>
-                <Phone size={17} color={c.text.muted} />
-                <TextInput
-                  style={styles.input}
-                  value={phone}
-                  // Ten digits is the whole of an Indian mobile number; the
-                  // field used to accept twenty characters of anything, so an
-                  // account could be saved with a number nobody could ring.
-                  onChangeText={v => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
-                  maxLength={10}
-                  placeholder="10-digit mobile"
-                  placeholderTextColor={c.text.muted}
-                  keyboardType="phone-pad"
-                />
-              </View>
-              {!!fieldErrors.phone && <Text style={styles.fieldErrorText}>{fieldErrors.phone}</Text>}
+              <TouchableOpacity
+                style={[styles.primaryBtn, loading && styles.btnDisabled]}
+                onPress={() => saveName()}
+                disabled={loading}
+                activeOpacity={0.9}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Start Ordering</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.recoveryLink} onPress={() => saveName(true)} activeOpacity={0.7}>
+                <Text style={styles.recoveryLinkText}>Skip for now</Text>
+              </TouchableOpacity>
             </>
-          )}
-
-          <Text style={styles.label}>Email Address</Text>
-          <View style={[styles.field, !!fieldErrors.email && styles.fieldError]}>
-            <Mail size={17} color={c.text.muted} />
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              placeholderTextColor={c.text.muted}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-          </View>
-          {!!fieldErrors.email && <Text style={styles.fieldErrorText}>{fieldErrors.email}</Text>}
-
-          <Text style={styles.label}>Password</Text>
-          <View style={[styles.field, !!fieldErrors.password && styles.fieldError]}>
-            <Lock size={17} color={c.text.muted} />
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••"
-              placeholderTextColor={c.text.muted}
-              secureTextEntry
-            />
-          </View>
-          {!!fieldErrors.password ? (
-            <Text style={styles.fieldErrorText}>{fieldErrors.password}</Text>
-          ) : isRegistering ? (
-            <Text style={styles.fieldHint}>At least 8 characters.</Text>
-          ) : null}
-          {recovery === 'code' && (
-            <>
-              <Text style={styles.label}>Six-digit code</Text>
-              <View style={styles.field}>
-                <Lock size={16} color={c.text.muted} />
-                <TextInput
-                  style={styles.input}
-                  value={resetCode}
-                  onChangeText={setResetCode}
-                  keyboardType="number-pad"
-                  placeholder="123456"
-                  placeholderTextColor={c.text.muted}
-                />
-              </View>
-              <Text style={styles.label}>New password</Text>
-              <View style={styles.field}>
-                <Lock size={16} color={c.text.muted} />
-                <TextInput
-                  style={styles.input}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  secureTextEntry
-                  placeholder="At least 8 characters"
-                  placeholderTextColor={c.text.muted}
-                />
-              </View>
-            </>
-          )}
-
-          {!!notice && (
-            <View style={styles.noticeBox}>
-              <Text style={styles.noticeText}>{notice}</Text>
-            </View>
-          )}
-
-          {!!formError && (
-            <View style={styles.formErrorBox}>
-              <Text style={styles.formErrorText}>{formError}</Text>
-            </View>
           )}
 
           <TouchableOpacity
-            style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
-            onPress={
-              recovery === 'request' ? requestResetCode : recovery === 'code' ? applyResetCode : handleSubmit
-            }
-            disabled={loading}
-            activeOpacity={0.88}
+            style={styles.serverToggle}
+            onPress={() => setShowServerConfig(s => !s)}
+            activeOpacity={0.7}
           >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryBtnText}>
-                {recovery === 'request'
-                  ? 'Send reset code'
-                  : recovery === 'code'
-                    ? 'Set new password'
-                    : isRegistering
-                      ? 'Create Account'
-                      : 'Sign In'}
-              </Text>
-            )}
+            <Server size={13} color={c.text.muted} />
+            <Text style={styles.serverToggleText}>
+              {showServerConfig ? 'Hide server settings' : 'Server settings'}
+            </Text>
           </TouchableOpacity>
 
-          {!isRegistering && (
-            <TouchableOpacity
-              style={styles.recoveryLink}
-              onPress={() => {
-                setFormError(null);
-                setNotice(null);
-                setFieldErrors({});
-                setRecovery(recovery === 'off' ? 'request' : recovery === 'code' ? 'request' : 'off');
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.recoveryLinkText}>
-                {recovery === 'off'
-                  ? 'Forgot your password?'
-                  : recovery === 'code'
-                    ? 'Send another code'
-                    : 'Back to sign in'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {__DEV__ && (
-            <TouchableOpacity style={styles.demoBtn} onPress={handleQuickDemoLogin} activeOpacity={0.85}>
-              <Sparkles size={15} color={c.accent[600]} />
-              <Text style={styles.demoBtnText}>One-Tap Demo Login</Text>
-            </TouchableOpacity>
-          )}
-
-          {__DEV__ && (
-            <TouchableOpacity
-              style={styles.serverToggle}
-              onPress={() => setShowServerConfig(!showServerConfig)}
-              activeOpacity={0.7}
-            >
-              <Server size={13} color={c.text.muted} />
-              <Text style={styles.serverToggleText}>
-                {showServerConfig ? 'Hide server settings' : 'Server settings'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {__DEV__ && showServerConfig && (
+          {showServerConfig && (
             <View style={styles.serverBox}>
               <Text style={styles.label}>Backend API URL</Text>
               <View style={styles.field}>
@@ -399,15 +377,6 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
-  noticeBox: {
-    backgroundColor: c.dietary.vegBg,
-    borderRadius: tokens.radii.md,
-    padding: 12,
-    marginTop: 12
-  },
-  noticeText: { color: c.dietary.veg, fontSize: 13, lineHeight: 18 },
-  recoveryLink: { alignItems: 'center', paddingVertical: 14 },
-  recoveryLinkText: { color: c.primary[500], fontSize: 14, fontWeight: '700' },
   content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
 
   brand: { alignItems: 'center', marginBottom: 26 },
@@ -423,55 +392,55 @@ const styles = StyleSheet.create({
 
   card: { padding: 20 },
 
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: c.surface.sunken,
-    borderRadius: tokens.radii.md,
-    padding: 4,
-    marginBottom: 20
+  stepTitle: {
+    fontSize: tokens.font.size.lg,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    marginBottom: 6
   },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: tokens.radii.sm, alignItems: 'center' },
-  tabActive: { backgroundColor: c.surface.card, ...tokens.shadow.card },
-  tabText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.muted },
-  tabTextActive: { color: c.primary[500], fontWeight: tokens.font.weight.extrabold },
+  stepBody: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 20 },
 
-  fieldError: {
-    borderColor: c.semantic.error,
-    backgroundColor: '#FDECEC'
+  backLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
+  backLinkText: { fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: '700' },
+
+  noticeBox: {
+    backgroundColor: c.dietary.vegBg,
+    borderRadius: tokens.radii.md,
+    padding: 12,
+    marginTop: 12
   },
+  noticeText: { color: c.dietary.veg, fontSize: 13, lineHeight: 18 },
+  noticeBoxWarn: { backgroundColor: c.accent[50] },
+  noticeTextWarn: { color: c.accent[600] },
+
+  recoveryLink: { alignItems: 'center', paddingVertical: 14 },
+  recoveryLinkText: { color: c.primary[500], fontSize: 14, fontWeight: '700' },
+  recoveryLinkMuted: { color: c.text.muted },
+
+  fieldError: { borderColor: c.semantic.error, backgroundColor: '#FDECEC' },
   fieldErrorText: {
     color: c.semantic.error,
     fontSize: 12.5,
     fontWeight: '600',
-    marginTop: -6,
-    marginBottom: 10
-  },
-  fieldHint: {
-    color: c.text.muted,
-    fontSize: 12,
-    marginTop: -6,
-    marginBottom: 10
+    marginTop: 6
   },
   formErrorBox: {
     backgroundColor: '#FDECEC',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    marginBottom: 12,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: c.semantic.error
   },
-  formErrorText: {
-    color: c.semantic.error,
-    fontSize: 13,
-    fontWeight: '600'
-  },
+  formErrorText: { color: c.semantic.error, fontSize: 13, fontWeight: '600' },
+
   label: {
     fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.bold,
     color: c.text.secondary,
     marginBottom: 6,
-    marginTop: 12
+    marginTop: 16
   },
   field: {
     flexDirection: 'row',
@@ -484,7 +453,9 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.md,
     paddingHorizontal: 13
   },
+  dialCode: { fontSize: tokens.font.size.base, color: c.text.secondary, fontWeight: '700' },
   input: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, padding: 0 },
+  codeInput: { letterSpacing: 8, fontWeight: '800' },
 
   primaryBtn: {
     height: 52,
@@ -494,21 +465,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 22
   },
+  btnDisabled: { opacity: 0.7 },
   primaryBtnText: { color: '#FFFFFF', fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.extrabold },
-
-  demoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 48,
-    borderRadius: tokens.radii.md,
-    backgroundColor: c.accent[50],
-    borderWidth: 1,
-    borderColor: c.accent[300],
-    marginTop: 12
-  },
-  demoBtnText: { color: c.accent[600], fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
 
   serverToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 18 },
   serverToggleText: { fontSize: tokens.font.size.xs, color: c.text.muted, fontWeight: tokens.font.weight.semibold },

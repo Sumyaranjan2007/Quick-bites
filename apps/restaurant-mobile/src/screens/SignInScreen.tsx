@@ -6,8 +6,7 @@ import { Button, Field, PasswordField, ErrorNote } from '../components/ui';
 import {
   login,
   createAccount,
-  requestPasswordReset,
-  resetPassword,
+  PASSWORD_RECOVERY_GUIDANCE,
   configureApi,
   currentApiUrl,
 } from '../lib/partnerApi';
@@ -52,59 +51,6 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
-
-  const doForgot = async () => {
-    setFormError(null);
-    setNotice(null);
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      setFieldErrors({ email: 'Enter the email address on your account.' });
-      return;
-    }
-    setBusy(true);
-    const res = await requestPasswordReset(email);
-    setBusy(false);
-
-    if (!res.ok) {
-      setFormError(res.message || 'Could not start a password reset.');
-      return;
-    }
-    if (res.data?.resetCode) {
-      setResetCode(String(res.data.resetCode));
-      setNotice(`Your reset code is ${res.data.resetCode}. It expires in ${res.data.expiresInMinutes} minutes.`);
-    } else if (res.data?.emailDeliveryConfigured) {
-      setNotice('If that address is on an account, a reset code has been sent to it.');
-    } else {
-      // Telling someone to check an inbox nothing was sent to is what made
-      // recovery look broken rather than unconfigured.
-      setNotice('A reset code has been generated, but this Quick Bites deployment cannot send email yet. Contact support to receive your code.');
-    }
-    setMode('reset');
-  };
-
-  const doReset = async () => {
-    setFormError(null);
-    if (resetCode.trim().length !== 6) {
-      setFieldErrors({ resetCode: 'The code is six digits.' });
-      return;
-    }
-    if (newPassword.length < 8) {
-      setFieldErrors({ newPassword: 'Use at least 8 characters.' });
-      return;
-    }
-    setBusy(true);
-    const res = await resetPassword({ email, code: resetCode, newPassword });
-    setBusy(false);
-
-    if (!res.ok) {
-      setFormError(res.message || 'That code was not accepted.');
-      return;
-    }
-    setPassword(newPassword);
-    setNewPassword('');
-    setResetCode('');
-    setNotice('Your password has been changed. Sign in with it now.');
-    setMode('signin');
-  };
 
   const validateCreate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -191,9 +137,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
               ? 'Sign in to your kitchen'
               : mode === 'create'
                 ? 'Register your restaurant'
-                : mode === 'forgot'
-                  ? 'We will send you a reset code'
-                  : 'Enter the code and choose a new password'}
+                : 'Locked out of your kitchen'}
           </Text>
         </View>
 
@@ -267,25 +211,8 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           />
         )}
 
-        {mode === 'reset' && (
-          <>
-            <Field
-              label="Six-digit code"
-              value={resetCode}
-              onChangeText={setResetCode}
-              placeholder="123456"
-              keyboardType="number-pad"
-              error={fieldErrors.resetCode}
-            />
-            <PasswordField
-              label="New password"
-              value={newPassword}
-              onChangeText={setNewPassword}
-              placeholder="At least 8 characters"
-              error={fieldErrors.newPassword}
-              textContentType="newPassword"
-            />
-          </>
+        {(mode === 'forgot' || mode === 'reset') && (
+          <Text style={styles.subtitle}>{PASSWORD_RECOVERY_GUIDANCE}</Text>
         )}
 
         {mode === 'create' && (
@@ -304,12 +231,10 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
               ? 'Sign in'
               : mode === 'create'
                 ? 'Create account'
-                : mode === 'forgot'
-                  ? 'Send the code'
-                  : 'Set the new password'
+                : 'Back to sign in'
           }
           onPress={
-            mode === 'signin' ? doSignIn : mode === 'create' ? doCreate : mode === 'forgot' ? doForgot : doReset
+            mode === 'signin' ? doSignIn : mode === 'create' ? doCreate : () => setMode('signin')
           }
           busy={busy}
           style={{ marginTop: spacing.sm }}
@@ -325,20 +250,20 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             }}
             style={styles.linkRow}
           >
-            <Text style={styles.link}>Forgot your password?</Text>
+            <Text style={styles.link}>Trouble signing in?</Text>
           </TouchableOpacity>
         )}
 
         {(mode === 'forgot' || mode === 'reset') && (
           <TouchableOpacity
             onPress={() => {
-              setMode(mode === 'reset' ? 'forgot' : 'signin');
+              setMode('signin');
               setFormError(null);
               setFieldErrors({});
             }}
             style={styles.linkRow}
           >
-            <Text style={styles.link}>{mode === 'reset' ? 'Send another code' : 'Back to sign in'}</Text>
+            <Text style={styles.link}>Back to sign in</Text>
           </TouchableOpacity>
         )}
 

@@ -248,28 +248,15 @@ export function fetchSupportTickets() {
 // uses, so a password changed here works everywhere the owner signs in.
 // ---------------------------------------------------------------------------
 
-export function requestPasswordReset(email: string) {
-  return request<{ sent: boolean; resetCode?: string; emailDeliveryConfigured?: boolean; expiresInMinutes: number }>(
-    '/auth/forgot-password',
-    { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) },
-    'Could not start a password reset.'
-  );
-}
-
-export function resetPassword(input: { email: string; code: string; newPassword: string }) {
-  return request<{ reset: boolean; token: string }>(
-    '/auth/reset-password',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        email: input.email.trim().toLowerCase(),
-        code: input.code.trim(),
-        newPassword: input.newPassword
-      })
-    },
-    'That reset code was not accepted.'
-  );
-}
+/**
+ * Emailed reset codes are gone: no mail provider was ever configured, so the
+ * old screen told partners to check an inbox for a message that was never
+ * sent. A partner who is locked out telephones operations and an administrator
+ * sets a temporary password, which is recorded against the administrator who
+ * did it. changePassword below still applies once they are signed in.
+ */
+export const PASSWORD_RECOVERY_GUIDANCE =
+  'Call Quick Bites operations and an administrator will set a temporary password for you. Change it from Settings once you are back in.';
 
 export function changePassword(currentPassword: string, newPassword: string) {
   return request<{ changed: boolean }>(
