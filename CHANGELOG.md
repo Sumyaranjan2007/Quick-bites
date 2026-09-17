@@ -1292,6 +1292,64 @@ Rather than weaken the rule, `setRiderOfferPoolMembership` moves riders in and o
 
 ---
 
+## [2026-09-18 00:40] -- Claude Opus 5 -- Session 23 Phase 2a (phone identity, backend)
+
+**Feature/Issue:** Customers become phone numbers verified by a one-time code, as on every delivery app in this market. The email subsystem is removed rather than ported: it delivered nothing, because no provider was ever configured.
+
+**Status:** Completed (backend). The four apps still call the removed endpoints — see known issues.
+**Chunks Modified:** 02 (auth middleware surface), 03 (user records)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 2
+
+### What exists now
+
+`POST /auth/otp/request`, `/otp/resend`, `/otp/verify`. Verifying a code for a number nobody holds **creates the account** — there is no separate sign-up, which removes a screen from the journey and is how Zomato behaves. Partners, riders and administrators keep email and password: a kitchen tablet is shared between shifts, and a restaurant's access should not depend on one person's handset being in the building.
+
+Delivery is a driver behind an interface (`modules/auth/otpDrivers.ts`). The `fixed` driver accepts one configured code and sends nothing; MSG91 and Twilio are present as documented stubs that refuse rather than pretend. Choosing a vendor later is one file and one variable.
+
+Rules enforced in `otpService.ts` rather than in a route, so a second caller cannot skip them: the code is SHA-256 hashed at rest and never logged or returned; it is deleted on use, so it cannot be replayed; five wrong guesses destroy it, because a six-digit code is one in a million only if guesses are limited; a resend cooldown stops the endpoint being used to bombard a handset or run up an SMS bill; and a request for an unknown number is indistinguishable from one for a known number, so nobody can ask this endpoint who has an account.
+
+**A fixed code is refused in production** unless `OTP_ALLOW_FIXED_IN_PRODUCTION` is set deliberately — otherwise anyone who knows six digits can sign in as any number. Configuration is re-read on every request, not at boot, so flipping the variable on the host takes effect without a process that keeps issuing codes it should not. Removing that variable is the entire switch to real OTP.
+
+### Two things found while building it, both worse than the thing being built
+
+**An account with no password could be signed into with any password.** `verifyCredentials` ran its check inside `if (user.passwordHash)`, so an account without one fell past the check and was returned as authenticated. That was unreachable while every account had a password — and stopped being unreachable the moment this phase started creating passwordless customers whose address is `<phone>@phone.quickbite.app`, derivable from the phone number. Anyone who knew a customer's number could have signed in as them with any password they typed, straight past the one-time code. Now: no hash, no password sign-in.
+
+**Phone sign-in had no per-account rate limit.** The credential limiter keys on IP *and* on the account under attack, but it read the account from `req.body.email`, which phone sign-in never sends. The entire customer front door therefore had only a per-IP ceiling — the one limit a distributed attacker does not care about. It now keys on phone as well.
+
+### Recovery, without a mail provider
+
+Removing email left staff — who do have passwords — with no way back in. Rather than run a mail provider for a few dozen people, recovery becomes what it already is in practice: the partner telephones operations and an administrator sets a temporary password. `POST /admin/staff/:userId/reset-password` does that, refuses customers (they have no password to reset, and giving them one would create a second way into an account whose only credential is meant to be the phone), and is audit-logged, because an administrator able to take over a partner account silently is exactly the power that needs a record against it. An administrator's own account is recovered by changing `ADMIN_PASSWORD` on the host and redeploying; there is deliberately no self-service path into the account that approves everyone else.
+
+### Seeded accounts had no phone number at all
+
+Every seeded user record carried an email and no phone — the phone numbers in the seed belong to rider and restaurant records. With phone sign-in that meant the demo customer could not reach their own account. All five seeded users now carry one.
+
+**Frontend changes:** None yet.
+**Backend/API/database changes:** New `modules/auth/otpService.ts` and `otpDrivers.ts`; three OTP routes; `forgot-password` and `reset-password` removed; `notifications/emailSender.ts` deleted; `userRepository.findByPhone`; the passwordless-login fix; rate limiter keys on phone; `POST /admin/staff/:userId/reset-password`; OTP, admin bootstrap and seeding configuration in `config/env.ts`; phones added to seeded users.
+**Build/APK changes:** None.
+
+**Files/modules affected:**
+- Created: `apps/backend-api/src/modules/auth/otpService.ts`, `apps/backend-api/src/modules/auth/otpDrivers.ts`, `apps/backend-api/src/test/otp.test.ts`
+- Modified: `routes/authRouter.ts`, `routes/admin/peopleRoutes.ts`, `db/repositories/userRepository.ts`, `db/seed.ts`, `middlewares/rateLimiter.ts`, `config/env.ts`, `test/admin.test.ts`, `test/regression.test.ts`, `apps/backend-api/package.json`, `.env.example`
+- Deleted: `apps/backend-api/src/notifications/emailSender.ts`
+
+**Testing performed:** `npm run verify` — secrets clean, diagnostics 34/34, typecheck 3/3, **458 backend checks across 12 suites, 0 failures** (437 before, plus 23 phone sign-in checks; two existing suites were rewritten rather than deleted). Result: all pass.
+
+`admin.test.ts` and `regression.test.ts` both guarded the emailed-recovery flow. The property `regression.test.ts` protected — that recovery must not become an account-enumeration oracle — still matters, so it moved to the endpoint that replaced it rather than being dropped with the endpoint.
+
+**Known issues / pending work:**
+- **All four apps still call `/auth/forgot-password` and `/auth/reset-password`, which now return 404.** The customer app also still signs in with email and password. Phase 2b covers the customer OTP screen and the staff apps' recovery copy.
+- The seeded customer retains a password, so `/auth/login` still works for them. New phone customers have none and cannot use it. Production seeds nothing (Phase 4), so this is a local-development affordance only.
+
+**Decisions / dependencies / session conflicts:**
+- **`OTP_ALLOW_FIXED_IN_PRODUCTION=true` is a tester-phase setting.** While it is set, anyone who knows the fixed code can sign in as any phone number on the hosted deployment. Remove it the moment a real provider is configured.
+- TRAI DLT registration — entity, sender header and approved template — is required before any provider will deliver an OTP to an Indian number. It is law, not a vendor rule, takes days, and cannot be shortened by changing provider. Documented at the top of `otpDrivers.ts`.
+- Customers must never be given a password. Two credentials on an account whose security model is "possession of the phone" is one credential too many.
+
+**NEXT AI SHOULD:** Phase 2b — replace the customer app's email/password login with the phone + code screen, and replace the staff apps' forgot-password screens with the "contact operations" path, so no app calls a route that no longer exists.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

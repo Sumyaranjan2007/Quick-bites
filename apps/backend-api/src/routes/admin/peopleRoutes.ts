@@ -3,6 +3,7 @@
  * and the documents that qualify the last two to trade.
  */
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
@@ -521,6 +522,77 @@ peopleRoutes.post(
       });
 
       res.json({ success: true, data: { document: doc } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/admin/staff/:userId/reset-password
+ *
+ * Replaces emailed recovery codes for partners, riders and administrators.
+ *
+ * Customers no longer have a password at all — they sign in with a code sent to
+ * their phone — but staff still do, because a kitchen tablet is shared between
+ * shifts and a restaurant's access should not depend on one person's handset
+ * being in the building. That left staff with no way back in once the email
+ * flow was removed, and reinstating email for three roles would mean running a
+ * mail provider for an audience of a few dozen people.
+ *
+ * So recovery becomes what it already is in practice at every delivery company:
+ * the partner telephones operations, and an administrator sets a temporary
+ * password over the phone. It is audit-logged, because an administrator able to
+ * silently take over a partner account is exactly the power that needs a record
+ * against it.
+ *
+ * An administrator's own account is recovered by changing ADMIN_PASSWORD on the
+ * host and redeploying — the bootstrap re-applies it. There is deliberately no
+ * self-service path into the account that can approve everyone else.
+ */
+const StaffPasswordResetSchema = z.object({
+  temporaryPassword: z
+    .string()
+    .min(10, 'Use at least 10 characters — this is spoken aloud over a telephone.')
+    .max(128)
+});
+
+peopleRoutes.post(
+  '/staff/:userId/reset-password',
+  requirePermission('users.drivers.manage', 'users.restaurants.manage'),
+  validate({ body: StaffPasswordResetSchema }),
+  async (req, res, next) => {
+    try {
+      const user = await userRepository.findById(req.params.userId);
+      if (!user) throw new AppError('No such account.', 404, 'USER_NOT_FOUND');
+
+      // Customers are excluded rather than merely unnecessary here: giving them
+      // a password would create a second way into an account whose only
+      // credential is meant to be possession of the phone number.
+      if (user.role === 'customer') {
+        throw new AppError(
+          'Customers sign in with a code sent to their phone and have no password to reset.',
+          400,
+          'CUSTOMER_HAS_NO_PASSWORD'
+        );
+      }
+
+      await userRepository.update(user.id, {
+        passwordHash: await bcrypt.hash(req.body.temporaryPassword, 10)
+      });
+
+      recordAudit(req, {
+        action: 'STAFF_PASSWORD_RESET',
+        entityType: user.role === 'rider' ? 'RIDER' : 'RESTAURANT_PARTNER',
+        entityId: user.id,
+        summary: `Reset the password for ${user.fullName} (${user.email})`
+      });
+
+      res.json({
+        success: true,
+        data: { reset: true },
+        message: `Password reset for ${user.fullName}. Ask them to change it after signing in.`
+      });
     } catch (err) {
       next(err);
     }

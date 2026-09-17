@@ -98,6 +98,10 @@ export async function seedDatabase() {
   await userRepository.create({
     id: 'usr_partner_01',
     email: 'partner@quickbite.app',
+    // Customers sign in by phone, so every seeded account carries one. Without
+    // it the demo customer could not reach their own account at all, and a
+    // staff number could not be tested against the phone sign-in route.
+    phone: '9876511223',
     passwordHash: defaultPasswordHash,
     fullName: 'Sunita Deshmukh',
     role: 'restaurant_owner',
@@ -109,6 +113,10 @@ export async function seedDatabase() {
   await userRepository.create({
     id: 'usr_partner_legacy',
     email: 'sunita.partner@quickbite.app',
+    // Customers sign in by phone, so every seeded account carries one. Without
+    // it the demo customer could not reach their own account at all, and a
+    // staff number could not be tested against the phone sign-in route.
+    phone: '9876511224',
     passwordHash: defaultPasswordHash,
     fullName: 'Sunita Deshmukh',
     role: 'restaurant_owner',
@@ -120,6 +128,10 @@ export async function seedDatabase() {
   await userRepository.create({
     id: 'usr_rider_01',
     email: 'rider@quickbite.app',
+    // Customers sign in by phone, so every seeded account carries one. Without
+    // it the demo customer could not reach their own account at all, and a
+    // staff number could not be tested against the phone sign-in route.
+    phone: '9876543211',
     passwordHash: defaultPasswordHash,
     fullName: 'Vikram Singh',
     role: 'rider',
@@ -131,6 +143,10 @@ export async function seedDatabase() {
   await userRepository.create({
     id: 'usr_customer_01',
     email: 'customer@quickbite.app',
+    // Customers sign in by phone, so every seeded account carries one. Without
+    // it the demo customer could not reach their own account at all, and a
+    // staff number could not be tested against the phone sign-in route.
+    phone: '9876543210',
     passwordHash: defaultPasswordHash,
     fullName: 'Rahul Sharma',
     role: 'customer',
@@ -142,6 +158,10 @@ export async function seedDatabase() {
   await userRepository.create({
     id: 'usr_customer_legacy',
     email: 'rahul.sharma@quickbite.app',
+    // Customers sign in by phone, so every seeded account carries one. Without
+    // it the demo customer could not reach their own account at all, and a
+    // staff number could not be tested against the phone sign-in route.
+    phone: '9876543212',
     passwordHash: defaultPasswordHash,
     fullName: 'Rahul Sharma',
     role: 'customer',

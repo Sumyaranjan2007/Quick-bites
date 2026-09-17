@@ -79,14 +79,52 @@ export const config = {
     : process.env.PASSWORD_RESET_ECHO !== 'false',
 
   /**
-   * Transactional email. Without these three, password-recovery codes cannot be
-   * delivered and the API says so rather than claiming a send that did not
-   * happen. Any provider accepting `{from, to, subject, text}` as a bearer-
-   * authenticated JSON POST will work.
+   * Customer identity is a phone number verified by a one-time code.
+   *
+   * OTP_PROVIDER selects how the code is delivered. `fixed` does not deliver
+   * anything: it accepts one known code, which is how the platform is tested
+   * before an SMS vendor exists. Adding a real provider is a new driver in
+   * `modules/auth/otpDrivers.ts` and a change to this variable — nothing else.
+   *
+   * India requires TRAI DLT registration (entity, sender header, and approved
+   * template) before ANY provider will deliver an OTP to an Indian number. That
+   * is law rather than a vendor rule, and it is the long-pole item for going
+   * live. See legal/COMPLIANCE.md.
    */
-  EMAIL_API_URL: process.env.EMAIL_API_URL || '',
-  EMAIL_API_KEY: process.env.EMAIL_API_KEY || '',
-  EMAIL_FROM: process.env.EMAIL_FROM || '',
+  OTP_PROVIDER: (process.env.OTP_PROVIDER || 'fixed') as 'fixed' | 'msg91' | 'twilio',
+  OTP_FIXED_CODE: process.env.OTP_FIXED_CODE || '123456',
+
+  /**
+   * A fixed code on a public deployment means anyone who knows six digits can
+   * sign in as any phone number, so production refuses it unless this is set
+   * deliberately. It exists so testers can use the hosted API before an SMS
+   * vendor is chosen; **removing it is the entire switch to real OTP**.
+   */
+  OTP_ALLOW_FIXED_IN_PRODUCTION: process.env.OTP_ALLOW_FIXED_IN_PRODUCTION === 'true',
+
+  /** Minutes a code stays valid, and how many wrong guesses it survives. */
+  OTP_TTL_MINUTES: parseInt(process.env.OTP_TTL_MINUTES || '5', 10),
+  OTP_MAX_ATTEMPTS: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
+  OTP_RESEND_COOLDOWN_SECONDS: parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '30', 10),
+
+  /**
+   * The single administrator created at boot.
+   *
+   * Nothing is seeded with a known password any more. Production refuses to
+   * start without these rather than coming up with no way in, or — worse —
+   * with a default everyone can read in a public repository.
+   */
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
+
+  /**
+   * Demo restaurants, menus and accounts exist for tests and local development.
+   * Production boots empty and is populated through admin onboarding, so a
+   * demonstration restaurant can never appear to a real customer.
+   */
+  SEED_DEMO_DATA: IS_PRODUCTION
+    ? process.env.SEED_DEMO_DATA === 'true'
+    : process.env.SEED_DEMO_DATA !== 'false',
 
   // Security
   CORS_WHITELIST: [

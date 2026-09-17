@@ -547,40 +547,65 @@ async function run() {
 
   /* ------------------------- Password management ----------------------- */
 
+  // Emailed recovery codes are gone. Customers have no password to recover —
+  // they sign in with a code sent to their phone — and staff recovery is an
+  // administrator setting a temporary password, which is what actually happens
+  // when a restaurant telephones operations. It is audit-logged, because an
+  // administrator able to take over a partner account silently is exactly the
+  // power that needs a record kept against it.
   resetAuthRateLimit();
-  const forgot = await api('/auth/forgot-password', { method: 'POST', body: { email: 'customer@quickbite.app' } });
-  check('A reset can be requested', forgot.status === 200 && forgot.json?.data?.sent === true);
-  const resetCode = forgot.json?.data?.resetCode;
-  check('The reset code is delivered in this environment', Boolean(resetCode), JSON.stringify(forgot.json?.data));
 
-  const unknownAddress = await api('/auth/forgot-password', { method: 'POST', body: { email: 'nobody@quickbite.app' } });
-  check('An unknown address gets the same answer, so accounts cannot be discovered',
-    unknownAddress.status === 200 && unknownAddress.json?.data?.sent === true);
-
-  resetAuthRateLimit();
-  const wrongCode = await api('/auth/reset-password', { method: 'POST', body: { email: 'customer@quickbite.app', code: '000000', newPassword: 'brand-new-pass' } });
-  check('A wrong reset code is refused', wrongCode.status === 400, String(wrongCode.status));
-
-  resetAuthRateLimit();
-  const reset = await api('/auth/reset-password', { method: 'POST', body: { email: 'customer@quickbite.app', code: resetCode, newPassword: 'brand-new-pass' } });
-  check('The right code resets the password', reset.status === 200 && Boolean(reset.json?.data?.token), JSON.stringify(reset.json).slice(0, 160));
+  const staffReset = await api(
+    '/admin/staff/usr_partner_01/reset-password',
+    { method: 'POST', body: { temporaryPassword: 'TemporaryPartnerPass99' } },
+    superAdmin.token
+  );
+  check('An administrator can reset a partner password', staffReset.status === 200,
+    JSON.stringify(staffReset.json).slice(0, 160));
 
   resetAuthRateLimit();
-  const replayCode = await api('/auth/reset-password', { method: 'POST', body: { email: 'customer@quickbite.app', code: resetCode, newPassword: 'another-pass' } });
-  check('A reset code cannot be used twice', replayCode.status === 400, String(replayCode.status));
+  const partnerSignIn = await api('/auth/login', {
+    method: 'POST',
+    body: { email: 'partner@quickbite.app', password: 'TemporaryPartnerPass99' }
+  });
+  check('The partner signs in with the temporary password', partnerSignIn.status === 200,
+    String(partnerSignIn.status));
 
-  const newLogin = await login('customer@quickbite.app', 'brand-new-pass');
-  check('The new password signs in', Boolean(newLogin.token));
+  const customerReset = await api(
+    `/admin/staff/${customer.user.id}/reset-password`,
+    { method: 'POST', body: { temporaryPassword: 'ShouldNotBeAllowed1' } },
+    superAdmin.token
+  );
+  check('A customer cannot be given a password — their phone is the credential',
+    customerReset.status === 400, String(customerReset.status));
+
+  const resetAudit = await api('/admin/audit-log', {}, superAdmin.token);
+  check('The reset is on the audit log',
+    JSON.stringify(resetAudit.json).includes('STAFF_PASSWORD_RESET'),
+    'no STAFF_PASSWORD_RESET entry found');
+
+  // change-password is still a staff feature, so it is exercised against a
+  // staff account rather than the customer it used to use.
+  resetAuthRateLimit();
+  const newLogin = await login('partner@quickbite.app', 'TemporaryPartnerPass99');
+  check('The temporary password yields a usable session', Boolean(newLogin.token));
 
   const wrongCurrent = await api('/auth/change-password', { method: 'POST', body: { currentPassword: 'not-it', newPassword: 'yet-another-pass' } }, newLogin.token);
   check('Changing a password needs the current one', wrongCurrent.status === 401, String(wrongCurrent.status));
 
-  const changed = await api('/auth/change-password', { method: 'POST', body: { currentPassword: 'brand-new-pass', newPassword: 'final-password-1' } }, newLogin.token);
+  const changed = await api('/auth/change-password', { method: 'POST', body: { currentPassword: 'TemporaryPartnerPass99', newPassword: 'final-password-1' } }, newLogin.token);
   check('A signed-in user can change their password', changed.status === 200, String(changed.status));
-  const finalLogin = await login('customer@quickbite.app', 'final-password-1');
+  const finalLogin = await login('partner@quickbite.app', 'final-password-1');
   check('The changed password signs in', Boolean(finalLogin.token));
 
   const loggedOut = await api('/auth/logout', { method: 'POST' }, finalLogin.token);
+
+  // The checks below are the customer's own view of the platform and need a
+  // customer session: finalLogin is a staff account now that the password
+  // chain moved off the customer, who no longer has a password to change.
+  resetAuthRateLimit();
+  const customerSession = await login('customer@quickbite.app');
+
   check('Sign-out is acknowledged', loggedOut.status === 200);
 
   /* ------------------------------ Analytics ---------------------------- */
@@ -604,13 +629,13 @@ async function run() {
   // reached the app it was about — which is the only sense in which the four
   // sides are actually synchronised.
 
-  const customerOrders = await api('/orders', {}, finalLogin.token);
+  const customerOrders = await api('/orders', {}, customerSession.token);
   const refundedOrder = (customerOrders.json?.data?.orders || []).find((o: any) => o.id === delivered.id);
   check('The customer sees the partial refund on their own order',
     Boolean(refundedOrder),
     'order missing from the customer\'s own list');
 
-  const customerCases = await api('/support/refund-requests', {}, finalLogin.token);
+  const customerCases = await api('/support/refund-requests', {}, customerSession.token);
   const ownCase = (customerCases.json?.data?.requests || []).find((r: any) => r.id === caseId);
   check('The customer can follow their refund case to its conclusion',
     ownCase?.status === 'REFUNDED' && ownCase?.approvedAmount === 150,
@@ -632,17 +657,17 @@ async function run() {
 
   // Suspending a restaurant has to remove it from what customers can order from,
   // not merely change a badge in the console.
-  const beforeSuspend = await api('/restaurants?latitude=12.9&longitude=77.6', {}, finalLogin.token);
+  const beforeSuspend = await api('/restaurants?latitude=12.9&longitude=77.6', {}, customerSession.token);
   const listedBefore = (beforeSuspend.json?.data?.restaurants || []).some((r: any) => r.id === 'rst_bbh_01');
   check('The restaurant is on the customer\'s list before it is suspended', listedBefore);
 
   await api('/admin/restaurants/rst_bbh_01', { method: 'PATCH', body: { status: 'SUSPENDED', reason: 'Testing propagation' } }, superAdmin.token);
-  const afterSuspend = await api('/restaurants?latitude=12.9&longitude=77.6', {}, finalLogin.token);
+  const afterSuspend = await api('/restaurants?latitude=12.9&longitude=77.6', {}, customerSession.token);
   const listedAfter = (afterSuspend.json?.data?.restaurants || []).some((r: any) => r.id === 'rst_bbh_01');
   check('Suspending it takes it off the customer\'s list immediately', !listedAfter);
 
   await api('/admin/restaurants/rst_bbh_01', { method: 'PATCH', body: { status: 'ACTIVE' } }, superAdmin.token);
-  const restored = await api('/restaurants?latitude=12.9&longitude=77.6', {}, finalLogin.token);
+  const restored = await api('/restaurants?latitude=12.9&longitude=77.6', {}, customerSession.token);
   check('Reinstating it puts it back',
     (restored.json?.data?.restaurants || []).some((r: any) => r.id === 'rst_bbh_01'));
 

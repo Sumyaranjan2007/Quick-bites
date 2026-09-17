@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { memoryStore, triggerAutoSave } from '../client.ts';
+import { normalizeIndianPhone } from '../../utils/phone.ts';
 import type { UserProfile, UserRole } from '@quick-bites/shared-types';
 
 export interface UserRecord extends UserProfile {
@@ -20,6 +21,27 @@ export const userRepository = {
     const normalized = email.trim().toLowerCase();
     for (const user of memoryStore.users.values()) {
       if (user.email.trim().toLowerCase() === normalized) {
+        return user;
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Finds an account by phone number.
+   *
+   * Phone is the customer's identity now, not a profile detail, so the lookup
+   * has to agree with every way a human types the same number. Seeded records
+   * hold `+91-98765-43210` and a sign-in form sends `9876543210`; both
+   * normalise to the same ten digits, so both find the same person. Comparing
+   * the raw strings would have created a second account for the same phone.
+   */
+  async findByPhone(phone: string): Promise<UserRecord | null> {
+    const normalized = normalizeIndianPhone(phone);
+    if (!normalized) return null;
+
+    for (const user of memoryStore.users.values()) {
+      if (user.phone && normalizeIndianPhone(user.phone) === normalized) {
         return user;
       }
     }
@@ -99,7 +121,21 @@ export const userRepository = {
       }
     }
 
-    if (user.passwordHash) {
+    // An account with no password cannot be signed into with a password.
+    //
+    // This branch used to be `if (user.passwordHash) { ...check... }`, so an
+    // account without one fell past the check and was returned as authenticated.
+    // That was unreachable while every account was created with a password. It
+    // stopped being unreachable the moment customers began signing in by phone:
+    // those accounts hold no hash, and their address is `<phone>@phone.
+    // quickbite.app` — derivable from the number. Anyone who knew a customer's
+    // phone number could have signed in as them with any password they liked,
+    // straight past the one-time code.
+    if (!user.passwordHash) {
+      return null;
+    }
+
+    {
       const isBcrypt = user.passwordHash.startsWith('$2a$') || user.passwordHash.startsWith('$2b$');
       let isValid = false;
       if (isBcrypt) {

@@ -556,30 +556,43 @@ async function run() {
   );
 
   /* ------------------------------------------------------------------ *
-   * Password recovery must not become an account-enumeration oracle
+   * Sign-in must not become an account-enumeration oracle
+   *
+   * The email recovery flow this section used to guard has been removed:
+   * customers have no password, and staff recovery is an administrator
+   * setting a temporary one. The property it protected still matters, so it
+   * moves to the endpoint that replaced it — asking for a code must not
+   * reveal whether a phone number belongs to a customer.
    * ------------------------------------------------------------------ */
 
   resetAuthRateLimit();
-  const realAddress = await api('/auth/forgot-password', { method: 'POST', body: { email: 'customer@quickbite.app' } });
+  const knownNumber = await api('/auth/otp/request', { method: 'POST', body: { phone: '9876543210' } });
   resetAuthRateLimit();
-  const fakeAddress = await api('/auth/forgot-password', { method: 'POST', body: { email: 'nobody-at-all@example.com' } });
+  const unknownNumber = await api('/auth/otp/request', { method: 'POST', body: { phone: '9111100022' } });
   check(
-    'A known and an unknown address get the same status',
-    realAddress.status === fakeAddress.status,
-    `${realAddress.status} vs ${fakeAddress.status}`
+    'A known and an unknown phone number get the same status',
+    knownNumber.status === unknownNumber.status,
+    `${knownNumber.status} vs ${unknownNumber.status}`
   );
   check(
-    'and the same "sent" answer — no account oracle',
-    realAddress.json?.data?.sent === fakeAddress.json?.data?.sent,
-    `${realAddress.json?.data?.sent} vs ${fakeAddress.json?.data?.sent}`
+    'and the same message — no way to ask who has an account',
+    knownNumber.json?.message === unknownNumber.json?.message
   );
   check(
-    'and the same message',
-    realAddress.json?.message === fakeAddress.json?.message
+    'The code itself never comes back in the response',
+    !JSON.stringify(knownNumber.json).match(/\b\d{6}\b/),
+    JSON.stringify(knownNumber.json).slice(0, 160)
   );
   check(
-    'The app is told whether email delivery is configured at all',
-    typeof realAddress.json?.data?.emailDeliveryConfigured === 'boolean'
+    'The apps are told whether SMS delivery exists, which is a property of the deployment',
+    typeof knownNumber.json?.data?.deliveryConfigured === 'boolean'
+  );
+
+  const goneForgot = await api('/auth/forgot-password', { method: 'POST', body: { email: 'customer@quickbite.app' } });
+  check(
+    'The emailed-recovery endpoint is gone rather than left dangling',
+    goneForgot.status === 404,
+    String(goneForgot.status)
   );
 
   closeSocketServer();

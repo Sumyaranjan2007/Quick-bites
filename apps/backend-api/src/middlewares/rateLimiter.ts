@@ -52,7 +52,17 @@ export function authRateLimiterMiddleware(req: Request, res: Response, next: Nex
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   // Key on the account being attacked as well as the source, so a botnet spreading
   // guesses across many IPs still runs into the per-account ceiling.
-  const account = typeof req.body?.email === 'string' ? req.body.email.toLowerCase() : '';
+  //
+  // Phone counts as an account identifier. Customers sign in with a phone number
+  // and a six-digit code and send no email at all, so keying on email alone left
+  // the entire customer front door with only a per-IP limit — which is the one
+  // limit a distributed attacker does not care about.
+  const account =
+    typeof req.body?.email === 'string'
+      ? req.body.email.toLowerCase()
+      : typeof req.body?.phone === 'string'
+        ? `phone:${String(req.body.phone).replace(/\D/g, '')}`
+        : '';
   const now = Date.now() / 1000;
 
   for (const key of [`ip:${ip}`, account ? `acct:${account}` : `ip:${ip}`]) {

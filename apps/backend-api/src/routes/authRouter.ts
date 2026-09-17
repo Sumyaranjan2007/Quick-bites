@@ -12,7 +12,8 @@ import { authRateLimiterMiddleware } from '../middlewares/rateLimiter.ts';
 import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
-import { sendEmail, isEmailConfigured } from '../notifications/emailSender.ts';
+import { otpService } from '../modules/auth/otpService.ts';
+import { maskPhone } from '../modules/auth/otpDrivers.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 
 export const authRouter = Router();
@@ -244,134 +245,63 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
 });
 
 /* ========================================================================== *
- *                            PASSWORD MANAGEMENT                             *
- * ========================================================================== */
-
-/**
- * Reset codes in flight, keyed by user id.
+ *                     PHONE SIGN-IN (CUSTOMERS)                              *
+ * ========================================================================== *
  *
- * Held in the store rather than in a module variable so a reset survives the
- * process restarting mid-flow, and so a multi-step reset behaves the same on a
- * redeployed container as it does locally. Only the hash of the code is kept:
- * anyone who can read the database should not thereby be able to sign in as
- * every user on the platform.
+ * A customer is a phone number. There is no customer password to forget, to
+ * reuse from another site, or to leak — which is why the email recovery flow
+ * that used to live here is gone rather than ported.
+ *
+ * There is no separate sign-up either. Verifying a code for a number nobody
+ * holds creates the account, which is how every delivery app in this market
+ * behaves and removes an entire screen from the journey.
+ *
+ * Partners, riders and administrators keep email and password: a kitchen tablet
+ * is shared between shifts and staff access should not depend on one person's
+ * handset being in the building.
  */
-const RESET_TTL_MS = 15 * 60 * 1000;
-const RESET_MAX_ATTEMPTS = 5;
 
-function hashResetCode(code: string): string {
-  return crypto.createHash('sha256').update(code).digest('hex');
-}
+const OtpRequestSchema = z.object({ phone: phoneSchema });
 
-const ForgotPasswordSchema = z.object({
-  email: z.string().email('Enter the email address on the account.').max(254)
+const OtpVerifySchema = z.object({
+  phone: phoneSchema,
+  code: z.string().trim().regex(/^\d{4,8}$/, 'Enter the code from your phone.'),
+  // Only read when the number has no account yet; ignored otherwise, so this
+  // cannot be used to rename an existing account by signing into it.
+  fullName: z.string().trim().min(2).max(80).optional()
 });
 
 /**
- * POST /api/auth/forgot-password
+ * POST /api/auth/otp/request
  *
- * Always answers the same way, whether or not the address is on an account.
- * Saying "no such user" turns this endpoint into a way to discover who has an
- * account, which is the first step of a credential-stuffing run.
+ * Answers identically for a number that has an account and one that does not.
+ * A difference here would turn the endpoint into a way to ask "is this person a
+ * customer?" of any phone number someone has a list of.
  */
 authRouter.post(
-  '/forgot-password',
+  '/otp/request',
   authRateLimiterMiddleware,
-  validate({ body: ForgotPasswordSchema }),
+  validate({ body: OtpRequestSchema }),
   async (req, res, next) => {
     try {
-      const email = String(req.body.email).trim().toLowerCase();
-      const user = await userRepository.findByEmail(email);
+      const outcome = await otpService.request(req.body.phone);
 
-      let echoCode: string | undefined;
-      let outcome: Awaited<ReturnType<typeof sendEmail>> | undefined;
-      if (user) {
-        const code = String(crypto.randomInt(100000, 1000000));
-        memoryStore.settings.set(`reset:${user.id}`, {
-          userId: user.id,
-          codeHash: hashResetCode(code),
-          expiresAt: Date.now() + RESET_TTL_MS,
-          attempts: 0,
-          createdAt: new Date().toISOString()
-        });
-        triggerAutoSave();
-
-        console.log(
-          JSON.stringify({
-            level: 'INFO',
-            timestamp: new Date().toISOString(),
-            event: 'PASSWORD_RESET_REQUESTED',
-            email,
-            // Printed so support can read the code out when no mail provider is
-            // configured. This log is as sensitive as the account itself.
-            resetCode: code,
-            expiresInMinutes: RESET_TTL_MS / 60000
-          })
-        );
-
-        if (config.PASSWORD_RESET_ECHO) echoCode = code;
-
-        // Recorded for the log below, never returned: see `sent` above.
-        outcome = await sendEmail({
-          to: email,
-          subject: 'Your Quick Bites password reset code',
-          text: [
-            `Your Quick Bites password reset code is ${code}.`,
-            '',
-            `It expires in ${RESET_TTL_MS / 60000} minutes and can be used once.`,
-            'If you did not ask to reset your password, you can ignore this message —',
-            'your password has not changed.'
-          ].join('\n')
-        });
-      }
-
-      // Whether a code could actually be delivered is said plainly. Claiming a
-      // send that never happened is what left customers waiting for an email
-      // that was only ever going to appear in a server log.
-      const deliverable = isEmailConfigured();
-      if (user && outcome && !outcome.delivered && outcome.reason === 'PROVIDER_ERROR') {
-        console.error(
-          JSON.stringify({
-            level: 'ERROR',
-            timestamp: new Date().toISOString(),
-            event: 'PASSWORD_RESET_EMAIL_FAILED',
-            email,
-            detail: outcome.detail
-          })
-        );
+      if (outcome.configurationError) {
+        // The deployment cannot issue codes at all. That is this platform's
+        // fault and is stated plainly rather than failing as a bad code later.
+        throw new AppError(outcome.configurationError, 503, 'OTP_UNAVAILABLE');
       }
 
       res.json({
         success: true,
         data: {
-          /**
-           * Always true, and deliberately so: it acknowledges the request, not
-           * the delivery. Reporting the per-address send outcome here would make
-           * this endpoint answer "does an account exist for this address?" —
-           * true for a real one, false for an invented one — which is the whole
-           * thing the uniform response above exists to prevent.
-           *
-           * Whether the code actually left the building is recorded in the log
-           * and reflected in `emailDeliveryConfigured`, which describes the
-           * deployment and is therefore the same for every caller.
-           */
-          sent: true,
-          /**
-           * False when the deployment has no mail provider configured. The apps
-           * use it to say how the code can be obtained instead of telling the
-           * customer to check an inbox nothing was sent to. A property of the
-           * server, never of the address asked about.
-           */
-          emailDeliveryConfigured: deliverable,
-          // Present only when the deployment has been configured to hand the
-          // code back directly — never in production by default, because that
-          // turns a known email address into an account takeover.
-          ...(echoCode ? { resetCode: echoCode } : {}),
-          expiresInMinutes: RESET_TTL_MS / 60000
+          requested: true,
+          deliveryConfigured: outcome.deliveryConfigured,
+          retryAfterSeconds: outcome.retryAfterSeconds ?? null
         },
-        message: deliverable
-          ? 'If that address is on an account, a reset code is on its way.'
-          : 'If that address is on an account, a reset code has been generated. Contact Quick Bites support to receive it.'
+        message: outcome.deliveryConfigured
+          ? 'If that number can receive messages, a code is on its way.'
+          : 'Enter the verification code for this test deployment.'
       });
     } catch (err) {
       next(err);
@@ -379,65 +309,112 @@ authRouter.post(
   }
 );
 
-const ResetPasswordSchema = z.object({
-  email: z.string().email().max(254),
-  code: z.string().trim().length(6, 'The reset code is six digits.'),
-  newPassword: z
-    .string()
-    .min(8, 'Choose a password of at least 8 characters.')
-    .max(128)
-});
-
-/**
- * POST /api/auth/reset-password
- *
- * Consumes the code exactly once. A wrong code counts against a small attempt
- * budget, after which the reset is thrown away — six digits is guessable if a
- * caller is allowed to keep trying.
- */
+/** Resending is the same operation; the cooldown inside the service governs it. */
 authRouter.post(
-  '/reset-password',
+  '/otp/resend',
   authRateLimiterMiddleware,
-  validate({ body: ResetPasswordSchema }),
+  validate({ body: OtpRequestSchema }),
   async (req, res, next) => {
     try {
-      const email = String(req.body.email).trim().toLowerCase();
-      const user = await userRepository.findByEmail(email);
-      const pending = user ? memoryStore.settings.get(`reset:${user.id}`) : null;
+      const outcome = await otpService.request(req.body.phone);
+      if (outcome.configurationError) {
+        throw new AppError(outcome.configurationError, 503, 'OTP_UNAVAILABLE');
+      }
+      res.json({
+        success: true,
+        data: { requested: true, retryAfterSeconds: outcome.retryAfterSeconds ?? null },
+        message: 'A new code has been requested.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
-      if (!user || !pending) {
-        throw new AppError('That reset code is not valid. Request a new one.', 400, 'INVALID_RESET_CODE');
-      }
-      if (Date.now() > pending.expiresAt) {
-        memoryStore.settings.delete(`reset:${user.id}`);
-        triggerAutoSave();
-        throw new AppError('That reset code has expired. Request a new one.', 400, 'RESET_CODE_EXPIRED');
-      }
-      if (pending.codeHash !== hashResetCode(req.body.code)) {
-        pending.attempts = (pending.attempts || 0) + 1;
-        if (pending.attempts >= RESET_MAX_ATTEMPTS) {
-          memoryStore.settings.delete(`reset:${user.id}`);
-        } else {
-          memoryStore.settings.set(`reset:${user.id}`, pending);
-        }
-        triggerAutoSave();
-        throw new AppError('That reset code is not valid. Request a new one.', 400, 'INVALID_RESET_CODE');
+/**
+ * POST /api/auth/otp/verify
+ *
+ * Signs in, creating the account if the number is new.
+ */
+authRouter.post(
+  '/otp/verify',
+  authRateLimiterMiddleware,
+  validate({ body: OtpVerifySchema }),
+  async (req, res, next) => {
+    try {
+      const { phone, code, fullName } = req.body;
+
+      const result = await otpService.verify(phone, code);
+      if (!result.ok) {
+        throw new AppError(result.reason || 'That code is not valid.', 400, 'INVALID_OTP');
       }
 
-      await userRepository.update(user.id, { passwordHash: await bcrypt.hash(req.body.newPassword, 10) });
-      memoryStore.settings.delete(`reset:${user.id}`);
-      triggerAutoSave();
+      let user = await userRepository.findByPhone(phone);
+      let created = false;
+
+      if (!user) {
+        // First sign-in. The role is assigned here and never read from the
+        // request: phone sign-in mints customers and nothing else, so it can
+        // never become a route to a staff account.
+        user = await userRepository.create({
+          id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          // Kept for staff tooling that still indexes by address. It is not a
+          // login credential for this account: there is no password to use with it.
+          email: `${phone}@phone.quickbite.app`,
+          fullName: fullName || 'Quick Bites Customer',
+          phone,
+          role: 'customer' as UserRole,
+          isGold: false,
+          preferredLanguage: 'en'
+        });
+        await walletRepository.credit(user.id, 100.0, 'Sign-up Bonus Balance');
+        created = true;
+      } else if (user.role !== 'customer') {
+        // A staff member's number reaching this endpoint must not hand out a
+        // staff token. They sign in with their credentials, in their own app.
+        throw new AppError(
+          'This number belongs to a partner account. Sign in from the partner app with your email and password.',
+          403,
+          'STAFF_ACCOUNT'
+        );
+      }
+
+      console.log(JSON.stringify({
+        level: 'INFO',
+        timestamp: new Date().toISOString(),
+        event: created ? 'CUSTOMER_CREATED_BY_PHONE' : 'CUSTOMER_SIGNED_IN_BY_PHONE',
+        userId: user.id,
+        phone: maskPhone(phone)
+      }));
 
       res.json({
         success: true,
-        data: { reset: true, token: generateToken({ ...user, passwordHash: undefined }) },
-        message: 'Your password has been changed. You are signed in.'
+        data: {
+          isNewAccount: created,
+          user: {
+            id: user.id,
+            email: user.email,
+            fullName: user.fullName,
+            phone: user.phone,
+            role: user.role,
+            isGold: user.isGold,
+            avatarUrl: user.avatarUrl,
+            favouriteRestaurantIds: user.favouriteRestaurantIds || []
+          },
+          token: generateToken(user)
+        },
+        message: created ? 'Welcome to Quick Bites.' : 'Signed in.'
       });
     } catch (err) {
       next(err);
     }
   }
 );
+
+/* ========================================================================== *
+ *                            PASSWORD MANAGEMENT                             *
+ * ========================================================================== */
+
 
 const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Enter your current password.'),
