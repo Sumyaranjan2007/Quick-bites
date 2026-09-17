@@ -2001,6 +2001,191 @@ All universal (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`), each signed by its 
 **NEXT AI SHOULD:** Once the owner has set the Railway variables (**including `DATABASE_URL`**) and pushed, re-probe `/api/auth/otp/request` for a `200`, then run the four-role journey against the hosted API through the real apps — customer orders, partner accepts, rider collects with the pickup code and delivers with the doorstep OTP, admin watches it all. That is layer E5/E6 of `TEST_PLAN.md` and the only part of the platform never proven against production.
 
 ---
+---
+
+## [2026-09-17] -- Claude Opus 5 -- RELEASE v1.3.0 (fifteen reported defects, fixed at the root)
+
+**Feature/Issue:** A three-minute screen recording and a fifteen-point report of
+defects across all four apps. The instruction was explicit: *"don't treat these as
+isolated UI bugs. Trace each issue through the frontend → API → backend → database
+→ frontend flow and fix the actual root cause."* Every item below names the cause,
+not the symptom.
+**Status:** Completed
+**Release version:** `v1.3.0` — all four apps 1.3.0 / versionCode 7
+
+### What the recording showed that the report did not
+
+Two faults were visible in the video and had not been reported. Both are fixed.
+
+**The cart lied to every customer who was not Gold.** `CartAndCheckoutScreen`
+hardcoded `const [isGoldMember] = useState(true)`, so the bill always showed
+"Delivery FREE — Gold applied". The server priced the order from the real account
+record. In the recording the cart promised `₹266.90` and the order was billed
+`₹296.90` — the ₹30 delivery fee the screen had waived on the customer's behalf.
+
+**The bill labels were clipped mid-word** — "Item tot…", "Packagi…", "Delivery f…",
+"Platform f…" — because the label and the amount competed for the row. The rider
+app had the same fault on "Payme…".
+
+### The fifteen items
+
+**1, 13 — Vertex screen (Customer and Restaurant).** React Native's `SafeAreaView`
+**is a no-op on Android**; it insets on iOS only. Every screen was therefore drawn
+under the status bar, which is why headers read "Set your lo…", "Bangalore B…" and
+"Vikram Singh". Both apps now use a `SafeScreen` that applies
+`StatusBar.currentHeight`, fixed once at the frame so no screen can regress.
+
+**2 — Favourites.** A `Set` in `DiscoveryFeedScreen` local state. The heart filled
+in and the choice was gone on unmount; nothing was ever sent anywhere. Now kept on
+the account, applied optimistically and rolled back if the write fails.
+
+**3 — Profile photo.** No upload path existed. Ported the rider app's capture and
+compression.
+
+**4 — Phone validation.** The register schema was `z.string().max(20).optional()`,
+so an account could be created with eleven digits, with letters, or with no number
+at all. One validator now governs every entry point: exactly ten digits, leading
+6–9. `+91`, `91` and a leading `0` are accepted and stripped rather than rejected,
+because people type them.
+
+**5 — Wallet.** Two faults. The profile row had no `onPress`, so it was inert —
+"visible but cannot be opened", exactly as reported. The balance never loaded
+either: the app called `/wallets/me` and Express matched `me` as a user id, so the
+ownership check refused it. Added the route and a wallet screen.
+
+**6, 11 — Location.** `Linking.canOpenURL` returns **false on Android 11+ for any
+scheme not declared in `<queries>`** (package visibility). Every navigation
+candidate failed that test, so the rider got "No maps app — could not open a maps
+app for Bangalore Biryani House" with Google Maps installed. Added a `<queries>`
+config plugin. Separately, current-location detection was pasting an Open Location
+Code ("MFM9+7H4") into the flat-number field — that reached a real rider on a real
+order.
+
+**7 — Edit address.** The row had no `onPress`. The server has supported add, edit,
+delete and default-selection all along; nothing had ever called it.
+
+**8 — Bill details.** Root causes above. The Hide-bill toggle now works and the
+amount payable stays on screen either way — hiding the breakdown is a display
+preference, not a way to be charged less.
+
+**9 — Chat.** The customer app sent messages to a real endpoint, they were stored,
+and they were broadcast on the order's socket room. **The rider app had no chat at
+all** — zero references to it. There was no receiver. Added `TripChat`.
+
+**10 — Forgot password.** The flow was implemented end to end and delivered
+nothing: production echoes no code and no mail provider existed, so the app said
+"check your email" about an email that was never sent. Added a provider-agnostic
+sender; when none is configured, all four apps now say so plainly.
+
+**12 — Driver settlement.** New rider-facing screen and endpoint: earnings, trips,
+deductions, incentives, pending and settled amounts, dates, history, status.
+
+**14 — Restaurant settlements.** Riders could be paid; kitchens could not. A
+restaurant asking "have you paid me for last week?" had no answer. Added the
+repository, the admin console tab, the per-order breakdown and a partner-facing
+view, mirroring the driver payouts so an administrator does not learn the job
+twice.
+
+**15 — Coupons.** The customer app validated coupons **entirely on the client**:
+`if (code === 'WELCOME50' || code === 'FREEDEL')`. Any coupon an administrator
+created was rejected without the server ever being asked. This is now one
+`POST /api/orders/quote` that prices the basket exactly as checkout will — which
+also fixes the Gold bug and the bill mismatch above, because there is now one
+pricing authority and the cart reads from it.
+
+**Backend/API/database changes:** `POST /orders/quote`; `/customers/favourites`
+(GET/PUT/DELETE); `/customers/avatar`; `/wallets/me`; `/riders/settlements`;
+`/restaurants/:id/settlements`; `/admin/settlements` (+ `/:id`, `/:id/status`);
+`settlementRepository`; `restaurantSettlements` store collection; phone validator;
+email sender. `SEED_VERSION` deliberately **unchanged** — this deploy does not
+re-seed production and existing data survives.
+
+**Testing performed:** `src/test/regression.test.ts` — 71 new checks, one per
+reported defect, wired into `npm test`. Full suite **415 checks, 0 failures**.
+Typecheck clean across all five workspaces.
+
+### Two things the tests caught that review had not
+
+**My own forgot-password change turned the endpoint into an account oracle.** I had
+set `sent` to the real per-address delivery outcome, so with a mail provider
+configured a known address would answer `true` and an invented one `false` —
+precisely the user enumeration the uniform response exists to prevent. `sent` now
+acknowledges the request and never the delivery; whether mail can be sent at all
+is a property of the deployment and is reported as one.
+
+**Sixteen regression checks then failed on a single cause** that was not a product
+fault: the suite never put the rider on shift, so the claim was correctly refused,
+so there was no assigned rider to read the chat thread and no delivered order to
+settle. The refusal is right — dispatch should not hand a trip to someone who has
+gone home. The suite states the precondition instead of inheriting whatever the
+seed was last left at.
+
+**Build/APK changes:** The build script **defaulted to ARM-only**, which cannot be
+installed on an x86_64 emulator — so the file that shipped could never be the file
+that was launch-tested. Universal is now the default (`--arm-only` remains for
+deliberate ARM-hardware releases). The script also copied whatever APK sat in the
+output directory, so a Gradle run that produced nothing would publish the previous
+run's binary as a new release; the artifact is now deleted before the build and its
+absence afterwards is fatal.
+
+
+### Two defects found only by driving the installed APK
+
+Neither was reported, and neither would ever have surfaced from reading source or
+running the suite. Both were found on the emulator with the built binary.
+
+**The Android back gesture closed the app from any screen.** None of the four
+apps registered a `BackHandler`. They navigate by swapping a screen name in
+state, and React Native does nothing with the hardware button on its own, so
+Android's default finished the activity. Backing out of the wallet, a chat, an
+order or any admin section dropped the user on their home screen. Back now
+returns to whatever opened the screen and only leaves the app from the top.
+
+**Three of the four forgot the session on every launch.** Only the rider app
+persisted a token — it had hit this first, when Android reclaiming the app
+mid-shift returned riders to the login screen. Customer, partner and admin held
+the token in component state alone, so closing the app meant typing a password
+again to buy dinner. The admin app deliberately stores only the token and server
+address and re-reads its role from `/admin/me` on every restore, so an
+administrator whose role was narrowed or disabled while the app was closed comes
+back with the access they have now.
+
+### An ANR that was not ours
+
+The customer app raised "Quick Bites isn't responding" once during testing. It
+was **not** an app deadlock: at the moment of the ANR the process was using 4.5%
+CPU and the whole system 5.1%, with 65 major page faults — the app was starved,
+not spinning, on a software-rendered emulator that had just been running four
+Gradle builds. A main-thread block would show the process pinning a core, not
+idling. Recorded here so it is not re-investigated as a product fault; if it ever
+appears on real hardware with the process at high CPU, that is a different bug.
+
+**Known issues / pending work:**
+- **Password reset cannot deliver a code in production.** No mail provider is
+  configured. The flow works and the apps now say so honestly, but it is not
+  usable by a real customer until `EMAIL_API_URL`, `EMAIL_API_KEY` and
+  `EMAIL_FROM` are set on Railway.
+- **The seeded staff accounts cannot be signed into on production.** Their
+  password came from `SEED_DEFAULT_PASSWORD`, which was unset when production was
+  first seeded, so the accounts hold a random one. Setting the variable now will
+  not help: seeding only re-runs when the store is empty or `SEED_VERSION`
+  changes, and forcing either would destroy production data. The route in is the
+  recovery flow, reading the code from the Railway deploy log.
+- The Railway trial showed "5 days or $4.89 left" during this session. When it
+  lapses the backend stops and all four apps stop with it.
+- Category thumbnails on the customer feed render as empty circles.
+- Carried forward: no online payment (cash on delivery only); the logo wordmark
+  still reads "Quickbits"; Play Console / App Store Connect work needs a human.
+
+**Decisions / dependencies / session conflicts:**
+- `SEED_VERSION` was deliberately left unchanged so this deploy would not
+  re-seed production. Anyone changing it destroys the live data.
+- Builds are universal and must stay so; see the build note above.
+- `@react-native-async-storage/async-storage` is now a dependency of the
+  customer, partner and admin apps, not only the rider app.
+
+**NEXT AI SHOULD:** Get a mail provider configured, then re-run the recovery flow
+end to end through the apps rather than through the log.
 
 ---
 
