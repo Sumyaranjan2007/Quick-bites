@@ -311,6 +311,7 @@ authRouter.post(
 
         if (config.PASSWORD_RESET_ECHO) echoCode = code;
 
+        // Recorded for the log below, never returned: see `sent` above.
         outcome = await sendEmail({
           to: email,
           subject: 'Your Quick Bites password reset code',
@@ -328,15 +329,38 @@ authRouter.post(
       // send that never happened is what left customers waiting for an email
       // that was only ever going to appear in a server log.
       const deliverable = isEmailConfigured();
+      if (user && outcome && !outcome.delivered && outcome.reason === 'PROVIDER_ERROR') {
+        console.error(
+          JSON.stringify({
+            level: 'ERROR',
+            timestamp: new Date().toISOString(),
+            event: 'PASSWORD_RESET_EMAIL_FAILED',
+            email,
+            detail: outcome.detail
+          })
+        );
+      }
 
       res.json({
         success: true,
         data: {
-          sent: outcome?.delivered ?? false,
+          /**
+           * Always true, and deliberately so: it acknowledges the request, not
+           * the delivery. Reporting the per-address send outcome here would make
+           * this endpoint answer "does an account exist for this address?" —
+           * true for a real one, false for an invented one — which is the whole
+           * thing the uniform response above exists to prevent.
+           *
+           * Whether the code actually left the building is recorded in the log
+           * and reflected in `emailDeliveryConfigured`, which describes the
+           * deployment and is therefore the same for every caller.
+           */
+          sent: true,
           /**
            * False when the deployment has no mail provider configured. The apps
            * use it to say how the code can be obtained instead of telling the
-           * customer to check an inbox nothing was sent to.
+           * customer to check an inbox nothing was sent to. A property of the
+           * server, never of the address asked about.
            */
           emailDeliveryConfigured: deliverable,
           // Present only when the deployment has been configured to hand the

@@ -25,14 +25,17 @@ import { query } from '../lib/api';
 
 const c = tokens.colors;
 
-type Tab = 'revenue' | 'payments' | 'payouts';
+type Tab = 'revenue' | 'payments' | 'payouts' | 'settlements';
 
 export const FinanceScreen: React.FC = () => {
   const { can } = useSession();
   const tabs: Array<{ key: Tab; label: string }> = [
     ...(can('finance.revenue.view') ? [{ key: 'revenue' as Tab, label: 'Revenue' }] : []),
     ...(can('finance.payments.view') ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
-    ...(can('finance.payouts.view') ? [{ key: 'payouts' as Tab, label: 'Driver payouts' }] : [])
+    ...(can('finance.payouts.view') ? [{ key: 'payouts' as Tab, label: 'Driver payouts' }] : []),
+    ...(can('finance.settlements.view')
+      ? [{ key: 'settlements' as Tab, label: 'Restaurant settlements' }]
+      : [])
   ];
   const [tab, setTab] = useState<Tab>(tabs[0]?.key || 'revenue');
 
@@ -46,6 +49,7 @@ export const FinanceScreen: React.FC = () => {
       {tab === 'revenue' ? <RevenueTab /> : null}
       {tab === 'payments' ? <PaymentsTab /> : null}
       {tab === 'payouts' ? <PayoutsTab /> : null}
+      {tab === 'settlements' ? <SettlementsTab /> : null}
     </View>
   );
 };
@@ -440,3 +444,284 @@ const s = StyleSheet.create({
   },
   payoutBreakdown: { fontSize: tokens.font.size.xxs, color: c.text.secondary, marginTop: 4 }
 });
+
+/* --------------------------- Restaurant settlements --------------------------- */
+
+/**
+ * Paying the kitchens.
+ *
+ * The console could pay riders and could show what restaurants had earned, but
+ * had no way to actually settle with one — so "have you paid us for last week?"
+ * was a question nobody could answer from here. Deliberately the same shape as
+ * the driver payouts beside it: drafting a settlement and drafting a payout are
+ * the same job, and an administrator should not have to learn it twice.
+ */
+const SettlementsTab: React.FC = () => {
+  const { api, can } = useSession();
+  const [search, setSearch] = useState('');
+  const [submitted, setSubmitted] = useState('');
+  const [openRestaurant, setOpenRestaurant] = useState<any | null>(null);
+  const resource = useResource(() => api.get<any>(`/admin/settlements${query({ q: submitted })}`), [submitted]);
+
+  const rows = resource.data?.settlements || [];
+  const totals = resource.data?.totals;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={s.controls}>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Restaurant name or city"
+          onSubmit={() => setSubmitted(search.trim())}
+        />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={s.list}
+        refreshControl={
+          <RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />
+        }
+      >
+        {totals ? (
+          <View style={s.grid}>
+            <StatTile
+              label="Owed to restaurants"
+              value={formatCompactMoney(totals.pending)}
+              tone="warning"
+              icon={<Wallet size={16} color={c.state.warning} />}
+            />
+            <StatTile label="Settled to date" value={formatCompactMoney(totals.paid)} tone="success" />
+          </View>
+        ) : null}
+
+        {resource.loading && rows.length === 0 ? <Loading /> : null}
+        {!resource.loading && rows.length === 0 ? (
+          <EmptyState title="No restaurants" message={resource.error || undefined} />
+        ) : null}
+
+        {rows.map((row: any) => (
+          <Card key={row.restaurantId} onPress={() => setOpenRestaurant(row)}>
+            <View style={s.rowTop}>
+              <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
+                <Text style={s.title} numberOfLines={1}>
+                  {row.restaurantName}
+                </Text>
+                <Text style={s.sub} numberOfLines={1}>
+                  {row.city} · {row.ordersAllTime} orders delivered
+                </Text>
+              </View>
+              {row.pendingAmount > 0 ? <Badge label="Due" tone="warning" /> : <Badge label="Settled" tone="success" />}
+            </View>
+            <View style={s.paymentGrid}>
+              <PayCell label="Unsettled" value={String(row.ordersPending)} />
+              <PayCell label="Food sales" value={formatMoney(row.grossPending)} />
+              <PayCell label="Net payable" value={formatMoney(row.pendingAmount)} />
+              <PayCell label="Paid" value={formatMoney(row.paidToDate)} />
+            </View>
+          </Card>
+        ))}
+      </ScrollView>
+
+      <SettlementSheet
+        restaurant={openRestaurant}
+        onClose={() => setOpenRestaurant(null)}
+        onChanged={resource.reload}
+        canManage={can('finance.settlements.manage')}
+      />
+    </View>
+  );
+};
+
+const SettlementSheet: React.FC<{
+  restaurant: any | null;
+  onClose: () => void;
+  onChanged: () => void;
+  canManage: boolean;
+}> = ({ restaurant, onClose, onChanged, canManage }) => {
+  const { api } = useSession();
+  const [adjustments, setAdjustments] = useState('');
+  const [reference, setReference] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // The per-order breakdown is fetched only when a sheet is opened: it is the
+  // detail behind one restaurant's figure, and loading it for every row would
+  // walk every order on the platform to render a list.
+  const detail = useResource(
+    () =>
+      restaurant
+        ? api.get<any>(`/admin/settlements/${restaurant.restaurantId}`)
+        : Promise.resolve(null as any),
+    [restaurant?.restaurantId],
+    { enabled: Boolean(restaurant) }
+  );
+
+  const draft = async () => {
+    setBusy(true);
+    try {
+      const result = await api.post<any>('/admin/settlements', {
+        restaurantId: restaurant.restaurantId,
+        ...(adjustments ? { adjustments: Number(adjustments) } : {})
+      });
+      setAdjustments('');
+      onChanged();
+      detail.reload();
+      Alert.alert(
+        'Settlement drafted',
+        `${formatMoney(result.settlement.netAmount)} covering ${result.settlement.ordersCount} order(s). Mark it paid once the transfer has gone out.`
+      );
+    } catch (err: any) {
+      Alert.alert('Could not draft the settlement', err?.message || 'Nothing was created.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setStatus = async (settlementId: string, status: 'PAID' | 'FAILED') => {
+    setBusy(true);
+    try {
+      await api.post(`/admin/settlements/${settlementId}/status`, {
+        status,
+        ...(reference ? { reference } : {})
+      });
+      setReference('');
+      onChanged();
+      detail.reload();
+      Alert.alert(
+        status === 'PAID' ? 'Marked paid' : 'Marked failed',
+        status === 'PAID'
+          ? 'The settlement is recorded as transferred.'
+          : 'Its orders have been released and will appear in the next settlement.'
+      );
+    } catch (err: any) {
+      Alert.alert('Could not change it', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pending = detail.data?.pending;
+  const lines = detail.data?.lines || [];
+  const history = detail.data?.history || [];
+
+  return (
+    <Sheet
+      visible={Boolean(restaurant)}
+      onClose={onClose}
+      title={restaurant?.restaurantName || 'Settlement'}
+      subtitle={restaurant?.city}
+    >
+      {restaurant ? (
+        <>
+          <Card>
+            <Text style={s.cardHeading}>What is owed</Text>
+            <KeyValue label="Orders awaiting settlement" value={pending?.orders ?? restaurant.ordersPending} tone="strong" />
+            <KeyValue label="Food sales" value={formatMoney(pending?.grossSales ?? restaurant.grossPending)} tone="money" />
+            <KeyValue label="Platform commission" value={`− ${formatMoney(pending?.commission ?? restaurant.commissionPending)}`} />
+            <KeyValue label="TDS withheld" value={`− ${formatMoney(pending?.tds ?? 0)}`} />
+            <Divider />
+            <KeyValue label="Net payable now" value={formatMoney(pending?.netAmount ?? restaurant.pendingAmount)} tone="money" />
+            <KeyValue label="Settled to date" value={formatMoney(restaurant.paidToDate)} />
+          </Card>
+
+          {canManage ? (
+            <Card>
+              <Text style={s.cardHeading}>Draft a settlement</Text>
+              <Text style={s.muted}>
+                Covers every delivered order not already settled. Use adjustments to recover a refund or apply a
+                penalty; the amount is deducted from what is transferred.
+              </Text>
+              <View style={{ height: tokens.space[4] }} />
+              <Field
+                label="Adjustments (₹, optional)"
+                value={adjustments}
+                onChangeText={setAdjustments}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+              <Button
+                label={
+                  (pending?.orders ?? restaurant.ordersPending) > 0
+                    ? `Draft settlement for ${pending?.orders ?? restaurant.ordersPending} order(s)`
+                    : 'Nothing to settle'
+                }
+                disabled={(pending?.orders ?? restaurant.ordersPending) === 0}
+                loading={busy}
+                onPress={draft}
+              />
+            </Card>
+          ) : null}
+
+          <Card>
+            <Text style={s.cardHeading}>Orders in the next settlement</Text>
+            {detail.loading && lines.length === 0 ? <Loading /> : null}
+            {!detail.loading && lines.length === 0 ? <Text style={s.muted}>Nothing outstanding.</Text> : null}
+            {lines.slice(0, 40).map((line: any) => (
+              <View key={line.orderId} style={s.payoutRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.title}>{line.orderNumber}</Text>
+                  <Text style={s.sub}>{formatDateTime(line.deliveredAt)}</Text>
+                  <Text style={s.payoutBreakdown}>
+                    {formatMoney(line.grossSales)} sales − {formatMoney(line.commission)} commission −{' '}
+                    {formatMoney(line.tds)} TDS
+                  </Text>
+                </View>
+                <Text style={s.title}>{formatMoney(line.net)}</Text>
+              </View>
+            ))}
+            {lines.length > 40 ? (
+              <Text style={s.muted}>and {lines.length - 40} more, all included in the total above.</Text>
+            ) : null}
+          </Card>
+
+          <Card>
+            <Text style={s.cardHeading}>Settlement history</Text>
+            {history.length === 0 ? <Text style={s.muted}>No settlements yet.</Text> : null}
+            {history.map((row: any) => (
+              <View key={row.id} style={s.payoutRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.title}>{formatMoney(row.netAmount)}</Text>
+                  <Text style={s.sub}>
+                    {row.ordersCount} orders · {formatDateTime(row.createdAt)}
+                  </Text>
+                  <Text style={s.payoutBreakdown}>
+                    {formatMoney(row.grossSales)} sales − {formatMoney(row.commission)} commission
+                    {row.tds ? ` − ${formatMoney(row.tds)} TDS` : ''}
+                    {row.adjustments ? ` − ${formatMoney(row.adjustments)} adjustments` : ''}
+                  </Text>
+                  {row.reference ? <Text style={s.sub}>Ref {row.reference}</Text> : null}
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  <Badge label={row.status} />
+                  {canManage && row.status !== 'PAID' ? (
+                    <>
+                      <Button label="Mark paid" size="sm" loading={busy} onPress={() => setStatus(row.id, 'PAID')} />
+                      <Button
+                        label="Mark failed"
+                        size="sm"
+                        variant="ghost"
+                        loading={busy}
+                        onPress={() => setStatus(row.id, 'FAILED')}
+                      />
+                    </>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+            {canManage ? (
+              <>
+                <Divider />
+                <Field
+                  label="Bank reference (optional)"
+                  value={reference}
+                  onChangeText={setReference}
+                  placeholder="UTR number"
+                />
+              </>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
+    </Sheet>
+  );
+};
