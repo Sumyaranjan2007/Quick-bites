@@ -28,6 +28,11 @@ jobs:
       - name: Install Monorepo Dependencies
         run: npm ci
 
+      # A credential reaching a tracked file is a release-stopping event, so it
+      # is checked before anything else runs and fails the pipeline outright.
+      - name: Scan For Committed Secrets
+        run: node scripts/check-secrets.mjs
+
       - name: Run Platform Architecture & Compliance Diagnostics
         run: node scripts/diagnostics.js
 

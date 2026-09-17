@@ -25,3 +25,8 @@ apps/*/ios/
 # Runtime database snapshot — regenerated from the seed on first boot.
 # Committing it made deploys serve stale data and reset live orders.
 apps/backend-api/data/store.json
+
+# Release binaries — 55 MB each, four of them. GitHub warns above 50 MB and a
+# clone should not carry 220 MB of artefacts that are already published as
+# Release assets. DOWNLOAD.md links to the release, not to these paths.
+build/apk/

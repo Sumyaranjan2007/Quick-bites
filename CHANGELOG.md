@@ -1121,6 +1121,113 @@ Considerable time was spent on an apparent bug where the rider never received an
 
 ---
 
+## [2026-09-17 21:40] -- Claude Opus 5 -- Session 22 (changelog reconstruction + platform verification)
+
+**Feature/Issue:** Five commits had landed since the last entry (`220a31e`) without being logged, so `CHANGELOG.md` — the declared source of truth — was behind the code. This entry reconstructs them from their commit messages and diffs, and records a full verification run of the tree as it stands. No product code was changed in this session.
+
+**Status:** Completed
+**Chunks Modified:** None (documentation sync + verification)
+**Commit range documented:** `220a31e..ced1fc0` (`0076c15`, `c1d1303`, `ed3d383`, `ceed65e`, `ced1fc0`)
+
+### What the five commits did
+
+**`0076c15` — settlements, a real coupon check, and screens that fit the phone (2026-09-14 16:37)**
+- The cart priced its own orders: it hardcoded the two seeded promo codes, so a coupon an administrator created came back "not a valid coupon" without the server ever being asked, and it assumed every shopper held Gold, so a customer without it was shown a waived delivery fee and then charged Rs 30 for it. `POST /orders/quote` now prices a basket exactly the way checkout will, from the real account and the real campaign, and returns an unusable code as a sentence rather than an error.
+- React Native's `SafeAreaView` does nothing on Android, so every screen relying on it drew its header under the status bar — the reported "screen crossing beyond the viewport". `SafeScreen` pads by the inset Android actually reports, at the frame, so no screen can reintroduce it. The partner tab bar scrolls instead of truncating seven labels.
+- "No maps app" was Android 11 package visibility: `canOpenURL` answers false for any scheme the manifest has not declared, installed or not. The intents are declared, and a false answer is no longer treated as proof on the last resort.
+- Restaurant settlements did not exist and riders could not see their own. Both sides now read one ledger (`settlementRepository.ts`, `routes/admin/financeRoutes.ts`, `riderRouter.ts`, `restaurantRouter.ts`, `SettlementScreen.tsx`).
+- Phone numbers were accepted up to twenty characters (`utils/phone.ts`).
+
+**`c1d1303` — a wallet you can open, addresses you can edit, favourites that last (2026-09-14 17:03)**
+- The wallet row in the profile had no action attached, and the balance never loaded: the app asked for `/wallets/me` and Express matched `me` as a user id, so the ownership check refused it with 403. Route added, plus a wallet screen with transaction history.
+- Saved addresses were the same — a row with no action. The server had supported add, edit, delete and default-selection all along; nothing had ever called it. There is now an address book, with current-location detection that no longer pastes an Open Location Code (`MFM9+7H4`) into a flat-number field; that had reached a real rider on a real order.
+- Favourites were a `Set` in local state and vanished on unmount. They are kept on the account now, applied optimistically and rolled back if the write fails.
+- Profile photos could not be set at all; the rider app's proven capture and compression path was ported (`lib/photo.ts`).
+- Password recovery was implemented end to end and delivered nothing — production echoes no code and no mail provider existed, so the app said "check your email" about mail that was never sent. Added a provider-agnostic sender (`notifications/emailSender.ts`); when none is configured all four apps now say so.
+
+**`ed3d383` — pin every reported defect to a check that fails if it returns (2026-09-17 20:47)**
+- A regression suite written against the API, one check per fault the report and video showed (`src/test/regression.test.ts`, 602 lines).
+- It caught two things review had not. First, the forgot-password change had turned the endpoint into an **account oracle**: `sent` carried the real per-address delivery outcome, so with a provider configured a known address answered true and an invented one false — exactly the user enumeration a uniform response exists to prevent. `sent` now acknowledges the request and never the delivery; whether mail can be sent at all is a property of the deployment and is reported as one. Second, sixteen checks failed on one cause — the suite never put the rider on shift, so the claim was refused, so there was no assigned rider to read the order thread and no delivered order to settle. The refusal is correct; the suite now states the precondition instead of inheriting whatever the seed was last left at.
+- Also added the restaurant settlements tab to the admin console, deliberately the same shape as the driver payouts beside it.
+
+**`ceed65e` — ship the binary that was tested, and refuse to publish a stale one (2026-09-17 20:49)**
+- The build script defaulted to ARM-only APKs, which cannot be installed on an x86_64 emulator, so the file that shipped could never be the file that was launch-tested. Universal is now the default; `--arm-only` remains for someone deliberately shipping to ARM hardware they will test on.
+- The script also copied whatever APK was sitting in the output directory, so a Gradle run that produced nothing would publish the previous run's binary as a new release. The artifact is now deleted before the build and its absence afterwards is fatal.
+- All four `app.json` files moved to **1.3.0 / versionCode 7**. The script runs `prebuild --clean` because Gradle reads the generated project, not `app.json`.
+
+**`ced1fc0` — lock the image picker the customer profile photo needs (2026-09-17 20:49)** — `package-lock.json` only.
+
+**Frontend changes:** As above — customer wallet, address book, favourites, profile photo; `SafeScreen` on customer and delivery; rider settlement screen and trip chat; admin console settlements tab; partner tab bar scrolling.
+**Backend/API/database changes:** `/orders/quote` real pricing; settlement repository and admin/rider/restaurant settlement routes; `/wallets/me`; phone validation; provider-agnostic email sender; forgot-password uniform response.
+**Build/APK changes:** All four apps declared 1.3.0 / versionCode 7 in `app.json`. **No 1.3.0 APK has been built or released** — see known issues.
+
+**Files/modules affected:**
+- Created (this session): none
+- Modified (this session): `CHANGELOG.md`
+- Documented (earlier commits): see the per-commit lists above
+
+**Testing performed (run today against this tree, commit `ced1fc0`, working tree clean):**
+- `node scripts/diagnostics.js` — **34/34 PASS**, 0 failed
+- `npm run typecheck` — **3/3 turbo tasks successful**
+- `npm test --workspace=@quick-bites/backend-api` — **415 checks PASS, 0 FAIL** across 10 suites: health 6, db 15, orders 16, search 18, sockets 16, security 23, pipeline 57, admin 127, partner 57, regression 80.
+
+**Known issues / pending work:**
+- **The tree declares 1.3.0 but nothing 1.3.0 exists.** `build/apk/` still holds the **v1.2.1** binaries (last written by `1efd1a5`) and `DOWNLOAD.md` still points at the v1.2.1 release. Either build and publish 1.3.0 with `scripts/build-apks.sh`, or revert the version bump — as it stands, `app.json` and the shipped artifact disagree.
+- **Staff apps still cannot be handed to testers against production.** `SEED_DEFAULT_PASSWORD` is unset on Railway and unreadable from this machine; `pass123` is refused by the hosted deployment. Only the customer path is proven against production.
+- The four APKs are ~55 MB each and tracked in git under `build/apk/`; GitHub warns on every push. Git LFS, or release-assets-only, is the right fix.
+- Carried forward: no online payment (cash on delivery only); Play Console / App Store Connect work still needs a human.
+- **Resolved since the v1.2.1 entry listed them:** the sign-up form's `Rahul Sharma` / `9876543210` prefill is gone from `apps/customer-mobile/src`; the "Quickbits" spelling now survives only as a source comment in `apps/customer-mobile/src/theme/tokens.ts:3` — if the wordmark still reads wrong it is in an image asset, not in code.
+
+**Decisions / dependencies / session conflicts:**
+- This entry is a **retroactive reconstruction** from commit messages and diffs, not a record of work performed in this session. The verification numbers above, however, were measured today.
+- Builds must stay universal unless someone re-establishes another way to launch-test the exact shipping binary (carried forward, and now enforced by the script's default).
+- Gradle must run under JDK 17: `JAVA_HOME=/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
+- Append an entry per feature, at the time it lands. Five commits accumulated undocumented, and two of them carried a security-relevant decision (the account-oracle fix) that no one reading this file would have known about.
+
+**NEXT AI SHOULD:** Resolve the 1.3.0/1.2.1 split first — run `scripts/build-apks.sh`, verify each APK with `apksigner`, publish, and update `DOWNLOAD.md` — or revert the bump if a release is not wanted yet. Then, once the owner sets `SEED_DEFAULT_PASSWORD` on Railway, re-run the four-role journey against the **hosted** API through the apps.
+
+---
+
+## [2026-09-17 22:30] -- Claude Opus 5 -- Session 23 Phase 0 (groundwork and safety net)
+
+**Feature/Issue:** First phase of the master fix plan agreed with the owner (`MASTER_FIX_PLAN.md`). No behaviour change — this phase makes the remaining eleven phases safe to execute and makes the project buildable on this machine.
+
+**Status:** Completed
+**Chunks Modified:** None (tooling and repository hygiene)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 0
+
+### What changed
+
+**A secret scanner that cannot itself leak a secret.** `scripts/check-secrets.mjs` reads the real credential values out of the gitignored `.env` at runtime and searches every tracked file for them, so it holds no secret of its own and never prints a value — only the variable name and the file and line where it surfaced. Credentials that would never be in this machine's `.env` (a live Razorpay key, an AWS key id, a private key block, a Firebase service account) are matched by shape instead. Wired into `npm run check:secrets`, the new `npm run verify` chain, and the CI pipeline **before** any other step.
+
+The first version of it passed everything because its placeholder pattern `^(|your-|sample|...)` contained an empty alternative, which matches at position zero of every string — so every credential was classified as a placeholder and nothing was ever compared. Fixed, then deliberately proved by injecting a real key into `README.md`: the scanner refused the build and reported `README.md:130 — value of RAZORPAY_KEY_SECRET is committed`. A green scanner that has never been shown to fail is not evidence of anything.
+
+**The build script now runs on more than one machine.** `scripts/build-apks.sh` hardcoded `/usr/local/opt/openjdk@17` and `/usr/local/share/android-commandlinetools`, so it only ever worked on the machine it was written on. It now searches the real locations on Windows, macOS and Linux, and reads the Java version from the binary rather than trusting the directory name — a directory called `jdk-17` proves nothing. When it cannot find a toolchain it names what is missing and the install command for that platform. `local.properties` is written with a native path via `cygpath -m`, because Gradle cannot read an MSYS `/c/...` path.
+
+**JDK 17 installed** (Temurin 17.0.20.101). The machine had only `jre-1.8`, which Gradle 8.10/AGP reject, so no APK could be produced here at all.
+
+**220 MB of APKs untracked.** `build/apk/` is no longer in version control and is gitignored. The files remain on disk; they are published as GitHub Release assets, which is what `DOWNLOAD.md` already links to. Existing blobs stay in history — untracking stops the bleeding, it does not undo it.
+
+**Files/modules affected:**
+- Created: `MASTER_FIX_PLAN.md`, `scripts/check-secrets.mjs`, `.env` (gitignored, not committed)
+- Modified: `scripts/build-apks.sh`, `.gitignore`, `package.json`, `.github/workflows/ci.yml`
+- Untracked (kept on disk): `build/apk/QuickBites-{Customer,Partner,Rider,Admin}.apk`
+
+**Testing performed:** `npm run verify` — secret scan clean, diagnostics 34/34, typecheck 3/3 tasks, full test matrix 6/6 tasks (415 backend checks). Toolchain detection dry-run on Windows resolved JDK 17.0.20.101 and the Android SDK, and converted the SDK path correctly. Scanner failure path proven by injection. Result: **all pass**.
+
+**Known issues / pending work:**
+- Phases 1–12 of `MASTER_FIX_PLAN.md` remain. Phase 1 (WebSocket authorization) is next and is the highest-severity item in the plan.
+- APK blobs remain in git history; only new commits are clean.
+
+**Decisions / dependencies / session conflicts:**
+- Razorpay **test-mode** keys supplied by the owner live only in the gitignored `.env`. They move no real money. If either value ever reaches a tracked file the scanner fails the build; rotate from the Razorpay dashboard if exposed.
+- `npm run verify` is the single command that gates a release from here on: secrets, diagnostics, typecheck, tests.
+- The build script's universal-APK default is unchanged and must stay (see the v1.2.1 entry for why).
+
+**NEXT AI SHOULD:** Execute Phase 1 of `MASTER_FIX_PLAN.md` — WebSocket authorization. Five room-join handlers in `apps/backend-api/src/sockets/socketServer.ts` authorize nothing, including `join:admin`, which any authenticated user can enter. This is open in production.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

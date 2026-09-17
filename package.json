@@ -12,7 +12,9 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "diagnostics": "node scripts/diagnostics.js"
+    "diagnostics": "node scripts/diagnostics.js",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "verify": "node scripts/check-secrets.mjs && node scripts/diagnostics.js && npm run typecheck && npm run test"
   },
   "devDependencies": {
     "turbo": "^2.1.0",
