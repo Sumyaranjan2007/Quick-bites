@@ -1,10 +1,26 @@
 import http from 'http';
+import jwt from 'jsonwebtoken';
 import { io as ioClient, Socket as ClientSocket } from 'socket.io-client';
 import { initSocketServer, closeSocketServer, emitOrderCreated, emitOrderStatusUpdate } from '../sockets/socketServer.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { orderService } from '../modules/orders/orderService.ts';
+import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { config } from '../config/env.ts';
 import type { Order } from '@quick-bites/shared-types';
+
+/**
+ * A signed token for a seeded account.
+ *
+ * These sockets used to connect by announcing `{ userId, role }` in the
+ * handshake, which the server believed. It no longer does — identity comes from
+ * the token and rooms are authorized against real ownership — so the test has
+ * to hold a real credential like the apps do. Roles are the API's own
+ * vocabulary (`restaurant_owner`, `rider`), not the socket's.
+ */
+function tokenFor(userId: string, role: string): string {
+  return jwt.sign({ sub: userId, role }, config.JWT_SECRET, { expiresIn: '1h', algorithm: 'HS256' });
+}
 
 console.log('====================================================');
 console.log('    RUNNING CHUNK 08 WEBSOCKETS & REAL-TIME TESTS   ');
@@ -13,6 +29,9 @@ console.log('====================================================\n');
 async function runSocketTests() {
   // 1. Start Ephemeral HTTP & Socket.IO Server
   console.log('Step 1: Starting test Socket.IO server...');
+  // Seeded before anything connects: room authorization reads real records, so
+  // a subscription to an order or restaurant that does not exist is refused.
+  await seedDatabase();
   const server = http.createServer();
   initSocketServer(server);
 
@@ -29,17 +48,17 @@ async function runSocketTests() {
   console.log('Step 2: Connecting client sockets with role authentication...');
 
   const customerSocket: ClientSocket = ioClient(serverUrl, {
-    auth: { userId: 'usr_customer_01', role: 'CUSTOMER' },
+    auth: { token: tokenFor('usr_customer_01', 'customer') },
     transports: ['websocket']
   });
 
   const kitchenSocket: ClientSocket = ioClient(serverUrl, {
-    auth: { userId: 'usr_partner_01', role: 'RESTAURANT_PARTNER' },
+    auth: { token: tokenFor('usr_partner_01', 'restaurant_owner') },
     transports: ['websocket']
   });
 
   const adminSocket: ClientSocket = ioClient(serverUrl, {
-    auth: { userId: 'usr_admin_01', role: 'ADMIN' },
+    auth: { token: tokenFor('usr_admin_01', 'admin') },
     transports: ['websocket']
   });
 
@@ -53,8 +72,19 @@ async function runSocketTests() {
 
   // 3. Join Partitioned Rooms
   console.log('Step 3: Subscribing sockets to partitioned real-time rooms...');
-  const testOrderId = 'ord_rt_999';
-  const testRestaurantId = 'rst_rt_888';
+  // Real records, because the server now checks them. The fabricated ids this
+  // test used before ('ord_rt_999', 'rst_rt_888') were exactly what the old
+  // handlers accepted without looking: any id at all was a valid room name.
+  const testRestaurantId = 'rst_bbh_01'; // seeded, owned by usr_partner_01
+  const subjectOrder = await orderService.createOrder({
+    customerId: 'usr_customer_01',
+    restaurantId: testRestaurantId,
+    deliveryAddressId: 'addr_sample_01',
+    items: [{ dishId: 'dish_ck_biryani', quantity: 1 }],
+    paymentMethod: 'CASH_ON_DELIVERY',
+    idempotencyKey: 'idemp_socket_subject_' + Date.now()
+  });
+  const testOrderId = subjectOrder.order.id;
 
   customerSocket.emit('join:order', { orderId: testOrderId });
   kitchenSocket.emit('join:restaurant', { restaurantId: testRestaurantId });
@@ -63,7 +93,7 @@ async function runSocketTests() {
 
   // Allow room join propagation
   await new Promise((r) => setTimeout(r, 100));
-  console.log('[PASS] Rooms joined: order:ord_rt_999, restaurant:rst_rt_888, admin:control_tower');
+  console.log(`[PASS] Rooms joined: order:${testOrderId}, restaurant:${testRestaurantId}, admin:control_tower`);
 
   // 4. Test Event: emitOrderCreated (Kitchen Terminal + Admin)
   console.log('Step 4: Testing emitOrderCreated real-time event distribution...');
@@ -177,9 +207,16 @@ async function runSocketTests() {
     }
   });
 
-  // Connect a simulated rider socket
+  // Connect a simulated rider socket.
+  //
+  // Telemetry is now accepted only from the rider who actually holds the trip,
+  // and only once the food is on its way — so the trip is arranged first. Both
+  // conditions are asserted from the other side in sockets.security.test.ts.
+  await orderRepository.assignRider(testOrderId, 'rdr_vikram_01', 'Vikram Singh', '+91-98765-43211', 45);
+  await orderRepository.updateStatus(testOrderId, 'OUT_FOR_DELIVERY');
+
   const riderSocket: ClientSocket = ioClient(serverUrl, {
-    auth: { userId: 'usr_rider_01', role: 'DELIVERY_PARTNER' },
+    auth: { token: tokenFor('usr_rider_01', 'rider') },
     transports: ['websocket']
   });
 

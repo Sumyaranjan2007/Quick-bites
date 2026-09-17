@@ -3,13 +3,34 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { config } from '../config/env.ts';
 import type { Order, OrderStatus } from '@quick-bites/shared-types';
+import {
+  canJoinOrder,
+  canJoinRestaurant,
+  canJoinMenu,
+  canJoinAdmin,
+  canJoinRidersPool,
+  canStreamRiderLocation,
+  isPlottableCoordinate,
+  type SocketIdentity,
+  type SocketRole
+} from './socketAuth.ts';
 
 let ioInstance: SocketIOServer | null = null;
 
+/**
+ * What a client may put in the socket handshake.
+ *
+ * `userId` and `role` are accepted for backwards compatibility with older app
+ * builds and are then IGNORED. Identity is read from `token` alone. Do not
+ * reintroduce a read of these fields: they are attacker-controlled strings, and
+ * trusting them is what let any connection claim to be an administrator.
+ */
 export interface SocketUserContext {
-  userId?: string;
-  role?: 'CUSTOMER' | 'RESTAURANT_PARTNER' | 'DELIVERY_PARTNER' | 'ADMIN';
   token?: string;
+  /** @deprecated Ignored by the server. Identity comes from the token. */
+  userId?: string;
+  /** @deprecated Ignored by the server. Role comes from the token. */
+  role?: SocketRole;
 }
 
 export function initSocketServer(httpServer: HttpServer): SocketIOServer {
@@ -34,28 +55,40 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     const query = socket.handshake.query as Record<string, string>;
     const token = auth?.token || (query?.token as string);
 
-    let userId = auth?.userId || query?.userId || `anon_${socket.id.slice(0, 8)}`;
-    let role = auth?.role || (query?.role as any) || 'CUSTOMER';
-
-    if (token) {
-      try {
-        const payload = jwt.verify(token, config.JWT_SECRET) as any;
-        userId = payload.sub || userId;
-        const mappedRole = payload.role?.toUpperCase();
-        if (mappedRole === 'ADMIN' || mappedRole === 'SUPER_ADMIN') {
-          role = 'ADMIN';
-        } else if (mappedRole === 'RESTAURANT_OWNER') {
-          role = 'RESTAURANT_PARTNER';
-        } else if (mappedRole === 'RIDER') {
-          role = 'DELIVERY_PARTNER';
-        } else {
-          role = 'CUSTOMER';
-        }
-      } catch (err: any) {
-        return next(new Error('INVALID_SOCKET_TOKEN: Authentication token is invalid or expired.'));
-      }
-    } else if (!config.DEMO_MODE) {
+    // Identity comes from the signed token and from nowhere else.
+    //
+    // This used to fall back to `auth.userId` and `auth.role` straight off the
+    // handshake, which are client-supplied strings. Anyone could therefore
+    // announce themselves as an administrator and be auto-joined to the control
+    // tower below. Production was protected only because it force-disables demo
+    // mode; that is one edit away from not being true, and a security boundary
+    // should not rest on a second, unrelated setting.
+    if (!token) {
       return next(new Error('AUTH_REQUIRED: Authentication token required for real-time WebSocket connection.'));
+    }
+
+    let userId: string;
+    let role: SocketRole;
+
+    try {
+      const payload = jwt.verify(token, config.JWT_SECRET) as any;
+      if (!payload?.sub) {
+        return next(new Error('INVALID_SOCKET_TOKEN: Token carries no subject.'));
+      }
+      userId = payload.sub;
+
+      const mappedRole = payload.role?.toUpperCase();
+      if (mappedRole === 'ADMIN' || mappedRole === 'SUPER_ADMIN') {
+        role = 'ADMIN';
+      } else if (mappedRole === 'RESTAURANT_OWNER') {
+        role = 'RESTAURANT_PARTNER';
+      } else if (mappedRole === 'RIDER') {
+        role = 'DELIVERY_PARTNER';
+      } else {
+        role = 'CUSTOMER';
+      }
+    } catch (err: any) {
+      return next(new Error('INVALID_SOCKET_TOKEN: Authentication token is invalid or expired.'));
     }
 
     socket.data = {
@@ -89,10 +122,33 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       socket.join('admin:control_tower');
     }
 
-    // Handlers for room joining / leaving
-    socket.on('join:order', (data: { orderId: string }) => {
-      if (!data?.orderId) return;
-      const room = `order:${data.orderId}`;
+    const identity: SocketIdentity = { userId, role };
+
+    /**
+     * A subscription that was asked for and refused.
+     *
+     * Logged at WARN with the reason, because a refusal is either a client bug
+     * or somebody probing; both are worth seeing. The client is told only that
+     * it was denied — the reason distinguishes "no such order" from "not your
+     * order", and handing that distinction back would answer questions the
+     * caller has no right to ask.
+     */
+    const refuse = (requestedEvent: string, target: string, reason?: string): void => {
+      console.log(JSON.stringify({
+        level: 'WARN',
+        timestamp: new Date().toISOString(),
+        event: 'SOCKET_SUBSCRIPTION_REFUSED',
+        socketId: socket.id,
+        requestedEvent,
+        target,
+        reason,
+        userId,
+        role
+      }));
+      socket.emit('subscription:denied', { event: requestedEvent, target });
+    };
+
+    const grant = (room: string): void => {
       socket.join(room);
       console.log(JSON.stringify({
         level: 'INFO',
@@ -100,8 +156,19 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         event: 'SOCKET_ROOM_JOINED',
         socketId: socket.id,
         room,
-        userId
+        userId,
+        role
       }));
+    };
+
+    // Handlers for room joining / leaving
+    socket.on('join:order', async (data: { orderId: string }) => {
+      if (!data?.orderId) return;
+      const decision = await canJoinOrder(identity, data.orderId);
+      if (!decision.allowed) {
+        return refuse('join:order', data.orderId, decision.reason);
+      }
+      grant(`order:${data.orderId}`);
     });
 
     socket.on('leave:order', (data: { orderId: string }) => {
@@ -109,18 +176,13 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       socket.leave(`order:${data.orderId}`);
     });
 
-    socket.on('join:restaurant', (data: { restaurantId: string }) => {
+    socket.on('join:restaurant', async (data: { restaurantId: string }) => {
       if (!data?.restaurantId) return;
-      const room = `restaurant:${data.restaurantId}`;
-      socket.join(room);
-      console.log(JSON.stringify({
-        level: 'INFO',
-        timestamp: new Date().toISOString(),
-        event: 'SOCKET_ROOM_JOINED',
-        socketId: socket.id,
-        room,
-        userId
-      }));
+      const decision = await canJoinRestaurant(identity, data.restaurantId);
+      if (!decision.allowed) {
+        return refuse('join:restaurant', data.restaurantId, decision.reason);
+      }
+      grant(`restaurant:${data.restaurantId}`);
     });
 
     socket.on('leave:restaurant', (data: { restaurantId: string }) => {
@@ -135,6 +197,10 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     // to deliver a menu ping would hand them other people's orders.
     socket.on('join:menu', (data: { restaurantId: string }) => {
       if (!data?.restaurantId) return;
+      const decision = canJoinMenu(identity);
+      if (!decision.allowed) {
+        return refuse('join:menu', data.restaurantId, decision.reason);
+      }
       socket.join(`menu:${data.restaurantId}`);
     });
 
@@ -144,35 +210,52 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     });
 
     socket.on('join:admin', () => {
-      socket.join('admin:control_tower');
+      const decision = canJoinAdmin(identity);
+      if (!decision.allowed) {
+        return refuse('join:admin', 'admin:control_tower', decision.reason);
+      }
+      grant('admin:control_tower');
     });
 
     // Riders on shift wait here to be told about food that is ready to collect.
     // Without it the rider app only learns of work when someone taps refresh.
-    socket.on('join:riders', () => {
-      socket.join('riders:available');
-      console.log(JSON.stringify({
-        level: 'INFO',
-        timestamp: new Date().toISOString(),
-        event: 'SOCKET_ROOM_JOINED',
-        socketId: socket.id,
-        room: 'riders:available',
-        userId
-      }));
+    socket.on('join:riders', async () => {
+      const decision = await canJoinRidersPool(identity);
+      if (!decision.allowed) {
+        return refuse('join:riders', 'riders:available', decision.reason);
+      }
+      grant('riders:available');
     });
 
     socket.on('leave:riders', () => {
       socket.leave('riders:available');
     });
 
-    // Rider live telemetry ping
-    socket.on('rider:location', (data: { orderId: string; lat: number; lng: number; bearing?: number }) => {
+    // Rider live telemetry ping.
+    //
+    // Accepted only from the rider actually carrying the order, and only once
+    // the order is out for delivery. Before that the map stays dark, which is
+    // both the behaviour customers expect and the rider's own privacy: where
+    // they are before they have collected anything is not the customer's
+    // business. Restricting the publisher to the assigned rider also stops
+    // fabricated coordinates being pushed into a stranger's tracking screen.
+    socket.on('rider:location', async (data: { orderId: string; lat: number; lng: number; bearing?: number }) => {
       if (!data?.orderId) return;
+
+      if (!isPlottableCoordinate(data.lat, data.lng)) {
+        return refuse('rider:location', data.orderId, 'INVALID_COORDINATE');
+      }
+
+      const decision = await canStreamRiderLocation(identity, data.orderId);
+      if (!decision.allowed) {
+        return refuse('rider:location', data.orderId, decision.reason);
+      }
+
       const payload = {
         orderId: data.orderId,
         lat: data.lat,
         lng: data.lng,
-        bearing: data.bearing || 0,
+        bearing: Number.isFinite(data.bearing) ? data.bearing : 0,
         updatedAt: new Date().toISOString()
       };
       // Relayed to order subscribers and admin
@@ -198,6 +281,40 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
 export function getSocketServer(): SocketIOServer | null {
   return ioInstance;
+}
+
+/**
+ * Puts a rider into, or takes them out of, the pool that receives delivery
+ * offers — driven by the shift toggle rather than by the client.
+ *
+ * The rider app emits `join:riders` once, when its socket connects. Membership
+ * is now conditional on being on shift, so a rider who opened the app before
+ * starting work would ask, be refused, and then never ask again: they would sit
+ * on the dashboard having gone online and be offered nothing until they killed
+ * and reopened the app. Rather than weaken the rule — offers carry a customer's
+ * address and the trip's payout, and someone who has gone home should not
+ * receive them — the server moves them in and out itself, which is also the
+ * only version that survives a rider ending their shift mid-session.
+ *
+ * Every socket is auto-joined to `user:<id>` on connection, so that room is a
+ * usable handle on "every device this person has open".
+ */
+export function setRiderOfferPoolMembership(userId: string, onShift: boolean): void {
+  if (!ioInstance) return;
+
+  const room = ioInstance.in(`user:${userId}`);
+  if (onShift) {
+    room.socketsJoin('riders:available');
+  } else {
+    room.socketsLeave('riders:available');
+  }
+
+  console.log(JSON.stringify({
+    level: 'INFO',
+    timestamp: new Date().toISOString(),
+    event: onShift ? 'RIDER_JOINED_OFFER_POOL' : 'RIDER_LEFT_OFFER_POOL',
+    userId
+  }));
 }
 
 export function closeSocketServer(): Promise<void> {

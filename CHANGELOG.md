@@ -1228,6 +1228,70 @@ The first version of it passed everything because its placeholder pattern `^(|yo
 
 ---
 
+## [2026-09-17 23:20] -- Claude Opus 5 -- Session 23 Phase 1 (WebSocket authorization)
+
+**Feature/Issue:** The REST layer has always been careful — role-scoped `authMiddleware`, Zod validation, ownership assertions on every mutating route. The socket layer authenticated the connection and then trusted whatever room name arrived next. The same data REST guards was readable by asking for it over a socket instead.
+
+**Status:** Completed
+**Chunks Modified:** 08 (real-time engine)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 1, closing §2.1
+
+### What was open, in production
+
+| Event | Anyone authenticated could | Exposure |
+|---|---|---|
+| `join:order` | join any order room by id | a stranger's order status and, once moving, their rider's live coordinates |
+| `join:restaurant` | join any kitchen room | whole order objects — names, addresses, phone numbers, bills |
+| `join:admin` | **enter the control tower, no role check at all** | platform-wide order events and every rider's position |
+| `join:riders` | sit in the dispatch pool | delivery offers: pickup, drop address, payout |
+| `rider:location` | publish coordinates for any order | fabricated positions injected into a stranger's tracking screen |
+
+Identity itself came from `auth.userId` and `auth.role` — strings the client chooses. A connection could simply announce `role: 'ADMIN'` and be auto-joined to the control tower. Production was protected from that one path only because it force-disables demo mode, which is an unrelated setting a single edit away from not being true.
+
+### What changed
+
+`sockets/socketAuth.ts` is new and holds one predicate per subscription, deliberately mirroring the REST rules rather than inventing parallel ones: a person may watch an order over a socket exactly when they may read it over HTTP. Every predicate fails closed — a missing record, an unknown role or a throwing lookup all deny.
+
+Identity now comes from the verified JWT and nowhere else; a socket with no token is refused in every mode, not only in production.
+
+Two details that would silently break a reimplementation, and are commented in place: `order.riderId` holds the rider **entity** id, not the user id, so a rider is resolved through `findByUserId` before comparison — comparing the socket's user id directly would deny every rider; and NaN survives JSON and a `typeof === 'number'` test, reaching the client as a broken marker rather than an error, so coordinates are range-checked.
+
+### The Zomato tracking rule, on the path that actually carries it
+
+Live location is now refused unless the order is `OUT_FOR_DELIVERY` — the map appears when the food is moving, and where a rider is before they have collected anything is their own business.
+
+**The socket event was not the path that mattered.** The rider app sends telemetry over REST (`POST /riders/telemetry`), and that endpoint already checked the assigned rider but not the status, so it would have broadcast a rider's position to the customer while the order was still in the kitchen. Gating only the socket would have produced a rule that looked enforced and was not. Both paths now carry it.
+
+### A product bug this nearly introduced
+
+Membership of the offer pool is conditional on being on shift. The rider app emits `join:riders` once, on socket connect — which for a rider who opens the app before starting work happens while they are still off shift. They would be refused, never ask again, and sit on the dashboard having gone online and be offered nothing until they force-closed the app.
+
+Rather than weaken the rule, `setRiderOfferPoolMembership` moves riders in and out server-side from the shift toggle and from logout. Going online is now sufficient, and going offline actually stops the offers instead of leaving a subscribed socket until it reconnects. `pipeline.test.ts` exercises this without modification: it still asks to join before going on shift, is refused, and receives the offer anyway because the shift call put it in the pool.
+
+**Frontend changes:** None. All four apps already authenticate their sockets with `auth: { token }`; the fields the server stopped trusting were vestigial.
+**Backend/API/database changes:** New `sockets/socketAuth.ts`; handshake and all five handlers in `sockets/socketServer.ts` rewritten; `setRiderOfferPoolMembership` added; `POST /riders/telemetry` gated on `OUT_FOR_DELIVERY`.
+**Build/APK changes:** None.
+
+**Files/modules affected:**
+- Created: `apps/backend-api/src/sockets/socketAuth.ts`, `apps/backend-api/src/test/sockets.security.test.ts`
+- Modified: `apps/backend-api/src/sockets/socketServer.ts`, `apps/backend-api/src/routes/riderRouter.ts`, `apps/backend-api/src/test/sockets.test.ts`, `apps/backend-api/package.json`
+
+**Testing performed:** `npm run verify` — secrets clean, diagnostics 34/34, typecheck 3/3, **437 backend checks across 11 suites, 0 failures** (415 before, plus 22 new authorization checks). The new suite pairs every refusal with the matching positive case, because a server that refuses everything would pass a suite of refusals and deliver nothing.
+
+`sockets.test.ts` was rewritten rather than adjusted: it connected by announcing `{ userId, role }` with no token and joined fabricated ids (`ord_rt_999`, `rst_rt_888`) that existed nowhere. It was passing *because* of the hole. It now mints real tokens and subscribes to a real seeded order and restaurant.
+
+**Known issues / pending work:**
+- Phases 2–12 of `MASTER_FIX_PLAN.md`. Next is Phase 2, phone + OTP identity for customers.
+- The offer pool denies ADMIN as well as customers. No app requests it (the admin console watches `admin:control_tower`), and refusals are logged — but an admin fleet view added later must use the control tower, not this room.
+
+**Decisions / dependencies / session conflicts:**
+- **Do not reintroduce a read of `auth.userId` or `auth.role`.** They remain in the handshake type for older app builds, marked `@deprecated` and ignored. Trusting them is what let any connection claim to be an administrator.
+- Socket authorization and REST authorization must be changed together. A rule enforced on one path only is decorative — the telemetry gate above is the worked example.
+
+**NEXT AI SHOULD:** Execute Phase 2 of `MASTER_FIX_PLAN.md` — phone + OTP identity for the customer app, provider-agnostic, with the fixed code refused in production unless explicitly allowed, and the email subsystem removed.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

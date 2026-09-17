@@ -15,7 +15,8 @@ import {
   emitOrderStatusUpdate,
   emitRiderLocation,
   emitOrderAvailableForPickup,
-  emitSosAlert
+  emitSosAlert,
+  setRiderOfferPoolMembership
 } from '../sockets/socketServer.ts';
 import {
   computeRiderMetrics,
@@ -453,6 +454,13 @@ riderRouter.post('/shift', validate({ body: ShiftStatusSchema }), async (req, re
     const rider = await riderRepository.updateOnlineStatus(self.id, Boolean(isOnline));
     if (!rider) throw new AppError('Rider profile not found.', 404, 'RIDER_NOT_FOUND');
 
+    // The offer pool follows the shift toggle. The app asks to join once, when
+    // its socket connects, which for a rider who opened the app before starting
+    // work happens while they are still off shift and is refused. Moving them
+    // here means going online is enough, and going offline actually stops the
+    // offers rather than leaving a socket subscribed until it reconnects.
+    setRiderOfferPoolMembership(req.user!.id, rider.isOnline);
+
     res.json({
       success: true,
       data: { rider, isOnline: rider.isOnline },
@@ -473,6 +481,7 @@ riderRouter.post('/logout', async (req, res, next) => {
   try {
     const self = await requireRiderSelf(req);
     await riderRepository.updateOnlineStatus(self.id, false);
+    setRiderOfferPoolMembership(req.user!.id, false);
     res.json({ success: true, message: 'Signed out and taken off shift.' });
   } catch (err) {
     next(err);
@@ -1046,6 +1055,20 @@ riderRouter.post('/telemetry', validate({ body: TelemetrySchema }), async (req, 
     }
     if (order.riderId !== self.id) {
       throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
+    }
+    // Tracking begins at pickup, as it does on every delivery app a customer
+    // has used: the map appears when the food is actually moving. It is also
+    // the rider's own privacy — where they are while waiting at a kitchen, or
+    // between trips, is not something the customer is entitled to watch. This
+    // is the path the rider app actually uses (the socket event is gated the
+    // same way in socketAuth.ts); leaving it open here would have made that
+    // gate decorative.
+    if (order.status !== 'OUT_FOR_DELIVERY') {
+      throw new AppError(
+        'Live tracking starts once the order has been collected.',
+        409,
+        'NOT_YET_OUT_FOR_DELIVERY'
+      );
     }
 
     const updatedAt = new Date().toISOString();
