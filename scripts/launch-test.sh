@@ -50,6 +50,18 @@ if ! "$ADB" devices | grep -qE "device$"; then
   exit 1
 fi
 
+# A filter that matches nothing must not be reported as a clean run. "0 APKs
+# installed and opened" is not a pass, and this script exits 0 on it.
+if [[ -n "$ONLY" ]]; then
+  case "$(echo "$ONLY" | tr 'A-Z' 'a-z')" in
+    customer|partner|rider|admin) ;;
+    *)
+      echo "FATAL: '$ONLY' is not one of: customer partner rider admin" >&2
+      exit 1
+      ;;
+  esac
+fi
+
 for entry in "${APPS[@]}"; do
   artifact="${entry%%:*}"
   rest="${entry#*:}"
@@ -57,8 +69,12 @@ for entry in "${APPS[@]}"; do
   label="${rest#*:}"
 
   if [[ -n "$ONLY" ]]; then
-    case "$artifact" in
-      *"$ONLY"*) ;;
+    # Case-folded on both sides. The usage line above says `customer partner
+    # rider admin`, and the artifact names are `QuickBites-Customer` and
+    # friends, so a case-sensitive match made every documented invocation
+    # select nothing and report "0 APK(S) INSTALLED AND OPENED" as a success.
+    case "$(echo "$artifact" | tr 'A-Z' 'a-z')" in
+      *"$(echo "$ONLY" | tr 'A-Z' 'a-z')"*) ;;
       *) continue ;;
     esac
   fi
@@ -108,12 +124,27 @@ for entry in "${APPS[@]}"; do
   # nothing behind it. The process check cannot tell those apart from success,
   # so take a picture and look.
   #
-  # MSYS_NO_PATHCONV stops Git Bash rewriting /sdcard/... into a Windows path
-  # before adb ever sees it, which is why an earlier attempt at this silently
-  # wrote nothing.
+  # Git Bash rewrites anything that looks like a Unix path into a Windows one
+  # before adb sees it, which mangles /sdcard/... MSYS_NO_PATHCONV stops that.
+  #
+  # But `pull` has a path on EACH side, and they need opposite treatment: the
+  # source is an Android path that must stay as written, and the destination is
+  # a Windows path that must NOT stay as `/d/my all projects/...`. Turning the
+  # conversion off for the whole command fixed the first and broke the second,
+  # and adb said so only on stderr - which was redirected to /dev/null, so the
+  # run reported a pass with no screenshot and no reason. cygpath converts the
+  # destination explicitly, which is the only way to get both.
   mkdir -p "$SHOT_DIR"
+  shot_dest="$SHOT_DIR/$artifact.png"
+  if command -v cygpath >/dev/null 2>&1; then
+    shot_dest="$(cygpath -w "$shot_dest")"
+  fi
+
   MSYS_NO_PATHCONV=1 "$ADB" shell screencap -p /sdcard/qb-shot.png >/dev/null 2>&1
-  MSYS_NO_PATHCONV=1 "$ADB" pull /sdcard/qb-shot.png "$SHOT_DIR/$artifact.png" >/dev/null 2>&1
+  if ! MSYS_NO_PATHCONV=1 "$ADB" pull /sdcard/qb-shot.png "$shot_dest" >/dev/null 2>"$SHOT_DIR/.pull-error"; then
+    echo "       screenshot pull failed: $(tail -1 "$SHOT_DIR/.pull-error")"
+  fi
+  rm -f "$SHOT_DIR/.pull-error"
   MSYS_NO_PATHCONV=1 "$ADB" shell rm /sdcard/qb-shot.png >/dev/null 2>&1
 
   if [[ -f "$SHOT_DIR/$artifact.png" ]]; then
