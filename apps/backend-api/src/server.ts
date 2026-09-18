@@ -29,6 +29,23 @@ if (usingDatabase) {
   setPersistenceBackend({ save: saveStoreToDatabase });
   console.log('[INFO] Persistence: Postgres (DATABASE_URL).');
 } else {
+  // The database path above deliberately refuses to start when it cannot reach
+  // Postgres, rather than coming up healthy while writing orders somewhere they
+  // will be discarded. This path had no such guard, so removing DATABASE_URL
+  // from a deployment did exactly that silently: the service reported HEALTHY,
+  // took real orders, and lost every one of them on the next restart, because
+  // a container's filesystem does not survive a redeploy.
+  //
+  // The escape hatch exists because a test has to be able to start a real
+  // production server without a database in order to observe these behaviours
+  // at all. It must be set deliberately, like OTP_ALLOW_FIXED_IN_PRODUCTION.
+  if (config.IS_PRODUCTION && process.env.ALLOW_FILE_PERSISTENCE !== 'true') {
+    throw new Error(
+      'DATABASE_URL is not set. Refusing to start: without it this service would ' +
+        'write orders to a container filesystem that is discarded on the next ' +
+        'restart, while reporting itself healthy.'
+    );
+  }
   console.log('[INFO] Persistence: local JSON snapshot (no DATABASE_URL set).');
 }
 

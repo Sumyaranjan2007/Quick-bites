@@ -10,7 +10,18 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-export const DATA_DIR = path.resolve(__dirname, '../../data');
+/**
+ * Where the local JSON snapshot lives.
+ *
+ * Overridable so a test can point a whole server at an empty directory and
+ * observe what a genuinely fresh deployment does. Without that, "does it start
+ * empty?" can only ever be answered against whatever this developer's machine
+ * happens to have lying in `data/` — which is how that check passed for four
+ * seeded restaurants.
+ */
+export const DATA_DIR = process.env.QB_DATA_DIR
+  ? path.resolve(process.env.QB_DATA_DIR)
+  : path.resolve(__dirname, '../../data');
 export const STORE_FILE = path.resolve(DATA_DIR, 'store.json');
 
 export interface DbStore {
