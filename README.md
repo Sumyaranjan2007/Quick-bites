@@ -49,18 +49,62 @@ Each application is a distinct native mobile client configured with its own role
 
 ---
 
-## 3. Real Accounts & Production Credentials (Zero Mock Data)
+## 3. How People Get Onto The Platform
 
-The platform adheres to a strict **Zero Mock Data** mandate. All accounts, orders, wallets, and KYC documents are persisted in the transactional database store with real relational foreign keys:
+The four seeded accounts sharing one password are gone. They were the reason the
+staff apps could not be handed to a tester: the password lived in one
+deployment's environment and nowhere else, and was not readable from the machine
+the builds were made on.
 
-| Persona Role | Account Email | Password | Pre-Configured State / Seed Data |
-|--------------|---------------|----------|----------------------------------|
-| **Customer** | `customer@quickbite.app` | `pass123` | Active Gold Member, Indiranagar address, Rs 500.00 wallet balance |
-| **Restaurant Partner** | `partner@quickbite.app` | `pass123` | Bangalore Biryani House (Active FSSAI, 4.8 Rating, 12 menu items) |
-| **Delivery Partner** | `rider@quickbite.app` | `pass123` | Vikram Singh (Bike KA-03-EQ-8812, Rs 240.00 wallet, Active shift) |
-| **Platform Admin** | `admin@quickbite.app` | `pass123` | Super Admin access, pending KYC verification queue, full dispute rights |
+### Customers — a phone number, no password
 
----
+A customer signs in with their mobile number and a one-time code. Verifying a
+code for a number nobody holds **creates the account**, so there is no separate
+sign-up and nothing to forget.
+
+There is no customer password anywhere in the system. An account without a
+password hash cannot be signed into with a password at all — which matters,
+because a passwordless account's derived address would otherwise have been a way
+straight past the code.
+
+### Restaurants and riders — register, then wait for approval
+
+Both sign themselves up in their own app and land in `PENDING_APPROVAL`. They
+can sign in immediately to upload documents, and they cannot trade until an
+administrator approves them:
+
+- a pending restaurant is invisible to discovery and orders against it are refused;
+- a pending rider cannot start a shift.
+
+Approving their KYC document is what opens those gates. Every approval and
+rejection is recorded in the audit log against the administrator who made it.
+
+### Administrators — one, from the environment
+
+Exactly one administrator is created at boot from `ADMIN_EMAIL` and
+`ADMIN_PASSWORD`. **Production refuses to start without them**, and refuses a
+password shorter than ten characters. There is no default and no self-service
+reset for the account that can approve every partner and rider on the platform;
+recovery is changing the variable and redeploying, which re-applies it.
+
+Staff who lose a password telephone operations, and an administrator sets a
+temporary one — audit-logged, and refused for customers, who have no password to
+reset.
+
+### Local development
+
+With `SEED_DEMO_DATA=true` (the default outside production) the demo restaurants,
+menus and accounts are seeded as before, and `customer@quickbite.app` /
+`pass123` still works locally. **Production seeds nothing.** A hosted platform
+starts empty and fills up with real registrations.
+
+### Verification codes before an SMS provider exists
+
+`OTP_PROVIDER=fixed` accepts one code from `OTP_FIXED_CODE` and sends no SMS.
+It is **refused in production** unless `OTP_ALLOW_FIXED_IN_PRODUCTION=true` is
+set deliberately — anyone who knows six digits could otherwise sign in as any
+number. Removing that variable is the entire switch to real OTP, once TRAI DLT
+registration is complete. See `legal/COMPLIANCE.md` §1.
 
 ## 4. Master Project File Map
 

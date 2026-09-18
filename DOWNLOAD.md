@@ -3,129 +3,101 @@
 Four apps make up the platform. Install the customer app to order; install the
 partner and rider apps on other phones to watch an order travel end to end.
 
-| App | Who it is for | Download |
+Each app installs under its own name, so you can tell them apart on the phone:
+
+| App | Launcher name | Who it is for |
 | --- | --- | --- |
-| **Quick Bites** | Customers ordering food | [QuickBites-Customer.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Customer.apk) |
-| **Quick Bites Partner** | Restaurant kitchen screen | [QuickBites-Partner.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Partner.apk) |
-| **Quick Bites Rider** | Delivery partners | [QuickBites-Rider.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Rider.apk) |
-| **Quick Bites Operations** | Platform admin | [QuickBites-Admin.apk](https://github.com/Sumyaranjan2007/Quick-bites/releases/download/v1.2.0/QuickBites-Admin.apk) |
+| `QuickBites-Customer.apk` | **Quick Bites** | Customers ordering food |
+| `QuickBites-Partner.apk` | **Quick Bites Partner** | The restaurant's kitchen screen |
+| `QuickBites-Rider.apk` | **Quick Bites Rider** | Delivery partners |
+| `QuickBites-Admin.apk` | **Quick Bites Operations** | Platform administration |
 
-These links point at the **[v1.2.0 release](https://github.com/Sumyaranjan2007/Quick-bites/releases/tag/v1.2.0)**, so they are pinned to one build and
-will not change under a tester when the apps are next rebuilt. Do not circulate
-`raw.githubusercontent.com/.../main/build/apk/...` links: those serve whatever is
-on `main` at the moment they are fetched.
+> Download links are published on the **[Releases page](https://github.com/Sumyaranjan2007/Quick-bites/releases)**.
+> Always copy the full `https://…` address. A bare file name pasted into a phone's
+> address bar becomes a Google search, which has already cost one tester an
+> entire afternoon on unrelated apps from the Play Store.
 
-All four are version 1.2.1 (versionCode 6), signed with the Quick Bites upload
-keys. They are **universal** builds carrying `arm64-v8a`, `armeabi-v7a`, `x86`
-and `x86_64`, so the same file installs on a phone and in an emulator — which is
-what allows the exact binary that is published to be the one that was launch-
-tested, rather than a same-source rebuild.
+---
 
-### What is new in 1.2.0
+## Before you install: uninstall any older Quick Bites app
 
-The admin app is a full operations console rather than a four-tab monitor. It now
-carries a platform dashboard, every order with its complete file, live
-deliveries, directories for customers, delivery partners and restaurants, return
-and refund case handling, menu and category management, coupons, reviews,
-payments, revenue and driver payouts, support complaints, and role-based access
-control with an audit log.
+**This build is signed with a different key from v1.2.0 and v1.2.1.** Android
+refuses to install an update whose signature does not match the installed app,
+so an upgrade over an older Quick Bites will fail with a confusing error.
 
-Every one of those permissions is enforced by the server, not only hidden in the
-app: a restricted administrator who types a URL or replays a request is refused
-by the API. Sign in as `ops@`, `finance@` or `support@quickbite.app` to see a
-narrower console than `admin@`.
+Remove the old apps first: long-press each Quick Bites icon → Uninstall. You
+will lose nothing that matters — the data lives on the server.
 
-All four apps also gained password recovery (forgot, reset and change), and the
-customer app can now raise a complaint or a refund request from inside the app —
-both land in the administrator's queue.
+Every future build will keep the signature this one uses.
 
-The rider app was rebuilt around the same idea. It opens on a dashboard of
-figures the server computes from the trips actually delivered — today's and this
-week's earnings, trips, acceptance rate, rating, cash in hand and incentive
-progress — and every one of them moves the moment a delivery is completed,
-cancelled or accepted, rather than being counted by the app and lost on restart.
+---
 
-A trip offer now arrives as a full-screen card with a chime that repeats until it
-is answered and a vibration pattern. Keep the app open while you are on shift:
-Android freezes a backgrounded app, so an offer that arrives while the app is
-buried behind something else is announced the moment you come back to it rather
-than at the time it was made. Accepting one shows the restaurant's
-address and coordinates, with a navigate and a call button for each leg of the
-trip, so a rider is routed to the kitchen and then to the door.
+## How to sign in
 
-Going online requires a complete profile — name, photograph, partner ID, and an
-approved driving licence and registration — and the rule is enforced by the
-server, not just the app. Documents are photographed in the app, tracked through
-review and re-uploaded if rejected. Incentive targets pay into the wallet
-automatically when they are met. Safety & SOS is one tap from every screen and
-leads with 112, because an app alert is not an ambulance.
+### Customer app — a phone number, no password
 
-## Installing
+1. Open **Quick Bites**.
+2. Enter any 10-digit Indian mobile number.
+3. Enter the verification code. **While the platform is in testing it does not
+   send SMS**, and the screen says so — use the code the platform owner gives
+   you. It is set on the server as `OTP_FIXED_CODE`.
+4. If the number is new, you will be asked for a name. That is the whole sign-up.
 
-Android blocks apps from outside the Play Store until you allow it, once, per
-browser:
+### Partner and rider apps — register, then wait for approval
 
-1. Open the link on the phone and let the download finish.
-2. Tap the downloaded file. Android will say installing unknown apps is not
-   permitted — tap **Settings**, turn on **Allow from this source**, then go back.
-3. Tap **Install**.
+1. Open **Quick Bites Partner** (or **Rider**) and choose to register.
+2. Fill in the form. A restaurant needs its name, address, city, pincode and
+   FSSAI licence number; a rider needs vehicle type and licence number.
+3. You can sign in straight away, but **you cannot trade until an administrator
+   approves you**. A pending restaurant is invisible to customers; a pending
+   rider cannot start a shift. That is deliberate.
+4. Upload your documents from inside the app, then ask the administrator to
+   approve them in **Quick Bites Operations** → Documents.
 
-## Signing in
+### Operations app — the administrator
 
-The **customer app needs no credentials**: tap Sign up and register with any
-email and a password of 8 characters or more. Self-registration always creates a
-customer account.
+Sign in with the email and password set on the server as `ADMIN_EMAIL` and
+`ADMIN_PASSWORD`. There is exactly one administrator account, and it is created
+by the deployment itself.
 
-The **partner, rider and operations apps cannot self-register** and use the
-seeded staff accounts below. Ask the project owner for the current staff
-password; it is supplied privately and is deliberately not published here.
-`pass123` works only when the API is run locally — the hosted deployment refuses
-it, because this repository is public and a password written in the source would
-be an open administrator login on the live server.
+---
 
-Accounts, in both cases:
+## What you will find on a fresh platform: nothing
 
-| App | Email |
-| --- | --- |
-| Customer | `customer@quickbite.app` |
-| Partner | `partner@quickbite.app` |
-| Rider | `rider@quickbite.app` |
-| Operations | `admin@quickbite.app` |
+The hosted platform **starts empty**. There are no demonstration restaurants,
+because a demonstration restaurant that a real customer can order from is worse
+than an empty screen.
 
-## Seeing the whole journey
+To get from empty to a working order:
 
-With the customer, partner and rider apps installed on three phones (or one
-phone plus the two web portals), an order moves like this, with no refreshing
-anywhere:
+1. Register a restaurant in the partner app.
+2. Approve it in the operations app.
+3. Add a menu item in the partner app.
+4. Register a rider in the rider app, and approve it too.
+5. Order from the customer app.
 
-1. The customer places an order — it appears on the partner's kitchen screen.
-2. The partner accepts it — the customer's tracker moves to *preparing*.
-3. The partner marks it ready — every rider on shift is offered the pickup.
-4. A rider claims it — the customer and the kitchen both see *rider assigned*.
-5. The rider quotes the restaurant's pickup code and collects the food.
-6. The customer watches the rider move on a live street map.
-7. The rider enters the customer's 4-digit doorstep OTP to complete delivery.
-8. The rider's earnings, trips, acceptance rate and incentive progress update
-   on their dashboard before they have put the phone away.
+---
 
-Orders survive restarts and redeploys when the deployment has a Postgres
-database attached (`DATABASE_URL`). Without one it falls back to a local JSON
-file, which is fine for development and loses everything on a hosted restart.
+## The full four-role journey
 
-## The apps need a backend
+Best done on four phones, or three phones and an emulator.
 
-All four ship pointing at the hosted API. If that deployment is down or has no
-`JWT_SECRET` set, the apps will sign in with an error — the binaries are fine,
-the server is not.
+1. **Customer** signs in by phone, picks the restaurant, orders, pays cash on
+   delivery.
+2. **Partner** hears the chime, sees the ticket, accepts with a prep time.
+3. **Partner** marks it ready. **Rider** (on shift) receives the offer and
+   claims it.
+4. **Rider** collects, entering the **pickup code** the kitchen shows.
+5. The customer's map now shows the rider moving. It stays dark until this
+   moment, deliberately — before pickup, where the rider is is not the
+   customer's business.
+6. **Rider** delivers, entering the **4-digit doorstep OTP** the customer shows.
+7. **Operations** sees all of it live, and the settlement ledger updates.
 
-The **partner, rider and operations** apps each have a **Server settings**
-control on their sign-in screen that can be pointed at another instance,
-including one on your own machine. The **customer** app deliberately does not:
-that picker is compiled out of release builds, because Play rejects consumer
-apps that look like test harnesses. A release customer build therefore talks
-only to the hosted API.
+---
 
-A build can now actually reach a backend on your own machine: releases permit
-cleartext HTTP for `10.0.2.2`, `10.0.3.2` and `localhost` only, which is the
-Android emulator's route to the host. Every other destination stays TLS-only, so
-this does not weaken the app against a real network.
+## Server settings
+
+Every app points at the hosted API by default, so a tester never has to type a
+URL. If you are testing against a local backend, the sign-in screen has a
+**Server settings** panel — enter `http://<your-machine-ip>:5000/api`.

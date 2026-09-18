@@ -1451,6 +1451,66 @@ Seeding is gated on `SEED_DEMO_DATA`, which defaults to **false in production** 
 
 ---
 
+## [2026-09-18 18:30] -- Claude Opus 5 -- Session 23 Phases 5, 7, 8, 9 (payments, configuration, languages, compliance)
+
+**Feature/Issue:** Real payments, the end of hardcoded deployment URLs, and a compliance record that states plainly what only a human can finish.
+
+**Status:** Completed
+**Chunks Modified:** 04 (payments), 07 (app configuration)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phases 5, 7, 8, 9
+
+### Payments are real now
+
+The adapter fabricated `order_rzp_mock_<uuid>` locally and never contacted Razorpay. It looked like an integration and was a stub — the most expensive kind of code to leave lying around, because everything downstream of it is written as though money moved.
+
+It now calls the Orders API with the deployment's keys, verifies signatures constant-time, and treats a signed webhook as the authority. **Verified against Razorpay's live test API**: a real order, `order_TdVAsX59C7Uodq`, was created from the supplied test keys.
+
+Three faults found while replacing it, each of which would have broken real payments:
+
+- **`confirmPayment` verified the signature against our own order number.** Razorpay signs the id *it* issued and has never seen `QB-000123`. That only ever passed against a mock that signed whatever it was handed. The gateway order id is now stored on the order and verified against.
+- **Order creation called the gateway inline, and did not await it.** The mock was synchronous; the real adapter is not, so the promise escaped and its rejection took the process down — which is how this surfaced. It also put a third-party network call inside order placement, making the test suite depend on Razorpay being reachable and turning "Razorpay is slow" into "orders cannot be placed". Payment is started explicitly now, which is also the only ordering that lets a failed payment be retried without placing a second order.
+- Webhooks verify against the **raw request bytes**. Re-serialising a parsed body reorders keys, so a digest of it never matches and every webhook would be rejected — presenting as "Razorpay is broken".
+
+Webhooks are idempotent by event id, because Razorpay retries until it gets a 2xx and a retry must not pay an order twice. 17 checks cover the refusals: a forged signature, a signature lifted from another payment, an unsigned webhook, one signed with the wrong secret, a replay, and a body altered after signing.
+
+### Nothing hardcoded
+
+The production API address appeared in **six** places across the apps — inside a checkout screen, two `App.tsx` files, a session module and twice in the web consoles. Each app now has one `src/config.ts`.
+
+`scripts/check-hardcoded.mjs` refuses any more. **Its own first run reported the repository clean while staring straight at them**: it stripped `//` comments, and `https://` contains `//`, so every line was truncated at the scheme. Fixed, and the fix is commented in place, because it is the second scanner this session to pass by not looking.
+
+### Languages
+
+EN, HI and KN are at full parity in the customer app's dictionary — no key exists in one and not another. The strings added this session to the sign-in and registration screens are **English only**; those screens run before a language preference exists, which is defensible, but it is a gap rather than a decision and is recorded as one.
+
+### Compliance
+
+`legal/COMPLIANCE.md` rewritten against the platform as built. The parts that matter to the owner: **TRAI DLT registration is law**, needs three separate approvals, takes days, and cannot be shortened by changing SMS provider; Razorpay needs business KYC plus publicly hosted policies before issuing live keys; the RBI forbids merchants storing card numbers, which is why no Quick Bites screen must ever grow a card form; and Play requires an AAB, a hosted privacy policy, a data-safety declaration and a web account-deletion URL that does not yet exist.
+
+**Frontend changes:** One config module per app; six hardcoded URLs removed.
+**Backend/API/database changes:** Razorpay adapter rewritten; `paymentRouter` with `/payments/config`, `/payments/start` and `/payments/webhook`; `orderRepository.setPaymentReference`; `orderService.markPaidByGateway`; raw-body capture in `app.ts`; `RAZORPAY_WEBHOOK_SECRET` config.
+**Build/APK changes:** Four upload keystores generated (see below). Build in progress at the time of writing.
+
+**Files/modules affected:**
+- Created: `apps/*/src/config.ts` (six apps), `apps/backend-api/src/routes/paymentRouter.ts`, `apps/backend-api/src/test/payments.test.ts`, `scripts/check-hardcoded.mjs`
+- Modified: `modules/payments/razorpayAdapter.ts`, `modules/orders/orderService.ts`, `db/repositories/orderRepository.ts`, `routes/apiRouter.ts`, `app.ts`, `config/env.ts`, `test/orders.test.ts`, `packages/shared-types/src/index.ts`, `legal/COMPLIANCE.md`, `README.md`, `DOWNLOAD.md`, `build/MANIFEST.md`, `package.json`, `.github/workflows/ci.yml`
+
+**Testing performed:** `npm run verify` — secrets clean, no hardcoded URLs, diagnostics 34/34, typecheck 3/3, **497 backend checks across 14 suites, 0 failures**. All four apps typecheck individually. One live call to Razorpay's test API confirmed the keys and the request shape. Result: all pass.
+
+**Known issues / pending work:**
+- **The customer app cannot yet present the Razorpay checkout.** That needs a native module, and this project has a documented history of a build passing every static check and dying at launch because of one. There is no emulator image on this machine to launch-test against, so the module is deliberately not being added to a binary testers are about to install. The server side is complete and activates the moment a checkout can be presented.
+- New sign-in and registration strings are English only.
+- Phase 6 (feature pass: reorder, tipping, live ETA, filters, cancellation reasons) not started.
+
+**Decisions / dependencies / session conflicts:**
+- **Four upload keystores were generated** at `C:\Users\priya\quickbites-keystores\`, one per app, because none existed on this machine — they were on the previous build machine and are gitignored. **They are not in git and are not recoverable. Back them up.** Losing one means that app can never be updated under its package id again.
+- **This build is signed with different keys from v1.2.0/v1.2.1**, so testers must uninstall any older Quick Bites app before installing. Android refuses an update whose signature differs. Every build after this one keeps these keys.
+- Never add a card entry form to any screen: it would put the platform in PCI-DSS scope and outside RBI tokenisation rules simultaneously.
+
+**NEXT AI SHOULD:** Finish Phase 10 — confirm the four APKs are signed by their own keys with `apksigner`, launch-test each one, and publish. Then Phase 6, and the customer-side Razorpay checkout once there is a way to launch-test a native module.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

@@ -3,8 +3,7 @@
 **Version:** 1.0.0  
 **Date:** September 5, 2026  
 **Status:** Active Build Tracker  
-**Phase:** 3 (Documentation Complete) -> Transitioning to Phase 4 (Build Execution)  
-
+**Phase:** Build complete (chunks 00-09). Ongoing work is tracked as the phases of `MASTER_FIX_PLAN.md`.  
 ---
 
 ## 1. Master Build Chunks Matrix
@@ -25,6 +24,38 @@
 
 
 ---
+
+## 1b. Master Fix Plan (Session 23 onwards)
+
+The ten build chunks are complete. Work since then is tracked by the phases of
+`MASTER_FIX_PLAN.md`, which was agreed with the owner after a five-batch
+interrogation.
+
+| Phase | Name | Status |
+|-------|------|--------|
+| **0** | Groundwork: secret scanner, JDK 17, portable build script, APKs out of git | DONE |
+| **1** | WebSocket authorization | DONE |
+| **2a** | Phone + OTP identity (server), email subsystem removed | DONE |
+| **2b** | Phone sign-in in the apps, staff recovery copy | DONE |
+| **3** | Partner and rider self-registration, bootstrap administrator | DONE |
+| **4** | Production starts empty | DONE |
+| **5** | Real Razorpay integration, webhooks, idempotency | DONE (server) |
+| **6** | Feature pass | NOT STARTED |
+| **7** | Nothing hardcoded: one config per app, scanner | DONE |
+| **8** | Languages EN/HI/KN | VERIFIED (existing strings at parity; new sign-in strings are English-only) |
+| **9** | Legal and compliance | DONE (documented; the human steps are listed) |
+| **10** | App identity and the APK build | IN PROGRESS |
+| **11** | Documentation | IN PROGRESS |
+| **12** | Final verification | PENDING |
+
+**Not done, and deliberately so:** the customer app does not yet present the
+Razorpay checkout. Doing so needs a native module (a WebView or the Razorpay
+SDK), and this project has a documented history of a build that passed every
+static check and died at launch on every device because of a native dependency.
+There is no emulator image on the build machine to launch-test against, so the
+module is not being added to a binary that testers are about to install. The
+server side is complete, verified against Razorpay's live test API, and
+activates the moment the app can present a checkout.
 
 ## 2. Chunk Execution Rules
 
