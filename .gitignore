@@ -30,3 +30,6 @@ apps/backend-api/data/store.json
 # clone should not carry 220 MB of artefacts that are already published as
 # Release assets. DOWNLOAD.md links to the release, not to these paths.
 build/apk/
+# Launch-test screenshots: evidence for one run on one emulator, regenerated
+# every time. Megabytes of PNG that go stale the moment anything changes.
+build/screenshots/

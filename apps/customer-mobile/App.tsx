@@ -25,6 +25,7 @@ import { I18nProvider, useTranslation, Language } from './src/lib/i18n';
 import { NotificationsProvider, useNotifications, STATUS_NOTIFICATION } from './src/lib/useNotifications';
 import { NotificationBell } from './src/components/NotificationBell';
 import { useOrderSocket } from './src/lib/useOrderSocket';
+import { apiFetch } from './src/lib/apiFetch';
 
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -103,7 +104,7 @@ function AppRoot() {
    * The restaurant is set from the basket too, because the cart screen needs it
    * to quote, and the previously selected restaurant may be a different one.
    */
-  const handleReorder = (basket: any, items: any[]) => {
+  const handleReorder = async (basket: any, items: any[]) => {
     setCart(
       items.map((item: any) => ({
         id: `${item.dishId}_reorder`,
@@ -115,11 +116,47 @@ function AppRoot() {
         ...(item.selectedOptions?.length ? { selectedOptions: item.selectedOptions } : {})
       }))
     );
-    setSelectedRestaurant(prev =>
-      prev && prev.id === basket.restaurantId
-        ? prev
-        : ({ id: basket.restaurantId, name: basket.restaurantName } as RestaurantItem)
-    );
+
+    // The WHOLE restaurant record, not a stub built from the basket.
+    //
+    // A reorder can be for a kitchen the customer has not opened this session,
+    // and `{ id, name }` is not a RestaurantItem: the cart reads the packaging
+    // fee and the trip distance off it, and tapping Back from the cart opens
+    // the detail screen, which would have rendered "undefined MIN" and
+    // "Rs undefined for two".
+    if (selectedRestaurant?.id !== basket.restaurantId) {
+      try {
+        const res = await apiFetch(`${apiUrl}/restaurants/${basket.restaurantId}`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+        });
+        const data = await res.json();
+        const r = data?.data?.restaurant ?? data?.data;
+        if (res.ok && r?.id) {
+          setSelectedRestaurant({
+            id: r.id,
+            name: r.name,
+            cuisine: Array.isArray(r.cuisineTags) ? r.cuisineTags.join(', ') : 'Indian',
+            rating: r.ratingAverage ?? 4.5,
+            ratingCount: r.ratingCount,
+            deliveryTimeMins: r.estimatedDeliveryMinutes ?? 25,
+            distanceKm: r.distanceKm ?? 2.2,
+            isPureVeg: !!r.isPureVeg,
+            priceForTwo: r.costForTwo ?? 400,
+            packagingFee: r.packagingFee,
+            bannerUrl: r.bannerUrl,
+            highlightTag: r.highlightTag,
+            locality: r.addressLine
+          } as RestaurantItem);
+        } else {
+          // Better to lose the detail screen than to show a broken one: with no
+          // restaurant selected, Back from the cart returns to the feed.
+          setSelectedRestaurant(null);
+        }
+      } catch {
+        setSelectedRestaurant(null);
+      }
+    }
+
     setCurrentScreen('cart');
   };
 

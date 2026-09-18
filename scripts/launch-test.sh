@@ -16,6 +16,9 @@
 #   bash scripts/launch-test.sh            # every APK in build/apk
 #   bash scripts/launch-test.sh customer   # one of: customer partner rider admin
 #
+# Each app that launches is also screenshotted into build/screenshots/, because
+# a process being alive and an app being usable are different claims.
+#
 # Requires: a booted emulator or a connected device (adb devices shows it).
 set -uo pipefail
 
@@ -35,6 +38,7 @@ APPS=(
 ONLY="${1:-}"
 FAILED=0
 PASSED=0
+SHOT_DIR="$ROOT/build/screenshots"
 
 if ! "$ADB" devices | grep -qE "device$"; then
   echo "FATAL: no device or emulator attached. Start one, then re-run." >&2
@@ -93,7 +97,29 @@ for entry in "${APPS[@]}"; do
     continue
   fi
 
-  echo "[PASS] $label launched and is still running (pid $pid)"
+  # A live process is not a working app. React Native will happily keep a
+  # process alive while rendering a blank white screen - a failed bundle, a
+  # component that threw during its first render, an error boundary with
+  # nothing behind it. The process check cannot tell those apart from success,
+  # so take a picture and look.
+  #
+  # MSYS_NO_PATHCONV stops Git Bash rewriting /sdcard/... into a Windows path
+  # before adb ever sees it, which is why an earlier attempt at this silently
+  # wrote nothing.
+  mkdir -p "$SHOT_DIR"
+  MSYS_NO_PATHCONV=1 "$ADB" shell screencap -p /sdcard/qb-shot.png >/dev/null 2>&1
+  MSYS_NO_PATHCONV=1 "$ADB" pull /sdcard/qb-shot.png "$SHOT_DIR/$artifact.png" >/dev/null 2>&1
+  MSYS_NO_PATHCONV=1 "$ADB" shell rm /sdcard/qb-shot.png >/dev/null 2>&1
+
+  if [[ -f "$SHOT_DIR/$artifact.png" ]]; then
+    shot_bytes=$(wc -c < "$SHOT_DIR/$artifact.png" | tr -d ' ')
+    echo "[PASS] $label launched and is still running (pid $pid)"
+    echo "       screenshot: build/screenshots/$artifact.png (${shot_bytes} bytes)"
+  else
+    echo "[PASS] $label launched and is still running (pid $pid)"
+    echo "       (no screenshot captured - check the emulator display)"
+  fi
+
   PASSED=$((PASSED + 1))
   "$ADB" shell am force-stop "$pkg" >/dev/null 2>&1
 done
