@@ -1,89 +1,119 @@
-# Quick Bite Platform -- Comprehensive Testing Strategy (TESTING_STRATEGY)
+# Quick Bites — Testing Strategy
 
-**Version:** 2.0.0  
-**Date:** September 6, 2026  
-**Status:** Approved / Active  
-**Project:** Quick Bite (Multi-Portal Food Delivery Platform)  
-**Author:** Quick Bite Quality Assurance & Engineering Team  
+**Version:** 3.0.0
+**Date:** 18 September 2026
 
 ---
 
-## 1. Testing Pyramid & Test Architecture
+## 1. One command
 
-Quick Bite employs a multi-tiered automated testing architecture designed to guarantee sub-millisecond search latencies, mathematically exact pricing calculations, and reliable real-time WebSocket state synchronization across all 4 mobile portals:
+```bash
+npm run verify
+```
 
-```
-          /\
-         /  \
-        / 4-Device \       Multi-Device Hardware Verification
-       / Physical E2E \    (Real Phones connected via Cloudflare Tunnel)
-      /----------------\
-     /   Integration    \  38 Backend Integration Tests across 5 Suites
-    /  (DB + Sockets)    \ (Health, DB, Orders, Search, WebSockets)
-   /----------------------\
-  /      Unit Tests        \ Pricing Engine, State Machine, Token Verification,
- / (Pricing & Validation)   \ Zod Schemas & Geohash Distance Formulas
-/----------------------------\
-```
+Secrets → hardcoded URLs → diagnostics → typecheck → tests, stopping at the
+first failure. Nothing ships without it passing.
 
 ---
 
-## 2. Core Backend Integration Test Suites
+## 2. What is tested, and why in that shape
 
-All 5 core suites run deterministically in isolated test memory with zero external flakiness:
+**497 checks across 14 backend suites.** They run as real HTTP and WebSocket
+calls against a real Express app on an ephemeral port, not as mocked units. The
+things that have broken on this project were never a pure function returning the
+wrong number; they were a route that forgot an ownership check, a socket room
+anyone could join, a signature verified against the wrong value. Those only
+appear when the whole stack is wired together.
 
-```powershell
-npm test --workspace=@quick-bites/backend-api
-```
-
-### Suite 1: Health & Diagnostics (`src/test/health.test.ts`) - 6/6 PASSING
-- `GET /health` returns HTTP 200 with `status: HEALTHY` and uptime.
-- Injects and validates distributed tracing `X-Correlation-ID` header.
-- Validates Zod request body validation middleware and rejection of malformed payloads.
-- Validates token-authenticated `/api/auth/me` endpoints.
-
-### Suite 2: Data Access & Spatial Geometry (`src/test/db.test.ts`) - 7/7 PASSING
-- Validates relational repositories: Users, Restaurants, Menus, Orders, Riders, Wallets, KYC.
-- Spatial distance engine validates Great-Circle / Haversine distance calculations.
-- Verifies 10km geofencing ceiling for food delivery.
-- Enforces ACID transaction integrity across wallet credit/debit operations.
-
-### Suite 3: Order Engine & State Machine (`src/test/orders.test.ts`) - 9/9 PASSING
-- Enforces strict Order State Machine transitions:
-  `PAYMENT_PENDING -> ORDER_PLACED -> ACCEPTED -> PREPARING -> READY_FOR_PICKUP -> RIDER_ASSIGNED -> OUT_FOR_DELIVERY -> DELIVERED`
-- Rejects illegal state jumps (e.g. `ORDER_PLACED -> DELIVERED` throws error).
-- Enforces idempotency key UUID check: duplicate requests return cached HTTP 200 with `isDuplicate: true`.
-- Verifies pricing breakdown: 5% food GST, 18% platform fee, packaging fee, and distance delivery fee.
-
-### Suite 4: Sub-Millisecond Search Engine (`src/test/search.test.ts`) - 8/8 PASSING
-- Indexes dishes, cuisines, and restaurants.
-- Validates pure-veg filtering (`isVegOnly: true`).
-- Validates search cache hits and invalidation.
-- Benchmarks 50 iterations: Average latency < 0.1ms (requirement < 50ms).
-
-### Suite 5: Real-Time Sockets & FCM Push (`src/test/sockets.test.ts`) - 9/9 PASSING
-- Authenticates Socket.IO handshakes for Customer, Restaurant Partner, Rider, and Admin.
-- Subscribes sockets to partitioned rooms (`order:<id>`, `restaurant:<id>`, `admin:control_tower`).
-- Validates `emitOrderCreated` delivery to Kitchen and Admin while isolated from Customer.
-- Validates `emitOrderStatusUpdate` broadcast to Customer & Admin with `prepMinutes`.
-- Relays Rider GPS telemetry (`lat`, `lng`, `bearing`) to Customer tracking screen in real-time.
-- Dispatches 5/5 lifecycle FCM push alerts with dynamic 4-digit OTP.
+| Suite | Guards |
+|---|---|
+| `health` | Uptime, correlation ids, service probes |
+| `db` | Spatial distance, transactions, persistence |
+| `orders` | Pricing, idempotency, the status state machine |
+| `search` | Fuzzy search, category filtering, cache |
+| `sockets` | Real-time delivery to the right rooms |
+| `sockets.security` | Who may subscribe to what — 22 checks |
+| `otp` | Phone sign-in, guessing, replay, enumeration — 23 checks |
+| `onboarding` | Registration and the approval gates — 22 checks |
+| `payments` | Signatures, webhooks, replay, tampering — 17 checks |
+| `security` | Headers, rate limits, injection, production hardening |
+| `pipeline` | One order through all four portals end to end |
+| `admin` | The console and role-scoped permissions |
+| `partner` | The kitchen's own view |
+| `regression` | One check per defect a user ever reported |
 
 ---
 
-## 3. Physical Multi-Device Verification Protocol
+## 3. Rules that keep these tests honest
 
-To verify complete end-to-end integration across all 4 physical devices:
+**Every refusal is paired with the matching success.** A server that denied
+everything would pass a suite made only of refusals and deliver nothing. The
+socket suite asserts both that a stranger is refused *and* that the rightful
+subscriber still receives the event.
 
-1. **Step 1: Public Tunnel Connectivity**
-   Launch `scripts/start-tunnel.ps1` and verify that the public URL responds with HTTP 200 on all 4 phones.
-2. **Step 2: Role Authentication**
-   Log in to all 4 phones with their respective production accounts (`pass123`).
-3. **Step 3: Order Placement & Kitchen Reception**
-   Customer places order on Device 1 -> Kitchen Terminal on Device 2 rings audio alert and starts 120s timer within < 500ms.
-4. **Step 4: Rider Broadcast & Shift Assignment**
-   Kitchen clicks Accept (20 mins) -> Broadcast appears on Device 3 (Rider) with 15s timer. Rider taps Accept.
-5. **Step 5: Telemetry Stream & OTP Verification**
-   Rider marks Out for Delivery -> 3s GPS updates render on Customer Device 1. At doorstep, customer shares 4-digit OTP. Rider inputs OTP on Device 3, completing the trip and triggering wallet credit.
-6. **Step 6: Control Tower Audit**
-   Device 4 (Admin) displays the completed order, GMV tally, and rider commission in real-time.
+**A scanner must be shown to fail.** Both scanners written this session passed
+on first run while the thing they hunted was present — one because an empty
+regex alternative matched every string, the other because `https://` contains
+`//` and the comment-stripper truncated every line at the scheme. A green check
+that has never gone red is not evidence. Prove it by breaking something.
+
+**Tests do not depend on a third party.** `orderService` briefly called
+Razorpay's live API during order creation, which made the suite fail whenever
+Razorpay was slow. Payment is started explicitly now, and the payment suite
+verifies signatures and webhooks with locally generated HMACs — everything this
+platform decides on its own.
+
+**Rate limits are cleared, not relaxed.** Suites call `resetAuthRateLimit()`
+rather than loosening the limit under `NODE_ENV=test`, so the path under test is
+the path production runs.
+
+**The suite must be repeatable.** Running one twice in a row must pass twice.
+This caught a real defect: an unawaited promise in order creation surfaced only
+on the second run against a persisted store.
+
+---
+
+## 4. What automation cannot tell you
+
+**An APK that passes every static check can still die at launch.** It has
+happened here — a duplicate native library fails only when the process starts.
+Signature verification proves who signed a file, not that it runs.
+
+```bash
+bash scripts/launch-test.sh
+```
+
+Installs each APK on an attached device or emulator, launches it, waits, and
+asks whether the process is still alive — printing the crash buffer when it is
+not.
+
+An emulator AVD named `qb-test` exists on this machine for exactly this:
+
+```bash
+"$ANDROID_HOME/emulator/emulator.exe" -avd qb-test -gpu swiftshader_indirect
+```
+
+**React Native modals are invisible to `uiautomator dump`.** A previous session
+spent hours on a rider offer that appeared absent from text-based polling while
+being plainly on screen. Verify modals with a screenshot.
+
+---
+
+## 5. The manual journey, on real phones
+
+No amount of API testing replaces four people holding four phones. Run this
+before any release:
+
+1. Customer signs in by phone and orders.
+2. Partner hears the chime, accepts with a prep time, marks ready.
+3. Rider (on shift) receives the offer, claims it, collects with the **pickup
+   code**.
+4. **The customer's map begins to move only now.** If it moved earlier, the
+   post-pickup gate has regressed.
+5. Rider delivers with the customer's **4-digit OTP**.
+6. Operations sees it live; the settlement ledger updates.
+
+Also worth checking by hand, because they are cheap to break and invisible to a
+test: a wrong pickup code is refused, a wrong doorstep OTP is refused, the app
+survives losing signal mid-order, and a pending restaurant is genuinely absent
+from the customer's feed.
