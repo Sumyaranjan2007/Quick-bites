@@ -33,6 +33,11 @@ jobs:
       - name: Scan For Committed Secrets
         run: node scripts/check-secrets.mjs
 
+      # Environment-specific values belong in one config file per app, not in
+      # screen code, so a build cannot end up half-pointed at production.
+      - name: Scan For Hardcoded Deployment URLs
+        run: node scripts/check-hardcoded.mjs
+
       - name: Run Platform Architecture & Compliance Diagnostics
         run: node scripts/diagnostics.js
 

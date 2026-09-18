@@ -14,7 +14,8 @@
     "test": "turbo run test",
     "diagnostics": "node scripts/diagnostics.js",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "verify": "node scripts/check-secrets.mjs && node scripts/diagnostics.js && npm run typecheck && npm run test"
+    "verify": "node scripts/check-secrets.mjs && node scripts/check-hardcoded.mjs && node scripts/diagnostics.js && npm run typecheck && npm run test",
+    "check:hardcoded": "node scripts/check-hardcoded.mjs"
   },
   "devDependencies": {
     "turbo": "^2.1.0",

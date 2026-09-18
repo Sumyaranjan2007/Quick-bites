@@ -1,7 +1,7 @@
 import { apiFetch } from './lib/apiFetch';
 import { authHeaders, clearSession, getSession, setSession, type PartnerSession } from './lib/session';
 
-export const API_BASE = ((import.meta as any).env?.VITE_API_URL as string) || 'https://quick-bites-production-9f45.up.railway.app/api';
+export { DEFAULT_API_URL as API_BASE } from './config';
 
 export class SessionExpiredError extends Error {
   constructor() {

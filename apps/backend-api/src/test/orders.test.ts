@@ -2,6 +2,7 @@ import { seedDatabase } from '../db/seed.ts';
 import { orderService } from '../modules/orders/orderService.ts';
 import { razorpayAdapter } from '../modules/payments/razorpayAdapter.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { config } from '../config/env.ts';
 import crypto from 'crypto';
 
 console.log('====================================================');
@@ -83,7 +84,20 @@ async function runOrderTests() {
   // 5. Razorpay Sandbox Signature Verification
   console.log('Step 5: Simulating Razorpay payment and verifying HMAC SHA256 signature...');
   const testPaymentId = 'pay_test_' + crypto.randomUUID().substring(0, 10);
-  const signature = razorpayAdapter.generateSimulatedSignature(order.orderNumber, testPaymentId);
+  // Signed the way Razorpay signs: HMAC-SHA256 over "<gateway order id>|<payment id>".
+  //
+  // This used to call razorpayAdapter.generateSimulatedSignature, which existed
+  // only because the adapter was a mock and would sign whatever it was handed —
+  // including our own order number, which Razorpay has never seen. The real
+  // Orders API issues its own id, so the test creates one and records it exactly
+  // as starting a real payment would.
+  const gatewayOrderId = 'order_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14);
+  await orderRepository.setPaymentReference(order.id, { razorpayOrderId: gatewayOrderId });
+
+  const signature = crypto
+    .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
+    .update(gatewayOrderId + '|' + testPaymentId)
+    .digest('hex');
 
   const confirmedOrder = await orderService.confirmPayment(order.id, testPaymentId, signature);
   if (confirmedOrder.paymentStatus !== 'PAID' || confirmedOrder.status !== 'ORDER_PLACED') {

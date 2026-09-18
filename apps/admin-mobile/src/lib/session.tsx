@@ -10,7 +10,8 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { createClient, type ApiClient } from './api';
 
-export const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
+export { DEFAULT_API_URL } from '../config';
+import { DEFAULT_API_URL } from '../config';
 
 export interface AdminIdentity {
   id: string;

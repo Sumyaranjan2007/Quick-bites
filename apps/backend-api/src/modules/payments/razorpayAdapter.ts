@@ -1,9 +1,46 @@
+/**
+ * Razorpay, for real.
+ *
+ * This used to fabricate an order id locally and never speak to Razorpay at
+ * all: `createOrder` returned `order_rzp_mock_<uuid>` and the customer app
+ * showed a payment that had never existed. It looked like an integration and
+ * was a stub, which is the most expensive kind of code to leave lying around —
+ * everything downstream of it is written as though money moved.
+ *
+ * It now calls the Orders API, verifies signatures against what Razorpay
+ * actually signed, and treats webhooks as the authority on whether a payment
+ * happened.
+ *
+ * -------------------------------------------------------------------------
+ * WHAT THE CLIENT IS NEVER BELIEVED ABOUT
+ * -------------------------------------------------------------------------
+ * A mobile app is an attacker-controlled environment. It may report that a
+ * payment succeeded; that report is worth nothing on its own. An order becomes
+ * paid only when one of these agrees:
+ *
+ *   1. A signature the client presents verifies against `order_id|payment_id`
+ *      HMAC-SHA256 with the key secret — which only Razorpay could produce.
+ *   2. A webhook arrives from Razorpay whose body verifies against the webhook
+ *      secret.
+ *
+ * -------------------------------------------------------------------------
+ * TEST MODE
+ * -------------------------------------------------------------------------
+ * `rzp_test_` keys are free, need no business KYC, and talk to Razorpay's real
+ * servers — nothing here is simulated. Going live is a matter of swapping two
+ * keys once KYC is complete; no code changes.
+ */
 import crypto from 'crypto';
 import { config } from '../../config/env.ts';
+import { AppError } from '../../utils/AppError.ts';
+
+const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
 export interface CreatePaymentParams {
   amountInPaise: number;
   orderNumber: string;
+  /** Carried into the Razorpay dashboard so a support query can be traced back. */
+  notes?: Record<string, string>;
 }
 
 export interface VerifySignatureParams {
@@ -12,47 +49,198 @@ export interface VerifySignatureParams {
   razorpaySignature: string;
 }
 
+export interface RazorpayOrder {
+  id: string;
+  amount: number;
+  currency: string;
+  receipt: string;
+  keyId: string;
+  status?: string;
+}
+
+/** Whether this deployment holds keys at all. */
+export function isRazorpayConfigured(): boolean {
+  return Boolean(
+    config.RAZORPAY_KEY_ID &&
+      config.RAZORPAY_KEY_SECRET &&
+      config.RAZORPAY_KEY_ID.startsWith('rzp_')
+  );
+}
+
+function authHeader(): string {
+  const raw = `${config.RAZORPAY_KEY_ID}:${config.RAZORPAY_KEY_SECRET}`;
+  return `Basic ${Buffer.from(raw).toString('base64')}`;
+}
+
+/**
+ * Constant-time compare of two hex digests.
+ *
+ * `===` on a signature leaks, through how long the comparison takes, how many
+ * leading characters were correct. The window is small over a network and the
+ * defence costs nothing.
+ */
+function signaturesMatch(expected: string, provided: string): boolean {
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(String(provided || ''), 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 export const razorpayAdapter = {
-  createOrder(params: CreatePaymentParams) {
-    const razorpayOrderId = 'order_rzp_mock_' + crypto.randomUUID().replace(/-/g, '').substring(0, 14);
+  /**
+   * Creates an order at Razorpay and returns what the checkout needs.
+   *
+   * The amount is sent in paise and is taken from the server's own bill, never
+   * from the request: a client that can name its own price will.
+   */
+  async createOrder(params: CreatePaymentParams): Promise<RazorpayOrder> {
+    if (!isRazorpayConfigured()) {
+      throw new AppError(
+        'Online payment is not available on this deployment.',
+        503,
+        'PAYMENTS_NOT_CONFIGURED'
+      );
+    }
+
+    const response = await fetch(`${RAZORPAY_API}/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: authHeader()
+      },
+      body: JSON.stringify({
+        amount: Math.round(params.amountInPaise),
+        currency: 'INR',
+        receipt: params.orderNumber,
+        // Razorpay captures automatically rather than leaving an authorisation
+        // for someone to remember to settle. A hold that is never captured
+        // expires and the customer is left believing they paid.
+        payment_capture: 1,
+        notes: params.notes || {}
+      })
+    });
+
+    const body: any = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.log(JSON.stringify({
+        level: 'ERROR',
+        timestamp: new Date().toISOString(),
+        event: 'RAZORPAY_ORDER_CREATE_FAILED',
+        status: response.status,
+        // Razorpay's own description, which is safe to log and useful; the key
+        // secret is never part of a response body.
+        razorpayError: body?.error?.description
+      }));
+      throw new AppError(
+        'Could not start the payment. Try again, or pay cash on delivery.',
+        502,
+        'PAYMENT_GATEWAY_ERROR'
+      );
+    }
+
     return {
-      id: razorpayOrderId,
-      amount: params.amountInPaise,
-      currency: 'INR',
-      receipt: params.orderNumber,
+      id: body.id,
+      amount: body.amount,
+      currency: body.currency,
+      receipt: body.receipt,
+      status: body.status,
+      // The publishable key id, which the checkout needs and which is not a
+      // secret. The key SECRET never leaves this process.
       keyId: config.RAZORPAY_KEY_ID
     };
   },
 
+  /**
+   * Verifies the signature a successful checkout hands back.
+   *
+   * Razorpay signs `razorpay_order_id|razorpay_payment_id` with the key secret,
+   * so a valid signature can only have come from Razorpay.
+   */
   verifySignature(params: VerifySignatureParams): boolean {
-    if (config.DEMO_MODE && config.NODE_ENV !== 'production') {
-      // In Demo/Dev Mode only, permit simulated test signatures
-      if (params.razorpaySignature.startsWith('sig_test_') || params.razorpaySignature === 'simulated_valid_signature') {
-        return true;
-      }
-    }
-
-    const payload = params.razorpayOrderId + '|' + params.razorpayPaymentId;
-    const expected = crypto
-      .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
-      .update(payload)
-      .digest('hex');
-
-    const expectedBuffer = Buffer.from(expected);
-    const signatureBuffer = Buffer.from(params.razorpaySignature);
-
-    if (expectedBuffer.length !== signatureBuffer.length) {
+    if (!params.razorpayOrderId || !params.razorpayPaymentId || !params.razorpaySignature) {
       return false;
     }
 
-    return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+    const expected = crypto
+      .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
+      .update(`${params.razorpayOrderId}|${params.razorpayPaymentId}`)
+      .digest('hex');
+
+    return signaturesMatch(expected, params.razorpaySignature);
   },
 
-  generateSimulatedSignature(razorpayOrderId: string, razorpayPaymentId: string): string {
-    const payload = razorpayOrderId + '|' + razorpayPaymentId;
-    return crypto
-      .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
-      .update(payload)
+  /**
+   * Verifies a webhook body against the webhook secret.
+   *
+   * The RAW body must be used, not a re-serialised object: `JSON.stringify` of
+   * a parsed body reorders keys and drops whitespace, and the resulting digest
+   * will not match what Razorpay signed. Every webhook would then be rejected,
+   * which looks like Razorpay being broken.
+   */
+  verifyWebhook(rawBody: string, signature: string): boolean {
+    if (!config.RAZORPAY_WEBHOOK_SECRET || !signature) return false;
+
+    const expected = crypto
+      .createHmac('sha256', config.RAZORPAY_WEBHOOK_SECRET)
+      .update(rawBody)
       .digest('hex');
+
+    return signaturesMatch(expected, signature);
+  },
+
+  /**
+   * Asks Razorpay what it thinks the state of a payment is.
+   *
+   * Used when a customer returns to the app and the webhook has not arrived
+   * yet — the gateway is the authority, not the phone that came back.
+   */
+  async fetchPayment(paymentId: string): Promise<{ status: string; orderId?: string; amount?: number } | null> {
+    if (!isRazorpayConfigured()) return null;
+
+    const response = await fetch(`${RAZORPAY_API}/payments/${paymentId}`, {
+      headers: { Authorization: authHeader() }
+    });
+    if (!response.ok) return null;
+
+    const body: any = await response.json().catch(() => null);
+    if (!body) return null;
+
+    return { status: body.status, orderId: body.order_id, amount: body.amount };
+  },
+
+  /**
+   * Refunds a captured payment, in full or in part.
+   *
+   * Amount in paise. Razorpay is idempotent on its own refund ids, but the
+   * caller is responsible for not issuing two refunds for one cancellation —
+   * see the settlement ledger.
+   */
+  async refund(paymentId: string, amountInPaise?: number): Promise<{ id: string; status: string } | null> {
+    if (!isRazorpayConfigured()) return null;
+
+    const response = await fetch(`${RAZORPAY_API}/payments/${paymentId}/refund`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: authHeader()
+      },
+      body: JSON.stringify(amountInPaise ? { amount: Math.round(amountInPaise) } : {})
+    });
+
+    if (!response.ok) {
+      const body: any = await response.json().catch(() => ({}));
+      console.log(JSON.stringify({
+        level: 'ERROR',
+        timestamp: new Date().toISOString(),
+        event: 'RAZORPAY_REFUND_FAILED',
+        paymentId,
+        razorpayError: body?.error?.description
+      }));
+      return null;
+    }
+
+    const body: any = await response.json();
+    return { id: body.id, status: body.status };
   }
 };

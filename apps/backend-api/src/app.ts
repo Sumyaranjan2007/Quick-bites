@@ -24,7 +24,18 @@ export function createApp(): Express {
   app.use(corsMiddleware);
 
   // 5. JSON Body Parser with 1MB ceiling
-  app.use(express.json({ limit: '1mb' }));
+  // The raw bytes are kept alongside the parsed body because Razorpay signs
+  // exactly what it sent: re-serialising a parsed object reorders keys and
+  // drops whitespace, so its digest would never match and every webhook would
+  // be rejected as a forgery.
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buf) => {
+        (req as any).rawBody = buf.toString('utf8');
+      }
+    })
+  );
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   // 6. Sliding Window Rate Limiter

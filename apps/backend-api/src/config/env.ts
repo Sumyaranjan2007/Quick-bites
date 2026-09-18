@@ -66,6 +66,14 @@ export const config = {
   RAZORPAY_KEY_SECRET: requireSecret('RAZORPAY_KEY_SECRET', process.env.RAZORPAY_KEY_SECRET),
 
   /**
+   * Separate from the key secret, and issued when the webhook is registered in
+   * the Razorpay dashboard. Without it, webhook signatures cannot be verified —
+   * and an unverified webhook endpoint is an open instruction to mark any order
+   * paid, so the handler refuses rather than trusting the body.
+   */
+  RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+
+  /**
    * Whether a password-reset code is returned in the API response.
    *
    * There is no mail or SMS provider wired up, so a reset code has to reach the

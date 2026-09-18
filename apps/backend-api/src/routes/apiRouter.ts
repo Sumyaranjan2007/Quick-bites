@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { orderRouter } from './orderRouter.ts';
 import { searchRouter } from './searchRouter.ts';
 import { authRouter } from './authRouter.ts';
+import { paymentRouter } from './paymentRouter.ts';
 import { kycRouter } from './kycRouter.ts';
 import { adminRouter } from './adminRouter.ts';
 import { addressRouter } from './addressRouter.ts';
@@ -56,6 +57,9 @@ apiRouter.get('/auth/me', authMiddleware(), (req, res) => {
 
 // Core Domain Routers
 apiRouter.use('/auth', authRouter);
+// Unauthenticated by design: the webhook inside is authenticated by its
+// signature, which is the only thing that makes it trustworthy.
+apiRouter.use('/payments', paymentRouter);
 apiRouter.use('/kyc', authMiddleware(), kycRouter);
 apiRouter.use('/admin', authMiddleware('admin'), adminRouter);
 apiRouter.use('/riders', authMiddleware('rider'), riderRouter);

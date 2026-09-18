@@ -27,6 +27,26 @@ export const orderRepository = {
     return order;
   },
 
+  /**
+   * Records the gateway's identifiers against an order.
+   *
+   * Razorpay signs its OWN order id, not our order number, so the mapping has
+   * to be kept or no signature can ever be verified.
+   */
+  async setPaymentReference(
+    id: string,
+    reference: { razorpayOrderId?: string; razorpayPaymentId?: string }
+  ): Promise<Order | null> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return null;
+    if (reference.razorpayOrderId) order.razorpayOrderId = reference.razorpayOrderId;
+    if (reference.razorpayPaymentId) order.razorpayPaymentId = reference.razorpayPaymentId;
+    order.updatedAt = new Date().toISOString();
+    memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return order;
+  },
+
   async updateStatus(id: string, status: OrderStatus, prepMinutes?: number): Promise<Order | null> {
     const order = memoryStore.orders.get(id);
     if (!order) return null;

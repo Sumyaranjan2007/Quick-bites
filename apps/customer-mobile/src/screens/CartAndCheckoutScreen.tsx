@@ -17,6 +17,7 @@ import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus, Navigation } from 'lucide-react-native';
 import { CartItem } from './RestaurantDetailScreen';
 import { apiFetch } from '../lib/apiFetch';
+import { DEFAULT_API_URL } from '../config';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 
 interface Props {
@@ -249,7 +250,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
     }
     setIsProcessing(true);
     setCheckoutError(null);
-    const effectiveBase = apiUrl || 'https://quick-bites-production-9f45.up.railway.app/api';
+    const effectiveBase = apiUrl || DEFAULT_API_URL;
 
     try {
       const generatedUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {

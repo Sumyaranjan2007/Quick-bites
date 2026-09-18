@@ -388,14 +388,21 @@ export const orderService = {
       await couponRepository.recordRedemption(order.couponCode);
     }
 
-    // 8. Payment Initiation
-    let paymentParams = null;
-    if (input.paymentMethod === 'RAZORPAY_SANDBOX') {
-      paymentParams = razorpayAdapter.createOrder({
-        amountInPaise: Math.round(bill.totalAmount * 100),
-        orderNumber: order.orderNumber
-      });
-    }
+    // 8. Payment is started separately, by POST /payments/start.
+    //
+    // This used to create the gateway order inline. That was harmless while the
+    // adapter was a mock returning a fabricated id; with the real Orders API it
+    // put a third-party network call inside order placement, so Razorpay being
+    // slow or unreachable would take down the ability to place an order — and
+    // it made the test suite depend on Razorpay being up.
+    //
+    // It was also not awaited. The mock was synchronous and the real one is
+    // not, so the promise escaped and its rejection took the process with it.
+    //
+    // Creating the order first and starting payment against it explicitly is
+    // also the only order of operations that lets a failed payment be retried
+    // without placing a second order.
+    const paymentParams = null;
 
     // Broadcast Real-Time Order Creation to Kitchen & Dispatch FCM Push if placed
     if (order.status === 'ORDER_PLACED') {
@@ -414,8 +421,16 @@ export const orderService = {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
 
+    // Against Razorpay's order id, not our order number. Razorpay signs what
+    // it issued and has never seen "QB-000123"; verifying against the order
+    // number matched only because the adapter used to be a mock that signed
+    // whatever it was handed.
+    if (!order.razorpayOrderId) {
+      throw new AppError('No payment was started for this order.', 409, 'NO_PAYMENT_STARTED');
+    }
+
     const isValid = razorpayAdapter.verifySignature({
-      razorpayOrderId: order.orderNumber,
+      razorpayOrderId: order.razorpayOrderId,
       razorpayPaymentId,
       razorpaySignature: signature
     });
@@ -426,6 +441,7 @@ export const orderService = {
 
     order.paymentStatus = 'PAID';
     order.status = 'ORDER_PLACED';
+    order.razorpayPaymentId = razorpayPaymentId;
     order.updatedAt = new Date().toISOString();
 
     // Broadcast to kitchen terminal and notify customer
@@ -434,6 +450,43 @@ export const orderService = {
       orderId: order.id,
       status: 'ORDER_PLACED',
       updatedAt: order.updatedAt
+    });
+    await fcmDispatcher.notifyOrderPlaced(order.customerId, order.id, order.orderNumber);
+
+    return order;
+  },
+
+  /**
+   * Marks an order paid because Razorpay said so, over a verified webhook.
+   *
+   * Separate from confirmPayment, which is driven by the customer's device
+   * returning from a checkout. This path is the authoritative one: a phone can
+   * fail to come back — the app is killed, the network drops, the customer
+   * closes it — and the money still moved. Without this, a paid order would sit
+   * unpaid and the kitchen would never see it.
+   *
+   * The caller has already verified the webhook signature; this does not
+   * re-check it, and must never be reachable from an unverified path.
+   */
+  async markPaidByGateway(
+    orderId: string,
+    detail: { razorpayPaymentId: string; amountPaise?: number }
+  ) {
+    const order = await orderRepository.findById(orderId);
+    if (!order) return null;
+    if (order.paymentStatus === 'PAID') return order;
+
+    order.paymentStatus = 'PAID';
+    order.status = 'ORDER_PLACED';
+    order.razorpayPaymentId = detail.razorpayPaymentId;
+    order.updatedAt = new Date().toISOString();
+
+    emitOrderCreated(order.restaurantId, order);
+    emitOrderStatusUpdate(order.id, {
+      orderId: order.id,
+      status: 'ORDER_PLACED',
+      updatedAt: order.updatedAt,
+      restaurantId: order.restaurantId
     });
     await fcmDispatcher.notifyOrderPlaced(order.customerId, order.id, order.orderNumber);
 

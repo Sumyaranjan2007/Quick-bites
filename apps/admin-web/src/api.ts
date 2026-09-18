@@ -1,7 +1,7 @@
 import { apiFetch } from './lib/apiFetch';
 import { authHeaders, clearSession, setSession, type AdminSession } from './lib/session';
 
-export const API_BASE = ((import.meta as any).env?.VITE_API_URL as string) || 'https://quick-bites-production-9f45.up.railway.app/api';
+export { DEFAULT_API_URL as API_BASE } from './config';
 
 /** Raised when the server rejects our token, so the UI can send the operator back to sign in. */
 export class SessionExpiredError extends Error {

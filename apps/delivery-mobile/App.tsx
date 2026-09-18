@@ -51,7 +51,7 @@ import {
 } from './src/lib/orderAlert';
 import { startShiftService, stopShiftService } from './src/lib/shiftService';
 
-const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
+import { DEFAULT_API_URL } from './src/config';
 
 type Tab = 'home' | 'trips' | 'earnings' | 'profile';
 type SubScreen = 'documents' | 'ratings' | 'incentives' | 'weekly' | 'safety' | 'policies' | 'settlement';

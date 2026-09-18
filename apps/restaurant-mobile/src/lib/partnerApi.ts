@@ -1,3 +1,4 @@
+import { DEFAULT_API_URL } from '../config';
 import { apiFetch } from './apiFetch';
 
 /**
@@ -16,7 +17,7 @@ export interface ApiResult<T> {
   message?: string;
 }
 
-let apiUrl = 'https://quick-bites-production-9f45.up.railway.app/api';
+let apiUrl = DEFAULT_API_URL;
 let token = '';
 
 export function configureApi(nextUrl: string, nextToken: string): void {

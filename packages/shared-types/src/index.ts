@@ -222,6 +222,16 @@ export interface Order {
   preparationMinutes?: number;
   pickupCode?: string;
   deliveryOtp?: string;
+  /**
+   * Razorpay's own order id (`order_xxx`).
+   *
+   * Kept because Razorpay signs what IT issued. Our order number is ours and
+   * Razorpay has never seen it, so verifying a signature against the order
+   * number can only pass against a mock that signs whatever it is handed.
+   */
+  razorpayOrderId?: string;
+  /** Razorpay's payment id once captured — needed to issue a refund. */
+  razorpayPaymentId?: string;
   createdAt: string;
   updatedAt: string;
   deliveredAt?: string;

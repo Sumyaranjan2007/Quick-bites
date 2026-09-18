@@ -17,7 +17,7 @@ import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
 import { ErrorNote } from './src/components/ui';
 
-const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
+import { DEFAULT_API_URL } from './src/config';
 
 type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help' | 'settlements';
 

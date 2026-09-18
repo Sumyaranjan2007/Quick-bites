@@ -1,9 +1,7 @@
 import { apiFetch } from './apiFetch';
 import { authHeaders, clearSession } from './session';
 
-export const API_BASE =
-  ((import.meta as any).env?.VITE_API_URL as string) ||
-  'https://quick-bites-production-9f45.up.railway.app/api';
+export { DEFAULT_API_URL as API_BASE } from '../config';
 
 /**
  * The console's single door to the admin API.
