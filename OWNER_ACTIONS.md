@@ -21,8 +21,8 @@ redeploy.
 | `ADMIN_EMAIL` | your email address | **The service refuses to start.** |
 | `ADMIN_PASSWORD` | a password you choose, **10+ characters** | **The service refuses to start.** |
 | `JWT_SECRET` | a long random string (40+ characters) | The service refuses to start. |
-| `RAZORPAY_KEY_ID` | `rzp_test_TdBBgoDoFaxINY` | Online payment is unavailable; cash on delivery still works. |
-| `RAZORPAY_KEY_SECRET` | the test secret you gave me | As above. |
+| `RAZORPAY_KEY_ID` | your `rzp_test_…` key id (Razorpay dashboard → Test Mode → API Keys) | Online payment is unavailable; cash on delivery still works. |
+| `RAZORPAY_KEY_SECRET` | the matching test secret | As above. |
 | `OTP_PROVIDER` | `fixed` | Defaults to `fixed` anyway. |
 | `OTP_FIXED_CODE` | a 6-digit code you choose, e.g. `472913` | Defaults to `123456`, which is guessable. |
 | `OTP_ALLOW_FIXED_IN_PRODUCTION` | `true` | **Nobody can sign into the customer app** — production refuses to issue a fixed code without this. |
