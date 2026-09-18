@@ -1699,7 +1699,23 @@ It also guards itself: an app that appears to call nothing **fails**, because th
 **Backend/API/database changes:** `POST /orders/:id/reorder`, `GET /orders/cancellation-reasons`, tip on quote and create, ETA on tracking, filters and sorting on `/restaurants` and `/search`, `orderService.cancelOrder`, `orderRepository.recordCancellation` and `.save`, `fcmDispatcher.notifyOrderCancelled`. New `Order.acceptedAt`, `Order.cancellationReasonCode`, `cancelledByRole`, `cancelledByUserId`, `refundRequestId`; `OrderBillBreakdown.tipAmount`; `RefundReasonCode.ORDER_CANCELLED`. New config: `DELIVERY_SPEED_KMPH`, `DELIVERY_HANDLING_MINUTES`, `DEFAULT_PREP_MINUTES`, `MAX_TIP_AMOUNT`, `QB_DATA_DIR`, `ALLOW_FILE_PERSISTENCE`.
 **Build/APK changes:** All four rebuilt at the Phase 6 source, signed, launch-verified and screenshotted on `qb34`.
 
-**Testing performed:** `npm run verify:full` — **714 checks, 0 failures.** 17 backend suites, ten workspaces typechecked, translations complete in EN/HI/KN, production boot behaviour verified in real child processes, 97 client API paths resolved against a real server.
+**Testing performed:** `npm run verify:full` — **705+ checks, 0 failures**, across 19 backend suites, ten typechecked workspaces, complete EN/HI/KN translations, production boot behaviour in real child processes, 98 client API paths resolved against a real server (76 against the exact verb the app uses), and a credential scan of all four built APKs.
+
+Beyond the harness: a live four-role journey against a running dev server (a Rs 75 tip on a Gold order reached the rider as Rs 115 and survived the claim; the ETA moved from 30 minutes to 35 when the kitchen asked for 25), and both web portals driven in a real browser — sign-in, live data, zero console errors.
+
+**Further defects found by the new layers, after the first four:**
+
+5. **`/search` never filtered on price.** The indexed restaurant document carried no `costForTwo`. The filter deliberately keeps a row with no published price in every band — so a missing field cannot hide a real kitchen — and no row had one, so a price ceiling matched the whole catalogue and "cost: low to high" sorted everything by zero. Both looked like they worked because nothing was ever excluded. Found only because the new search checks were made to prove the catalogue *spans* the band before asserting the band excludes anything.
+
+6. **`launch-test.sh partner` tested nothing and reported success.** The filter compared a lowercase word against `QuickBites-Partner` case-sensitively, so every documented invocation selected no apps, printed "0 APK(S) INSTALLED AND OPENED" and exited 0.
+
+7. **Every launch-test screenshot pull failed silently.** `adb pull` needs `MSYS_NO_PATHCONV=1` for its Android source path and must NOT have it for its Windows destination path. adb said so on stderr, and stderr was redirected to `/dev/null`.
+
+8. **The discovery feed fetched the restaurant list twice on every app open**, because both the mount effect and the filter effect fired on mount.
+
+9. **Reorder set the selected restaurant to a stub**, so Back from the cart would have opened a detail screen reading "undefined MIN" and "Rs undefined for two".
+
+10. **An administrator cancelling an order recorded no reason code**, leaving admin cancellations invisible to every report that counts why orders are lost.
 
 **Known issues / pending work:**
 - **Nothing has been run against the hosted deployment.** It still serves the previous release. Everything E5 would prove is proven locally except latency and the hosting platform itself.

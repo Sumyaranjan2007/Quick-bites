@@ -272,7 +272,31 @@ enough. Signed in at `admin@quickbite.app` against a local backend:
 
 ### Layers 7–8 — build, launch, render
 
-Recorded in `CHANGELOG.md` for 19 September 2026 alongside the artifact table.
+All four rebuilt from the Phase 6 source, each signed by its **own** key
+(`OU=customer`, `OU=partner`, `OU=rider`, `OU=admin`) and carrying all four
+ABIs, so the file that ships is the file that was tested.
+
+Installed and launched on `qb34`, and screenshotted — a live process and a
+working app are different claims, and React Native will keep a process alive
+while rendering a blank white screen.
+
+| App | Launch | First screen |
+|---|---|---|
+| Partner | pid alive after 8s | Sign in / Create account tabs, both fields, server settings — 101 KB |
+| Rider | pid alive after 8s | Sign in, **New rider? Register**, and the location disclosure Play requires — 119 KB |
+| Operations | pid alive after 8s | Admin sign-in, "Enter the console" — 89 KB |
+| Customer | see the changelog table | Phone sign-in |
+
+No APK contains a credential: `check-apk-secrets.mjs` finds no seeded password,
+no Razorpay secret and no private key in any of the four bundles.
+
+**Two bugs in the launch test itself, both found here.** `launch-test.sh partner`
+matched nothing — the filter was case-sensitive against `QuickBites-Partner` —
+and then reported "0 APK(S) INSTALLED AND OPENED" and exited 0. And every
+screenshot pull failed silently: `MSYS_NO_PATHCONV=1` is needed for the Android
+source path and fatal for the Windows destination path, and adb's complaint went
+to `/dev/null`. A script whose job is to be believed had been reporting a pass
+for a run that tested nothing.
 
 ### Layer 9 — hosted
 
