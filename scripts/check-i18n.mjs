@@ -201,15 +201,62 @@ if (unused.length) {
 // The design system's own locale files
 // ---------------------------------------------------------------------------
 const localeDir = path.join(ROOT, 'packages/design-system/src/i18n/locales');
+
+/**
+ * Flattens `{ common: { save: 'Save' } }` into `{ 'common.save': 'Save' }`.
+ *
+ * These files are nested, and comparing `Object.keys()` on them compares four
+ * section names — `common`, `customer`, `partner`, `admin` — and nothing else.
+ * This checker did exactly that and reported the locales "complete" while
+ * looking at 4 keys out of 90. A section could have been missing every string
+ * inside it and the check would have been green.
+ */
+function flatten(object, prefix = '', out = {}) {
+  for (const [key, value] of Object.entries(object)) {
+    const full = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value)) flatten(value, full, out);
+    else out[full] = String(value);
+  }
+  return out;
+}
+
+/** These files use `{{name}}` rather than the mobile app's `{name}`. */
+const DOUBLE_PLACEHOLDER = /[{][{]\s*([a-zA-Z0-9_]+)\s*[}][}]/g;
+
 if (fs.existsSync(localeDir)) {
-  const en = JSON.parse(fs.readFileSync(path.join(localeDir, 'en.json'), 'utf8'));
+  const en = flatten(JSON.parse(fs.readFileSync(path.join(localeDir, 'en.json'), 'utf8')));
+  const enKeyList = Object.keys(en);
+  pass(`design-system en.json has ${enKeyList.length} strings`);
+
   for (const lang of ['hi', 'kn']) {
-    const other = JSON.parse(fs.readFileSync(path.join(localeDir, `${lang}.json`), 'utf8'));
-    const missing = Object.keys(en).filter(k => !(k in other));
+    const other = flatten(JSON.parse(fs.readFileSync(path.join(localeDir, `${lang}.json`), 'utf8')));
+    const missing = enKeyList.filter(k => !(k in other));
+    const blank = enKeyList.filter(k => k in other && !other[k].trim());
+
     if (missing.length) {
-      fail(`design-system ${lang}.json is missing: ${missing.join(', ')}`);
+      fail(
+        `design-system ${lang}.json is missing ${missing.length} of ${enKeyList.length}: ` +
+          `${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ' …' : ''}`
+      );
     } else {
-      pass(`design-system ${lang}.json is complete`);
+      pass(`design-system ${lang}.json translates all ${enKeyList.length} strings`);
+    }
+
+    if (blank.length) {
+      fail(`design-system ${lang}.json has ${blank.length} blank string(s): ${blank.join(', ')}`);
+    }
+
+    const mismatched = [];
+    for (const key of enKeyList) {
+      if (!(key in other)) continue;
+      const expected = new Set(Array.from(en[key].matchAll(DOUBLE_PLACEHOLDER), m => m[1]));
+      const actual = new Set(Array.from(other[key].matchAll(DOUBLE_PLACEHOLDER), m => m[1]));
+      if (expected.size === 0 && actual.size === 0) continue;
+      const same = expected.size === actual.size && Array.from(expected).every(p => actual.has(p));
+      if (!same) mismatched.push(key);
+    }
+    if (mismatched.length) {
+      fail(`design-system ${lang}.json loses a {{placeholder}} in: ${mismatched.join(', ')}`);
     }
   }
 }
