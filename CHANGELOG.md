@@ -1719,6 +1719,17 @@ Beyond the harness: a live four-role journey against a running dev server (a Rs 
 
 10. **An administrator cancelling an order recorded no reason code**, leaving admin cancellations invisible to every report that counts why orders are lost.
 
+**Artifacts (19 September 2026, built from this session’s source):**
+
+| App | Size | Signer | SHA-256 (first 16) |
+|---|---|---|---|
+| QuickBites-Customer.apk | 55.7 MB | OU=customer | `d99494aa17c6e7b7` |
+| QuickBites-Partner.apk | 55.2 MB | OU=partner | `b3b81e3c9f9abaa0` |
+| QuickBites-Rider.apk | 55.7 MB | OU=rider | `ecd0995b5d2a00cb` |
+| QuickBites-Admin.apk | 53.2 MB | OU=admin | `6965c83404b45475` |
+
+All universal (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`), each signed by its own key, all four launch-verified and screenshotted on `qb34`, and none containing a credential. Same keys as the 1.3.0 build, so a tester who already installed that one does not need to uninstall again.
+
 **Known issues / pending work:**
 - **Nothing has been run against the hosted deployment.** It still serves the previous release. Everything E5 would prove is proven locally except latency and the hosting platform itself.
 - The partner, rider and admin apps have no translation layer at all. That matches how most Indian delivery platforms work, but it is a decision nobody has actually made. Raised in `OWNER_ACTIONS.md` §4.
