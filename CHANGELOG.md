@@ -1511,6 +1511,85 @@ EN, HI and KN are at full parity in the customer app's dictionary — no key exi
 
 ---
 
+## [2026-09-18 19:00] -- Claude Opus 5 -- Session 23 Phase 10 (the build, and making this machine able to test it)
+
+**Feature/Issue:** Produce four signed APKs from the current source, and establish a way to prove they actually run before anyone installs them.
+
+**Status:** Completed — four APKs built and signature-verified. Launch verification blocked on an emulator fault, described below.
+**Chunks Modified:** 09 (build and release)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 10
+
+### The release build was broken on this machine, not slow
+
+Every app failed at `:app:createBundleReleaseJsAndAssets` with `Unable to resolve module ./index.ts`. No APK could be produced here at all.
+
+Gradle invokes the bundler with a **relative** entry file from the app directory. Metro resolves that against its server root, and because `watchFolders` spans the monorepo it infers that root as the repository root — so it looked for `index.ts` beside the top-level `package.json`.
+
+`metro.config.js` deliberately did not pin `unstable_serverRoot`, and carried a note explaining why: pinning it breaks `expo start --web`, which then 404s on its own bundle. Both requirements were real. The root is now pinned **only while bundling** (`export:embed` / `export` in argv), so the dev server keeps the monorepo-wide root and the release build gets an entry it can resolve.
+
+This is why the previous builds succeeded elsewhere: it is a Windows/monorepo path-resolution difference, not a regression in the app.
+
+### Two smaller traps, both now in COMMANDS.md
+
+- **`prebuild --clean` fails with `EBUSY`** if a Gradle daemon is running or a shell is sitting inside `apps/*/android`. The build deletes and regenerates that directory; the error never mentions daemons. `./gradlew --stop` first.
+- **The script's stale-artifact guard earned its place.** When the first build failed, `build/apk/` still held the v1.2.1 binaries — untouched, not overwritten with something misleading. That guard was added in `ceed65e` after exactly this scenario.
+
+### Signing
+
+No upload keystores existed on this machine — they were on the previous build machine and are gitignored. Four were generated, one per app, at `C:\Users\priya\quickbites-keystores\`, and each APK verifies as signed by **its own** key (`OU=customer`, `OU=partner`, `OU=rider`, `OU=admin`). A cross-signed pair would mean two apps that can never coexist on one phone.
+
+**These keys are not in git and are not recoverable.** Losing one ends that app's ability to be updated under its package id, by sideload or on Play, permanently.
+
+Because they differ from the keys used for v1.2.0 and v1.2.1, **an install over an older Quick Bites will be refused by Android**. Testers must uninstall first. This is stated at the top of `DOWNLOAD.md`.
+
+### Artifacts
+
+| App | Size | Signer | SHA-256 (first 16) |
+|---|---|---|---|
+| QuickBites-Customer.apk | 58.4 MB | OU=customer | `27b4bd7fe5cf870e` |
+| QuickBites-Partner.apk | 57.8 MB | OU=partner | `3c0f5f9e0f1544df` |
+| QuickBites-Rider.apk | 58.4 MB | OU=rider | `4f29517567522faf` |
+| QuickBites-Admin.apk | 55.8 MB | OU=admin | `6ee63d59212bb820` |
+
+All universal (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`), so the file that ships is the file that can be launch-tested.
+
+### Launch verification, and an emulator that cannot host it yet
+
+`scripts/launch-test.sh` is new: it installs each APK, launches it, waits, and asks whether the process is still alive, printing the crash buffer when it is not. Signature verification proves who signed a file and nothing about whether it runs — and this project has a documented history of a build passing every static check and dying at launch.
+
+An AVD was created for this (`qb-test`), which needed Google's command-line tools; the SDK here had a system image but no `avdmanager`.
+
+**The first run reported all four apps failing. They had not failed.** The crash backtrace was `surfaceflinger` aborting inside `mapper.ranchu.so` — the emulator's own graphics stack — and when it dies everything on screen is torn down, taking the app processes with it. Confirmed before drawing any conclusion: **zero crash entries from `com.quickbite.*`**, and all four packages installed cleanly.
+
+The API 36.1 Play Store image crash-loops `surfaceflinger` under software rendering on this machine, with `-gpu swiftshader_indirect` and with `-gpu guest` (18 restarts observed, pid changing throughout). A stable `android-34;google_apis;x86_64` image is being installed to host the test instead.
+
+**Nothing about the APKs themselves is implicated by this.** But they are not yet launch-verified, and should not be published as though they were.
+
+**Frontend changes:** `metro.config.js` in all four apps.
+**Backend/API/database changes:** None.
+**Build/APK changes:** Release bundling fixed; four keystores generated; four APKs built at 1.3.0 / versionCode 7.
+
+**Files/modules affected:**
+- Created: `scripts/launch-test.sh`, `apps/*/android/keystore.properties` (gitignored), four `.jks` files outside the repository
+- Modified: `apps/*/metro.config.js`, `COMMANDS.md`, `TESTING_STRATEGY.md`, `DOWNLOAD.md`, `OWNER_ACTIONS.md`
+
+**Testing performed:** `npm run verify` — **497 checks, 0 failures**, secrets clean, no hardcoded URLs, diagnostics 34/34, typecheck 3/3. `apksigner verify --print-certs` on all four. ABI listing confirmed universal. Launch test: **blocked, not passed** — see above.
+
+The verify run also refused a commit of its own accord: `OWNER_ACTIONS.md` had a literal Razorpay key id in it. The id is semi-public, but a scanner that waves through anything named `*_KEY_*` because one instance is harmless cannot be trusted the next time.
+
+**Known issues / pending work:**
+- **The four APKs are not launch-verified.** Install one on a real phone before circulating them, or finish the emulator work.
+- Phase 6 (feature pass) not started; the customer app still cannot present the Razorpay checkout.
+
+**Decisions / dependencies / session conflicts:**
+- **Do not remove the `export:embed` guard in `metro.config.js`** without re-testing `expo start --web`. The two requirements genuinely conflict and the guard is what satisfies both.
+- **Back up the keystores off this machine.** Nothing and nobody can recover them.
+- The emulator image that works on this machine is `android-34;google_apis;x86_64`, not the API 36.1 Play Store image.
+
+**NEXT AI SHOULD:** Create an AVD from the `android-34;google_apis;x86_64` image, run `bash scripts/launch-test.sh`, and only then publish a release. If all four open, tag `v1.3.0`, attach the APKs, and update `DOWNLOAD.md` with the release URL.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.
