@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -162,11 +162,20 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
     loadFavourites();
   }, [apiUrl, token]);
 
-  // Re-fetch when a filter or the sort changes. Deliberately not merged with the
+  // Re-fetch when a filter or the sort CHANGES. Deliberately not merged with the
   // effect above: that one also reloads favourites and the delivery locality,
   // neither of which has anything to do with a filter chip.
+  //
+  // The first run is skipped. Both effects fire on mount, so without this the
+  // home screen made the same request twice every time the app opened — two
+  // full restaurant lists over mobile data for one screen.
+  const filtersMounted = useRef(false);
   useEffect(() => {
-    if (state !== 'loading') setState('loading');
+    if (!filtersMounted.current) {
+      filtersMounted.current = true;
+      return;
+    }
+    setState('loading');
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Array.from(activeFilters).sort().join(','), sort]);

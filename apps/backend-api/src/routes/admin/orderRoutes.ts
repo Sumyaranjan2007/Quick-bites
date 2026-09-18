@@ -15,6 +15,7 @@ import { recordAudit } from '../../modules/admin/audit.ts';
 import { LIVE_STATUSES, IN_TRANSIT_STATUSES, economicsOf } from '../../modules/admin/analytics.ts';
 import { shapeOrderDetail, summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore } from '../../db/client.ts';
+import { findCancellationReason } from '../../modules/orders/cancellationReasons.ts';
 import type { Order, OrderStatus } from '@quick-bites/shared-types';
 
 export const orderRoutes = Router();
@@ -218,7 +219,17 @@ orderRoutes.put(
 
 const CancelSchema = z.object({
   reason: z.string().trim().min(3, 'Record why the order was cancelled.').max(300),
-  refund: z.boolean().optional()
+  refund: z.boolean().optional(),
+  /**
+   * Optional here, unlike on the customer and partner paths.
+   *
+   * Operations cancel for reasons that do not fit a fixed list — a fraud
+   * investigation, a duplicate, a request over the phone — and the free-text
+   * reason above is already mandatory. But a cancellation with no code at all
+   * is invisible to every report that counts why orders are lost, so one is
+   * recorded either way: the chosen code, or OTHER.
+   */
+  reasonCode: z.string().min(1).max(64).optional()
 });
 
 /**
@@ -250,6 +261,9 @@ orderRoutes.post(
       const before = order.status;
       order.status = 'CANCELLED';
       order.cancellationReason = req.body.reason;
+      order.cancellationReasonCode = findCancellationReason(req.body.reasonCode || '')?.code ?? 'OTHER';
+      order.cancelledByUserId = req.user?.id;
+      order.cancelledByRole = req.user?.role;
       order.cancelledAt = new Date().toISOString();
       order.updatedAt = order.cancelledAt;
       memoryStore.orders.set(order.id, order);

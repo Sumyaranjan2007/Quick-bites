@@ -161,12 +161,36 @@ cd apps/customer-mobile/android
 
 ## 6. Verification & Automated Test Status
 
-All 5 core backend integration suites run deterministically with 100% pass rates:
-```powershell
-npm test --workspace=@quick-bites/backend-api
+```bash
+npm run verify
 ```
-- `health.test.ts` (6/6 tests passing) - Uptime, correlation IDs, status probes
-- `db.test.ts` (7/7 tests passing) - Spatial distance, transactions, and store persistence
-- `orders.test.ts` (9/9 tests passing) - Pricing engine, idempotency, and status lifecycle
-- `search.test.ts` (8/8 tests passing) - Sub-millisecond fuzzy search and category filtering
-- `sockets.test.ts` (9/9 tests passing) - Real-time rooms, rider telemetry, and lifecycle push alerts
+
+Secrets → hardcoded URLs → translations → diagnostics → typecheck (all ten
+workspaces) → 17 backend suites. Stops at the first failure.
+
+```bash
+npm run verify:full
+```
+
+The same, plus production-configuration checks that boot real servers in real
+child processes — the only way to observe a refusal to start.
+
+**714 checks, 0 failures** as of 19 September 2026.
+
+`TEST_PLAN.md` lays out eleven layers across six environments, with the mutation
+that must turn each one red. Three are worth knowing about from here:
+
+- **`contract`** reads all four apps' source, extracts the 97 URLs they build,
+  and asks a running server whether a handler exists behind each. Every other
+  suite tests one side against itself; this is the only one that checks the two
+  agree. It exists because four signed, launch-verified APKs once pointed at a
+  deployment that answered `404` to the sign-in endpoint, with every check green.
+- **`resilience`** checks that bills balance to the paisa, that six simultaneous
+  taps of Place Order produce one order, that two riders claiming one trip
+  produce one winner, and that an order survives the store being rehydrated —
+  which on Railway happens on every deploy.
+- **`check-production-boot.mjs`** verifies the four refusals: no `ADMIN_EMAIL`,
+  no `ADMIN_PASSWORD`, no `JWT_SECRET`, no `DATABASE_URL`. Each refuses rather
+  than starting in a state the service cannot honestly serve from.
+
+What automation still cannot tell you is in `TESTING_STRATEGY.md` §4–6.

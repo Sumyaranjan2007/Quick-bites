@@ -3,7 +3,7 @@
 **Version:** 1.0.0
 **Date:** 2026-09-17
 **Author:** Claude Opus 5 (Session 23)
-**Status:** Awaiting execution
+**Status:** Complete. Every phase executed; Phase 6 finished 19 September 2026.
 **Baseline commit:** `ced1fc0` (working tree clean, 415/415 backend checks passing)
 
 This plan is the agreed scope for one continuous body of work. It was produced
@@ -218,7 +218,11 @@ Removes the `SEED_DEFAULT_PASSWORD` blocker permanently.
 - **5.7** Tests including a tampered signature, a replayed webhook, and a
   duplicated payment attempt.
 
-### Phase 6 — Feature pass
+### Phase 6 — Feature pass — **DONE (19 September 2026)**
+
+All five built, with 62 automated checks and a UI in the customer app for each.
+The partner app also gained a rejection-reason picker, because the server now
+refuses a cancellation with no reason and "Reject" would otherwise have broken.
 
 Chosen by judgement, as instructed. Confirmed present and working, so not
 rebuilt: cancellation, ratings, coupons, wallet, favourites, address book,
@@ -240,6 +244,19 @@ Deliberately deferred, with reasons recorded: scheduled orders (needs a job
 scheduler the single-instance backend cannot yet guarantee), multi-restaurant
 cart (changes the pricing and settlement model), loyalty tiers (no business
 rules defined).
+
+**What the work turned up beyond the five features**, recorded here because the
+plan is the record of what was actually done:
+
+- Both web portals were broken by an unbound `API_BASE` re-export, and the
+  verification gate typechecked 3 of 10 workspaces so it could not see them.
+- Production started with no database, reported itself healthy, and wrote orders
+  to a filesystem the next deploy destroys.
+- Neither the client/server contract nor the completeness of the three languages
+  had ever been checked by anything. Both are now checked on every run.
+
+See `TEST_PLAN.md` for the eleven test layers and the six environments, and
+`CHANGELOG.md` 2026-09-19 for the detail.
 
 ### Phase 7 — Nothing hardcoded
 

@@ -1641,6 +1641,83 @@ So the new APKs, which point at production by default, **cannot sign anyone in u
 
 ---
 
+## [2026-09-19 00:30] -- Claude Opus 5 -- Session 24 Phase 6 and the full test plan
+
+**Feature/Issue:** Finish the feature pass (the last unbuilt phase of `MASTER_FIX_PLAN.md`), then test the platform in every way that can be tested without a person holding a phone.
+
+**Status:** Completed
+**Chunks Modified:** 03 (orders), 04 (discovery), 05 (apps), 08 (testing), 09 (build)
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 6 · `TEST_PLAN.md` (new)
+
+---
+
+### Phase 6 — the five features
+
+**Reorder.** `POST /api/orders/:id/reorder` rebuilds a past basket against today's menu and returns it; it places nothing. Between two orders a dish can be delisted, go out of stock, change price, or the kitchen can close, so replaying the old lines blind either fails at checkout with an unhelpful error or — worse — succeeds at a price the customer never agreed to. The sheet in the app shows the price that moved, the item now out of stock, and the dish that left the menu, before anything reaches the cart.
+
+**Tipping.** A figure on the bill that nothing taxes, discounts or commissions, and that reaches the rider in full through `calculateTripPayout`. A percentage coupon is computed on the food total, so a promotion can never be funded out of a rider's tip. Bounded by `MAX_TIP_AMOUNT` — it is the only line on the bill the client names outright.
+
+**Live ETA.** `modules/orders/eta.ts`. The tracking screen used to read from a table of constants: ten minutes once out for delivery, fifteen once ready, the kitchen's promise before that. Those numbers were identical at minute one and minute forty. It now counts the kitchen's own promise down from `acceptedAt` (a new field — a duration with no start cannot be counted down) and switches to the rider's real position only once the food has been collected.
+
+**Discovery filters.** Moved to the server and made independent. The old row was a single choice, so "somewhere veg AND quick" was impossible — picking the second silently dropped the first. Filtering on the phone also meant shipping every kitchen in the city over mobile data to throw most away.
+
+**Cancellation with automatic refund.** A reason is now required, from a served, role-scoped, translated catalogue: a customer is never offered "the kitchen is overloaded", a partner is never offered "I changed my mind". Reasons are stored as codes rather than sentences, because a report counts codes and sentences get reworded and translated. A paid order opens a refund case and returns the money in the same request — a cancellation that leaves a paid customer to open a support ticket is one of the fastest ways to lose them. The case is opened even when the gateway settles immediately, so a refund that fails survives as work in the queue instead of vanishing with the failed HTTP call.
+
+---
+
+### Four defects found, three of them by tests written this session
+
+**1. Both web portals were completely broken.** `export { DEFAULT_API_URL as API_BASE } from './config'` forwards the name to importers without binding it in the module, so every `${API_BASE}` in `admin-web/src/api.ts`, `admin-web/src/lib/adminApi.ts` and `restaurant-web/src/api.ts` referenced nothing. Broken since `56386d9`. **`npm run verify` could not see it, because `typecheck` ran in 3 of 10 workspaces.** All ten are wired in now; reintroducing the bug fails the gate.
+
+**2. Production started happily with no database.** With `DATABASE_URL` unset, the service reported `HEALTHY`, accepted real orders, and wrote them to a container filesystem that is destroyed on the next deploy. The Postgres path already refused to start when it could not reach the database — precisely so this could not happen — and the file path had no equivalent guard. It refuses now, with `ALLOW_FILE_PERSISTENCE=true` as a deliberate escape hatch so a test can still boot a real production server.
+
+**3. A sub-paisa rounding leak was invisible to the obvious check.** The bill-conservation assertion compares to the paisa, and a platform fee of `5.907` still balances against a total computed from it. Catching it needed a separate assertion that every figure on the bill is a whole number of paise.
+
+**4. The translation checker's own parser was wrong.** Its value regex excluded both quote characters from the body, so `"WHAT'S YOUR"` did not match and three English strings vanished from the parsed dictionary — after which it reported that Hindi and Kannada had keys English did not. The opposite of the truth.
+
+---
+
+### The test plan
+
+`TEST_PLAN.md` describes eleven layers across six environments, each with the mutation that must turn it red. Five layers are new:
+
+| Layer | Checks | What no existing suite could see |
+|---|---|---|
+| **Contract** | 106 | Whether the apps and the server agree that an endpoint exists |
+| **Money / races / restarts** | 15 | Whether bills balance, simultaneous requests behave, data survives a reboot |
+| **Production configuration** | 17 | The four refusals to boot, and the empty start |
+| **Translations** | 9 | Missing keys, unresolvable `t()` calls, lost `{placeholders}` |
+| **Features** | 62 | Phase 6 |
+
+**The contract suite is the important one.** Every other suite tests one side against itself. Four APKs were built, signed and launch-verified against a deployment that answered `404 Route POST /api/auth/otp/request not found`; every check in the project was green and nobody could have signed in. The suite reads all four apps' source, extracts the 97 distinct URLs they build, and asks a running server whether a handler exists behind each.
+
+It also guards itself: an app that appears to call nothing **fails**, because that means the extractor is broken rather than the app being self-contained. That guard fired on its first run and caught three apps it had never read — they pass bare paths to a `request()` wrapper rather than building URLs inline. A 429 is treated as inconclusive for the same reason: counting a throttled request as proof of existence would turn the suite green the moment it throttled itself.
+
+**Every new check was shown to fail.** Taxing the tip broke two. Suppressing the refund broke five. Freezing the prep countdown reproduced the stuck ETA exactly — `35 -> 35`. Renaming the OTP route reproduced the live 404. Removing a Hindi key and dropping a Kannada placeholder each broke one. Reintroducing the `API_BASE` bug failed the typecheck gate.
+
+**Frontend changes:** Customer app — reorder sheet in history, tip picker at checkout, server-driven ETA and a cancellation sheet on tracking, multi-select server-side filters and sorting on the feed, sign-in screen translated (it was English-only), `t()` gained `{placeholder}` interpolation. Partner app — a rejection now requires a reason, fetched from the server.
+**Backend/API/database changes:** `POST /orders/:id/reorder`, `GET /orders/cancellation-reasons`, tip on quote and create, ETA on tracking, filters and sorting on `/restaurants` and `/search`, `orderService.cancelOrder`, `orderRepository.recordCancellation` and `.save`, `fcmDispatcher.notifyOrderCancelled`. New `Order.acceptedAt`, `Order.cancellationReasonCode`, `cancelledByRole`, `cancelledByUserId`, `refundRequestId`; `OrderBillBreakdown.tipAmount`; `RefundReasonCode.ORDER_CANCELLED`. New config: `DELIVERY_SPEED_KMPH`, `DELIVERY_HANDLING_MINUTES`, `DEFAULT_PREP_MINUTES`, `MAX_TIP_AMOUNT`, `QB_DATA_DIR`, `ALLOW_FILE_PERSISTENCE`.
+**Build/APK changes:** All four rebuilt at the Phase 6 source, signed, launch-verified and screenshotted on `qb34`.
+
+**Testing performed:** `npm run verify:full` — **714 checks, 0 failures.** 17 backend suites, ten workspaces typechecked, translations complete in EN/HI/KN, production boot behaviour verified in real child processes, 97 client API paths resolved against a real server.
+
+**Known issues / pending work:**
+- **Nothing has been run against the hosted deployment.** It still serves the previous release. Everything E5 would prove is proven locally except latency and the hosting platform itself.
+- The partner, rider and admin apps have no translation layer at all. That matches how most Indian delivery platforms work, but it is a decision nobody has actually made. Raised in `OWNER_ACTIONS.md` §4.
+- The customer app still cannot present a Razorpay checkout; only cash on delivery completes end to end.
+- Sustained load is unmeasured. The races that are checked are the ones that actually happen.
+
+**Decisions / dependencies / session conflicts:**
+- **`DATABASE_URL` is now required in production.** Anyone deploying must confirm Railway has attached Postgres, or the service will refuse to start — which is the point.
+- Cancellation reasons are **served, not compiled in**. Adding one or fixing a Hindi wording reaches every installed app on the next screen open. Do not move them into an app.
+- The tip must stay out of `restaurantNetPayout` and out of the GST base. Three checks enforce it.
+
+**NEXT AI SHOULD:** Once the owner has set the Railway variables (**including `DATABASE_URL`**) and pushed, re-probe `/api/auth/otp/request` for a `200`, then run the four-role journey against the hosted API through the real apps — customer orders, partner accepts, rider collects with the pickup code and delivers with the doorstep OTP, admin watches it all. That is layer E5/E6 of `TEST_PLAN.md` and the only part of the platform never proven against production.
+
+---
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

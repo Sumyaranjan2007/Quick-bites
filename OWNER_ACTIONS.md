@@ -1,7 +1,7 @@
 # What only you can do
 
-**Version:** 1.0.0
-**Date:** 18 September 2026
+**Version:** 1.1.0
+**Date:** 19 September 2026
 
 Everything in this file needs a human with an account, a legal identity, or a
 credit card. Nothing here can be done from a code editor. It is ordered so that
@@ -57,6 +57,7 @@ redeploy.
 | `ADMIN_EMAIL` | your email address | **The service refuses to start.** |
 | `ADMIN_PASSWORD` | a password you choose, **10+ characters** | **The service refuses to start.** |
 | `JWT_SECRET` | a long random string (40+ characters) | The service refuses to start. |
+| `DATABASE_URL` | Railway sets this for you when a Postgres service is attached — **check it is there** | **The service refuses to start.** It used to come up looking perfectly healthy and write every order to a disk the next deploy throws away. |
 | `RAZORPAY_KEY_ID` | your `rzp_test_…` key id (Razorpay dashboard → Test Mode → API Keys) | Online payment is unavailable; cash on delivery still works. |
 | `RAZORPAY_KEY_SECRET` | the matching test secret | As above. |
 | `OTP_PROVIDER` | `fixed` | Defaults to `fixed` anyway. |
@@ -78,7 +79,15 @@ Two warnings about `OTP_ALLOW_FIXED_IN_PRODUCTION=true`:
 Open `https://quick-bites-production-9f45.up.railway.app/health` in a browser.
 You want `"status":"HEALTHY"` and `"demoMode":false`. If the service is not
 running, the variables above are the first thing to check — it refuses to start
-deliberately rather than coming up with no administrator.
+deliberately rather than coming up in a state it cannot honestly serve from.
+
+There are now **four** of those refusals, and each is deliberate:
+
+| Missing | Why it refuses rather than starting |
+|---|---|
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | A platform with no administrator cannot approve a single restaurant. Coming up with no way in is not a safer failure than not coming up. |
+| `JWT_SECRET` | The source is public. A built-in fallback would be a published signing key, and anyone could mint a token for any account. |
+| `DATABASE_URL` | Without it, orders are written to the container's own filesystem, which is destroyed on every deploy. The service would report itself healthy while losing everything. |
 
 ### 1.3 Back up the signing keys — do this today
 
@@ -140,7 +149,25 @@ To get from empty to a delivered order:
 7. **A tester**, in Quick Bites: enter a phone number, enter your fixed code,
    order.
 
-### 2.4 The full journey to check
+### 2.4 What is new in this build
+
+Beyond sign-in by phone, five features arrived with this release. Each is worth
+a minute of a tester's time:
+
+- **Order again**, on any finished order in history. It shows what has changed
+  since last time — a price that moved, an item that is out of stock, a dish
+  that left the menu — *before* anything reaches the cart.
+- **Tip the rider**, at checkout. The whole tip reaches the rider: no
+  commission, no GST, and a percentage coupon cannot discount it.
+- **A live arrival time** on the tracking screen, which actually moves. It
+  counts down the kitchen's own promise while the food cooks, and switches to
+  the rider's real position once the food is collected — never before.
+- **Filters and sorting** on the home screen: veg, under 30 minutes, rated 4+,
+  open now, under Rs 400 for two. They combine, and the server applies them.
+- **Cancel with a reason**, and a paid order refunds itself in the same step
+  rather than leaving anyone to chase support.
+
+### 2.5 The full journey to check
 
 Customer orders → partner accepts with a prep time → partner marks ready →
 rider (on shift) gets the offer and claims it → rider collects using the
@@ -222,6 +249,7 @@ PCI-DSS scope and outside RBI rules at the same time.
 | Question | Why it matters |
 |---|---|
 | Which SMS provider? | Determines which driver I write. MSG91 recommended for India. |
+| Should the partner, rider and admin apps be translated too? | The customer app is complete in English, Hindi and Kannada and is checked for it on every build. The three staff apps have no translation layer at all. That matches how most Indian delivery platforms work — staff tools stay in English — but it is a decision, and right now it is one nobody has actually made. |
 | Should the customer app show the Razorpay checkout? | The server side is finished and verified. Presenting it in the app needs a native module, and I would want an emulator on the build machine first — this project has a history of a build that passed every check and died at launch because of one. |
 | Feature pass? | Reorder, tipping, live ETA, search filters and cancellation reasons are specified but not built. |
 | Custom domain? | Nicer than a `railway.app` address, and needed before Play submission looks credible. |

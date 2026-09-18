@@ -1,7 +1,7 @@
 # Quick Bites — Commands
 
-**Version:** 3.0.0
-**Date:** 18 September 2026
+**Version:** 4.0.0
+**Date:** 19 September 2026
 
 Copy-paste commands for humans. Everything here is run from the repository root
 unless stated otherwise.
@@ -19,12 +19,23 @@ Runs, in order and stopping at the first failure:
 1. **Secret scan** — fails if any credential from `.env` reached a tracked file.
 2. **Hardcoded URL scan** — fails if a deployment address appears outside an
    app's single `src/config.ts`.
-3. **Diagnostics** — 34 structural checks.
-4. **Typecheck** — all workspaces.
-5. **Tests** — 497 checks across 14 backend suites plus the design system and
-   pricing engine.
+3. **Translation check** — every key in EN, HI and KN; every `t('key')` in the
+   app source resolving; every `{placeholder}` surviving translation.
+4. **Diagnostics** — 34 structural checks.
+5. **Typecheck** — **all ten workspaces.** Until 19 September this ran in three,
+   and both web portals were completely broken without the gate noticing.
+6. **Tests** — 17 backend suites plus the design system and pricing engine.
 
-This is the gate before any release.
+```bash
+npm run verify:full
+```
+
+Everything above, plus the production-configuration checks. Those start real
+servers in child processes with real environments, because a refusal to boot
+cannot be observed any other way. Slower — about two minutes of server starts —
+so `verify` is the everyday gate and `verify:full` is the release gate.
+
+**714 checks, 0 failures** as of 19 September 2026.
 
 ---
 
@@ -72,7 +83,17 @@ cd apps/backend-api && node --experimental-strip-types src/test/sockets.security
 
 Suites: `health`, `db`, `orders`, `search`, `sockets`, `sockets.security`, `otp`,
 `onboarding`, `payments`, `security`, `pipeline`, `admin`, `partner`,
-`regression`.
+`features`, `contract`, `resilience`, `regression`.
+
+Individual checks that are not backend suites:
+
+```bash
+node scripts/check-i18n.mjs
+```
+
+```bash
+node scripts/check-production-boot.mjs
+```
 
 ---
 
@@ -141,8 +162,11 @@ curl https://quick-bites-production-9f45.up.railway.app/health
 ```
 
 Expect `"status":"HEALTHY"` and `"demoMode":false`. If the service is not
-running, check `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `JWT_SECRET` — it refuses to
-start without them rather than coming up with no way in.
+running, the environment variables are the first thing to check. Production now
+refuses to start without **`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `JWT_SECRET` and
+`DATABASE_URL`**, rather than coming up with no way in or — in the case of the
+last one — coming up healthy and writing every order to a container filesystem
+that the next deploy throws away.
 
 ---
 
