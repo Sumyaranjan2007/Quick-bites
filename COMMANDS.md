@@ -35,7 +35,7 @@ servers in child processes with real environments, because a refusal to boot
 cannot be observed any other way. Slower — about two minutes of server starts —
 so `verify` is the everyday gate and `verify:full` is the release gate.
 
-**714 checks, 0 failures** as of 19 September 2026.
+**728 checks, 0 failures** as of 19 September 2026.
 
 ---
 

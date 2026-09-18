@@ -175,7 +175,7 @@ npm run verify:full
 The same, plus production-configuration checks that boot real servers in real
 child processes — the only way to observe a refusal to start.
 
-**714 checks, 0 failures** as of 19 September 2026.
+**728 checks, 0 failures** as of 19 September 2026.
 
 `TEST_PLAN.md` lays out eleven layers across six environments, with the mutation
 that must turn each one red. Three are worth knowing about from here:

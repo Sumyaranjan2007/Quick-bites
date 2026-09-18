@@ -23,7 +23,7 @@ The same, plus the production-configuration checks, which boot real servers in
 real child processes. Slower, because starting eight servers takes a couple of
 minutes. Run it before a release.
 
-**714 checks, 0 failures** as of 19 September 2026.
+**728 checks, 0 failures** as of 19 September 2026.
 
 `TEST_PLAN.md` describes every layer, every environment, and the mutation that
 must turn each check red.

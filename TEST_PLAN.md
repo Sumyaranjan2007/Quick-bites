@@ -196,17 +196,17 @@ Executed by Claude Opus 5 before any human test.
 
 ### Layers 0–6 — `npm run verify:full`
 
-**714 checks, 0 failures.**
+**728 checks, 0 failures.**
 
 | Layer | Result |
 |---|---|
 | Secrets | Clean across 373 tracked files |
 | Hardcoded URLs | None outside each app's `config.ts` |
-| Translations | 100 keys complete in EN, HI and KN; 79 `t()` calls all resolve; every `{placeholder}` survives |
+| Translations | 100 app keys plus 85 design-system strings, complete in EN, HI and KN; 79 `t()` calls all resolve; every placeholder survives |
 | Diagnostics | 34/34 |
 | Typecheck | **10/10 workspaces** (was 3/10 — see below) |
 | Backend suites | 17/17 |
-| Contract | 97 client API paths, all resolved |
+| Contract | 98 client API paths, all resolved (76 against the exact verb the app uses) |
 | Money / races / restarts | 15/15 |
 | Production configuration | 17/17 |
 
@@ -303,3 +303,33 @@ for a run that tested nothing.
 **Not run.** The deployment still serves the previous release, and pushing before
 the owner sets the Railway variables would take the working API down. See
 `OWNER_ACTIONS.md` Part 0.
+
+### Layer 8c — the customer APK driven on a device, against a live server
+
+The strongest evidence available short of the hosted deployment: the **signed
+release APK**, installed on `qb34`, pointed at a real backend through its own
+Server settings field, and driven by hand.
+
+| Step | What happened |
+|---|---|
+| `POST /auth/otp/request` | **200.** The app advanced to "Enter the code" — the exact call that answers 404 against the deployment as it stands today |
+| Notice shown | "This test build does not send SMS. Enter the verification code you were given." — honest about what this build is |
+| Verify the code | Signed in. Feed rendered with the real delivery locality read from the account's saved address |
+| Profile | Rahul Sharma, GOLD, 9876543210, wallet ₹500 — all live server data |
+| Filter chips | Pure Veg · Under 30 min · Rated 4.0+ · Open now, with a sort row beneath |
+| Tap **Pure Veg** | List changed from Milano Artisan Pizzeria (Non-Veg, ₹500 for two) to Udupi Sri Krishna Bhavan (Pure Veg, ₹250). **The server did the filtering** |
+| Order history | The delivered order, with **Order again** |
+| Tap **Order again** | The sheet rebuilt the basket at *today's* menu price — 2 × Special Chicken Dum Biryani, ₹320 |
+| Add to cart | Landed in checkout, Gold delivery waiver applied |
+| Tip picker | **"No tip" selected by default.** A tip that is on by default is not a tip |
+| Tap **₹50** | "Your rider receives this in full." · a **Rider tip ₹50.00** line appeared · total ₹702.90 → **₹752.90**, exactly +₹50 · **GST unchanged at ₹32.00** — 5% of the ₹640 of food, and nothing on the tip |
+
+That last row is the whole tipping design, proven on a phone rather than in an
+assertion: the tip reaches the total, the tax base does not move, and the earlier
+API journey showed the same ₹50-class tip arriving in the rider's offer and
+surviving the claim.
+
+**One thing worth knowing:** the order history was empty at first, and that was
+correct. The dev server had restarted mid-session and rehydrated from a snapshot
+a test run had reseeded, so the orders really were gone. The app was reporting
+the truth about the server it was talking to — which is what it should do.
