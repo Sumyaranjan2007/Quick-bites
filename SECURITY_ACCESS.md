@@ -1,94 +1,168 @@
-# Quick Bite Platform -- Security & Access Specification (SECURITY_ACCESS)
+# Quick Bites — Security & Access Control
 
-**Version:** 2.0.0  
-**Date:** September 6, 2026  
-**Status:** Approved / Active  
-**Project:** Quick Bite (Multi-Portal Food Delivery Platform)  
-**Author:** Quick Bite Information Security & Architecture Team  
+**Version:** 3.0.0
+**Date:** 18 September 2026
+**Status:** Current against the platform as built
 
 ---
 
-## 1. Authentication Architecture & Token Exchange
+## 1. Who can be who
 
-All 4 physical mobile devices authenticate against the backend API gateway using role-validated credentials:
+| Role | How the account is created | Credential | Can trade when |
+|------|---------------------------|-----------|----------------|
+| **Customer** | Verifying a code sent to a phone number creates it | Phone number + one-time code. **No password exists.** | Immediately |
+| **Restaurant partner** | Self-registration in the partner app | Email + password | An administrator approves the KYC document |
+| **Delivery rider** | Self-registration in the rider app | Email + password | An administrator approves the KYC document |
+| **Administrator** | Created at boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Email + password | Immediately; production refuses to start without it |
 
-```
-[Mobile Client (Customer / Partner / Rider / Admin)]
-                    |
-                    | 1. POST /api/auth/login { email, password, role }
-                    v
-            [API Gateway Router]
-                    |
-                    | 2. Verify Argon2/Bcrypt hash against UserRepository
-                    v
-            [User Store / PostgreSQL]
-                    |
-                    | 3. Returns User Profile + 3-part Base64 JWT Token
-                    |    (Header.Payload.Signature with user ID, email, role)
-                    v
-            [Mobile Client Stores Token in SecureStore]
-                    |
-                    | 4. All subsequent API calls: Authorization: Bearer <token>
-                    v
-            [AuthMiddleware Verification]
-                    |-- Decodes base64 payload
-                    |-- Enforces role authorization (e.g. requiredRole === 'restaurant_owner')
-                    |-- Injects req.user context { id, email, role, isGold }
-                    v
-            [Protected Domain Controller]
-```
+Role is **always** assigned by the server and never read from a request body.
+Self-registration routes are role-specific endpoints; posting `role: 'super_admin'`
+to any of them yields the role that endpoint mints and nothing else. A check
+asserts this.
+
+### An account with no password cannot be signed into with a password
+
+`verifyCredentials` used to run its password check inside `if (user.passwordHash)`,
+so an account without one fell past the check and was returned as authenticated.
+That was unreachable while every account had a password, and stopped being
+unreachable the moment customers began signing in by phone: those accounts hold
+no hash, and their address is `<phone>@phone.quickbite.app`, derivable from the
+number. Anyone who knew a customer's phone number could have signed in as them
+with any password they typed. The absence of a hash is now an explicit refusal.
+
+**Never give a customer a password.** Two credentials on an account whose
+security model is possession of a phone is one credential too many.
 
 ---
 
-## 2. 4-Role RBAC Authorization Matrix
+## 2. One-time codes
 
-| Resource / Action | Guest (Unauth) | Customer | Restaurant Partner | Delivery Partner (Rider) | Admin (Super) |
-|-------------------|----------------|----------|--------------------|--------------------------|---------------|
-| **Browse Geofenced Restaurants & Menus** | ALLOW | ALLOW | ALLOW | ALLOW | ALLOW |
-| **Place Order (`POST /api/orders`)** | DENY | ALLOW | DENY | DENY | DENY |
-| **View Active Order Status & Doorstep OTP**| DENY | ALLOW (Own) | ALLOW (Assigned Store) | ALLOW (Assigned Trip) | ALLOW (All) |
-| **Accept/Reject Order & Set Prep Time** | DENY | DENY | ALLOW (Own Store) | DENY | ALLOW (Override) |
-| **Toggle Menu Item In/Out of Stock** | DENY | DENY | ALLOW (Own Store) | DENY | ALLOW (All) |
-| **Toggle Shift Online/Offline** | DENY | DENY | DENY | ALLOW (Own Shift) | ALLOW (Admin View) |
-| **Broadcast GPS Telemetry** | DENY | DENY | DENY | ALLOW (Own Active Trip)| ALLOW (Admin View) |
-| **Validate Doorstep 4-Digit OTP** | DENY | DENY | DENY | ALLOW (Assigned Trip) | ALLOW (Override) |
-| **Approve / Reject KYC Documents** | DENY | DENY | DENY | DENY | ALLOW |
-| **Issue Instant Wallet Dispute Refund** | DENY | DENY | DENY | DENY | ALLOW |
-| **Access Control Tower Metrics & GMV** | DENY | DENY | DENY | DENY | ALLOW |
+| Property | Rule |
+|---|---|
+| Storage | SHA-256 hashed. Never logged, never returned in a response. |
+| Lifetime | `OTP_TTL_MINUTES`, default 5. |
+| Reuse | Deleted on successful verification, so a captured code cannot be replayed. |
+| Guessing | `OTP_MAX_ATTEMPTS`, default 5, then the code is **destroyed** — not merely locked. |
+| Resend | Cooldown of `OTP_RESEND_COOLDOWN_SECONDS`, so the endpoint cannot bombard a handset or run up an SMS bill. |
+| Enumeration | A request for an unknown number is indistinguishable from one for a known number: same status, same message. |
+| Rate limit | Per IP **and per phone number**. The credential limiter originally keyed on `req.body.email`, which phone sign-in never sends, leaving the entire customer front door with only a per-IP ceiling — the one limit a distributed attacker ignores. |
 
----
-
-## 3. Cryptographic Doorstep Handshake (4-Digit Delivery OTP)
-
-To prevent delivery fraud and ensure food is handed to the rightful customer:
-1. When an order transitions to `READY_FOR_PICKUP` or `OUT_FOR_DELIVERY`, the backend generates a random 4-digit cryptographic OTP (e.g. `5931`) stored securely in `orders.delivery_otp`.
-2. The OTP is **only** displayed on the Customer Mobile App (`apps/customer-mobile`).
-3. The Delivery Partner (`apps/delivery-mobile`) must enter the customer's 4-digit OTP upon physical handover.
-4. The backend verifies the OTP via `POST /api/orders/:id/verify-otp` in a transactional block:
-   - If valid: Order status transitions to `DELIVERED`, rider earnings are credited to `wallet_ledger`, and customer delivery confirmation push is dispatched.
-   - If invalid: Delivery cannot complete, preventing unauthorized claim closures.
+**A fixed code is refused in production** unless `OTP_ALLOW_FIXED_IN_PRODUCTION=true`
+is set deliberately. Configuration is re-read per request, so flipping the
+variable on the host takes effect without a process continuing to issue codes it
+should not. Removing that variable is the switch to real OTP.
 
 ---
 
-## 4. Parameterized SQL & Data Access Mandate
+## 3. Authorization: HTTP
 
-All database operations strictly enforce parameterized queries to eliminate SQL injection risks:
-
-```typescript
-// SECURE PATTERN: Parameterized input prevents SQL injection
-const result = await db.query(
-  'SELECT * FROM orders WHERE customer_id = $1 AND status = $2 ORDER BY created_at DESC',
-  [customerId, status]
-);
-```
+Every mutating route carries a role-scoped `authMiddleware`, Zod validation of
+the request shape, and an ownership assertion where a resource has an owner
+(`assertOwnsRestaurant`, per-order customer checks, `requireRiderSelf`).
+Administrator routes additionally check a named permission against the account's
+assigned role, and every administrative action is written to the audit log with
+the actor's identity.
 
 ---
 
-## 5. Security Headers & Network Hygiene
+## 4. Authorization: WebSocket
 
-Every response sent by the Quick Bite API Gateway enforces modern HTTP security headers:
-- **Strict-Transport-Security (HSTS):** `max-age=31536000; includeSubDomains; preload`
-- **X-Frame-Options:** `DENY` (Anti-clickjacking)
-- **X-Content-Type-Options:** `nosniff` (Anti-MIME sniffing)
-- **Referrer-Policy:** `strict-origin-when-cross-origin`
-- **CORS Whitelist:** Dynamically supports local loopbacks, private LAN addresses, and approved `*.trycloudflare.com` tunnel domains.
+Historically the socket layer authenticated the *connection* and then trusted
+whatever room name arrived next, which meant the data the HTTP layer guards was
+readable by asking for it over a socket instead. All five subscriptions are now
+authorized, mirroring the HTTP rules — a person may watch an order over a socket
+exactly when they may read it over HTTP.
+
+| Subscription | Permitted to |
+|---|---|
+| `join:order` | That order's customer, its assigned rider, the owning restaurant, or an administrator |
+| `join:restaurant` | The owning partner or an administrator. This room carries whole order objects — names, addresses, phones, bills |
+| `join:menu` | Any signed-in user. Carries stock and kitchen-open flags only, deliberately separate from the order room |
+| `join:admin` | Administrators only |
+| `join:riders` | A delivery partner who is **on shift** |
+| `rider:location` | Only the assigned rider, and only while the order is `OUT_FOR_DELIVERY` |
+
+Identity comes from the verified JWT and nowhere else. `auth.userId` and
+`auth.role` remain in the handshake type for older app builds and are ignored;
+trusting them is what let any connection claim to be an administrator.
+
+Every predicate fails closed: a missing record, an unknown role, or a throwing
+lookup all deny.
+
+### Live location is gated on both paths
+
+Tracking begins at pickup. This is the behaviour customers expect and it is the
+rider's privacy — where they are before collecting an order is not the
+customer's business.
+
+The rider app reports position over **REST**, not the socket. That endpoint
+checked the assigned rider but not the order status, so gating only the socket
+would have produced a rule that looked enforced and was not. Both carry it.
+
+---
+
+## 5. Payments
+
+- Amounts come from the server's stored bill. A client that can name its own
+  price eventually will.
+- Signatures verify against **Razorpay's** order id, constant-time. Verifying
+  against our own order number only ever passed against a mock.
+- Webhooks verify against the **raw request bytes** — re-serialising a parsed
+  body reorders keys and no signature would ever match — and are applied
+  idempotently by event id, because Razorpay retries until it gets a 2xx.
+- The key secret never leaves the server and never appears in a response body.
+- **No card data ever touches this platform.** The customer enters it inside
+  Razorpay's checkout. Adding a card form to a Quick Bites screen would put the
+  platform into PCI-DSS scope and outside RBI tokenisation rules at once.
+
+---
+
+## 6. Secrets
+
+- `.env` is gitignored; `.env.example` carries placeholders only.
+- `scripts/check-secrets.mjs` reads the real values out of `.env` at runtime and
+  searches every tracked file for them, so the scanner holds no secret of its
+  own and prints only the variable name and location. Shapes that would never be
+  in this machine's `.env` — a live Razorpay key, an AWS key id, a private key
+  block — are matched by pattern. It runs in CI before anything else.
+- `scripts/check-hardcoded.mjs` refuses a deployment URL outside an app's single
+  `src/config.ts`.
+- `JWT_SECRET` and `RAZORPAY_KEY_SECRET` have **no built-in default in
+  production**: the service refuses to start rather than fall back to a value
+  that is readable in a public repository.
+- Android upload keystores live outside the repository and are gitignored.
+  Losing one means that app can never be updated under its package id again.
+
+---
+
+## 7. Rate limiting
+
+| Surface | Limit |
+|---|---|
+| General API | 100 requests per minute per IP |
+| Credential endpoints | 10 attempts per 5 minutes, per IP **and** per account (email or phone) |
+
+Tests clear the buckets through an explicit reset rather than the limits being
+relaxed under `NODE_ENV=test`, so the path under test is the path production
+runs.
+
+---
+
+## 8. Transport and headers
+
+Helmet security headers on every response: CSP, HSTS, `X-Frame-Options: DENY`,
+`X-Content-Type-Options: nosniff`, Referrer-Policy. CORS is an explicit origin
+whitelist with no wildcard in production. Request bodies are capped at 1 MB.
+
+---
+
+## 9. What is deliberately not defended
+
+- **A single backend instance.** Two replicas editing the same document
+  overwrite each other silently. Do not raise the replica count without giving
+  upserts a version check first (`db/postgresStore.ts`).
+- **Unbounded hydration.** Boot loads every order ever written, so memory and
+  start-up time grow with lifetime order count rather than active orders.
+- **A fixed OTP while `OTP_ALLOW_FIXED_IN_PRODUCTION` is set.** Anyone who knows
+  the code can sign in as any phone number. It exists for a closed tester group
+  and must be removed at launch.
