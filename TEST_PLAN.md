@@ -141,7 +141,24 @@ runs in `NODE_ENV=test`.
 
 ### Layer 7 — Build (E1)
 
-APK produced, signed by its **own** key, universal ABIs, plausible size.
+APK produced, signed by its **own** key, universal ABIs, plausible size — and
+**scanned for credentials it should not contain**.
+
+```bash
+node scripts/check-apk-secrets.mjs
+```
+
+The source scanner reads tracked files. An APK is neither source nor tracked: it
+is a bundle produced by a tool that inlines constants and folds `__DEV__`
+branches, so a credential can be absent from every file in the repository and
+present in the binary handed to a tester. The rider app's sign-in screen holds
+`useState(__DEV__ ? 'pass123' : '')` — correct, and correct only for as long as
+the release build really does fold that branch away. This checks the binary.
+
+It matches the real values from `.env` and never prints them, plus patterns that
+are wrong in a client whatever `.env` says: a live Razorpay key, a private key
+block, the seeded password, an AWS key id. The test-mode key **id** is
+deliberately not forbidden — reaching the client is what it is for.
 
 ### Layer 8 — Launch and render (E4)
 
