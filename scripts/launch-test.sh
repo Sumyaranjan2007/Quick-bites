@@ -39,6 +39,11 @@ ONLY="${1:-}"
 FAILED=0
 PASSED=0
 SHOT_DIR="$ROOT/build/screenshots"
+SUSPECT=0
+# Below this, a screenshot is almost certainly a flat colour rather than a
+# rendered interface. Measured against real first screens from these four apps,
+# which run from roughly 90 KB to 400 KB.
+MIN_SHOT_BYTES=40000
 
 if ! "$ADB" devices | grep -qE "device$"; then
   echo "FATAL: no device or emulator attached. Start one, then re-run." >&2
@@ -113,6 +118,19 @@ for entry in "${APPS[@]}"; do
 
   if [[ -f "$SHOT_DIR/$artifact.png" ]]; then
     shot_bytes=$(wc -c < "$SHOT_DIR/$artifact.png" | tr -d ' ')
+
+    # A blank screen is the failure a pid check cannot see, and it has a
+    # signature: a flat expanse of one colour compresses to almost nothing,
+    # while a real interface with text, icons and a photograph does not. This
+    # is a heuristic, not a proof - so it reports rather than failing the run,
+    # and the screenshot is on disk for a human to look at either way.
+    if [[ "$shot_bytes" -lt "$MIN_SHOT_BYTES" ]]; then
+      echo "[WARN] $label is running but its first screen is only ${shot_bytes} bytes"
+      echo "       of PNG - that is about what a blank screen compresses to."
+      echo "       Open build/screenshots/$artifact.png before shipping this."
+      SUSPECT=$((SUSPECT + 1))
+    fi
+
     echo "[PASS] $label launched and is still running (pid $pid)"
     echo "       screenshot: build/screenshots/$artifact.png (${shot_bytes} bytes)"
   else
@@ -128,6 +146,9 @@ echo ""
 echo "===================================================="
 if [[ "$FAILED" -eq 0 ]]; then
   echo "  $PASSED APK(S) INSTALLED AND OPENED                "
+  if [[ "$SUSPECT" -gt 0 ]]; then
+    echo "  $SUSPECT WITH A SUSPICIOUSLY EMPTY FIRST SCREEN     "
+  fi
   echo "===================================================="
   exit 0
 fi
