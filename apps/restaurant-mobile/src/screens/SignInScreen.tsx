@@ -33,6 +33,15 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [phone, setPhone] = useState('');
   const [confirm, setConfirm] = useState('');
 
+  // The restaurant itself, not just the person signing up. Registration creates
+  // both: an owner login is worthless without the kitchen it manages, and the
+  // approval queue reviews a restaurant, not a person.
+  const [restaurantName, setRestaurantName] = useState('');
+  const [addressLine, setAddressLine] = useState('');
+  const [city, setCity] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [fssai, setFssai] = useState('');
+
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -59,6 +68,13 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
     if (phone.replace(/\D/g, '').length < 10) errs.phone = 'Enter a 10-digit mobile number.';
     if (password.length < 8) errs.password = 'Use at least 8 characters.';
     if (confirm !== password) errs.confirm = 'Both passwords must match.';
+    if (restaurantName.trim().length < 2) errs.restaurantName = 'Enter the name customers will see.';
+    if (addressLine.trim().length < 5) errs.addressLine = 'Enter the kitchen address.';
+    if (city.trim().length < 2) errs.city = 'Enter the city.';
+    if (!/^\d{6}$/.test(pincode.trim())) errs.pincode = 'Enter a 6-digit pincode.';
+    // Required by law to sell food in India, and the first thing the approval
+    // queue looks for - so it is collected at registration rather than chased.
+    if (fssai.trim().length < 6) errs.fssai = 'Enter your FSSAI licence number.';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -86,7 +102,17 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
     if (!validateCreate()) return;
 
     setBusy(true);
-    const res = await createAccount({ fullName, email, phone, password });
+    const res = await createAccount({
+      fullName,
+      email,
+      phone,
+      password,
+      restaurantName,
+      addressLine,
+      city,
+      pincode,
+      fssaiLicenseNumber: fssai
+    });
     setBusy(false);
 
     if (!res.ok) {
@@ -103,9 +129,9 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           <CheckCircle2 size={44} color={c.success} />
           <Text style={styles.doneTitle}>Account created</Text>
           <Text style={styles.doneBody}>
-            Your login is ready. Before you can take orders, our team needs to verify your restaurant —
-            send us your FSSAI licence and PAN, and we will activate partner access, usually within one
-            working day.
+            Your restaurant is registered and waiting for approval. Sign in now to upload your FSSAI
+            licence and PAN — an administrator reviews them, and your kitchen becomes visible to customers
+            the moment they are approved. Until then you will not receive orders.
           </Text>
           <Text style={styles.doneBody}>
             Sign in now to upload those documents and track their progress.
@@ -185,6 +211,44 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
               placeholder="98765 43210"
               keyboardType="phone-pad"
               error={fieldErrors.phone}
+            />
+            <Field
+              label="Restaurant name"
+              value={restaurantName}
+              onChangeText={setRestaurantName}
+              placeholder="Bangalore Biryani House"
+              error={fieldErrors.restaurantName}
+              hint="This is the name customers will see."
+            />
+            <Field
+              label="Kitchen address"
+              value={addressLine}
+              onChangeText={setAddressLine}
+              placeholder="14 Residency Road"
+              error={fieldErrors.addressLine}
+            />
+            <Field
+              label="City"
+              value={city}
+              onChangeText={setCity}
+              placeholder="Bengaluru"
+              error={fieldErrors.city}
+            />
+            <Field
+              label="Pincode"
+              value={pincode}
+              onChangeText={v => setPincode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+              placeholder="560025"
+              keyboardType="number-pad"
+              error={fieldErrors.pincode}
+            />
+            <Field
+              label="FSSAI licence number"
+              value={fssai}
+              onChangeText={setFssai}
+              placeholder="12345678901234"
+              error={fieldErrors.fssai}
+              hint="Required by law to sell food in India. Operations check this first."
             />
           </>
         )}

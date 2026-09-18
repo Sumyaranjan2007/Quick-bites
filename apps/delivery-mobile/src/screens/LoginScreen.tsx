@@ -36,7 +36,47 @@ export const LoginScreen: React.FC<{
 
   // Password recovery. A rider locked out mid-shift has no desk to walk to, so
   // the whole flow happens on this screen rather than pointing them at support.
-  const [mode, setMode] = useState<'signin' | 'forgot' | 'reset'>('signin');
+  const [mode, setMode] = useState<'signin' | 'forgot' | 'register' | 'registered'>('signin');
+
+  // Registering. A rider could not get onto the platform at all before this:
+  // the only rider account was seeded with a password held in one deployment's
+  // environment, which is why this app could not be handed to a tester.
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regLicence, setRegLicence] = useState('');
+  const [regVehicle, setRegVehicle] = useState<'BIKE' | 'EV' | 'CYCLE'>('BIKE');
+  const [regBusy, setRegBusy] = useState(false);
+  const [regError, setRegError] = useState<string | null>(null);
+
+  const submitRegistration = async () => {
+    setRegError(null);
+    if (regName.trim().length < 2) return setRegError('Enter your full name.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(regEmail.trim())) return setRegError('Enter a valid email address.');
+    if (regPhone.replace(/\D/g, '').length !== 10) return setRegError('Enter your 10-digit mobile number.');
+    if (regPassword.length < 8) return setRegError('Choose a password of at least 8 characters.');
+    if (regLicence.trim().length < 4) return setRegError('Enter your driving licence number.');
+
+    setRegBusy(true);
+    try {
+      await api.register(apiUrl, {
+        fullName: regName,
+        email: regEmail,
+        phone: regPhone,
+        password: regPassword,
+        vehicleType: regVehicle,
+        licenseNumber: regLicence
+      });
+      setEmail(regEmail.trim().toLowerCase());
+      setPassword('');
+      setMode('registered');
+    } catch (err: any) {
+      setRegError(err?.message || 'Could not complete your registration.');
+    } finally {
+      setRegBusy(false);
+    }
+  };
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [recoveryBusy, setRecoveryBusy] = useState(false);
@@ -61,6 +101,112 @@ export const LoginScreen: React.FC<{
           </View>
 
           <View style={s.card}>
+            {mode === 'registered' ? (
+              <>
+                <Text style={s.label}>Registration received</Text>
+                <Text style={s.notice}>
+                  Your account is created and waiting for approval. Sign in now to upload your driving
+                  licence and photo — an administrator reviews them, and you can start a shift as soon as
+                  they are approved.
+                </Text>
+                <Button
+                  label="Sign in"
+                  size="lg"
+                  onPress={() => setMode('signin')}
+                  style={{ marginTop: t.space[5] }}
+                />
+              </>
+            ) : mode === 'register' ? (
+              <>
+                <Text style={s.label}>Full name</Text>
+                <TextInput
+                  style={s.input}
+                  value={regName}
+                  onChangeText={setRegName}
+                  placeholder="As printed on your licence"
+                  placeholderTextColor={t.color.textMuted}
+                />
+                <Text style={[s.label, { marginTop: t.space[4] }]}>Email</Text>
+                <TextInput
+                  style={s.input}
+                  value={regEmail}
+                  onChangeText={setRegEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="you@example.com"
+                  placeholderTextColor={t.color.textMuted}
+                />
+                <Text style={[s.label, { marginTop: t.space[4] }]}>Mobile number</Text>
+                <TextInput
+                  style={s.input}
+                  value={regPhone}
+                  onChangeText={v => setRegPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  placeholder="98765 43210"
+                  placeholderTextColor={t.color.textMuted}
+                />
+                <Text style={[s.label, { marginTop: t.space[4] }]}>Password</Text>
+                <TextInput
+                  style={s.input}
+                  value={regPassword}
+                  onChangeText={setRegPassword}
+                  secureTextEntry
+                  placeholder="At least 8 characters"
+                  placeholderTextColor={t.color.textMuted}
+                />
+                <Text style={[s.label, { marginTop: t.space[4] }]}>Driving licence number</Text>
+                <TextInput
+                  style={s.input}
+                  value={regLicence}
+                  onChangeText={setRegLicence}
+                  autoCapitalize="characters"
+                  placeholder="KA0320240001"
+                  placeholderTextColor={t.color.textMuted}
+                />
+                <Text style={[s.label, { marginTop: t.space[4] }]}>Vehicle</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {(['BIKE', 'EV', 'CYCLE'] as const).map(v => (
+                    <TouchableOpacity
+                      key={v}
+                      onPress={() => setRegVehicle(v)}
+                      style={[
+                        s.input,
+                        {
+                          flex: 1,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderColor: regVehicle === v ? t.color.go : undefined
+                        }
+                      ]}
+                    >
+                      <Text style={{ color: regVehicle === v ? t.color.go : t.color.textMuted, fontWeight: '700' }}>
+                        {v}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {regError ? <Text style={s.error}>{regError}</Text> : null}
+
+                <Button
+                  label="Register"
+                  size="lg"
+                  loading={regBusy}
+                  onPress={submitRegistration}
+                  style={{ marginTop: t.space[5] }}
+                />
+                <TouchableOpacity
+                  style={s.recoveryLink}
+                  onPress={() => setMode('signin')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={s.recoveryLinkText}>Back to sign in</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
             <Text style={s.label}>Registered email</Text>
             <TextInput
               style={s.input}
@@ -126,6 +272,22 @@ export const LoginScreen: React.FC<{
                 {mode === 'signin' ? 'Trouble signing in?' : 'Back to sign in'}
               </Text>
             </TouchableOpacity>
+
+              </>
+            )}
+
+            {mode === 'signin' ? (
+              <TouchableOpacity
+                style={s.recoveryLink}
+                onPress={() => {
+                  setRegError(null);
+                  setMode('register');
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={s.recoveryLinkText}>New rider? Register</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               style={s.serverToggle}

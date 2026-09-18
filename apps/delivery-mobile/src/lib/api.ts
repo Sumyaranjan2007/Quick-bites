@@ -222,6 +222,45 @@ export const api = {
     return request<{ alerts: SosAlert[] }>(ctx, '/riders/sos');
   },
 
+  /**
+   * Registers a rider, pending approval.
+   *
+   * A rider could not previously get onto the platform at all: the only rider
+   * account was seeded, sharing one password held in a single deployment's
+   * environment. Registration creates the login and the delivery-partner record
+   * together, both pending — the rider can sign in and upload documents, but
+   * cannot start a shift until an administrator approves them.
+   */
+  register(
+    apiUrl: string,
+    input: {
+      fullName: string;
+      email: string;
+      phone: string;
+      password: string;
+      vehicleType: 'BIKE' | 'EV' | 'CYCLE';
+      licenseNumber: string;
+      vehicleRegistrationNumber?: string;
+    }
+  ) {
+    return request<{ token: string; user: any; rider: any; awaitingApproval: boolean }>(
+      { apiUrl },
+      '/auth/register/rider',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: input.fullName.trim(),
+          email: input.email.trim().toLowerCase(),
+          phone: input.phone.trim(),
+          password: input.password,
+          vehicleType: input.vehicleType,
+          licenseNumber: input.licenseNumber.trim(),
+          vehicleRegistrationNumber: input.vehicleRegistrationNumber?.trim() || undefined
+        })
+      }
+    );
+  },
+
   /* ---------------------------- Password ------------------------------- *
    * Emailed reset codes are gone: no mail provider was ever configured, so
    * that screen told riders to check an inbox for a message that was never

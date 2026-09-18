@@ -11,6 +11,7 @@ import {
 } from './db/postgresStore.ts';
 import { seedDatabase, SEED_VERSION } from './db/seed.ts';
 import { adminRoleRepository } from './db/repositories/adminRoleRepository.ts';
+import { ensureBootstrapAdmin } from './db/bootstrapAdmin.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -37,7 +38,15 @@ const hydrated = usingDatabase ? await loadStoreFromDatabase() : loadStoreFromFi
 // trusted: it is hydrated first, so the version stamp can be read, and then
 // thrown away. Without this, changing the seed had no effect on any environment
 // that already had data - the deployment kept serving the old records.
-if (!hydrated) {
+// Demo restaurants, menus and accounts are development and test furniture.
+// A production platform starts empty and is filled by real people: a restaurant
+// registers and is approved, a rider registers and is approved, a customer
+// verifies their phone. A demonstration restaurant appearing to a real
+// customer - who could then order from a kitchen that does not exist - is the
+// failure this guard prevents.
+if (!config.SEED_DEMO_DATA) {
+  console.log('[INFO] SEED_DEMO_DATA is off. Starting with whatever real data exists.');
+} else if (!hydrated) {
   console.log('[INFO] No existing data found. Initializing and seeding database...');
   await seedDatabase();
   await flushStore();
@@ -60,6 +69,14 @@ if (!hydrated) {
 // it, and a store hydrated from before roles existed needs them created before
 // the first administrator signs in.
 await adminRoleRepository.ensureSystemRoles();
+
+// Exactly one administrator, from the deployment's own environment. Every
+// other account arrives by self-registration - a customer verifies a phone,
+// a restaurant or rider signs up and waits - and somebody has to approve
+// those. Re-applied on every boot, which is the documented way back in for a
+// locked-out administrator: change ADMIN_PASSWORD on the host and redeploy.
+await ensureBootstrapAdmin();
+
 await flushStore();
 
 const app = createApp();

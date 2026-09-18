@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
+import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
+import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { config } from '../config/env.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -243,6 +245,213 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
     next(err);
   }
 });
+
+/* ========================================================================== *
+ *                  STAFF REGISTRATION (PARTNERS AND RIDERS)                  *
+ * ========================================================================== *
+ *
+ * A restaurant or a rider signs themselves up and then waits to be approved.
+ *
+ * Until this existed there was no way onto the platform except a seeded account
+ * with a shared password, which is why staff apps could not be handed to testers
+ * at all: the password lived in one deployment's environment and nowhere else.
+ *
+ * Registration deliberately does NOT make anyone tradeable. It creates the
+ * account and its pending business record, and lets them sign in to upload
+ * documents and watch their own application. An administrator approving the KYC
+ * is what turns a pending restaurant into one customers can see, and a pending
+ * rider into one who can start a shift. Those gates are enforced in the service
+ * and repository layers, not on a screen — a restaurant that has not been
+ * approved is invisible to discovery because `findNearby` filters on ACTIVE.
+ *
+ * The role is set here, never read from the request. Self-registration that
+ * copies `role` out of the body is how a sign-up form becomes an administrator
+ * factory; `/auth/register` learned that lesson already.
+ */
+
+const PartnerRegistrationSchema = z.object({
+  fullName: z.string().trim().min(2, 'Enter your name.').max(120),
+  email: z.string().email('A valid email address is required.').max(254),
+  phone: phoneSchema,
+  password: z.string().min(8, 'Choose a password of at least 8 characters.').max(128),
+  restaurantName: z.string().trim().min(2, 'Enter the restaurant name.').max(120),
+  addressLine: z.string().trim().min(5, 'Enter the kitchen address.').max(250),
+  city: z.string().trim().min(2).max(80),
+  pincode: z.string().trim().regex(/^\d{6}$/, 'Enter a 6-digit pincode.'),
+  fssaiLicenseNumber: z.string().trim().min(6, 'Enter your FSSAI licence number.').max(40),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  isPureVeg: z.boolean().optional()
+});
+
+const RiderRegistrationSchema = z.object({
+  fullName: z.string().trim().min(2, 'Enter your name.').max(120),
+  email: z.string().email('A valid email address is required.').max(254),
+  phone: phoneSchema,
+  password: z.string().min(8, 'Choose a password of at least 8 characters.').max(128),
+  vehicleType: z.enum(['BIKE', 'EV', 'CYCLE']),
+  licenseNumber: z.string().trim().min(4, 'Enter your driving licence number.').max(40),
+  vehicleRegistrationNumber: z.string().trim().min(4).max(20).optional()
+});
+
+/** Both registrations refuse an address or number already in use. */
+async function assertIdentityFree(email: string, phone: string): Promise<void> {
+  if (await userRepository.findByEmail(email)) {
+    throw new AppError('An account with this email already exists.', 409, 'EMAIL_IN_USE');
+  }
+  if (await userRepository.findByPhone(phone)) {
+    throw new AppError('An account with this mobile number already exists.', 409, 'PHONE_IN_USE');
+  }
+}
+
+/**
+ * POST /api/auth/register/partner
+ *
+ * Creates the owner's login and their restaurant, both pending approval.
+ */
+authRouter.post(
+  '/register/partner',
+  authRateLimiterMiddleware,
+  validate({ body: PartnerRegistrationSchema }),
+  async (req, res, next) => {
+    try {
+      const email = String(req.body.email).trim().toLowerCase();
+      const { phone, fullName, password, restaurantName } = req.body;
+      await assertIdentityFree(email, phone);
+
+      const user = await userRepository.create({
+        id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        email,
+        passwordHash: await bcrypt.hash(password, 10),
+        fullName,
+        phone,
+        role: 'restaurant_owner' as UserRole,
+        isGold: false,
+        preferredLanguage: 'en'
+      });
+
+      const slug = restaurantName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 60);
+
+      const restaurant = await restaurantRepository.create({
+        id: `rst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        ownerId: user.id,
+        name: restaurantName,
+        slug: `${slug}-${Math.random().toString(36).slice(2, 5)}`,
+        phone,
+        addressLine: req.body.addressLine,
+        city: req.body.city,
+        pincode: req.body.pincode,
+        // Bangalore's centre until the owner sets a real pin. A kitchen with no
+        // coordinates would be invisible to proximity search even after
+        // approval, which looks like an approval that silently did nothing.
+        coordinates: {
+          latitude: req.body.latitude ?? 12.9716,
+          longitude: req.body.longitude ?? 77.5946
+        },
+        fssaiLicenseNumber: req.body.fssaiLicenseNumber,
+        isPureVeg: Boolean(req.body.isPureVeg),
+        packagingFee: 0,
+        status: 'PENDING_APPROVAL',
+        kycStatus: 'PENDING_APPROVAL',
+        ratingAverage: 0,
+        ratingCount: 0,
+        cuisineTags: [],
+        isOpen: false
+      } as any);
+
+      console.log(JSON.stringify({
+        level: 'INFO',
+        timestamp: new Date().toISOString(),
+        event: 'PARTNER_REGISTERED',
+        userId: user.id,
+        restaurantId: restaurant.id
+      }));
+
+      res.status(201).json({
+        success: true,
+        data: {
+          user: { id: user.id, email: user.email, fullName: user.fullName, phone: user.phone, role: user.role },
+          restaurant: { id: restaurant.id, name: restaurant.name, status: restaurant.status },
+          token: generateToken(user),
+          awaitingApproval: true
+        },
+        message: 'Your restaurant has been registered. Upload your documents — an administrator reviews them before you can take orders.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/auth/register/rider
+ *
+ * Creates the rider's login and their delivery-partner record, pending approval.
+ */
+authRouter.post(
+  '/register/rider',
+  authRateLimiterMiddleware,
+  validate({ body: RiderRegistrationSchema }),
+  async (req, res, next) => {
+    try {
+      const email = String(req.body.email).trim().toLowerCase();
+      const { phone, fullName, password, vehicleType, licenseNumber } = req.body;
+      await assertIdentityFree(email, phone);
+
+      const user = await userRepository.create({
+        id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        email,
+        passwordHash: await bcrypt.hash(password, 10),
+        fullName,
+        phone,
+        role: 'rider' as UserRole,
+        isGold: false,
+        preferredLanguage: 'en'
+      });
+
+      const rider = await riderRepository.create({
+        userId: user.id,
+        fullName,
+        phone,
+        vehicleType,
+        licenseNumber,
+        vehicleRegistrationNumber: req.body.vehicleRegistrationNumber,
+        kycStatus: 'PENDING_APPROVAL',
+        isOnline: false,
+        codCashInHand: 0,
+        walletBalance: 0,
+        ratingAverage: 0,
+        ratingCount: 0,
+        tripsToday: 0
+      } as any);
+
+      console.log(JSON.stringify({
+        level: 'INFO',
+        timestamp: new Date().toISOString(),
+        event: 'RIDER_REGISTERED',
+        userId: user.id,
+        riderId: rider.id
+      }));
+
+      res.status(201).json({
+        success: true,
+        data: {
+          user: { id: user.id, email: user.email, fullName: user.fullName, phone: user.phone, role: user.role },
+          rider: { id: rider.id, driverCode: rider.driverCode, kycStatus: rider.kycStatus },
+          token: generateToken(user),
+          awaitingApproval: true
+        },
+        message: 'You are registered. Upload your documents — an administrator reviews them before you can go on shift.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /* ========================================================================== *
  *                     PHONE SIGN-IN (CUSTOMERS)                              *

@@ -1396,6 +1396,61 @@ The dead API helpers (`forgotPassword`, `resetPassword`, `requestPasswordReset`)
 
 ---
 
+## [2026-09-18 02:40] -- Claude Opus 5 -- Session 23 Phases 3 & 4 (onboarding, and an empty production platform)
+
+**Feature/Issue:** Nobody could get onto the platform. The only staff accounts were seeded, sharing one password held in a single deployment's environment — which is exactly why the partner, rider and admin apps could not be handed to a tester. This retires `SEED_DEFAULT_PASSWORD` permanently.
+
+**Status:** Completed
+**Chunks Modified:** 02, 03, 07
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phases 3 and 4
+
+### Registration that produces the right kind of account
+
+`POST /auth/register/partner` creates the owner's login **and** their restaurant together; `POST /auth/register/rider` creates the login and the delivery-partner record. Both land in `PENDING_APPROVAL`, and both return a token immediately so the applicant can sign in and upload documents while they wait.
+
+The partner app had a Create Account form that posted to `/auth/register` — which hardcodes the customer role. **A restaurant owner filling in that form received a customer account and could not sign into their own app.** It now collects what a restaurant actually needs (name customers see, kitchen address, city, pincode, FSSAI licence) and registers a restaurant.
+
+The rider app had no registration at all. It has one now, including vehicle type and licence number.
+
+The role is assigned by the server and never read from the request body on either route. A check asserts that: posting `role: 'super_admin'` to the rider registration yields a rider.
+
+### The gates were already there; nothing needed loosening
+
+A pending restaurant is invisible to discovery because `findNearby` filters on `ACTIVE`, an order placed directly against one is refused by `orderService`, and a rider cannot go on shift unless `kycStatus === 'ACTIVE'`. Approving a document flips both. So the work was creating records in the right state — the enforcement already existed and is now covered by tests that fail if it stops.
+
+### One administrator, from the environment
+
+`ensureBootstrapAdmin` runs on every boot after the system roles exist. Production **refuses to start** without `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and refuses a password under ten characters: coming up with no way in is not a safer failure than refusing to boot, it is the same failure discovered later and usually by a customer. There is no built-in default, because a default in a public repository publishes the credential to the platform's administration.
+
+It re-applies the password on every boot, which is the documented way back in for a locked-out administrator: change the variable, redeploy, sign in. The account is given `rol_super_admin` at the same time — without it the account authenticates and then fails every permission check, which reads as a broken console rather than a missing grant.
+
+### Production starts empty
+
+Seeding is gated on `SEED_DEMO_DATA`, which defaults to **false in production** and true elsewhere. A demonstration restaurant appearing to a real customer — who could then order from a kitchen that does not exist — is the failure this prevents. Tests and local development keep their fixtures.
+
+**Frontend changes:** Partner registration form extended to register a restaurant; rider registration screen added; both confirmation screens describe approval rather than promising access.
+**Backend/API/database changes:** `/auth/register/partner`, `/auth/register/rider`, `db/bootstrapAdmin.ts`, seeding gated in `server.ts`.
+**Build/APK changes:** None yet.
+
+**Files/modules affected:**
+- Created: `apps/backend-api/src/db/bootstrapAdmin.ts`, `apps/backend-api/src/test/onboarding.test.ts`
+- Modified: `routes/authRouter.ts`, `server.ts`, `apps/restaurant-mobile/src/lib/partnerApi.ts`, `apps/restaurant-mobile/src/screens/SignInScreen.tsx`, `apps/delivery-mobile/src/lib/api.ts`, `apps/delivery-mobile/src/screens/LoginScreen.tsx`, `apps/backend-api/package.json`
+
+**Testing performed:** `npm run verify` — secrets clean, diagnostics 34/34, typecheck 3/3, **480 backend checks across 13 suites, 0 failures** (458 before, plus 22 onboarding checks). All four apps typecheck individually. Result: all pass.
+
+**Known issues / pending work:**
+- Registration has not been driven by hand on a device; that happens in Phase 10.
+- Phases 5–12 remain: payments, feature pass, hardcoded sweep, languages, legal, APK build, documentation, final verification.
+
+**Decisions / dependencies / session conflicts:**
+- **`SEED_DEFAULT_PASSWORD` is obsolete.** Delete it from Railway. `ADMIN_EMAIL` and `ADMIN_PASSWORD` replace it, and production will not boot without them.
+- With `SEED_DEMO_DATA=false`, the hosted platform has no restaurants until one registers and is approved. That is intended, not a fault.
+- Never let a registration route read `role` from the request body.
+
+**NEXT AI SHOULD:** Phase 7 (one config surface per app, removing the four hardcoded Railway URLs) and then Phase 5 (real Razorpay), before the Phase 10 build.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

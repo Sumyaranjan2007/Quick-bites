@@ -82,31 +82,44 @@ export function login(email: string, password: string) {
 }
 
 /**
- * Creates the owner's login.
+ * Registers the restaurant and its owner, both pending approval.
  *
- * Registration deliberately only ever produces a customer account on the server —
- * a partner account is granted after the restaurant's documents are verified, so
- * a self-registered owner cannot give themselves partner access. The app explains
- * that rather than pretending the account is ready.
+ * This used to POST to /auth/register, which hardcodes the customer role — so a
+ * restaurant owner filling in this form received a CUSTOMER account and could
+ * not sign into their own app. The server now has a partner registration that
+ * creates the login and the restaurant together, in a pending state that an
+ * administrator approves before the kitchen can take a single order.
  */
 export function createAccount(input: {
   fullName: string;
   email: string;
   phone: string;
   password: string;
+  restaurantName: string;
+  addressLine: string;
+  city: string;
+  pincode: string;
+  fssaiLicenseNumber: string;
+  isPureVeg?: boolean;
 }) {
-  return request<{ token: string; user: any }>(
-    '/auth/register',
+  return request<{ token: string; user: any; restaurant: any; awaitingApproval: boolean }>(
+    '/auth/register/partner',
     {
       method: 'POST',
       body: JSON.stringify({
         fullName: input.fullName.trim(),
         email: input.email.trim().toLowerCase(),
         phone: input.phone.trim(),
-        password: input.password
+        password: input.password,
+        restaurantName: input.restaurantName.trim(),
+        addressLine: input.addressLine.trim(),
+        city: input.city.trim(),
+        pincode: input.pincode.trim(),
+        fssaiLicenseNumber: input.fssaiLicenseNumber.trim(),
+        isPureVeg: Boolean(input.isPureVeg)
       })
     },
-    'We could not create your account.'
+    'We could not register your restaurant.'
   );
 }
 
