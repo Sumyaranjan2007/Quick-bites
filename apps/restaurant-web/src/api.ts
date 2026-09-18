@@ -1,7 +1,12 @@
 import { apiFetch } from './lib/apiFetch';
 import { authHeaders, clearSession, getSession, setSession, type PartnerSession } from './lib/session';
 
-export { DEFAULT_API_URL as API_BASE } from './config';
+// Imported AND re-exported. A bare `export ... from` forwards the name to
+// importers without binding it in this module, so every `${API_BASE}` below was a
+// reference to nothing — the portal threw before it could reach the API at all.
+import { DEFAULT_API_URL as API_BASE } from './config';
+
+export { API_BASE };
 
 export class SessionExpiredError extends Error {
   constructor() {

@@ -18,6 +18,12 @@ searchRouter.get('/', async (req: Request, res: Response, next: NextFunction) =>
     const type = (req.query.type as any) || 'all';
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+    const maxDeliveryMinutes = req.query.maxDeliveryMinutes
+      ? parseFloat(req.query.maxDeliveryMinutes as string)
+      : undefined;
+    const minCostForTwo = req.query.minCostForTwo ? parseFloat(req.query.minCostForTwo as string) : undefined;
+    const maxCostForTwo = req.query.maxCostForTwo ? parseFloat(req.query.maxCostForTwo as string) : undefined;
+    const sort = typeof req.query.sort === 'string' ? (req.query.sort as any) : undefined;
 
     const result = await searchService.searchCatalog({
       query: q,
@@ -28,7 +34,13 @@ searchRouter.get('/', async (req: Request, res: Response, next: NextFunction) =>
       city,
       type,
       limit,
-      offset
+      offset,
+      // NaN would survive every comparison as false and silently empty the
+      // results, so an unparseable number is dropped rather than passed on.
+      maxDeliveryMinutes: Number.isFinite(maxDeliveryMinutes!) ? maxDeliveryMinutes : undefined,
+      minCostForTwo: Number.isFinite(minCostForTwo!) ? minCostForTwo : undefined,
+      maxCostForTwo: Number.isFinite(maxCostForTwo!) ? maxCostForTwo : undefined,
+      sort
     });
 
     res.json({

@@ -91,6 +91,20 @@ class FcmNotificationDispatcher {
     });
   }
 
+  async notifyOrderCancelled(userId: string, orderId: string, orderNumber: string, reason: string) {
+    return this.sendPushNotification({
+      userId,
+      orderId,
+      orderNumber,
+      title: 'Order Cancelled',
+      // The reason is included rather than left to the app to look up. A
+      // cancellation notice that does not say why is the one that produces a
+      // support call.
+      body: `Your order #${orderNumber} was cancelled. ${reason}`,
+      data: { type: 'CANCELLED', orderId, orderNumber, reason }
+    });
+  }
+
   getSentNotifications(): PushNotificationPayload[] {
     return [...this.dispatchHistory];
   }

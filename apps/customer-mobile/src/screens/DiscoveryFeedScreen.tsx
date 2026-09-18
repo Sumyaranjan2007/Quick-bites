@@ -49,11 +49,38 @@ const CATEGORIES = [
   { label: 'Desserts', img: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=200&auto=format&fit=crop&q=70' }
 ];
 
-const FILTERS = ['All', 'Offers', 'Pure Veg', 'Fast Delivery', 'Top Rated'];
+/**
+ * The filters the feed offers, and what each one asks the server for.
+ *
+ * They are sent to the API rather than applied to the list after it arrives.
+ * Filtering on the phone means downloading every kitchen in the city over
+ * mobile data and throwing most of them away, and it means this screen and the
+ * search screen quietly disagreeing about what "fast" means.
+ *
+ * They are also independent rather than mutually exclusive. The old row was a
+ * single choice, so asking for somewhere veg AND quick was impossible — picking
+ * the second silently dropped the first.
+ */
+const FILTERS: Array<{ key: string; label: string; query: Record<string, string> }> = [
+  { key: 'pureVeg', label: 'Pure Veg', query: { isPureVeg: 'true' } },
+  { key: 'fastDelivery', label: 'Under 30 min', query: { maxDeliveryMinutes: '30' } },
+  { key: 'topRated', label: 'Rated 4.0+', query: { minRating: '4' } },
+  { key: 'openNow', label: 'Open now', query: { openNow: 'true' } },
+  { key: 'budget', label: 'Under ₹400 for two', query: { maxCostForTwo: '400' } }
+];
+
+const SORTS: Array<{ key: string; label: string }> = [
+  { key: 'relevance', label: 'Relevance' },
+  { key: 'rating', label: 'Rating' },
+  { key: 'deliveryTime', label: 'Delivery time' },
+  { key: 'costLowToHigh', label: 'Cost: low to high' },
+  { key: 'costHighToLow', label: 'Cost: high to low' }
+];
 
 export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUrl, token }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState('relevance');
   const [restaurants, setRestaurants] = useState<RestaurantItem[]>([]);
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
@@ -80,10 +107,27 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
     }
   };
 
+  /**
+   * Turns the chosen chips into one query string.
+   *
+   * Built from the FILTERS table rather than written out again here, so adding
+   * a chip is one line in one place and cannot drift from what it sends.
+   */
+  const buildQuery = () => {
+    const params = new URLSearchParams();
+    for (const filter of FILTERS) {
+      if (!activeFilters.has(filter.key)) continue;
+      for (const [key, value] of Object.entries(filter.query)) params.set(key, value);
+    }
+    if (sort !== 'relevance') params.set('sort', sort);
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  };
+
   const load = async () => {
     if (!apiUrl) return;
     try {
-      const res = await apiFetch(`${apiUrl}/restaurants`);
+      const res = await apiFetch(`${apiUrl}/restaurants${buildQuery()}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.data?.restaurants)) {
         setRestaurants(
@@ -117,6 +161,23 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
     loadLocality();
     loadFavourites();
   }, [apiUrl, token]);
+
+  // Re-fetch when a filter or the sort changes. Deliberately not merged with the
+  // effect above: that one also reloads favourites and the delivery locality,
+  // neither of which has anything to do with a filter chip.
+  useEffect(() => {
+    if (state !== 'loading') setState('loading');
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Array.from(activeFilters).sort().join(','), sort]);
+
+  const toggleFilter = (key: string) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -183,12 +244,12 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
     }
   };
 
+  // Only the typed query is matched here. Every other filter was applied by the
+  // server; searching as you type locally keeps the results instant instead of
+  // firing a request per keystroke.
   const visible = restaurants.filter(r => {
     const q = searchQuery.trim().toLowerCase();
     if (q && !r.name.toLowerCase().includes(q) && !r.cuisine.toLowerCase().includes(q)) return false;
-    if (activeFilter === 'Pure Veg' && !r.isPureVeg) return false;
-    if (activeFilter === 'Fast Delivery' && r.deliveryTimeMins > 25) return false;
-    if (activeFilter === 'Top Rated' && r.rating < 4.5) return false;
     return true;
   });
 
@@ -244,12 +305,12 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
           </TouchableOpacity>
         </View>
         <TouchableOpacity
-          style={[styles.vegToggle, activeFilter === 'Pure Veg' && styles.vegToggleOn]}
-          onPress={() => setActiveFilter(activeFilter === 'Pure Veg' ? 'All' : 'Pure Veg')}
+          style={[styles.vegToggle, activeFilters.has('pureVeg') && styles.vegToggleOn]}
+          onPress={() => toggleFilter('pureVeg')}
           activeOpacity={0.85}
         >
-          <Text style={[styles.vegToggleText, activeFilter === 'Pure Veg' && { color: '#FFFFFF' }]}>VEG</Text>
-          <View style={[styles.vegDot, activeFilter === 'Pure Veg' && { backgroundColor: '#FFFFFF' }]} />
+          <Text style={[styles.vegToggleText, activeFilters.has('pureVeg') && { color: '#FFFFFF' }]}>VEG</Text>
+          <View style={[styles.vegDot, activeFilters.has('pureVeg') && { backgroundColor: '#FFFFFF' }]} />
         </TouchableOpacity>
       </View>
 
@@ -288,10 +349,21 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
         />
       </View>
 
-      {/* Filters */}
+      {/* Filters — independent, and applied by the server. */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {FILTERS.map(f => (
-          <Chip key={f} label={f} active={activeFilter === f} onPress={() => setActiveFilter(f)} />
+          <Chip
+            key={f.key}
+            label={f.label}
+            active={activeFilters.has(f.key)}
+            onPress={() => toggleFilter(f.key)}
+          />
+        ))}
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {SORTS.map(s => (
+          <Chip key={s.key} label={s.label} active={sort === s.key} onPress={() => setSort(s.key)} />
         ))}
       </ScrollView>
 
@@ -325,7 +397,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
           action="Clear filters"
           onAction={() => {
             setSearchQuery('');
-            setActiveFilter('All');
+            setActiveFilters(new Set());
+            setSort('relevance');
           }}
         />
       )}

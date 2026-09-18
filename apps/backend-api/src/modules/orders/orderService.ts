@@ -12,8 +12,12 @@ import { couponRepository } from '../../db/repositories/couponRepository.ts';
 import { razorpayAdapter } from '../payments/razorpayAdapter.ts';
 import { emitOrderCreated, emitOrderStatusUpdate, emitOrderAvailableForPickup } from '../../sockets/socketServer.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
+import { refundRepository } from '../../db/repositories/refundRepository.ts';
+import { walletRepository } from '../../db/repositories/walletRepository.ts';
+import { config } from '../../config/env.ts';
+import { findCancellationReason, actorForRole } from './cancellationReasons.ts';
 import { AppError } from '../../utils/AppError.ts';
-import type { Order, OrderStatus, PaymentMethod } from '@quick-bites/shared-types';
+import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 
 export interface CreateOrderInput {
   customerId: string;
@@ -28,6 +32,8 @@ export interface CreateOrderInput {
   couponCode?: string;
   idempotencyKey: string;
   distanceKm?: number;
+  /** Voluntary, paid to the rider in full. Clamped server-side; see clampTip. */
+  tipAmount?: number;
 }
 
 export interface QuoteOrderInput {
@@ -41,6 +47,22 @@ export interface QuoteOrderInput {
   }>;
   couponCode?: string;
   distanceKm?: number;
+  tipAmount?: number;
+}
+
+/**
+ * The tip the server will honour, whatever the client sent.
+ *
+ * The tip is the only line on the bill the customer names outright, so it is the
+ * only one where the client's number reaches the total. Everything else is
+ * looked up — the dish price from the menu, the delivery fee from the distance —
+ * and an unvalidated tip would be a way to push any amount through checkout,
+ * whether by a hostile client or by a fat-fingered `50000`.
+ */
+function clampTip(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(Math.round(n * 100) / 100, config.MAX_TIP_AMOUNT);
 }
 
 export const orderService = {
@@ -167,12 +189,16 @@ export const orderService = {
       packagingFee: Number(restaurant.packagingFee),
       distanceKm: tripDistanceKm,
       isGold: customer.isGold,
-      coupon: validatedCoupon
+      coupon: validatedCoupon,
+      tipAmount: clampTip(input.tipAmount)
     });
 
     return {
       bill,
       items: pricedItems,
+      /** So the cart can show the tip it will actually be charged, not the one it asked for. */
+      tipAmount: bill.tipAmount,
+      maxTipAmount: config.MAX_TIP_AMOUNT,
       distanceKm: tripDistanceKm,
       isGold: Boolean(customer.isGold),
       appliedCouponCode: appliedCode,
@@ -335,7 +361,8 @@ export const orderService = {
       packagingFee: Number(restaurant.packagingFee),
       distanceKm: tripDistanceKm,
       isGold: customer.isGold,
-      coupon: validatedCoupon
+      coupon: validatedCoupon,
+      tipAmount: clampTip(input.tipAmount)
     });
 
     // 7. Generate Delivery OTP (Rule 40)
@@ -415,6 +442,279 @@ export const orderService = {
       paymentParams,
       isDuplicate: false
     };
+  },
+
+  /**
+   * Rebuilds a past order's basket against today's menu.
+   *
+   * It deliberately does not place the order. A repeat order is placed minutes
+   * or months later, and in between a dish can have been delisted, gone out of
+   * stock, changed price, or the whole kitchen can have closed. Re-submitting
+   * the old lines blind would either fail at checkout with an unhelpful error or
+   * — worse — succeed at a price the customer did not agree to.
+   *
+   * So this answers the only question worth asking: of what you had last time,
+   * what can you have now, and at what price. The client fills the cart from
+   * `items` and shows `unavailableItems` and `removedItems` as the reason the
+   * basket is smaller than the one being repeated.
+   */
+  async buildReorderBasket(customerId: string, orderId: string) {
+    const previous = await orderRepository.findById(orderId);
+    if (!previous) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+    if (previous.customerId !== customerId) {
+      throw new AppError('You can only reorder your own orders.', 403, 'NOT_ORDER_OWNER');
+    }
+
+    const restaurant = await restaurantRepository.findById(previous.restaurantId);
+    const menu = await menuRepository.findByRestaurantId(previous.restaurantId);
+
+    const restaurantAvailable =
+      Boolean(restaurant) && restaurant!.status === 'ACTIVE' && restaurant!.isOpen !== false;
+
+    // Reported rather than thrown: a customer looking at their history should be
+    // told the kitchen is shut, not handed an error. The basket is still built,
+    // so the screen can show what the repeat would contain and say why it cannot
+    // be ordered yet.
+    let restaurantMessage: string | undefined;
+    if (!restaurant) {
+      restaurantMessage = 'This restaurant is no longer on Quick Bites.';
+    } else if (restaurant.status !== 'ACTIVE') {
+      restaurantMessage = `${restaurant.name} is not currently accepting orders.`;
+    } else if (restaurant.isOpen === false) {
+      restaurantMessage = `${restaurant.name} is closed right now.`;
+    }
+
+    const liveDishes = new Map<string, any>();
+    for (const cat of menu?.categories || []) {
+      for (const dish of cat.items) liveDishes.set(dish.id, dish);
+    }
+
+    const items: Array<{
+      dishId: string;
+      name: string;
+      quantity: number;
+      unitPrice: number;
+      previousUnitPrice: number;
+      priceChanged: boolean;
+      isAvailable: boolean;
+      isVeg: boolean;
+      imageUrl?: string;
+      selectedOptions: Array<{ groupId: string; optionId: string }>;
+    }> = [];
+    const removedItems: string[] = [];
+    const unavailableItems: string[] = [];
+
+    for (const line of previous.items || []) {
+      const dish = liveDishes.get(line.dishId);
+      if (!dish) {
+        removedItems.push(line.name);
+        continue;
+      }
+      if (!dish.isAvailable) {
+        unavailableItems.push(dish.name);
+      }
+
+      // Options are re-checked against the live dish for the same reason the
+      // dish is: an option group can have been edited, and carrying a stale
+      // option id forward would silently drop the surcharge it used to add.
+      const selectedOptions: Array<{ groupId: string; optionId: string }> = [];
+      for (const sel of (line as any).selectedOptions || []) {
+        const group = (dish.optionGroups || []).find((g: any) => g.id === sel.groupId);
+        const option = group?.options.find((o: any) => o.id === sel.optionId);
+        if (group && option) {
+          selectedOptions.push({ groupId: group.id, optionId: option.id });
+        }
+      }
+
+      items.push({
+        dishId: dish.id,
+        name: dish.name,
+        quantity: line.quantity,
+        unitPrice: dish.price,
+        previousUnitPrice: line.unitPrice,
+        priceChanged: Math.abs(Number(dish.price) - Number(line.unitPrice)) >= 0.01,
+        isAvailable: Boolean(dish.isAvailable),
+        isVeg: Boolean(dish.isVeg),
+        imageUrl: dish.imageUrl,
+        selectedOptions
+      });
+    }
+
+    return {
+      sourceOrderId: previous.id,
+      sourceOrderNumber: previous.orderNumber,
+      restaurantId: previous.restaurantId,
+      restaurantName: restaurant?.name ?? previous.restaurantName,
+      restaurantAvailable,
+      restaurantMessage,
+      items,
+      removedItems,
+      unavailableItems,
+      /** True when every line came back at the same price and is in stock. */
+      isExactRepeat:
+        removedItems.length === 0 &&
+        unavailableItems.length === 0 &&
+        items.every(i => !i.priceChanged)
+    };
+  },
+
+  /**
+   * Cancels an order, records why in a form that can be counted, and returns
+   * the money in the same step when money was taken.
+   *
+   * The refund is not a separate follow-up action. A cancellation that leaves a
+   * paid customer to open a support ticket is one of the fastest ways a food
+   * platform loses someone, so every path that cancels a paid order goes through
+   * here and none of them can forget.
+   *
+   * A refund case is opened even when the gateway call succeeds immediately.
+   * The case is the record that the money was owed and what happened to it, with
+   * the gateway's own refund id inside it. When the gateway fails, the case
+   * survives as work in the operations queue rather than the refund evaporating
+   * with the failed HTTP call.
+   */
+  async cancelOrder(
+    orderId: string,
+    actor: { userId: string; name: string; role: UserRole },
+    reasonCode: string,
+    note?: string
+  ) {
+    const order = await orderRepository.findById(orderId);
+    if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+
+    validateTransition(order.status, 'CANCELLED');
+
+    const reason = findCancellationReason(reasonCode);
+    if (!reason) {
+      throw new AppError('That is not a cancellation reason we recognise.', 400, 'UNKNOWN_CANCELLATION_REASON');
+    }
+    const audience = actorForRole(actor.role);
+    if (!reason.actors.includes(audience)) {
+      throw new AppError('That cancellation reason is not available to you.', 403, 'CANCELLATION_REASON_FORBIDDEN');
+    }
+
+    // The note is kept only where the catalogue allows one. Accepting free text
+    // against a specific code would let the countable reason be contradicted by
+    // the sentence sitting beside it.
+    const trimmedNote = reason.allowsNote ? String(note || '').trim().slice(0, 300) : '';
+    const reasonText = trimmedNote ? `${reason.label.en} — ${trimmedNote}` : reason.label.en;
+
+    const wasPaid = order.paymentStatus === 'PAID';
+    const refundable = wasPaid ? Number(order.bill?.totalAmount) || 0 : 0;
+
+    const updated = await orderRepository.recordCancellation(orderId, {
+      reason: reasonText,
+      reasonCode: reason.code,
+      byUserId: actor.userId,
+      byRole: actor.role
+    });
+    if (!updated) {
+      throw new AppError('Failed to cancel this order.', 500, 'CANCELLATION_FAILED');
+    }
+
+    let refund: { requestId: string; amount: number; status: string; gatewayRefundId?: string } | null = null;
+
+    if (wasPaid && refundable > 0) {
+      const request = await refundRepository.create({
+        orderId: updated.id,
+        orderNumber: updated.orderNumber,
+        raisedByUserId: actor.userId,
+        raisedByRole: actor.role as any,
+        raisedByName: actor.name,
+        customerId: updated.customerId,
+        customerName: updated.customerName,
+        customerPhone: updated.customerPhone,
+        restaurantId: updated.restaurantId,
+        restaurantName: updated.restaurantName,
+        riderId: updated.riderId,
+        riderName: updated.riderName,
+        reasonCode: 'ORDER_CANCELLED',
+        description: `Order cancelled before delivery: ${reasonText}`,
+        attachments: [],
+        requestedAmount: refundable,
+        orderTotal: refundable
+      });
+
+      updated.refundRequestId = request.id;
+
+      // Money goes back the way it came. An online payment is refunded at the
+      // gateway so it reaches the card or the bank the customer actually used;
+      // a wallet payment is credited back to the wallet. Crediting a wallet for
+      // a card payment would be handing out store credit instead of a refund,
+      // which is not the same thing and is not what was agreed.
+      let gatewayRefundId: string | undefined;
+      let settled = false;
+
+      if (updated.razorpayPaymentId) {
+        const result = await razorpayAdapter
+          .refund(updated.razorpayPaymentId, Math.round(refundable * 100))
+          .catch(() => null);
+        if (result) {
+          gatewayRefundId = result.id;
+          settled = true;
+        }
+      } else if (updated.paymentMethod === 'WALLET') {
+        await walletRepository.credit(
+          updated.customerId,
+          refundable,
+          `Refund for cancelled order #${updated.orderNumber}`,
+          updated.id
+        );
+        settled = true;
+      }
+
+      if (settled) {
+        await refundRepository.transition(
+          request.id,
+          'REFUNDED',
+          { userId: 'system', name: 'Quick Bites' },
+          {
+            note: 'Refunded automatically on cancellation.',
+            approvedAmount: refundable,
+            refundTransactionId: gatewayRefundId
+          }
+        );
+        updated.paymentStatus = 'REFUNDED';
+        updated.status = 'REFUNDED';
+      } else {
+        // Deliberately left open rather than reported as refunded. The
+        // customer's money has not moved, and the queue is where that gets
+        // noticed; a green tick here would hide it.
+        await refundRepository.transition(
+          request.id,
+          'PROCESSING',
+          { userId: 'system', name: 'Quick Bites' },
+          { note: 'Automatic refund could not be completed. Needs manual settlement.' }
+        );
+      }
+
+      await orderRepository.save(updated);
+
+      refund = {
+        requestId: request.id,
+        amount: refundable,
+        status: settled ? 'REFUNDED' : 'PROCESSING',
+        gatewayRefundId
+      };
+    }
+
+    emitOrderStatusUpdate(updated.id, {
+      orderId: updated.id,
+      status: updated.status,
+      updatedAt: updated.updatedAt,
+      restaurantId: updated.restaurantId
+    });
+
+    await fcmDispatcher.notifyOrderCancelled(
+      updated.customerId,
+      updated.id,
+      updated.orderNumber,
+      reasonText
+    );
+
+    return { order: updated, refund };
   },
 
   async confirmPayment(orderId: string, razorpayPaymentId: string, signature: string) {

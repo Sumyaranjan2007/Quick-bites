@@ -1,7 +1,12 @@
 import { apiFetch } from './apiFetch';
 import { authHeaders, clearSession } from './session';
 
-export { DEFAULT_API_URL as API_BASE } from '../config';
+// Imported AND re-exported. A bare `export ... from` forwards the name to
+// importers without binding it in this module, so every `${API_BASE}` below was a
+// reference to nothing — the portal threw before it could reach the API at all.
+import { DEFAULT_API_URL as API_BASE } from '../config';
+
+export { API_BASE };
 
 /**
  * The console's single door to the admin API.

@@ -190,6 +190,11 @@ export interface OrderBillBreakdown {
   deliveryFee: number;
   platformFee: number;
   couponDiscount: number;
+  /**
+   * The rider's tip. Untaxed, uncommissioned, and paid to the rider in full on
+   * top of the trip payout. Absent on every order placed before tipping existed.
+   */
+  tipAmount?: number;
   totalAmount: number;
   walletAmountUsed?: number;
   restaurantNetPayout: number;
@@ -220,6 +225,12 @@ export interface Order {
   items: OrderItemPayload[];
   bill: OrderBillBreakdown;
   preparationMinutes?: number;
+  /**
+   * When the kitchen took the order on. The preparation time it promised is a
+   * duration, and a duration with no start cannot be counted down — without
+   * this the ETA would say the same twenty minutes twenty minutes later.
+   */
+  acceptedAt?: string;
   pickupCode?: string;
   deliveryOtp?: string;
   /**
@@ -259,6 +270,22 @@ export interface Order {
   pickedUpAt?: string;
   cancelledAt?: string;
   cancellationReason?: string;
+  /**
+   * Which reason was chosen, as a stable code rather than the sentence shown
+   * on screen. The sentence is translated and will be reworded; the code is
+   * what a report counts, so counting sentences would break the moment someone
+   * improved the wording or the customer switched language.
+   */
+  cancellationReasonCode?: string;
+  /** Who cancelled: the customer, the kitchen, or operations. */
+  cancelledByRole?: UserRole;
+  cancelledByUserId?: string;
+  /**
+   * The refund case opened automatically when a paid order was cancelled. A
+   * cancellation that took money and opened no case is the failure this makes
+   * visible.
+   */
+  refundRequestId?: string;
   /**
    * How far along the rider is between claiming and handing over. Held on the
    * order rather than in the app's memory, so a rider who reinstalls or reboots
@@ -660,6 +687,8 @@ export type RefundReasonCode =
   | 'NEVER_ARRIVED'
   | 'RIDER_ISSUE'
   | 'PAYMENT_ISSUE'
+  /** Raised automatically when a paid order is cancelled before it arrives. */
+  | 'ORDER_CANCELLED'
   | 'OTHER';
 
 /** One step in a refund case's history, kept so the whole file can be read back. */

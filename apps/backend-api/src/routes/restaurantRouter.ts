@@ -22,20 +22,47 @@ import { kycRepository } from '../db/repositories/kycRepository.ts';
 
 export const restaurantRouter = Router();
 
-// GET /api/restaurants
+/**
+ * GET /api/restaurants — the discovery feed, filtered and sorted.
+ *
+ * Every filter is applied here rather than in the app. The feed can run to
+ * hundreds of kitchens, and filtering client-side means shipping all of them to
+ * a phone on mobile data to throw most away — and it means three apps
+ * re-implementing the same rules and disagreeing about them.
+ *
+ * Filters are ANDed. An unrecognised or unparseable value is ignored rather
+ * than erroring: a discovery feed that returns 400 because a stale app sent
+ * `minRating=good` shows a customer an empty home screen, which is a worse
+ * failure than quietly showing them everything.
+ */
+const SORTS = ['relevance', 'rating', 'deliveryTime', 'costLowToHigh', 'costHighToLow', 'distance'] as const;
+type FeedSort = (typeof SORTS)[number];
+
+function numberParam(value: unknown): number | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 restaurantRouter.get('/', async (req, res) => {
   try {
-    const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
-    const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
+    const lat = numberParam(req.query.lat);
+    const lng = numberParam(req.query.lng);
     const isPureVeg = req.query.isPureVeg === 'true';
+    const openNow = req.query.openNow === 'true';
+    const minRating = numberParam(req.query.minRating);
+    const maxDeliveryMinutes = numberParam(req.query.maxDeliveryMinutes);
+    const maxCostForTwo = numberParam(req.query.maxCostForTwo);
+    const minCostForTwo = numberParam(req.query.minCostForTwo);
+    const cuisine = typeof req.query.cuisine === 'string' ? req.query.cuisine.trim().toLowerCase() : '';
+    const query = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
+    const sort: FeedSort = SORTS.includes(req.query.sort as FeedSort)
+      ? (req.query.sort as FeedSort)
+      : 'relevance';
 
-    let list = await restaurantRepository.listActive();
+    const list = await restaurantRepository.listActive();
 
-    if (isPureVeg) {
-      list = list.filter((r: Restaurant) => r.isPureVeg);
-    }
-
-    const annotated = list.map((r: Restaurant) => {
+    let annotated = list.map((r: Restaurant) => {
       let distanceKm = 2.5; // default estimate
       let isWithin10km = true;
       if (lat !== undefined && lng !== undefined && r.coordinates) {
@@ -50,7 +77,88 @@ restaurantRouter.get('/', async (req, res) => {
       };
     });
 
-    return res.json({ success: true, data: { restaurants: annotated } });
+    if (isPureVeg) annotated = annotated.filter(r => r.isPureVeg);
+    // `isOpen !== false` rather than `isOpen === true`, so a kitchen recorded
+    // before the flag existed is treated as open rather than hidden.
+    if (openNow) annotated = annotated.filter(r => r.isOpen !== false);
+    if (minRating !== undefined) {
+      annotated = annotated.filter(r => (Number(r.ratingAverage) || 0) >= minRating);
+    }
+    if (maxDeliveryMinutes !== undefined) {
+      annotated = annotated.filter(r => r.estimatedDeliveryMinutes <= maxDeliveryMinutes);
+    }
+    // A kitchen that has not published a cost for two is kept in every price
+    // band. Dropping it would hide a real restaurant because of a missing field.
+    if (minCostForTwo !== undefined) {
+      annotated = annotated.filter(r => r.costForTwo === undefined || Number(r.costForTwo) >= minCostForTwo);
+    }
+    if (maxCostForTwo !== undefined) {
+      annotated = annotated.filter(r => r.costForTwo === undefined || Number(r.costForTwo) <= maxCostForTwo);
+    }
+    if (cuisine) {
+      annotated = annotated.filter(r =>
+        (r.cuisineTags || []).some((c: string) => c.toLowerCase() === cuisine)
+      );
+    }
+    if (query) {
+      annotated = annotated.filter(
+        r =>
+          r.name.toLowerCase().includes(query) ||
+          (r.cuisineTags || []).some((c: string) => c.toLowerCase().includes(query))
+      );
+    }
+
+    const byRating = (a: any, b: any) => (Number(b.ratingAverage) || 0) - (Number(a.ratingAverage) || 0);
+
+    switch (sort) {
+      case 'rating':
+        annotated.sort(byRating);
+        break;
+      case 'deliveryTime':
+        annotated.sort((a, b) => a.estimatedDeliveryMinutes - b.estimatedDeliveryMinutes);
+        break;
+      case 'distance':
+        annotated.sort((a, b) => a.distanceKm - b.distanceKm);
+        break;
+      case 'costLowToHigh':
+        annotated.sort((a, b) => (Number(a.costForTwo) || 0) - (Number(b.costForTwo) || 0));
+        break;
+      case 'costHighToLow':
+        annotated.sort((a, b) => (Number(b.costForTwo) || 0) - (Number(a.costForTwo) || 0));
+        break;
+      default:
+        // Relevance: an open kitchen first — a closed one cannot be ordered
+        // from, so however good it is it is not the most relevant thing on the
+        // screen — then nearest, then best rated.
+        annotated.sort(
+          (a, b) =>
+            Number(b.isOpen !== false) - Number(a.isOpen !== false) ||
+            a.distanceKm - b.distanceKm ||
+            byRating(a, b)
+        );
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        restaurants: annotated,
+        // Echoed back so the app can show which filters produced this result,
+        // and so a filter the server ignored is visibly absent rather than
+        // appearing to have been applied.
+        appliedFilters: {
+          isPureVeg,
+          openNow,
+          minRating,
+          maxDeliveryMinutes,
+          minCostForTwo,
+          maxCostForTwo,
+          cuisine: cuisine || undefined,
+          q: query || undefined,
+          sort
+        },
+        total: annotated.length
+      }
+    });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }

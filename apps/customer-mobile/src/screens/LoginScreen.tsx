@@ -16,6 +16,7 @@ import { Phone, Server, ShieldCheck, User, ArrowLeft } from 'lucide-react-native
 import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
+import { useTranslation } from '../lib/i18n';
 
 const c = tokens.colors;
 
@@ -39,6 +40,10 @@ interface Props {
 type Step = 'phone' | 'code' | 'name';
 
 export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) => {
+  // Sign-in is the one screen a customer sees before the app knows anything
+  // about them, so it renders in whatever language the app is currently set to
+  // rather than waiting for an account preference that does not exist yet.
+  const { t } = useTranslation();
   const [apiUrl, setApiUrl] = useState(initialApiUrl);
   const [step, setStep] = useState<Step>('phone');
 
@@ -192,18 +197,16 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
         <View style={styles.brand}>
           <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.brandName}>Quick Bites</Text>
-          <Text style={styles.brandTag}>Your craving, delivered fast.</Text>
+          <Text style={styles.brandTag}>{t('auth.tagline')}</Text>
         </View>
 
         <Card style={styles.card}>
           {step === 'phone' && (
             <>
-              <Text style={styles.stepTitle}>Sign in or sign up</Text>
-              <Text style={styles.stepBody}>
-                Enter your mobile number. We will send you a verification code — no password needed.
-              </Text>
+              <Text style={styles.stepTitle}>{t('auth.signInTitle')}</Text>
+              <Text style={styles.stepBody}>{t('auth.signInBody')}</Text>
 
-              <Text style={styles.label}>Mobile Number</Text>
+              <Text style={styles.label}>{t('auth.mobileNumber')}</Text>
               <View style={[styles.field, !!fieldErrors.phone && styles.fieldError]}>
                 <Phone size={17} color={c.text.muted} />
                 <Text style={styles.dialCode}>+91</Text>
@@ -212,7 +215,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                   value={phone}
                   onChangeText={v => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
                   maxLength={10}
-                  placeholder="10-digit mobile"
+                  placeholder={t('auth.mobilePlaceholder')}
                   placeholderTextColor={c.text.muted}
                   keyboardType="phone-pad"
                   autoFocus
@@ -237,7 +240,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Send Code</Text>
+                  <Text style={styles.primaryBtnText}>{t('auth.sendCode')}</Text>
                 )}
               </TouchableOpacity>
             </>
@@ -250,14 +253,14 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                 <Text style={styles.backLinkText}>+91 {phone}</Text>
               </TouchableOpacity>
 
-              <Text style={styles.stepTitle}>Enter the code</Text>
+              <Text style={styles.stepTitle}>{t('auth.enterCode')}</Text>
               {!!notice && (
                 <View style={[styles.noticeBox, !smsConfigured && styles.noticeBoxWarn]}>
                   <Text style={[styles.noticeText, !smsConfigured && styles.noticeTextWarn]}>{notice}</Text>
                 </View>
               )}
 
-              <Text style={styles.label}>Verification Code</Text>
+              <Text style={styles.label}>{t('auth.verificationCode')}</Text>
               <View style={[styles.field, !!fieldErrors.code && styles.fieldError]}>
                 <ShieldCheck size={17} color={c.text.muted} />
                 <TextInput
@@ -287,7 +290,11 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                 disabled={loading}
                 activeOpacity={0.9}
               >
-                {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Verify</Text>}
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>{t('auth.verify')}</Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -297,7 +304,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                 activeOpacity={0.7}
               >
                 <Text style={[styles.recoveryLinkText, cooldown > 0 && styles.recoveryLinkMuted]}>
-                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+                  {cooldown > 0 ? t('auth.resendIn', { seconds: cooldown }) : t('auth.resend')}
                 </Text>
               </TouchableOpacity>
             </>
@@ -305,17 +312,17 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
           {step === 'name' && (
             <>
-              <Text style={styles.stepTitle}>Welcome to Quick Bites</Text>
-              <Text style={styles.stepBody}>What should we call you? Your rider will see this name.</Text>
+              <Text style={styles.stepTitle}>{t('auth.welcome')}</Text>
+              <Text style={styles.stepBody}>{t('auth.nameBody')}</Text>
 
-              <Text style={styles.label}>Your Name</Text>
+              <Text style={styles.label}>{t('auth.yourName')}</Text>
               <View style={[styles.field, !!fieldErrors.fullName && styles.fieldError]}>
                 <User size={17} color={c.text.muted} />
                 <TextInput
                   style={styles.input}
                   value={fullName}
                   onChangeText={setFullName}
-                  placeholder="Your name"
+                  placeholder={t('auth.namePlaceholder')}
                   placeholderTextColor={c.text.muted}
                   autoFocus
                   returnKeyType="go"
@@ -333,12 +340,12 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>Start Ordering</Text>
+                  <Text style={styles.primaryBtnText}>{t('auth.startOrdering')}</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.recoveryLink} onPress={() => saveName(true)} activeOpacity={0.7}>
-                <Text style={styles.recoveryLinkText}>Skip for now</Text>
+                <Text style={styles.recoveryLinkText}>{t('auth.skip')}</Text>
               </TouchableOpacity>
             </>
           )}

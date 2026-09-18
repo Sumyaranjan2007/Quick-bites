@@ -134,6 +134,37 @@ export const config = {
     ? process.env.SEED_DEMO_DATA === 'true'
     : process.env.SEED_DEMO_DATA !== 'false',
 
+  /**
+   * How fast a rider actually moves through city traffic, in km/h, used to turn
+   * a distance into an arrival time.
+   *
+   * It is configuration rather than a literal because it is the one number in
+   * the ETA that is a claim about the real world: it differs between a dense
+   * city and a small town, and it will be wrong until it is measured against
+   * delivered orders. Changing it must not require a release.
+   */
+  DELIVERY_SPEED_KMPH: Math.max(1, parseFloat(process.env.DELIVERY_SPEED_KMPH || '18')),
+
+  /**
+   * Minutes added to every estimate for the parts of a delivery that are not
+   * travel: parking, finding the counter, waiting for a lift, reaching a door.
+   */
+  DELIVERY_HANDLING_MINUTES: Math.max(0, parseInt(process.env.DELIVERY_HANDLING_MINUTES || '6', 10)),
+
+  /**
+   * What a kitchen is assumed to take when it has not said. Used only until the
+   * restaurant accepts the order and gives a real preparation time.
+   */
+  DEFAULT_PREP_MINUTES: Math.max(1, parseInt(process.env.DEFAULT_PREP_MINUTES || '20', 10)),
+
+  /**
+   * The largest tip that will be accepted. An upper bound exists because the
+   * tip is the only figure on the bill the client chooses outright, so an
+   * unbounded one is a way to push an arbitrary amount through checkout — by a
+   * mistyped number as easily as by a hostile client.
+   */
+  MAX_TIP_AMOUNT: Math.max(0, parseFloat(process.env.MAX_TIP_AMOUNT || '500')),
+
   // Security
   CORS_WHITELIST: [
     'http://localhost:3000',

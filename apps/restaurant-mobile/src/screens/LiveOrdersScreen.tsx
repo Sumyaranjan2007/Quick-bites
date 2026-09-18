@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, RefreshContr
 import { Clock, CheckCircle2, Minus, Plus, BellRing, VolumeX } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, Button, Pill, EmptyState, ErrorNote } from '../components/ui';
-import { fetchLiveOrders, updateOrderStatus } from '../lib/partnerApi';
+import { fetchLiveOrders, updateOrderStatus, fetchCancellationReasons } from '../lib/partnerApi';
 import { startOrderAlert, stopOrderAlert, notifyNewOrder } from '../lib/orderAlert';
 
 /** The kitchen cannot promise faster than this, and the customer is shown the figure. */
@@ -46,6 +46,15 @@ export const LiveOrdersScreen: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   const [acceptTarget, setAcceptTarget] = useState<any | null>(null);
+  /**
+   * Rejecting an order now requires a reason, because the server refuses a
+   * cancellation without one. That is deliberate: a kitchen that rejects orders
+   * is telling operations something, and "CANCELLED" on its own tells them
+   * nothing they can act on.
+   */
+  const [rejectTarget, setRejectTarget] = useState<any | null>(null);
+  const [rejectReasons, setRejectReasons] = useState<Array<{ code: string; label: string; allowsNote: boolean }>>([]);
+  const [rejectCode, setRejectCode] = useState('');
   const [prepMinutes, setPrepMinutes] = useState(DEFAULT_PREP_MINUTES);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -158,6 +167,33 @@ export const LiveOrdersScreen: React.FC<Props> = ({
     load('quiet');
   };
 
+  const openReject = async (order: any) => {
+    acknowledge();
+    setActionError(null);
+    setRejectTarget(order);
+    if (rejectReasons.length) return;
+    const res = await fetchCancellationReasons();
+    if (res.ok && Array.isArray(res.data?.reasons)) {
+      setRejectReasons(res.data.reasons);
+      setRejectCode(res.data.reasons[0]?.code ?? '');
+    } else {
+      setActionError(res.message || 'Could not load the reasons. Check your connection.');
+    }
+  };
+
+  const confirmReject = async () => {
+    if (!rejectTarget || !rejectCode) return;
+    setActionBusy(true);
+    const res = await updateOrderStatus(rejectTarget.id, 'CANCELLED', undefined, { reasonCode: rejectCode });
+    setActionBusy(false);
+    if (!res.ok) {
+      setActionError(res.message || 'Could not reject the order.');
+      return;
+    }
+    setRejectTarget(null);
+    load('quiet');
+  };
+
   const adjustPrep = (delta: number) => {
     setActionError(null);
     setPrepMinutes(prev => Math.min(MAX_PREP_MINUTES, Math.max(MIN_PREP_MINUTES, prev + delta)));
@@ -234,7 +270,7 @@ export const LiveOrdersScreen: React.FC<Props> = ({
               <Button
                 label="Reject"
                 variant="ghost"
-                onPress={() => advance(item, 'CANCELLED')}
+                onPress={() => openReject(item)}
                 style={{ flex: 1 }}
               />
               <Button label="Accept" onPress={() => openAccept(item)} style={{ flex: 1 }} />
@@ -284,6 +320,45 @@ export const LiveOrdersScreen: React.FC<Props> = ({
           <RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={c.brand} />
         }
       />
+
+      <Modal visible={!!rejectTarget} transparent animationType="slide" onRequestClose={() => setRejectTarget(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Why are you rejecting this order?</Text>
+            <Text style={styles.modalBody}>
+              The customer is told, and a paid order is refunded straight away. Pick the closest reason.
+            </Text>
+
+            {rejectReasons.map(reason => (
+              <TouchableOpacity
+                key={reason.code}
+                style={[styles.reasonRow, rejectCode === reason.code && styles.reasonRowOn]}
+                onPress={() => setRejectCode(reason.code)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: rejectCode === reason.code }}
+              >
+                <View style={[styles.reasonDot, rejectCode === reason.code && styles.reasonDotOn]} />
+                <Text style={styles.reasonText}>{reason.label}</Text>
+              </TouchableOpacity>
+            ))}
+
+            {!!actionError && <ErrorNote message={actionError} />}
+
+            <Button
+              label="Reject this order"
+              onPress={confirmReject}
+              busy={actionBusy}
+              disabled={!rejectCode}
+            />
+            <Button
+              label="Keep it"
+              variant="ghost"
+              onPress={() => setRejectTarget(null)}
+              style={{ marginTop: spacing.md }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!acceptTarget} transparent animationType="slide" onRequestClose={() => setAcceptTarget(null)}>
         <View style={styles.modalBackdrop}>
@@ -383,6 +458,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginVertical: spacing.xxl
   },
+  reasonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: c.border
+  },
+  reasonRowOn: { opacity: 1 },
+  reasonDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: c.border },
+  reasonDotOn: { borderColor: c.brand, backgroundColor: c.brand },
+  reasonText: { flex: 1, color: c.text },
+
   stepBtn: {
     width: 56,
     height: 56,

@@ -22,6 +22,14 @@ const c = tokens.colors;
 interface Props {
   onBack: () => void;
   onOpenOrder: (order: any) => void;
+  /**
+   * Hands a rebuilt basket up to the app, which owns the cart.
+   *
+   * This screen does not put anything in the cart itself: the cart belongs to
+   * the app shell, and a screen that reached into it would be a second place
+   * that decides what someone is buying.
+   */
+  onReorder: (basket: any, items: any[]) => void;
   apiUrl?: string;
   token?: string;
 }
@@ -63,7 +71,41 @@ const REFUND_REASONS = [
   { key: 'OTHER', label: 'Something else' }
 ];
 
-export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, apiUrl, token }) => {
+export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReorder, apiUrl, token }) => {
+  const [reorderBasket, setReorderBasket] = useState<any | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
+
+  /**
+   * Asks the server what this order would cost to repeat today.
+   *
+   * The answer is shown before anything is added, because it is the only moment
+   * the customer can see that the biryani is Rs 45 dearer than the meal they
+   * are trying to repeat.
+   */
+  const startReorder = async (orderId: string) => {
+    if (!apiUrl || !token) return;
+    setReorderingId(orderId);
+    try {
+      const res = await apiFetch(`${apiUrl}/orders/${orderId}/reorder`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data?.success && data.data) {
+        setReorderBasket(data.data);
+      } else {
+        Alert.alert(
+          'Order again',
+          data?.error?.message || 'We could not rebuild that order. Please try again.'
+        );
+      }
+    } catch {
+      Alert.alert('Order again', 'We could not reach Quick Bites. Check your connection.');
+    } finally {
+      setReorderingId(null);
+    }
+  };
+
   const { t } = useTranslation();
   const [orders, setOrders] = useState<any[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -252,6 +294,23 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, apiUr
                       </Text>
                     </View>
                   ) : null}
+                  {/* Offered only on a finished order: repeating one that is
+                      still being cooked would place a second order for food
+                      already on its way. */}
+                  {!live && (
+                    <TouchableOpacity
+                      style={styles.reorderBtn}
+                      onPress={() => startReorder(order.id)}
+                      disabled={reorderingId === order.id}
+                      activeOpacity={0.85}
+                    >
+                      {reorderingId === order.id ? (
+                        <ActivityIndicator size="small" color={c.primary[500]} />
+                      ) : (
+                        <Text style={styles.reorderBtnText}>{t('orders.reorder')}</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity style={styles.openBtn} onPress={() => onOpenOrder(order)} activeOpacity={0.85}>
                     <Text style={styles.openBtnText}>
                       {live ? t('orders.viewOrder') : 'View details'}
@@ -263,6 +322,92 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, apiUr
           );
         })
       )}
+
+      {/* Reorder.
+          The server rebuilds the basket against today's menu and says what has
+          changed; this sheet shows that before anything reaches the cart. A
+          repeat order that silently costs more, or silently arrives with two of
+          the four things ordered, is the complaint this prevents. */}
+      <Modal
+        visible={!!reorderBasket}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReorderBasket(null)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>{t('orders.reorderTitle')}</Text>
+              <TouchableOpacity onPress={() => setReorderBasket(null)} activeOpacity={0.8}>
+                <X size={20} color={c.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 320 }}>
+              <Text style={styles.reorderRestaurant}>{reorderBasket?.restaurantName}</Text>
+
+              {!!reorderBasket?.restaurantMessage && (
+                <Text style={styles.reorderWarn}>{reorderBasket.restaurantMessage}</Text>
+              )}
+
+              {(reorderBasket?.items || []).map((item: any) => (
+                <View key={item.dishId} style={styles.reorderRow}>
+                  <Text style={styles.reorderName} numberOfLines={1}>
+                    {item.quantity} × {item.name}
+                  </Text>
+                  <View style={styles.reorderRight}>
+                    {item.priceChanged && (
+                      <Text style={styles.reorderOldPrice}>₹{Number(item.previousUnitPrice).toFixed(0)}</Text>
+                    )}
+                    <Text style={[styles.reorderPrice, !item.isAvailable && styles.reorderStruck]}>
+                      ₹{Number(item.unitPrice).toFixed(0)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+
+              {(reorderBasket?.unavailableItems || []).length > 0 && (
+                <Text style={styles.reorderWarn}>
+                  {t('orders.reorderUnavailable')}: {reorderBasket.unavailableItems.join(', ')}
+                </Text>
+              )}
+              {(reorderBasket?.removedItems || []).length > 0 && (
+                <Text style={styles.reorderWarn}>
+                  {t('orders.reorderRemoved')}: {reorderBasket.removedItems.join(', ')}
+                </Text>
+              )}
+              {reorderBasket && !reorderBasket.isExactRepeat && (
+                <Text style={styles.reorderNote}>{t('orders.reorderChanged')}</Text>
+              )}
+            </ScrollView>
+
+            {(() => {
+              // Only the lines that can actually be bought today may go into the
+              // cart. Offering "Add to cart" with nothing addable behind it is a
+              // button that does nothing, which reads as a broken app.
+              const addable = (reorderBasket?.items || []).filter((i: any) => i.isAvailable);
+              const canAdd = Boolean(reorderBasket?.restaurantAvailable) && addable.length > 0;
+              return (
+                <>
+                  {!canAdd && <Text style={styles.reorderWarn}>{t('orders.reorderNothing')}</Text>}
+                  <TouchableOpacity
+                    style={[styles.reorderCta, !canAdd && styles.reorderCtaDisabled]}
+                    disabled={!canAdd}
+                    activeOpacity={0.9}
+                    onPress={() => {
+                      const basket = reorderBasket;
+                      setReorderBasket(null);
+                      if (basket) onReorder(basket, addable);
+                    }}
+                  >
+                    <Text style={styles.reorderCtaText}>{t('orders.reorderAddToCart')}</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!problemOrder} transparent animationType="slide" onRequestClose={() => setProblemOrder(null)}>
         <View style={styles.backdrop}>
@@ -424,6 +569,49 @@ const styles = StyleSheet.create({
   block: { alignItems: 'center', paddingVertical: 34, gap: 10 },
   emptyText: { color: c.text.muted, fontSize: 13.5, textAlign: 'center', lineHeight: 20 },
   orderCard: { marginBottom: 12 },
+
+  reorderBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: tokens.radii.full,
+    borderWidth: 1,
+    borderColor: c.primary[500]
+  },
+  reorderBtnText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, color: c.primary[500] },
+  reorderRestaurant: {
+    fontSize: tokens.font.size.base,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    marginBottom: 10
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: c.border.subtle
+  },
+  reorderName: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary, marginRight: 12 },
+  reorderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reorderOldPrice: {
+    fontSize: tokens.font.size.xs,
+    color: c.text.muted,
+    textDecorationLine: 'line-through'
+  },
+  reorderPrice: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  reorderStruck: { textDecorationLine: 'line-through', color: c.text.muted },
+  reorderWarn: { fontSize: tokens.font.size.xs, color: c.semantic.warning, marginTop: 10 },
+  reorderNote: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
+  reorderCta: {
+    marginTop: 16,
+    backgroundColor: c.primary[500],
+    borderRadius: tokens.radii.md,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  reorderCtaDisabled: { opacity: 0.45 },
+  reorderCtaText: { color: '#FFFFFF', fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
   orderTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   restaurant: { fontSize: 15.5, fontWeight: '800', color: c.text.primary },
   orderMeta: { fontSize: 12, color: c.text.muted, marginTop: 2 },

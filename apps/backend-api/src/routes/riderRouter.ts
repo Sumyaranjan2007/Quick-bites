@@ -61,12 +61,17 @@ async function requireRiderSelf(req: any): Promise<DeliveryRider> {
  * Trip payout, derived from the order itself rather than supplied by the caller.
  * A flat base covers the rider's time; the delivery fee the customer was charged
  * covers distance. Gold orders can carry a zero delivery fee, so the base is a floor.
+ *
+ * The customer's tip is added on top, in full and untouched. The platform takes
+ * nothing from it: a tip with a commission deducted is not a tip, and a rider
+ * who works that out once stops believing the earnings screen.
  */
 const RIDER_BASE_PAYOUT = 40.0;
 
-function calculateTripPayout(order: { bill?: { deliveryFee?: number } }): number {
+function calculateTripPayout(order: { bill?: { deliveryFee?: number; tipAmount?: number } }): number {
   const distanceComponent = Number(order.bill?.deliveryFee) || 0;
-  return Math.round((RIDER_BASE_PAYOUT + Math.max(0, distanceComponent)) * 100) / 100;
+  const tip = Math.max(0, Number(order.bill?.tipAmount) || 0);
+  return Math.round((RIDER_BASE_PAYOUT + Math.max(0, distanceComponent) + tip) * 100) / 100;
 }
 
 // ---------------------------------------------------------------------------

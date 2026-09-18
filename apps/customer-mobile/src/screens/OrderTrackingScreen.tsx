@@ -4,7 +4,10 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  StyleSheet
+  StyleSheet,
+  Modal,
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Linking, Alert } from 'react-native';
@@ -13,6 +16,7 @@ import { Card } from '../components/ui';
 import { LiveRiderMap } from '../components/LiveRiderMap';
 import { OrderChat } from '../components/OrderChat';
 import { RatingSheet } from '../components/RatingSheet';
+import { useTranslation } from '../lib/i18n';
 import { useOrderSocket } from '../lib/useOrderSocket';
 import { apiFetch } from '../lib/apiFetch';
 
@@ -60,6 +64,9 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   token,
   currentUserId
 }) => {
+  // The tracking screen is the one a customer stares at, so it speaks their
+  // language; the cancellation reasons are fetched in it too.
+  const { t, language } = useTranslation();
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [order, setOrder] = useState<any | null>(null);
   const [tracking, setTracking] = useState<any | null>(null);
@@ -142,22 +149,107 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   const existingRating: number | null = order?.rating ?? null;
   const shownRating = submittedRating ?? existingRating;
 
-  // A rough countdown that at least moves with the order rather than sitting at
-  // a constant "~25 min" from placement to doorstep.
-  const etaMinutes = (() => {
-    const prep = Number(order?.preparationMinutes) || 20;
-    switch (status) {
-      case 'OUT_FOR_DELIVERY':
-        return 10;
-      case 'RIDER_ASSIGNED':
-      case 'READY_FOR_PICKUP':
-        return 15;
-      case 'PREPARING':
-        return prep;
+  /**
+   * The arrival estimate, computed by the server from this order.
+   *
+   * This screen used to derive it from a table of constants — ten minutes once
+   * out for delivery, fifteen once ready, whatever the kitchen promised before
+   * that. Those numbers were the same at minute one and minute forty, so the
+   * screen kept saying "~10 min" long after the customer knew it was wrong.
+   *
+   * The server measures the real distance, counts down the kitchen's own
+   * promise, and switches to the rider's actual position after pickup. The
+   * local figure survives only as a fallback for the seconds before the first
+   * tracking response lands, so the box is never empty.
+   */
+  const serverEta = tracking?.eta;
+  const fallbackEtaMinutes = (Number(order?.preparationMinutes) || 20) + 10;
+  const etaMinutes: number | null =
+    typeof serverEta?.minutesRemaining === 'number'
+      ? serverEta.minutesRemaining
+      : isClosed
+        ? null
+        : fallbackEtaMinutes;
+
+  const etaCaption = (() => {
+    switch (serverEta?.basis) {
+      case 'RIDER_EN_ROUTE':
+        return t('tracking.etaEnRoute');
+      case 'KITCHEN_ESTIMATE':
+      case 'PREP_AND_TRAVEL':
+        return t('tracking.etaPrep');
       default:
-        return prep + 10;
+        return null;
     }
   })();
+
+  /**
+   * Cancelling.
+   *
+   * The reasons are fetched rather than listed here, so the wording and the
+   * translations live in one place on the server and a new reason does not need
+   * a new build of this app.
+   */
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReasons, setCancelReasons] = useState<Array<{ code: string; label: string; allowsNote: boolean }>>([]);
+  const [cancelCode, setCancelCode] = useState<string>('');
+  const [cancelNote, setCancelNote] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  // Cancellable exactly while the server's state machine allows it. Showing the
+  // button later would offer something that can only fail.
+  const canCancel = ['PAYMENT_PENDING', 'ORDER_PLACED', 'ACCEPTED', 'PREPARING'].includes(status);
+
+  const openCancel = async () => {
+    setCancelOpen(true);
+    if (cancelReasons.length || !apiUrl || !token) return;
+    try {
+      const res = await apiFetch(`${apiUrl}/orders/cancellation-reasons?language=${language}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data?.success && Array.isArray(data.data?.reasons)) {
+        setCancelReasons(data.data.reasons);
+        setCancelCode(data.data.reasons[0]?.code ?? '');
+      }
+    } catch {
+      // The sheet stays open with no reasons and the confirm button disabled,
+      // which is honest: without a reason the server will refuse anyway.
+    }
+  };
+
+  const confirmCancel = async () => {
+    if (!apiUrl || !token || !orderId || !cancelCode) return;
+    setCancelling(true);
+    try {
+      const res = await apiFetch(`${apiUrl}/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          status: 'CANCELLED',
+          cancellationReasonCode: cancelCode,
+          ...(cancelNote.trim() ? { cancellationNote: cancelNote.trim() } : {})
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        Alert.alert(
+          t('tracking.cancelOrder'),
+          data?.error?.message || t('tracking.cancelTooLate')
+        );
+        return;
+      }
+      setCancelOpen(false);
+      setOrder((prev: any) => (prev ? { ...prev, ...data.data } : data.data));
+      if (data.data?.refund) {
+        Alert.alert(t('tracking.cancelOrder'), t('tracking.refundStarted'));
+      }
+    } catch {
+      Alert.alert(t('tracking.cancelOrder'), t('tracking.cancelTooLate'));
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const callRider = async () => {
     if (!riderPhone) return;
@@ -228,11 +320,24 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             </View>
           ) : (
             <View style={styles.etaBox}>
-              <Text style={styles.etaLabel}>ARRIVING IN</Text>
-              <Text style={styles.etaValue}>~{etaMinutes} min</Text>
+              <Text style={styles.etaLabel}>{t('tracking.eta').toUpperCase()}</Text>
+              <Text style={styles.etaValue}>
+                {etaMinutes === null ? '—' : t('tracking.etaMinutes', { minutes: etaMinutes })}
+              </Text>
             </View>
           )}
         </View>
+
+        {/* Cancelling is offered on the hero, where the customer is already
+            looking, rather than buried in support. A cancellation that is hard
+            to find becomes a phone call to the restaurant. */}
+        {canCancel && (
+          <TouchableOpacity style={styles.cancelLink} onPress={openCancel} activeOpacity={0.75}>
+            <Text style={styles.cancelLinkText}>{t('tracking.cancelOrder')}</Text>
+          </TouchableOpacity>
+        )}
+
+        {!!etaCaption && !isClosed && <Text style={styles.etaCaption}>{etaCaption}</Text>}
 
         {/* Stepper */}
         <View style={styles.stepper}>
@@ -408,6 +513,73 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           </>
         )}
       </Card>
+
+      {/* Cancelling, with a reason.
+          The reasons come from the server so this app and the partner app agree
+          on the list, and so a reason can be added or reworded without a
+          release. A paid order refunds itself as part of the same request. */}
+      <Modal visible={cancelOpen} transparent animationType="slide" onRequestClose={() => setCancelOpen(false)}>
+        <View style={styles.cancelBackdrop}>
+          <View style={styles.cancelSheet}>
+            <Text style={styles.cancelTitle}>{t('tracking.cancelTitle')}</Text>
+            <Text style={styles.cancelBody}>{t('tracking.cancelBody')}</Text>
+
+            <ScrollView style={{ maxHeight: 260 }}>
+              {cancelReasons.map(reason => {
+                const selected = cancelCode === reason.code;
+                return (
+                  <TouchableOpacity
+                    key={reason.code}
+                    style={[styles.cancelReason, selected && styles.cancelReasonOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    onPress={() => {
+                      setCancelCode(reason.code);
+                      // A note only belongs to a reason that accepts one; the
+                      // server drops it otherwise, so leaving it visible would
+                      // promise the customer it had been read.
+                      if (!reason.allowsNote) setCancelNote('');
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[styles.cancelRadio, selected && styles.cancelRadioOn]} />
+                    <Text style={styles.cancelReasonText}>{reason.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {cancelReasons.find(r => r.code === cancelCode)?.allowsNote && (
+                <TextInput
+                  style={styles.cancelNote}
+                  placeholder={t('tracking.cancelNote')}
+                  placeholderTextColor={c.text.muted}
+                  value={cancelNote}
+                  onChangeText={setCancelNote}
+                  maxLength={300}
+                  multiline
+                />
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.cancelConfirm, (!cancelCode || cancelling) && styles.cancelDisabled]}
+              disabled={!cancelCode || cancelling}
+              onPress={confirmCancel}
+              activeOpacity={0.9}
+            >
+              {cancelling ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.cancelConfirmText}>{t('tracking.cancelConfirm')}</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelKeep} onPress={() => setCancelOpen(false)} activeOpacity={0.8}>
+              <Text style={styles.cancelKeepText}>{t('tracking.cancelKeep')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <OrderChat
         visible={chatOpen}
@@ -595,6 +767,67 @@ const styles = StyleSheet.create({
     letterSpacing: 2
   },
   otpHint: { fontSize: tokens.font.size.xs, color: '#D9C4BB', marginTop: 8 },
+
+  etaCaption: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
+  cancelLink: { marginTop: 12, alignSelf: 'flex-start' },
+  cancelLinkText: {
+    fontSize: tokens.font.size.sm,
+    fontWeight: tokens.font.weight.bold,
+    color: c.semantic.error
+  },
+  cancelBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  cancelSheet: {
+    backgroundColor: c.surface.card,
+    borderTopLeftRadius: tokens.radii.xl,
+    borderTopRightRadius: tokens.radii.xl,
+    padding: 20
+  },
+  cancelTitle: {
+    fontSize: tokens.font.size.lg,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary
+  },
+  cancelBody: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, marginBottom: 14 },
+  cancelReason: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: c.border.subtle
+  },
+  cancelReasonOn: { opacity: 1 },
+  cancelRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: c.border.strong
+  },
+  cancelRadioOn: { borderColor: c.primary[500], backgroundColor: c.primary[500] },
+  cancelReasonText: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary },
+  cancelNote: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    borderRadius: tokens.radii.md,
+    padding: 12,
+    minHeight: 72,
+    textAlignVertical: 'top',
+    fontSize: tokens.font.size.sm,
+    color: c.text.primary
+  },
+  cancelConfirm: {
+    marginTop: 16,
+    backgroundColor: c.semantic.error,
+    borderRadius: tokens.radii.md,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  cancelDisabled: { opacity: 0.45 },
+  cancelConfirmText: { color: '#FFFFFF', fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
+  cancelKeep: { marginTop: 10, paddingVertical: 12, alignItems: 'center' },
+  cancelKeepText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.secondary },
 
   block: { marginBottom: 14 },
   blockTitle: {

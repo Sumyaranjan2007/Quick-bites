@@ -9,6 +9,10 @@ import { z } from 'zod';
 import { AppError } from '../utils/AppError.ts';
 import { messageRepository } from '../db/repositories/messageRepository.ts';
 import { emitOrderMessage } from '../sockets/socketServer.ts';
+import { estimateArrival } from '../modules/orders/eta.ts';
+import { cancellationReasonsFor, actorForRole } from '../modules/orders/cancellationReasons.ts';
+import { config } from '../config/env.ts';
+import type { LanguageCode } from '@quick-bites/shared-types';
 
 export const orderRouter = Router();
 
@@ -36,6 +40,31 @@ orderRouter.get('/', authMiddleware(), async (req, res, next) => {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/orders/cancellation-reasons — the reasons this caller may choose.
+ *
+ * Served rather than compiled into each app so that adding a reason, or fixing
+ * its wording in Hindi, reaches every installed phone on the next screen open.
+ * Scoped to the caller's role: a customer is never offered "the kitchen is
+ * overloaded", and a partner is never offered "I changed my mind".
+ */
+orderRouter.get('/cancellation-reasons', authMiddleware(), async (req, res, next) => {
+  try {
+    const requested = String(req.query.language || 'en');
+    const language: LanguageCode = ['en', 'hi', 'kn'].includes(requested)
+      ? (requested as LanguageCode)
+      : 'en';
+
+    res.json({
+      success: true,
+      data: { reasons: cancellationReasonsFor(actorForRole(req.user?.role), language) },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
     });
   } catch (err) {
     next(err);
@@ -99,7 +128,17 @@ const CreateOrderSchema = z.object({
   paymentMethod: z.enum(['RAZORPAY_SANDBOX', 'CASH_ON_DELIVERY']),
   couponCode: z.string().optional(),
   idempotencyKey: z.string().min(8, 'Idempotency key must be at least 8 characters'),
-  distanceKm: z.number().positive().optional()
+  distanceKm: z.number().positive().optional(),
+  /**
+   * The rider's tip. Bounded here as well as in the service so an absurd figure
+   * is refused with a readable message instead of being silently clamped — a
+   * customer who typed an extra zero should be told, not quietly corrected.
+   */
+  tipAmount: z
+    .number()
+    .min(0, 'A tip cannot be negative')
+    .max(config.MAX_TIP_AMOUNT, `A tip cannot be more than Rs ${config.MAX_TIP_AMOUNT}`)
+    .optional()
 });
 
 const QuoteOrderSchema = z.object({
@@ -114,7 +153,12 @@ const QuoteOrderSchema = z.object({
     })).optional()
   })).min(1, 'Add at least one dish before pricing a basket'),
   couponCode: z.string().optional(),
-  distanceKm: z.number().positive().optional()
+  distanceKm: z.number().positive().optional(),
+  tipAmount: z
+    .number()
+    .min(0, 'A tip cannot be negative')
+    .max(config.MAX_TIP_AMOUNT, `A tip cannot be more than Rs ${config.MAX_TIP_AMOUNT}`)
+    .optional()
 });
 
 /**
@@ -191,12 +235,39 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
         riderCoordinates: order.riderCoordinates ?? null,
         riderBearing: order.riderBearing ?? 0,
         riderLocationUpdatedAt: order.riderLocationUpdatedAt ?? null,
-        destinationCoordinates: order.deliveryCoordinates ?? null
+        destinationCoordinates: order.deliveryCoordinates ?? null,
+        // Recomputed on every poll rather than stored, because it is a function
+        // of where the rider is right now. A stored ETA is a stale ETA the
+        // moment the rider moves, and the tracking screen's whole job is to
+        // show a number that changes.
+        eta: estimateArrival(order),
+        pickedUpAt: order.pickedUpAt ?? null,
+        preparationMinutes: order.preparationMinutes ?? null
       },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/orders/:id/reorder — what this order would cost to repeat today.
+ *
+ * Returns a basket; it does not place anything. See
+ * orderService.buildReorderBasket for why repeating an order blind is the wrong
+ * behaviour.
+ */
+orderRouter.post('/:id/reorder', authMiddleware('customer'), async (req, res, next) => {
+  try {
+    const basket = await orderService.buildReorderBasket(req.user!.id, req.params.id);
+    res.json({
+      success: true,
+      data: basket,
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
     });
   } catch (err) {
     next(err);
@@ -250,7 +321,15 @@ const StatusTransitionSchema = z.object({
     .min(10, 'Preparation time cannot be less than 10 minutes')
     .max(180, 'Preparation time cannot be more than 3 hours')
     .optional(),
-  otp: z.string().length(4).optional()
+  otp: z.string().length(4).optional(),
+  /**
+   * Required when cancelling. A code from the served catalogue, not a sentence:
+   * see modules/orders/cancellationReasons.ts for why the wording is not the
+   * thing that gets stored.
+   */
+  cancellationReasonCode: z.string().min(1).max(64).optional(),
+  /** Only kept for the catch-all reason, and only up to 300 characters. */
+  cancellationNote: z.string().max(300).optional()
 });
 
 /**
@@ -297,6 +376,37 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
 orderRouter.put('/:id/status', authMiddleware(), validate({ body: StatusTransitionSchema }), async (req, res, next) => {
   try {
     await assertMayTransition(req, req.params.id, req.body.status);
+
+    // Cancelling is not just another transition: it has to record why, and it
+    // has to return the customer's money when money was taken. Both live in
+    // orderService.cancelOrder, and routing through it here is what stops a
+    // cancellation from ever arriving without them.
+    if (req.body.status === 'CANCELLED') {
+      if (!req.body.cancellationReasonCode) {
+        throw new AppError(
+          'Choose a reason for cancelling this order.',
+          400,
+          'CANCELLATION_REASON_REQUIRED'
+        );
+      }
+      const result = await orderService.cancelOrder(
+        req.params.id,
+        {
+          userId: req.user!.id,
+          name: req.user!.fullName || req.user!.email || 'Quick Bites user',
+          role: req.user!.role
+        },
+        req.body.cancellationReasonCode,
+        req.body.cancellationNote
+      );
+
+      res.json({
+        success: true,
+        data: { ...result.order, refund: result.refund },
+        meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+      });
+      return;
+    }
 
     const updated = await orderService.transitionStatus(
       req.params.id,

@@ -19,6 +19,18 @@ export interface PricingInput {
     maxDiscountCap?: number;
     minOrderValue?: number;
   };
+  /**
+   * A voluntary tip for the rider, added by the customer at checkout.
+   *
+   * It is added to the total and to nothing else: no GST is charged on it, no
+   * commission is taken from it, and it does not enter the restaurant's payout.
+   * A tip is the customer's money passing through the platform to the rider, so
+   * taxing it or taking a cut of it would be taking a cut of a gift.
+   *
+   * A coupon never reduces it either — the discount is computed from the food
+   * total, so a promotion cannot be funded out of the rider's tip.
+   */
+  tipAmount?: number;
 }
 
 export interface CalculatedBill {
@@ -28,6 +40,8 @@ export interface CalculatedBill {
   deliveryFee: number;
   platformFee: number;
   couponDiscount: number;
+  /** Paid on top of everything else, and passed to the rider in full. */
+  tipAmount: number;
   totalAmount: number;
   restaurantNetPayout: number;
 }
@@ -77,11 +91,17 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   }
   couponDiscount = Math.round(couponDiscount * 100) / 100;
 
-  // 7. Total Payable
-  const preDiscount = itemsTotal + gstAmount + packagingFee + deliveryFee + platformFee;
-  const totalAmount = Math.max(0, Math.round((preDiscount - couponDiscount) * 100) / 100);
+  // 7. Tip — rounded and floored at zero, so a negative figure cannot be used
+  //    to reduce the bill. It is added after the discount rather than before,
+  //    because a percentage coupon must not be computed on the rider's tip.
+  const tipAmount = Math.max(0, Math.round((input.tipAmount || 0) * 100) / 100);
 
-  // 8. Restaurant Net Payout: Food Total - 15% Commission - 1% TDS + Packaging
+  // 8. Total Payable
+  const preDiscount = itemsTotal + gstAmount + packagingFee + deliveryFee + platformFee;
+  const totalAmount = Math.max(0, Math.round((preDiscount - couponDiscount) * 100) / 100 + tipAmount);
+
+  // 9. Restaurant Net Payout: Food Total - 15% Commission - 1% TDS + Packaging
+  //    The tip is deliberately absent: it belongs to the rider, not the kitchen.
   const commission = Math.round(itemsTotal * 0.15 * 100) / 100;
   const tds = Math.round(itemsTotal * 0.01 * 100) / 100;
   const restaurantNetPayout = Math.round((itemsTotal - commission - tds + packagingFee) * 100) / 100;
@@ -93,6 +113,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     deliveryFee,
     platformFee,
     couponDiscount,
+    tipAmount,
     totalAmount,
     restaurantNetPayout
   };

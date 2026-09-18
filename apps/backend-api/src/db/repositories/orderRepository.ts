@@ -54,12 +54,62 @@ export const orderRepository = {
     if (prepMinutes !== undefined) {
       order.preparationMinutes = prepMinutes;
     }
+    // Stamped once, when the kitchen first takes the order on. Re-stamping it on
+    // a later transition would restart the preparation countdown and push the
+    // customer's arrival time further away the closer the food got to ready.
+    if ((status === 'ACCEPTED' || status === 'PREPARING') && !order.acceptedAt) {
+      order.acceptedAt = new Date().toISOString();
+    }
     if (status === 'DELIVERED') {
       order.deliveredAt = new Date().toISOString();
       order.paymentStatus = 'PAID';
     }
     order.updatedAt = new Date().toISOString();
     memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return order;
+  },
+
+  /**
+   * Cancels an order and records who did it and why, in one write.
+   *
+   * Separate from updateStatus because a cancellation carries facts no other
+   * transition does. Setting the status and then writing the reason in a second
+   * step is how an order ends up cancelled with no reason attached when the
+   * second step throws — and a cancellation with no reason is invisible to
+   * every report that asks why orders are being lost.
+   */
+  async recordCancellation(
+    id: string,
+    detail: { reason: string; reasonCode: string; byUserId: string; byRole: Order['cancelledByRole'] }
+  ): Promise<Order | null> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return null;
+
+    const now = new Date().toISOString();
+    order.status = 'CANCELLED';
+    order.cancellationReason = detail.reason;
+    order.cancellationReasonCode = detail.reasonCode;
+    order.cancelledByUserId = detail.byUserId;
+    order.cancelledByRole = detail.byRole;
+    order.cancelledAt = now;
+    order.updatedAt = now;
+
+    memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return order;
+  },
+
+  /**
+   * Writes back an order the caller has already modified.
+   *
+   * Narrow on purpose: it exists for the refund path, which decides the final
+   * status only after a third party has answered. Reach for a named method
+   * first — this one will happily persist whatever it is handed.
+   */
+  async save(order: Order): Promise<Order> {
+    order.updatedAt = new Date().toISOString();
+    memoryStore.orders.set(order.id, order);
     triggerAutoSave();
     return order;
   },

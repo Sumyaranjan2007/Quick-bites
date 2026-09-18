@@ -92,6 +92,37 @@ function AppRoot() {
     setCurrentScreen('tracking');
   };
 
+  /**
+   * Replaces the cart with a repeat of a past order.
+   *
+   * Replaces rather than appends. A cart can only hold one restaurant's food —
+   * the bill, the packaging fee and the settlement are all computed per kitchen —
+   * so merging a repeat into a basket from somewhere else would build an order
+   * that cannot be placed.
+   *
+   * The restaurant is set from the basket too, because the cart screen needs it
+   * to quote, and the previously selected restaurant may be a different one.
+   */
+  const handleReorder = (basket: any, items: any[]) => {
+    setCart(
+      items.map((item: any) => ({
+        id: `${item.dishId}_reorder`,
+        dishId: item.dishId,
+        name: item.name,
+        price: Number(item.unitPrice),
+        quantity: Number(item.quantity) || 1,
+        isVeg: Boolean(item.isVeg),
+        ...(item.selectedOptions?.length ? { selectedOptions: item.selectedOptions } : {})
+      }))
+    );
+    setSelectedRestaurant(prev =>
+      prev && prev.id === basket.restaurantId
+        ? prev
+        : ({ id: basket.restaurantId, name: basket.restaurantName } as RestaurantItem)
+    );
+    setCurrentScreen('cart');
+  };
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     setAuthToken('');
@@ -204,6 +235,7 @@ function AppRoot() {
               });
               setCurrentScreen('tracking');
             }}
+            onReorder={handleReorder}
             apiUrl={apiUrl}
             token={authToken}
           />

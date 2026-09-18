@@ -19,6 +19,17 @@ import { CartItem } from './RestaurantDetailScreen';
 import { apiFetch } from '../lib/apiFetch';
 import { DEFAULT_API_URL } from '../config';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
+import { useTranslation } from '../lib/i18n';
+
+/**
+ * Suggested tips, and the ceiling the server also enforces.
+ *
+ * Zero is offered explicitly rather than being the absence of a choice, so
+ * declining to tip is a button someone presses rather than a thing they have to
+ * notice they have not done.
+ */
+const TIP_OPTIONS = [0, 10, 20, 30, 50];
+const MAX_TIP = 500;
 
 interface Props {
   cart: CartItem[];
@@ -60,7 +71,11 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
    */
   const [quote, setQuote] = useState<any | null>(null);
   const [quoting, setQuoting] = useState(false);
+  const { t } = useTranslation();
   const [quoteFailed, setQuoteFailed] = useState(false);
+  const [selectedTip, setSelectedTip] = useState(0);
+  const [customTip, setCustomTip] = useState<number | null>(null);
+  const [customTipText, setCustomTipText] = useState('');
   /** Collapses the itemised breakdown; the amount payable always stays visible. */
   const [billHidden, setBillHidden] = useState(false);
 
@@ -158,6 +173,14 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
   const pricingResult = quote?.bill ?? fallbackPricing;
 
+  /**
+   * The tip is the customer's own figure, so it is held here and sent to the
+   * quote like everything else — the server decides the total, this screen never
+   * adds the tip on itself. Two screens doing the same arithmetic is how a cart
+   * and a bill end up disagreeing.
+   */
+  const tipAmount = customTip ?? selectedTip;
+
   // Re-price whenever anything that affects the bill changes. The cart is the
   // dependency that matters: a quantity change alters every downstream figure,
   // and a stale total is the one thing this screen must never show.
@@ -186,6 +209,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
               ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {})
             })),
             ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
+            ...(tipAmount > 0 ? { tipAmount } : {}),
             distanceKm: distanceKm ?? 2.5
           })
         });
@@ -217,7 +241,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartSignature, appliedCoupon, selectedAddressId, restaurantId, apiUrl, token, distanceKm]);
+    // tipAmount is in here because it changes the total. Leaving it out is the
+    // bug where the tip appears on screen and is absent from the bill.
+  }, [cartSignature, appliedCoupon, selectedAddressId, restaurantId, apiUrl, token, distanceKm, tipAmount]);
 
   /**
    * Applying a coupon sets it as the code to quote with; the server decides
@@ -272,6 +298,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         // simulated payment signatures outside demo mode.
         paymentMethod: 'CASH_ON_DELIVERY',
         couponCode: appliedCoupon || undefined,
+        ...(tipAmount > 0 ? { tipAmount } : {}),
         idempotencyKey: generatedUUID,
         distanceKm: distanceKm ?? 2.5
       };
@@ -470,6 +497,66 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           </View>
         )}
 
+        {/* Tip the rider.
+            Placed above the bill deliberately: a tip asked for after the total
+            reads as a surcharge being slipped in. The amounts are suggestions,
+            never pre-selected — a tip that is on by default is not a tip. */}
+        <Card style={styles.block}>
+          <Text style={styles.blockTitle}>{t('cart.tipTitle')}</Text>
+          <Text style={styles.tipSubtitle}>{t('cart.tipSubtitle')}</Text>
+
+          <View style={styles.tipRow}>
+            {TIP_OPTIONS.map(amount => {
+              const active = customTip === null && selectedTip === amount;
+              return (
+                <TouchableOpacity
+                  key={amount}
+                  style={[styles.tipChip, active && styles.tipChipActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={
+                    amount === 0 ? t('cart.tipNone') : `${t('cart.tipForRider')} ₹${amount}`
+                  }
+                  onPress={() => {
+                    // Tapping a suggestion clears a typed amount, so the screen
+                    // can never show one figure selected and send another.
+                    setCustomTip(null);
+                    setCustomTipText('');
+                    setSelectedTip(amount);
+                  }}
+                >
+                  <Text style={[styles.tipChipText, active && styles.tipChipTextActive]}>
+                    {amount === 0 ? t('cart.tipNone') : `₹${amount}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TextInput
+            style={styles.tipInput}
+            placeholder={t('cart.tipCustom')}
+            placeholderTextColor={c.text.muted}
+            keyboardType="number-pad"
+            value={customTipText}
+            maxLength={4}
+            accessibilityLabel={t('cart.tipCustom')}
+            onChangeText={text => {
+              const digits = text.replace(/[^0-9]/g, '');
+              setCustomTipText(digits);
+              // An empty box means "no custom amount", which hands control back
+              // to the suggestion chips rather than silently meaning zero.
+              setCustomTip(digits ? Math.min(Number(digits), MAX_TIP) : null);
+            }}
+          />
+
+          {customTip !== null && Number(customTipText) > MAX_TIP && (
+            <Text style={styles.tipCapNote}>{t('cart.tipCapped')}</Text>
+          )}
+
+          {tipAmount > 0 && <Text style={styles.tipThanks}>{t('cart.tipGoesToRider')}</Text>}
+        </Card>
+
         {/* Bill */}
         <Card style={styles.block}>
           <View style={styles.billHeader}>
@@ -528,11 +615,17 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                   </Text>
                 </View>
               )}
+              {Number(pricingResult.tipAmount) > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={styles.billLabel} numberOfLines={1}>{t('cart.tipForRider')}</Text>
+                  <Text style={styles.billValue}>₹{Number(pricingResult.tipAmount).toFixed(2)}</Text>
+                </View>
+              )}
             </>
           )}
 
           <View style={styles.billTotalRow}>
-            <Text style={styles.billTotalLabel}>To pay</Text>
+            <Text style={styles.billTotalLabel}>{t('cart.toPay')}</Text>
             <Text style={styles.billTotalValue}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
           </View>
 
@@ -795,6 +888,32 @@ const styles = StyleSheet.create({
   pageSub: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4, marginBottom: 18 },
 
   block: { marginBottom: 14 },
+
+  tipSubtitle: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 2, marginBottom: 12 },
+  tipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tipChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: tokens.radii.full,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    backgroundColor: c.surface.app
+  },
+  tipChipActive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
+  tipChipText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.secondary },
+  tipChipTextActive: { color: '#FFFFFF' },
+  tipInput: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    borderRadius: tokens.radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: tokens.font.size.sm,
+    color: c.text.primary
+  },
+  tipCapNote: { fontSize: tokens.font.size.xs, color: c.semantic.error, marginTop: 6 },
+  tipThanks: { fontSize: tokens.font.size.xs, color: c.dietary.veg, marginTop: 10 },
   blockHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   blockTitle: {
     fontSize: tokens.font.size.base,

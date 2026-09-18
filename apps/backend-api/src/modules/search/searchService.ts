@@ -12,6 +12,19 @@ export interface SearchCatalogParams {
   type?: 'all' | 'restaurants' | 'dishes';
   limit?: number;
   offset?: number;
+  /**
+   * Applied after the index answers, not inside the query.
+   *
+   * Delivery time and price band are derived from the searcher's position and
+   * from fields the index does not filter on, so they cannot be pushed into the
+   * Meilisearch filter without reindexing per user. Filtering the hits is
+   * correct here and wrong at scale; when the catalogue outgrows it, these move
+   * into the index as pre-computed facets.
+   */
+  maxDeliveryMinutes?: number;
+  minCostForTwo?: number;
+  maxCostForTwo?: number;
+  sort?: 'relevance' | 'rating' | 'deliveryTime' | 'costLowToHigh' | 'costHighToLow' | 'distance';
 }
 
 export interface SuggestionItem {
@@ -29,7 +42,13 @@ export const searchService = {
     const offset = params.offset || 0;
 
     // Cache key incorporates all query parameters
-    const cacheKey = `search:${query}:${type}:${params.isVeg}:${params.minRating}:${params.city}:${params.latitude}:${params.longitude}:${limit}:${offset}`;
+    // Every parameter that changes the answer must be in the key. A filter left
+    // out of it would serve one customer's veg-only results to the next person
+    // who searched the same word.
+    const cacheKey =
+      `search:${query}:${type}:${params.isVeg}:${params.minRating}:${params.city}:` +
+      `${params.latitude}:${params.longitude}:${limit}:${offset}:` +
+      `${params.maxDeliveryMinutes}:${params.minCostForTwo}:${params.maxCostForTwo}:${params.sort}`;
     const cached = await searchCache.get<any>(cacheKey);
     if (cached) {
       return {
@@ -99,6 +118,52 @@ export const searchService = {
           estimatedDeliveryMinutes: estMinutes
         };
       });
+    }
+
+    // Delivery time exists only when the searcher told us where they are; with
+    // no position there is no distance and so no estimate, and filtering on a
+    // figure that was never computed would empty the results.
+    if (params.maxDeliveryMinutes !== undefined) {
+      const cap = params.maxDeliveryMinutes;
+      const within = (row: any) =>
+        row.estimatedDeliveryMinutes === undefined || row.estimatedDeliveryMinutes <= cap;
+      restaurants = restaurants.filter(within);
+      dishes = dishes.filter(within);
+    }
+
+    // A row with no published price stays in every band, for the same reason as
+    // in the discovery feed: a missing field should not hide a real kitchen.
+    if (params.minCostForTwo !== undefined || params.maxCostForTwo !== undefined) {
+      const min = params.minCostForTwo;
+      const max = params.maxCostForTwo;
+      const inBand = (value: unknown) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return true;
+        if (min !== undefined && n < min) return false;
+        if (max !== undefined && n > max) return false;
+        return true;
+      };
+      restaurants = restaurants.filter(r => inBand(r.costForTwo));
+      dishes = dishes.filter(d => inBand(d.price));
+    }
+
+    if (params.sort && params.sort !== 'relevance') {
+      const rating = (row: any) => Number(row.ratingAverage ?? row.rating) || 0;
+      const cost = (row: any) => Number(row.costForTwo ?? row.price) || 0;
+      const eta = (row: any) => Number(row.estimatedDeliveryMinutes) || Number.MAX_SAFE_INTEGER;
+      const distance = (row: any) => Number(row.distanceKm) || Number.MAX_SAFE_INTEGER;
+      const comparators: Record<string, (a: any, b: any) => number> = {
+        rating: (a, b) => rating(b) - rating(a),
+        deliveryTime: (a, b) => eta(a) - eta(b),
+        distance: (a, b) => distance(a) - distance(b),
+        costLowToHigh: (a, b) => cost(a) - cost(b),
+        costHighToLow: (a, b) => cost(b) - cost(a)
+      };
+      const comparator = comparators[params.sort];
+      if (comparator) {
+        restaurants = [...restaurants].sort(comparator);
+        dishes = [...dishes].sort(comparator);
+      }
     }
 
     const totalHits = restaurants.length + dishes.length;

@@ -158,16 +158,43 @@ export function fetchOrderHistory(restaurantId: string, scope: 'all' | 'complete
   );
 }
 
-export function updateOrderStatus(orderId: string, status: string, preparationMinutes?: number) {
+export function updateOrderStatus(
+  orderId: string,
+  status: string,
+  preparationMinutes?: number,
+  cancellation?: { reasonCode: string; note?: string }
+) {
   return request<{ order: any }>(
     `/orders/${orderId}/status`,
     {
       method: 'PUT',
-      body: JSON.stringify(
-        preparationMinutes === undefined ? { status } : { status, preparationMinutes }
-      )
+      body: JSON.stringify({
+        status,
+        ...(preparationMinutes === undefined ? {} : { preparationMinutes }),
+        // The server refuses a cancellation with no reason, so rejecting an
+        // order without one is not a thing this app can do.
+        ...(cancellation
+          ? {
+              cancellationReasonCode: cancellation.reasonCode,
+              ...(cancellation.note ? { cancellationNote: cancellation.note } : {})
+            }
+          : {})
+      })
     },
     'Could not update the order.'
+  );
+}
+
+/**
+ * The reasons this kitchen may give for rejecting an order.
+ *
+ * Served by the API and scoped to the caller's role, so the partner app cannot
+ * offer "I changed my mind" and the list stays the same one operations reports
+ * on.
+ */
+export function fetchCancellationReasons() {
+  return request<{ reasons: Array<{ code: string; label: string; allowsNote: boolean }> }>(
+    '/orders/cancellation-reasons'
   );
 }
 
