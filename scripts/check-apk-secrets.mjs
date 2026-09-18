@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Does a built APK contain anything it should not?
+ * Does a built artifact contain anything it should not?
  *
  * `check-secrets.mjs` reads tracked source files. An APK is neither: it is a
  * zip of a JavaScript bundle produced by a bundler that inlines constants,
@@ -83,21 +83,22 @@ console.log('====================================================');
 console.log('        SCANNING BUILT APKS FOR CREDENTIALS        ');
 console.log('====================================================\n');
 
-if (!fs.existsSync(APK_DIR)) {
-  console.log('[SKIP] build/apk does not exist. Build the apps first.\n');
-  process.exit(0);
-}
+// Not `process.exit` — that used to return "clean" for a machine that had
+// simply never built the apps, and it skipped the web portals below entirely.
+// A missing artifact is a thing to say out loud, not a pass and not an abort.
+const apks = fs.existsSync(APK_DIR)
+  ? fs.readdirSync(APK_DIR).filter(f => f.endsWith('.apk'))
+  : [];
 
-const apks = fs.readdirSync(APK_DIR).filter(f => f.endsWith('.apk'));
 if (apks.length === 0) {
-  console.log('[SKIP] No APKs in build/apk. Build the apps first.\n');
-  process.exit(0);
+  console.log('[SKIP] No APKs in build/apk — nothing to scan there. Build them first.');
 }
 
 const envSecrets = secretsFromEnv();
 console.log(
   `[INFO] Matching ${envSecrets.length} credential(s) from .env, plus ` +
-    `${FORBIDDEN.length} always-forbidden pattern(s), against ${apks.length} APK(s).\n`
+    `${FORBIDDEN.length} always-forbidden pattern(s), against ${apks.length} APK(s) ` +
+    `and the web builds.\n`
 );
 
 for (const apk of apks) {
@@ -142,13 +143,62 @@ for (const apk of apks) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// The web portals, for the same reason.
+//
+// Vite inlines every `VITE_*` variable into the bundle it emits, so a secret
+// added to `.env` with that prefix is published to every visitor the moment the
+// portal is deployed — with no warning, and nothing in the source to see.
+// ---------------------------------------------------------------------------
+const WEB_APPS = ['apps/admin-web/dist', 'apps/restaurant-web/dist'];
+
+function filesUnder(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) filesUnder(full, out);
+    else out.push(full);
+  }
+  return out;
+}
+
+for (const relative of WEB_APPS) {
+  const dir = path.join(ROOT, relative);
+  if (!fs.existsSync(dir)) {
+    console.log(`[SKIP] ${relative} has not been built`);
+    continue;
+  }
+
+  const files = filesUnder(dir);
+  let found = 0;
+
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'latin1');
+    const name = path.relative(ROOT, file).replace(/\\/g, '/');
+
+    for (const secret of envSecrets) {
+      if (content.includes(secret.value)) {
+        fail(`${name} contains the value of ${secret.name} from .env`);
+        found++;
+      }
+    }
+    for (const rule of FORBIDDEN) {
+      if (rule.pattern.test(content)) {
+        fail(`${name} contains ${rule.label}`);
+        found++;
+      }
+    }
+  }
+
+  if (found === 0) pass(`${relative} — ${files.length} files, nothing sensitive in them`);
+}
+
 console.log('');
 console.log('====================================================');
 if (problems === 0) {
-  console.log('  NO CREDENTIALS IN ANY BUILT APK                  ');
+  console.log('  NO CREDENTIALS IN ANY BUILT ARTIFACT             ');
   console.log('====================================================\n');
   process.exit(0);
 }
-console.log(`  ${problems} PROBLEM(S) — DO NOT DISTRIBUTE THESE APKS     `);
+console.log(`  ${problems} PROBLEM(S) — DO NOT DISTRIBUTE THESE BUILDS    `);
 console.log('====================================================\n');
 process.exit(1);
