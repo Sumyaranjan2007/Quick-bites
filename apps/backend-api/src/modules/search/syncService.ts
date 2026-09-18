@@ -41,6 +41,17 @@ export const syncService = {
         longitude: r.coordinates?.longitude || 77.5946,
         isAvailable: r.status === 'ACTIVE',
         packagingFee: r.packagingFee,
+        // Indexed because search filters and sorts on them. Without these two,
+        // a price band on /search silently matched every kitchen (a row with no
+        // published price deliberately stays in every band, and NONE of them
+        // had one), and "cost: low to high" ordered every result by zero.
+        // The filter looked like it worked because nothing was ever excluded.
+        costForTwo: r.costForTwo,
+        isOpen: r.isOpen !== false,
+        // Both spellings: `rating` is what this index has always used, and
+        // `ratingAverage` is what every other surface calls it. A filter that
+        // has to know which one it is looking at will eventually pick wrong.
+        ratingAverage: r.ratingAverage,
         imageUrl: (r as any).imageUrl || ''
       });
 

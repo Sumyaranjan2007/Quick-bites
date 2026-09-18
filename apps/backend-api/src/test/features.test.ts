@@ -24,6 +24,7 @@ import { orderService } from '../modules/orders/orderService.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { refundRepository } from '../db/repositories/refundRepository.ts';
 import { menuRepository } from '../db/repositories/menuRepository.ts';
+import { syncService } from '../modules/search/syncService.ts';
 import { estimateArrival } from '../modules/orders/eta.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import type { Order } from '@quick-bites/shared-types';
@@ -346,6 +347,61 @@ async function run() {
   check('An unparseable filter is ignored rather than emptying the feed',
     (nonsense.json?.data?.restaurants?.length || 0) === total,
     `${nonsense.json?.data?.restaurants?.length} of ${total}`);
+
+  // The same filters must work on search, not only on the feed. Two surfaces
+  // disagreeing about what "under 30 minutes" means is the reason these moved
+  // to the server in the first place.
+  //
+  // The index has to be built first. Without the sync these checks ran against
+  // an EMPTY index, where `[].every(...)` is true and two empty lists are equal
+  // — every one of them passed while testing nothing at all.
+  await syncService.syncCatalog();
+
+  // A blank query returns the whole catalogue, which is the only result set
+  // guaranteed to span more than one price. A narrow query can return kitchens
+  // that all happen to sit inside the band, and then "the filter worked" is
+  // indistinguishable from "the filter did nothing".
+  const searchAll = await api('/search?q=&type=restaurants');
+  const allHits = searchAll.json?.data?.restaurants || [];
+  check('The search index has something in it for these checks to mean anything',
+    allHits.length > 0, 'an empty index makes every filter assertion below vacuous');
+
+  const band = 300;
+  const dear = allHits.filter((r: any) => Number(r.costForTwo) > band).length;
+  check('and the catalogue spans the price band being tested',
+    dear > 0,
+    `nothing costs more than ${band} for two, so a ${band} ceiling cannot be shown to exclude anything`);
+
+  const searchCheap = await api(`/search?q=&type=restaurants&maxCostForTwo=${band}`);
+  const cheapHits = searchCheap.json?.data?.restaurants || [];
+  check('Search accepts a price band', searchCheap.status === 200, `status ${searchCheap.status}`);
+  check('and applies it',
+    cheapHits.every((r: any) => r.costForTwo === undefined || Number(r.costForTwo) <= band),
+    JSON.stringify(cheapHits.map((r: any) => r.costForTwo)));
+  check('and the band actually excluded the dearer kitchens',
+    cheapHits.length < allHits.length,
+    `${allHits.length} hits, ${dear} above the band, ${cheapHits.length} after filtering — ` +
+      'an unchanged count means the filter never ran, or a cache served the unfiltered list');
+
+  const searchSorted = await api('/search?q=&sort=rating');
+  const searchRatings = (searchSorted.json?.data?.restaurants || []).map(
+    (r: any) => Number(r.ratingAverage) || 0
+  );
+  check('Search sorts by rating when asked',
+    searchRatings.length > 1 &&
+      searchRatings.every((v: number, i: number) => i === 0 || searchRatings[i - 1] >= v),
+    JSON.stringify(searchRatings));
+
+  // The cache key must include every filter, or one customer's veg-only results
+  // are served to the next person who searches the same word. These two queries
+  // differ in exactly one parameter, which is what makes the check meaningful.
+  const anySearch = await api('/search?q=&type=restaurants');
+  const vegSearch = await api('/search?q=&type=restaurants&isVeg=true');
+  const anyNames = (anySearch.json?.data?.restaurants || []).map((r: any) => r.name).join(',');
+  const vegNames = (vegSearch.json?.data?.restaurants || []).map((r: any) => r.name).join(',');
+  check('A filtered search does not serve the unfiltered result from cache',
+    anyNames.length > 0 && vegNames !== anyNames,
+    `unfiltered [${anyNames}] vs veg-only [${vegNames}] — identical means a shared cache key`);
 
   // ==================================================================
   console.log('\n--- 6.5 Cancellation reasons and automatic refund ---');
