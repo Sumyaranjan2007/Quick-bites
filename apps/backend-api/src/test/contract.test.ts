@@ -159,18 +159,86 @@ function expandTemplate(body: string): string[] {
  * looked at — which the per-app guard below caught on its first run, and which
  * is exactly why that guard is there.
  */
-function extractCalls(appDir: string): Map<string, string[]> {
-  const found = new Map<string, string[]>();
+interface ClientCall {
+  /** Files the call is made from, for the failure message. */
+  where: string[];
+  /**
+   * The verbs the apps were seen using on this path, where the extractor could
+   * read one with confidence.
+   *
+   * Empty means "could not tell", and the path is then only checked for
+   * existence under any verb. Guessing a verb and asserting it would turn a
+   * limitation of this parser into a failing build.
+   */
+  methods: Set<string>;
+}
+
+function extractCalls(appDir: string): Map<string, ClientCall> {
+  const found = new Map<string, ClientCall>();
   const files = walk(path.join(REPO_ROOT, appDir));
 
-  const record = (raw: string, file: string) => {
+  const record = (raw: string, file: string, method?: string) => {
     for (const expanded of expandTemplate(raw)) {
       if (!expanded.startsWith('/')) continue;
       const clean = expanded.split('?')[0].replace(/\/+$/, '') || '/';
       const where = path.relative(REPO_ROOT, file).replace(/\\/g, '/');
-      if (!found.has(clean)) found.set(clean, []);
-      if (!found.get(clean)!.includes(where)) found.get(clean)!.push(where);
+      if (!found.has(clean)) found.set(clean, { where: [], methods: new Set() });
+      const entry = found.get(clean)!;
+      if (!entry.where.includes(where)) entry.where.push(where);
+      if (method) entry.methods.add(method.toUpperCase());
     }
+  };
+
+  /**
+   * The text of one call, from its opening parenthesis to the matching close.
+   *
+   * A fixed-length window is not good enough. `fetchDashboard` is a one-line GET
+   * immediately followed by `setKitchenOpen`, which passes `method: 'POST'`; a
+   * 400-character window read that POST and reported that the partner app was
+   * calling an endpoint the server does not have. It was not. Balancing the
+   * parentheses keeps each call's options inside its own call.
+   */
+  const callSpan = (source: string, openerIndex: number): string => {
+    const open = source.indexOf('(', openerIndex);
+    if (open === -1) return '';
+    let depth = 0;
+    for (let i = open; i < source.length && i < open + 4000; i++) {
+      if (source[i] === '(') depth++;
+      else if (source[i] === ')') {
+        depth--;
+        if (depth === 0) return source.slice(openerIndex, i + 1);
+      }
+    }
+    return source.slice(openerIndex, openerIndex + 400);
+  };
+
+  /**
+   * The same, for a URL found in the MIDDLE of a call rather than at its start.
+   *
+   * `apiFetch(`${apiUrl}/orders`, { method: 'POST' })` — the template literal is
+   * the first argument, so the call's opening parenthesis is behind it. Scans
+   * back a short way for the opener, then balances forward from there.
+   */
+  const callSpanAround = (source: string, insideIndex: number): string => {
+    const lookBehind = source.slice(Math.max(0, insideIndex - 120), insideIndex);
+    const opener = lookBehind.lastIndexOf('(');
+    if (opener === -1) return source.slice(insideIndex, insideIndex + 300);
+    return callSpan(source, Math.max(0, insideIndex - 120) + opener);
+  };
+
+  /**
+   * The verb, read out of one call's own text.
+   *
+   * `api.post(...)` names it outright. A `fetch`/`request` with options names it
+   * as `method: 'PUT'`. Anything else returns undefined, and the caller falls
+   * back to checking existence under any verb.
+   */
+  const methodFrom = (span: string): string | undefined => {
+    const verb = span.match(/^api\.(get|post|put|patch|del|delete)\b/);
+    if (verb) return verb[1] === 'del' ? 'DELETE' : verb[1];
+    const explicit = span.match(/method:\s*'(GET|POST|PUT|PATCH|DELETE)'/i);
+    if (explicit) return explicit[1];
+    return undefined;
   };
 
   for (const file of files) {
@@ -182,7 +250,8 @@ function extractCalls(appDir: string): Map<string, string[]> {
     while ((match = inlinePattern.exec(source)) !== null) {
       if (!BASE_VARS.has(match[1])) continue;
       if (!match[2].startsWith('/')) continue;
-      record(match[2], file);
+      // The options object follows the URL, so look forward from it.
+      record(match[2], file, methodFrom(callSpanAround(source, match.index)));
     }
 
     // Shape 2: a bare path handed to a wrapper that prepends the base. All
@@ -198,10 +267,10 @@ function extractCalls(appDir: string): Map<string, string[]> {
     // functions is a string starting with one.
     const openerPattern = /\b(?:request\s*(?:<[^>]*>)?|api\.(?:get|post|put|patch|del|delete))\s*\(/g;
     while ((match = openerPattern.exec(source)) !== null) {
-      const window = source.slice(match.index, match.index + 400);
+      const window = callSpan(source, match.index);
       const literal = window.match(/(`\/[^`]*`|'\/[^']*'|"\/[^"]*")/);
       if (!literal) continue;
-      record(literal[1].slice(1, -1), file);
+      record(literal[1].slice(1, -1), file, methodFrom(window));
     }
   }
   return found;
@@ -221,16 +290,26 @@ function concretise(template: string): string {
 }
 
 /**
- * Which HTTP methods to try. The extractor sees the URL, not the verb, so every
- * method the app could plausibly use is tried and the route passes if ANY of
- * them is handled. A route that exists under some verb is a route that exists;
- * the per-verb rules are what the other suites check.
+ * The verbs tried when the extractor could not read one from the source.
+ *
+ * In that case the path passes if ANY of them is handled — a route that exists
+ * under some verb is a route that exists, and asserting a guessed verb would
+ * fail the build over a limitation of the parser rather than a defect in the
+ * product.
+ *
+ * Where the verb WAS read with confidence, only that verb is tried. That
+ * matters: a client sending `PUT /orders/:id/status` to a server that only
+ * handles `POST` there is a 404 at the tester's fingertips, and trying all five
+ * verbs would have called it a pass because some other verb answered.
  */
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
-async function routeExists(urlPath: string): Promise<{ exists: boolean; evidence: string }> {
+async function routeExists(
+  urlPath: string,
+  onlyMethods?: string[]
+): Promise<{ exists: boolean; evidence: string }> {
   const attempts: string[] = [];
-  for (const method of METHODS) {
+  for (const method of onlyMethods?.length ? onlyMethods : METHODS) {
     let res: Response;
     try {
       res = await fetch(`${API}${urlPath}`, {
@@ -301,20 +380,29 @@ async function run() {
     check(`The ${appInfo.name} app's API calls could be read from source`, calls.size > 0,
       'the extractor found no calls at all, which means it is broken');
 
-    for (const [template, where] of calls) {
+    let verbChecked = 0;
+    for (const [template, call] of calls) {
       totalRoutes++;
       const probe = concretise(template);
-      const result = await routeExists(probe);
+      const verbs = Array.from(call.methods);
+      if (verbs.length) verbChecked++;
+
+      const result = await routeExists(probe, verbs);
       if (result.exists) {
         passed++;
       } else {
         failed++;
-        missing.push({ app: appInfo.name, route: template, where });
-        console.log(`[FAIL] ${appInfo.name}: ${template} — no route on the server (${result.evidence})`);
-        console.log(`       called from: ${where.join(', ')}`);
+        missing.push({ app: appInfo.name, route: template, where: call.where });
+        const how = verbs.length ? verbs.join('/') : 'any verb';
+        console.log(`[FAIL] ${appInfo.name}: ${how} ${template} — the server does not handle it (${result.evidence})`);
+        console.log(`       called from: ${call.where.join(', ')}`);
       }
     }
-    console.log(`       ${calls.size} checked, ${calls.size - missing.filter(m => m.app === appInfo.name).length} resolved`);
+    const appFailures = missing.filter(m => m.app === appInfo.name).length;
+    console.log(
+      `       ${calls.size} checked, ${calls.size - appFailures} resolved ` +
+        `(${verbChecked} against the exact verb the app uses)`
+    );
   }
 
   // ------------------------------------------------------------------
