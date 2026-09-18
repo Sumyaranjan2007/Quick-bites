@@ -1590,6 +1590,57 @@ The verify run also refused a commit of its own accord: `OWNER_ACTIONS.md` had a
 
 ---
 
+## [2026-09-18 19:30] -- Claude Opus 5 -- Session 23 Phase 12 (launch verification)
+
+**Feature/Issue:** Prove the four APKs actually run, and establish what stands between them and a working test.
+
+**Status:** Completed
+**Plan reference:** `MASTER_FIX_PLAN.md` §3 Phase 12
+
+### All four APKs install and open
+
+```
+[PASS] Quick Bites launched and is still running (pid 3865)
+[PASS] Quick Bites Partner launched and is still running (pid 4513)
+[PASS] Quick Bites Rider launched and is still running (pid 4757)
+[PASS] Quick Bites Operations launched and is still running (pid 5061)
+```
+
+The customer app was screenshotted to confirm it **renders** rather than merely surviving: the phone sign-in screen draws correctly — logo, "Sign in or sign up", "no password needed", the `+91` prefix, and the numeric keypad focused on the field. That is the Phase 2 work verified on a device instead of only in tests.
+
+### The emulator, resolved
+
+The two earlier "all four failed" results were the emulator, exactly as diagnosed. The API 36.1 Play Store image crash-loops `surfaceflinger` under software rendering on this machine, under both `-gpu swiftshader_indirect` and `-gpu guest`; when it dies it tears down every surface and the app processes with it.
+
+`system-images;android-34;google_apis;x86_64` boots in **60 seconds** and holds `surfaceflinger` stable. The AVD is `qb34`. Use that one; `qb-test` (API 36.1) does not work here.
+
+### The thing that would have wasted a tester's evening
+
+**The hosted API is still running the previous release.** This session's work is committed but not pushed, so Railway has not redeployed. Confirmed directly:
+
+```
+POST /api/auth/otp/request  ->  404 Route POST /api/auth/otp/request not found
+```
+
+So the new APKs, which point at production by default, **cannot sign anyone in until a deploy happens**. The customer app would ask for a verification code at an endpoint the live server does not have, and the failure would look like a broken app.
+
+**The order is not optional.** The new backend refuses to start without `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `JWT_SECRET`. Pushing before those are set means the deploy fails to boot and takes the currently working API down with it. Variables first, push second. `OWNER_ACTIONS.md` now opens with this.
+
+**Testing performed:** `bash scripts/launch-test.sh` — **4/4 installed and opened** on AVD `qb34`. Customer app screenshot confirms the sign-in screen renders. `npm run verify` — 497 checks, 0 failures. `apksigner` — each APK signed by its own key. Live probe of the hosted API confirming it predates this work.
+
+**Known issues / pending work:**
+- Nothing is deployed. The APKs are correct and the server code is correct; they have not yet met each other.
+- The four-role journey against the **hosted** API remains unrun for that reason.
+- Phase 6 (feature pass) not started; the customer app cannot yet present the Razorpay checkout.
+
+**Decisions / dependencies / session conflicts:**
+- **Not pushed deliberately.** A push triggers a Railway deploy, and a deploy before the variables exist fails to boot. That sequencing belongs to the owner, not to an automated push.
+- Use AVD `qb34` (API 34) for launch testing on this machine.
+
+**NEXT AI SHOULD:** Once the owner has set the Railway variables and pushed, re-probe `/api/auth/otp/request` for a 200, then run the four-role journey against the hosted API through the real apps — customer orders, partner accepts, rider collects with the pickup code and delivers with the doorstep OTP, admin watches it all. That is the only part of the platform never yet proven against production.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.

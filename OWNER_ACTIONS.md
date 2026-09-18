@@ -9,6 +9,42 @@ each step unblocks the next.
 
 ---
 
+## Part 0 — Do these two things IN THIS ORDER
+
+The order matters. Getting it wrong takes the platform down.
+
+### Step 1: set the Railway variables (section 1.1 below). **First.**
+
+The new backend **refuses to start** without `ADMIN_EMAIL`, `ADMIN_PASSWORD`
+and `JWT_SECRET`. That refusal is deliberate — a platform with no administrator
+cannot approve a single restaurant, and coming up with no way in is not a safer
+failure than not coming up at all.
+
+### Step 2: push and let Railway redeploy. **Second.**
+
+This session's work is committed locally but **has not been pushed**, so the
+hosted API is still running the previous release. Verified just now: it answers
+`404 Route POST /api/auth/otp/request not found`.
+
+That means **the new APKs cannot sign anyone in until you deploy.** The customer
+app asks for a verification code at an endpoint the live server does not yet
+have.
+
+```bash
+git push origin main
+```
+
+**If you push before setting the variables, the deploy will fail to boot and the
+current working API goes down with it.** Variables first, push second.
+
+Once it redeploys, this should answer `200` rather than `404`:
+
+```bash
+curl -X POST https://quick-bites-production-9f45.up.railway.app/api/auth/otp/request -H "Content-Type: application/json" -d "{\"phone\":\"9876543210\"}"
+```
+
+---
+
 ## Part 1 — Before anyone can test (required)
 
 ### 1.1 Set the Railway environment variables
