@@ -1,7 +1,7 @@
 # Quick Bites — Full Test Plan
 
-**Version:** 1.0.0
-**Date:** 18 September 2026
+**Version:** 1.1.0
+**Date:** 19 September 2026
 **Purpose:** Everything that can be proven before a human picks up a phone.
 
 This plan exists because the real-world test is expensive. Four people, four
@@ -42,7 +42,8 @@ decorative.
 | **E6** | Real phones, four roles | What only people find | The human test |
 
 E5 is blocked deliberately: the deployment still runs the previous release, and
-pushing before the owner sets `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `JWT_SECRET`
+pushing before the owner sets `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `JWT_SECRET` and
+`DATABASE_URL`
 would take the working API down. Everything E5 would prove is proven in E3
 except latency and the hosting platform itself.
 
@@ -70,7 +71,7 @@ the only place where arithmetic is checked in isolation.
 
 ### Layer 2 — Integration / API (E2)
 
-15 suites, real HTTP and WebSocket against a real Express app. The defects this
+17 suites, real HTTP and WebSocket against a real Express app. The defects this
 project has actually had were never a pure function returning the wrong number —
 they were a route missing an ownership check, a socket room anyone could join, a
 signature verified against the wrong value. Those only appear assembled.
@@ -124,6 +125,7 @@ runs in `NODE_ENV=test`.
 | No `ADMIN_PASSWORD` | Refuses to boot |
 | Short `ADMIN_PASSWORD` | Refuses to boot |
 | No `JWT_SECRET` | Refuses to boot |
+| No `DATABASE_URL` | Refuses to boot — it used to come up healthy and discard every order |
 | All set | Boots, `demoMode:false`, zero restaurants |
 | Demo tokens | Rejected |
 | Fixed OTP without the opt-in | Refused |
@@ -171,6 +173,92 @@ Recorded in §5 of this document as each layer runs, and in `CHANGELOG.md`.
 
 ---
 
-## 5. Run log
+## 5. Run log — 19 September 2026
 
-*Populated by the execution described above — see the entries below.*
+Executed by Claude Opus 5 before any human test.
+
+### Layers 0–6 — `npm run verify:full`
+
+**714 checks, 0 failures.**
+
+| Layer | Result |
+|---|---|
+| Secrets | Clean across 373 tracked files |
+| Hardcoded URLs | None outside each app's `config.ts` |
+| Translations | 100 keys complete in EN, HI and KN; 79 `t()` calls all resolve; every `{placeholder}` survives |
+| Diagnostics | 34/34 |
+| Typecheck | **10/10 workspaces** (was 3/10 — see below) |
+| Backend suites | 17/17 |
+| Contract | 97 client API paths, all resolved |
+| Money / races / restarts | 15/15 |
+| Production configuration | 17/17 |
+
+### Two defects found by layers that did not exist before
+
+**Both web portals were broken.** `export { DEFAULT_API_URL as API_BASE } from
+'./config'` forwards a name to importers without binding it locally, so every
+`${API_BASE}` in `admin-web/src/api.ts`, `admin-web/src/lib/adminApi.ts` and
+`restaurant-web/src/api.ts` referenced nothing. Broken since `56386d9`. The gate
+could not see it because `typecheck` ran in three workspaces. All ten now run,
+and reintroducing the bug fails the gate.
+
+**Production started with no database.** With `DATABASE_URL` unset the service
+reported `HEALTHY`, accepted real orders, and wrote them to a container
+filesystem destroyed on the next deploy. The Postgres path already refused to
+start when it could not reach the database, for exactly this reason; the file
+path had no equivalent guard. It refuses now.
+
+### Every new check was shown to go red
+
+| Mutation | What went red |
+|---|---|
+| GST charged on the tip | 2 feature checks |
+| Refund suppressed on cancellation | 5 feature checks |
+| Prep countdown frozen | The stuck ETA, reproduced exactly: `35 -> 35` |
+| `/auth/otp/request` renamed | The live 404, reproduced exactly |
+| A Hindi key removed | 1 translation check |
+| A Kannada `{placeholder}` dropped | 1 translation check |
+| Platform fee set to `5.907` | The sub-paisa check (the conservation check did **not** catch it) |
+| `API_BASE` re-export restored | The typecheck gate |
+
+Three checks caught their own authors first: the contract extractor reported a
+clean contract for three apps it had never read, the translation parser broke on
+`"WHAT'S YOUR"` and accused Hindi of having keys English did not, and the
+production-boot check read this machine's `data/store.json` and reported four
+restaurants in an empty deployment.
+
+### Layer 2b — live journey against a running dev server
+
+Not a test harness: `npm run dev`, real HTTP, four real accounts.
+
+| Step | Result |
+|---|---|
+| Tipped order quoted and placed | ₹742.90 total, ₹40 tip carried onto the bill |
+| ETA at placement | 30 min, `PREP_AND_TRAVEL`, over a measured 1.2 km |
+| ETA after the kitchen promised 25 min | 35 min, `KITCHEN_ESTIMATE` — it moved, and rose honestly because the kitchen asked for longer than the default |
+| Rider offer on a ₹75-tipped order | **₹115** = ₹40 base + ₹0 delivery (Gold) + ₹75 tip |
+| Claimed trip | Still ₹115 — the tip survives the claim |
+| Reorder | Exact repeat detected |
+| Cancellation reasons in Kannada | Served translated |
+| Veg + rating filter | 1 of 4 restaurants |
+| Cancel with `TOO_LONG` | 200, code stored, no refund (unpaid COD) — correct |
+
+### Layer 8b — the admin web console, in a browser
+
+The console was broken for anyone who tried to use it, so compiling was not
+enough. Signed in at `admin@quickbite.app` against a local backend:
+
+- The sign-in screen rendered.
+- `POST /api/auth/login` → 200, `GET /api/admin/me` → 200, `GET /api/admin/dashboard` → 200.
+- The control tower rendered with real figures: 4 restaurants, 2 customers, 1 driver, 1 pending KYC.
+- **Zero console errors.**
+
+### Layers 7–8 — build, launch, render
+
+Recorded in `CHANGELOG.md` for 19 September 2026 alongside the artifact table.
+
+### Layer 9 — hosted
+
+**Not run.** The deployment still serves the previous release, and pushing before
+the owner sets the Railway variables would take the working API down. See
+`OWNER_ACTIONS.md` Part 0.
