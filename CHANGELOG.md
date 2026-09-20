@@ -183,6 +183,58 @@ Both are shown where they were applied — a Blocked badge, a filter tab, the
 reason on the detail sheet. An administrator who blocks somebody has to be able
 to see that they did.
 
+### The kitchen never heard an order arrive
+
+Reported as "the sound is missing". It was not missing — it was written, in
+full, and unreachable. Two independent faults, either of which alone was enough
+to make a new order arrive in silence.
+
+**The partner app asked Android for a sound it never packaged.** `orderAlert.ts`
+creates its notification channel with `sound: 'new_order.wav'`, and
+`new_order.wav` was sitting in `assets/`, where the notification system cannot
+see it. `expo-notifications` copies the files named in its `sounds` option into
+`res/raw` — and the partner app never configured that plugin. The rider app
+did, which is why the same code rings on one and not the other. The partner APK
+shipped without a `res/raw` directory at all.
+
+The plugin that stops the resource shrinker deleting that file
+(`withKeptNotificationSound`) was missing too, and this app builds with
+`enableShrinkResourcesInReleaseBuilds` on — so even adding the sound without it
+would have produced an APK that rang in debug and was silent in release.
+
+**And nothing called the alert unless the Orders tab was open.** The detection
+lived inside `LiveOrdersScreen`, which React mounts only while that tab is
+selected. A phone propped by the pass sits on the dashboard — the tab the app
+opens on — so the only code that could ring was on the one screen nobody was
+looking at. The moment an alarm is not needed is precisely the moment it was
+the only moment it worked.
+
+Worse, the record of which orders had already rung was component state. Leaving
+the tab and coming back re-established a baseline, so anything that arrived in
+between could never ring at all.
+
+**The event was already arriving and being thrown away.** The socket delivers
+`order:created` to the app shell with the whole order in the payload. The shell's
+handler was `() => setRefreshSignal(n => n + 1)` — it took the event, discarded
+both arguments, and bumped a counter. Everything needed to ring was landing one
+line above where it was needed.
+
+The shell rings now, so it rings on whatever tab the kitchen is showing. The
+Orders tab keeps its polling detection as the fallback it should always have
+been — websockets are blocked on some mobile networks — and both paths go
+through one record of what has already been announced, kept at module scope so
+it survives a tab change and cannot ring twice for one order. Cleared on
+sign-out, because a kitchen phone changes hands between shifts.
+
+**What was tested before was the emitter, called by hand.** `sockets.test.ts`
+invoked `emitOrderCreated` directly and asserted the kitchen room received it.
+That proves a function, not the chain: nothing asserted that PLACING AN ORDER
+reaches the kitchen, and nothing asserted the payload carries the fields the app
+reads to name the order and count its items. An alert is worth exactly as much
+as the event it waits for. Both are now asserted against a real order placed
+over HTTP, with the listener armed before the order is sent so the check cannot
+pass on timing.
+
 ---
 
 ### Verified against the running system
@@ -203,6 +255,9 @@ to see that they did.
 | and re-approval restores it | A valid licence sent from the same screen puts them back |
 | A document type nobody asks for | `FSSAI_LICENSE` refused at `/kyc/submit` |
 | Prose is not a document | "emailed on 14 Sep" refused 400; a data URI accepted 201 |
+| A real order reaches the kitchen | Listener armed first, then `POST /orders` → `order:created` with that order's id |
+| and carries what the alert needs | orderNumber, items and `bill.totalAmount` all present |
+| The alert sound ships | `res/raw/new_order.wav` present in the partner APK, which had no `res/raw` at all |
 
 **Gate:** 22 backend suites, nine workspaces typechecked, secret, URL and
 translation scans clean.

@@ -250,6 +250,52 @@ async function run() {
   // 5. An order arrives, and is prepared
   // -----------------------------------------------------------------------
   console.log('\n-- Receiving and preparing an order');
+
+  /*
+   * THE CHAIN THE KITCHEN'S ALARM HANGS ON.
+   *
+   * The partner app rings from its app shell, on `order:created`, using the
+   * order carried in that payload — so it rings whichever tab the phone is
+   * showing. That replaced detection which lived inside the Orders tab and
+   * therefore only ever worked while somebody was already looking at the
+   * orders, which is the one moment an alarm is not needed.
+   *
+   * What was tested before was `emitOrderCreated` called by hand, in
+   * sockets.test.ts. That proves the emitter, not the chain: nothing asserted
+   * that PLACING AN ORDER reaches the kitchen's room, and nothing asserted the
+   * payload carries the fields the app reads to name the order and count the
+   * items. An alert is worth exactly as much as the event it waits for.
+   *
+   * The listener is armed BEFORE the order is placed. Arming it afterwards
+   * would race the emit and pass or fail on timing.
+   */
+  const { io: socketClient } = await import('socket.io-client');
+  const kitchen = socketClient(BASE, { transports: ['websocket'], auth: { token: partner.token } });
+
+  const kitchenConnected = await new Promise<boolean>(resolve => {
+    const timer = setTimeout(() => resolve(false), 5000);
+    kitchen.on('connect', () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+    kitchen.on('connect_error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+  check('The kitchen terminal can open a live channel', kitchenConnected);
+
+  kitchen.emit('join:restaurant', { restaurantId: RESTAURANT });
+  await new Promise(r => setTimeout(r, 250));
+
+  const heardOrder = new Promise<any>(resolve => {
+    const timer = setTimeout(() => resolve(null), 6000);
+    kitchen.once('order:created', (payload: any) => {
+      clearTimeout(timer);
+      resolve(payload);
+    });
+  });
+
   const placed = await api(
     '/orders',
     {
@@ -266,6 +312,34 @@ async function run() {
   );
   check('An open kitchen accepts the order', placed.status === 201, `status ${placed.status}`);
   const orderId = placed.json?.data?.order?.id;
+
+  const rung = await heardOrder;
+  kitchen.disconnect();
+
+  check('Placing an order reaches the kitchen over the socket', Boolean(rung), 'no order:created arrived');
+  check(
+    'and it is THIS order, not some other event',
+    rung?.order?.id === orderId,
+    `${rung?.order?.id} vs ${orderId}`
+  );
+
+  // Exactly the fields the partner app reads to raise the alert. Without these
+  // the phone rings and the notification reads "undefined".
+  check(
+    'The payload names the order',
+    typeof rung?.order?.orderNumber === 'string' && rung.order.orderNumber.length > 0,
+    rung?.order?.orderNumber
+  );
+  check(
+    'and carries the items to count',
+    Array.isArray(rung?.order?.items) && rung.order.items.length > 0,
+    `${rung?.order?.items?.length} items`
+  );
+  check(
+    'and the total to put in the notification',
+    Number(rung?.order?.bill?.totalAmount) > 0,
+    `total ${rung?.order?.bill?.totalAmount}`
+  );
 
   const queue = await api(`/restaurants/${RESTAURANT}/orders`, {}, partner.token);
   const inQueue = (queue.json?.data?.orders || []).some((o: any) => o.id === orderId);

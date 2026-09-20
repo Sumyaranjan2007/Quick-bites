@@ -9,6 +9,28 @@
  * Adapted from the rider app's version so both alerts behave the same way; the
  * kitchen rings longer, because a phone on a counter is noticed less quickly than
  * one in a pocket.
+ *
+ * TWO THINGS MADE THIS SILENT IN PRACTICE, and neither was visible from the code
+ * in this file:
+ *
+ *   1. The channel below asks Android for a sound called `new_order.wav`. The
+ *      partner app never packaged one. `expo-notifications` copies the files
+ *      named in its `sounds` option into res/raw, and the partner app did not
+ *      configure that plugin at all — the rider app did. The .wav sat in
+ *      assets/, where the notification system cannot see it, and Android quietly
+ *      fell back to whatever the default channel sound was.
+ *
+ *   2. NOTHING CALLED THE ALERT UNLESS THE ORDERS TAB WAS OPEN. The detection
+ *      lived inside LiveOrdersScreen, which is mounted only while that tab is
+ *      selected — so a kitchen phone resting on the dashboard, which is the
+ *      default tab and where a propped-up phone naturally sits, rang for
+ *      nothing. Worse, the set of already-seen orders was component state, so
+ *      leaving the tab and coming back re-established a baseline and orders that
+ *      arrived in between could never ring.
+ *
+ * Which orders have already rung is therefore kept HERE, at module scope: it
+ * outlives every screen, and it lets the socket and the polling fallback both
+ * report an order without it ringing twice.
  */
 import { Platform, Vibration } from 'react-native';
 import { Audio } from 'expo-av';
@@ -137,9 +159,88 @@ export async function notifyNewOrder(params: {
   }
 }
 
+/**
+ * Orders that have already been announced.
+ *
+ * Module scope, deliberately. Two things report a new order — the socket, and
+ * the polling fallback for the networks where websockets are blocked — and
+ * without a shared record the same order rings twice, or the record is thrown
+ * away every time the kitchen changes tab.
+ */
+const announced = new Set<string>();
+
+/** Keeps the set from growing without bound over a long shift. */
+const MAX_REMEMBERED = 400;
+
+/*
+ * Whether the opening queue has been read yet.
+ *
+ * Held separately rather than inferred from `announced` being empty, which is
+ * the obvious shortcut and is wrong: a kitchen that opens the app with NO
+ * orders waiting leaves the set empty, so the next order to arrive would be
+ * mistaken for part of the opening queue and silently marked as seen. That is
+ * the first order of a quiet shift — exactly the one nobody is watching the
+ * screen for.
+ */
+let baselineTaken = false;
+
+export interface NewOrderSummary {
+  id: string;
+  orderNumber: string;
+  itemCount: number;
+  total: number;
+}
+
+/**
+ * Announce an order, unless it has already been announced.
+ *
+ * Returns true if this call is what rang, so a caller can tell a genuinely new
+ * order from a second report of one it already knows about.
+ */
+export async function announceOrder(order: NewOrderSummary): Promise<boolean> {
+  if (!order?.id || announced.has(order.id)) return false;
+
+  if (announced.size >= MAX_REMEMBERED) {
+    // Oldest first. Insertion order is guaranteed for a Set.
+    const oldest = announced.values().next().value;
+    if (oldest) announced.delete(oldest);
+  }
+  announced.add(order.id);
+
+  await startOrderAlert();
+  await notifyNewOrder({
+    orderNumber: order.orderNumber,
+    itemCount: order.itemCount,
+    total: order.total
+  });
+  return true;
+}
+
+/**
+ * Records orders as already-seen WITHOUT ringing.
+ *
+ * Called with whatever is already in the queue when the app opens, so a kitchen
+ * signing in mid-service is not greeted by an alarm for work it is already
+ * halfway through.
+ */
+export function markOrdersSeen(ids: string[]): void {
+  for (const id of ids) if (id) announced.add(id);
+  baselineTaken = true;
+}
+
+/** True once the opening queue has been read, so no caller takes a second baseline. */
+export function hasTakenBaseline(): boolean {
+  return baselineTaken;
+}
+
 /** Releases the audio handle when the partner signs out. */
 export async function releaseOrderAlerts(): Promise<void> {
   await stopOrderAlert();
+  // Cleared on sign-out. A shared kitchen phone that changes hands between
+  // shifts would otherwise keep the previous session's order ids and stay
+  // silent for anything already announced to somebody who has gone home.
+  announced.clear();
+  baselineTaken = false;
   if (sound) {
     try {
       await sound.unloadAsync();

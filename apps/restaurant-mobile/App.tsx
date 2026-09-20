@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,12 @@ import {
   setSessionEndedHandler
 } from './src/lib/partnerApi';
 import { useLiveUpdates } from './src/lib/useLiveUpdates';
-import { prepareOrderAlerts, releaseOrderAlerts, stopOrderAlert } from './src/lib/orderAlert';
+import {
+  prepareOrderAlerts,
+  releaseOrderAlerts,
+  stopOrderAlert,
+  announceOrder
+} from './src/lib/orderAlert';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { SettlementsScreen } from './src/screens/SettlementsScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -83,6 +88,16 @@ function PartnerApp() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [togglingKitchen, setTogglingKitchen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  /*
+   * Read through a ref inside the socket callback.
+   *
+   * useLiveUpdates keeps the handler it was given at registration, so a
+   * callback closing over `soundEnabled` would go on using whatever the value
+   * was when the socket connected — silencing a kitchen that had turned sound
+   * back on, and ringing for one that had turned it off.
+   */
+  const soundEnabledRef = useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
 
   /** Incremented on every live event, so screens can refresh without remounting. */
   const [refreshSignal, setRefreshSignal] = useState(0);
@@ -168,11 +183,41 @@ function PartnerApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * THE KITCHEN IS TOLD ABOUT AN ORDER FROM HERE, not from the Orders tab.
+   *
+   * The alert used to live inside LiveOrdersScreen, which React mounts only
+   * while that tab is selected. A phone propped by the pass sits on the
+   * dashboard — the tab this app opens on — so the one screen that could ring
+   * was the one nobody was looking at, and an order arrived in silence.
+   *
+   * The socket already delivered `order:created`, with the whole order in the
+   * payload, to this exact callback. It was discarded: the handler bumped a
+   * counter and threw the event away. Everything needed to ring was arriving
+   * and being dropped one line above where it was needed.
+   *
+   * Ringing is deduplicated inside orderAlert, so the Orders tab's polling
+   * fallback — which still matters on the mobile networks where websockets are
+   * blocked — cannot ring for the same order a second time.
+   */
   const { connected } = useLiveUpdates(
     token && restaurant?.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
     currentApiUrl(),
     token,
-    () => setRefreshSignal(n => n + 1)
+    (event, payload) => {
+      setRefreshSignal(n => n + 1);
+
+      if (event !== 'order:created') return;
+      const order = payload?.order;
+      if (!order?.id || !soundEnabledRef.current) return;
+
+      void announceOrder({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        itemCount: (order.items || []).length,
+        total: Number(order.bill?.totalAmount) || 0
+      });
+    }
   );
 
   const toggleKitchen = async () => {

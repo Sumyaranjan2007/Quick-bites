@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, RefreshControl } from 'react-native';
 import { Clock, CheckCircle2, Minus, Plus, BellRing, VolumeX } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, Button, Pill, EmptyState, ErrorNote } from '../components/ui';
 import { fetchLiveOrders, updateOrderStatus, fetchCancellationReasons } from '../lib/partnerApi';
-import { startOrderAlert, stopOrderAlert, notifyNewOrder } from '../lib/orderAlert';
+import { stopOrderAlert, announceOrder, markOrdersSeen, hasTakenBaseline } from '../lib/orderAlert';
 
 /** The kitchen cannot promise faster than this, and the customer is shown the figure. */
 const MIN_PREP_MINUTES = 10;
@@ -59,8 +59,6 @@ export const LiveOrdersScreen: React.FC<Props> = ({
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  /** Order ids already shown to staff, so only genuinely new work rings. */
-  const seenOrderIds = useRef<Set<string> | null>(null);
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' | 'quiet') => {
@@ -81,23 +79,39 @@ export const LiveOrdersScreen: React.FC<Props> = ({
         (o: any) => !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status)
       );
 
-      // First load establishes the baseline; it must not ring for orders that were
-      // already sitting in the queue before the app opened.
-      if (seenOrderIds.current === null) {
-        seenOrderIds.current = new Set(live.map((o: any) => o.id));
-      } else {
-        const fresh = live.filter((o: any) => !seenOrderIds.current!.has(o.id));
-        for (const o of fresh) seenOrderIds.current.add(o.id);
-
-        if (fresh.length > 0 && soundEnabled) {
-          startOrderAlert();
-          const first = fresh[0];
-          notifyNewOrder({
-            orderNumber: first.orderNumber,
-            itemCount: (first.items || []).length,
-            total: Number(first.bill?.totalAmount) || 0
+      /*
+       * THE FALLBACK, not the alert itself.
+       *
+       * The socket rings from the app shell now, so this fires only on the
+       * mobile networks where websockets are blocked and polling is all there
+       * is. `announceOrder` keeps the record of what has already rung, at
+       * module scope, so the two paths cannot ring for the same order and the
+       * record survives this screen being unmounted — which it is, every time
+       * the kitchen looks at any other tab.
+       *
+       * This logic used to live here alone, with the seen-set in component
+       * state. That is why a kitchen sitting on the dashboard heard nothing:
+       * the only code that could ring was on a screen that was not mounted.
+       */
+      if (!hasTakenBaseline()) {
+        // Opening mid-service must not set off an alarm for work already on the
+        // pass. The first list seen establishes the baseline — including an
+        // EMPTY one, which is why this asks whether a baseline was taken rather
+        // than whether anything has been seen.
+        markOrdersSeen(live.map((o: any) => o.id));
+      } else if (soundEnabled) {
+        for (const o of live) {
+          void announceOrder({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            itemCount: (o.items || []).length,
+            total: Number(o.bill?.totalAmount) || 0
           });
         }
+      } else {
+        // Sound is off, but these have still been SEEN. Without this, turning
+        // sound back on would ring for every order already on the screen.
+        markOrdersSeen(live.map((o: any) => o.id));
       }
 
       // Merge rather than replace: an unchanged row keeps its object identity, so

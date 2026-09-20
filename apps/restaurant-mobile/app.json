@@ -141,6 +141,14 @@
           "locationWhenInUsePermission": "Quick Bites Partner uses your location once, to place your kitchen on the map so nearby customers can find you."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F5A623",
+          "sounds": ["./assets/new_order.wav"]
+        }
+      ],
+      "../../packages/config/expo-plugins/withKeptNotificationSound",
       "../../packages/config/expo-plugins/withReleaseSigning",
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",
