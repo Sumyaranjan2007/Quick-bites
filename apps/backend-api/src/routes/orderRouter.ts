@@ -13,6 +13,7 @@ import { estimateArrival } from '../modules/orders/eta.ts';
 import { cancellationReasonsFor, actorForRole } from '../modules/orders/cancellationReasons.ts';
 import { config } from '../config/env.ts';
 import type { LanguageCode } from '@quick-bites/shared-types';
+import { visibleContact, shapeOrderForViewer, viewerFor } from '../modules/orders/contactVisibility.ts';
 
 export const orderRouter = Router();
 
@@ -103,7 +104,11 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
 
     res.json({
       success: true,
-      data: { order },
+      // Shaped for whoever is asking. The stored record carries the delivery
+      // OTP, and this route used to hand it to the assigned rider — the one
+      // person who must not have it, because it is the only proof that the food
+      // reached the customer.
+      data: { order: shapeOrderForViewer(order, viewerFor(order, req.user)) },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
@@ -231,7 +236,10 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
         orderId: order.id,
         status: order.status,
         riderName: order.riderName ?? null,
-        riderPhone: order.riderPhone ?? null,
+        // Dialable while the rider is on the way and not afterwards, so a
+        // delivered order does not leave a permanent phone number on a screen.
+        riderPhone: visibleContact(order.riderPhone, order.status).phone,
+        riderPhoneMasked: visibleContact(order.riderPhone, order.status).maskedPhone,
         riderCoordinates: order.riderCoordinates ?? null,
         riderBearing: order.riderBearing ?? 0,
         riderLocationUpdatedAt: order.riderLocationUpdatedAt ?? null,

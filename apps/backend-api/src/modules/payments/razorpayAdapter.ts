@@ -33,6 +33,7 @@
 import crypto from 'crypto';
 import { config } from '../../config/env.ts';
 import { AppError } from '../../utils/AppError.ts';
+import { breakers } from '../platform/circuitBreaker.ts';
 
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
@@ -102,7 +103,12 @@ export const razorpayAdapter = {
       );
     }
 
-    const response = await fetch(`${RAZORPAY_API}/orders`, {
+    // Through the breaker: a gateway that has failed its last five calls is
+    // refused here in microseconds rather than holding this checkout open for
+    // twelve seconds to prove the same thing again.
+    const response = await breakers.razorpay.run(
+      signal => fetch(`${RAZORPAY_API}/orders`, {
+      signal,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -118,7 +124,11 @@ export const razorpayAdapter = {
         payment_capture: 1,
         notes: params.notes || {}
       })
-    });
+      }),
+      // A 400 here means we sent something the gateway rejected — our bug, not
+      // its outage. Only 5xx counts against the breaker.
+      res => res.status >= 500
+    );
 
     const body: any = await response.json().catch(() => ({}));
 
@@ -198,15 +208,64 @@ export const razorpayAdapter = {
   async fetchPayment(paymentId: string): Promise<{ status: string; orderId?: string; amount?: number } | null> {
     if (!isRazorpayConfigured()) return null;
 
-    const response = await fetch(`${RAZORPAY_API}/payments/${paymentId}`, {
-      headers: { Authorization: authHeader() }
-    });
+    // Wrapped in its own try: this is called to reconcile a payment whose
+    // webhook has not arrived, and an open breaker there must read as "not
+    // known yet" rather than throwing at a customer refreshing their order.
+    let response: Response;
+    try {
+      response = await breakers.razorpay.run(
+        signal => fetch(`${RAZORPAY_API}/payments/${paymentId}`, {
+          signal,
+          headers: { Authorization: authHeader() }
+        }),
+        res => res.status >= 500
+      );
+    } catch {
+      return null;
+    }
     if (!response.ok) return null;
 
     const body: any = await response.json().catch(() => null);
     if (!body) return null;
 
     return { status: body.status, orderId: body.order_id, amount: body.amount };
+  },
+
+  /**
+   * Every payment attempt Razorpay has recorded against one of our orders.
+   *
+   * This is what reconciliation needs and `fetchPayment` cannot give it. When a
+   * webhook is lost we know our order id and nothing else: there is no payment
+   * id to look up, because the payment id only ever arrived in the message that
+   * went missing. Asking the gateway what it holds against the order is the
+   * only way to find money that was taken and never recorded.
+   */
+  async listPaymentsForOrder(
+    razorpayOrderId: string
+  ): Promise<Array<{ id: string; status: string; amount: number }>> {
+    if (!isRazorpayConfigured()) return [];
+
+    let response: Response;
+    try {
+      response = await breakers.razorpay.run(
+        signal => fetch(`${RAZORPAY_API}/orders/${razorpayOrderId}/payments`, {
+          signal,
+          headers: { Authorization: authHeader() }
+        }),
+        res => res.status >= 500
+      );
+    } catch {
+      // An empty list, not a throw. Reconciliation runs on a timer and must
+      // survive the gateway being unreachable; it will find the same order on
+      // the next pass.
+      return [];
+    }
+    if (!response.ok) return [];
+
+    const body: any = await response.json().catch(() => null);
+    if (!body || !Array.isArray(body.items)) return [];
+
+    return body.items.map((p: any) => ({ id: p.id, status: p.status, amount: p.amount }));
   },
 
   /**
@@ -219,14 +278,32 @@ export const razorpayAdapter = {
   async refund(paymentId: string, amountInPaise?: number): Promise<{ id: string; status: string } | null> {
     if (!isRazorpayConfigured()) return null;
 
-    const response = await fetch(`${RAZORPAY_API}/payments/${paymentId}/refund`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authHeader()
-      },
-      body: JSON.stringify(amountInPaise ? { amount: Math.round(amountInPaise) } : {})
-    });
+    let response: Response;
+    try {
+      response = await breakers.razorpay.run(
+        signal => fetch(`${RAZORPAY_API}/payments/${paymentId}/refund`, {
+          signal,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: authHeader()
+          },
+          body: JSON.stringify(amountInPaise ? { amount: Math.round(amountInPaise) } : {})
+        }),
+        res => res.status >= 500
+      );
+    } catch (error) {
+      // Null, not a throw: the caller opens a refund case when the gateway
+      // cannot settle, and a throw here would lose the cancellation itself.
+      console.log(JSON.stringify({
+        level: 'ERROR',
+        timestamp: new Date().toISOString(),
+        event: 'RAZORPAY_REFUND_UNREACHABLE',
+        paymentId,
+        reason: error instanceof Error ? error.message : String(error)
+      }));
+      return null;
+    }
 
     if (!response.ok) {
       const body: any = await response.json().catch(() => ({}));

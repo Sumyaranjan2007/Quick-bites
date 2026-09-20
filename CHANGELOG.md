@@ -6,6 +6,263 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-20] -- Claude Opus 5 -- Session 25: the things that run when nobody is watching
+
+**Description:** Built every phase of `SCALE_PLAN.md` — the plan drawn up by comparing this
+platform against the reference architecture. Five areas: orders that nobody moves, switches an
+operator can throw during an incident, address search, privacy, and a wallet whose balance can be
+proved. Ten defects were found along the way, six of them reachable from live code paths. The
+worst was the delivery OTP — the proof that food reached a customer — being handed to the rider.
+
+**The short version of what changed for a person using the apps**
+
+- An order the kitchen never accepts is now cancelled and refunded after 8 minutes instead of
+  sitting on the customer's screen forever.
+- Cooked food that no rider has taken raises an alert to operations after 10 minutes. It is never
+  cancelled — it is already cooked.
+- Money that was charged but never recorded (a lost payment webhook) is now found by a job that
+  asks the gateway directly, rather than by the customer noticing on their bank statement.
+- A customer's and a rider's phone numbers stop being visible to each other once the delivery is
+  over.
+- Typing a delivery address is now search-as-you-type against real places, when a Places key is
+  configured.
+- "Server settings" is no longer on display on any sign-in screen. Six taps on the logo reveals it.
+
+---
+
+### Orders that nobody moves
+
+**New: `apps/backend-api/src/modules/orders/orderSweeper.ts`**
+
+Nothing in this codebase expired an unaccepted order. The only `setTimeout` in the server was the
+one that forces shutdown. So a kitchen with its tablet face down on a counter left a paid order
+saying "waiting for the restaurant" indefinitely.
+
+Two problems, handled deliberately differently:
+
+- `ORDER_PLACED` older than `ORDER_ACCEPT_TIMEOUT_MINUTES` (8) is **cancelled and refunded**.
+  Waiting longer cannot help.
+- `ACCEPTED`/`PREPARING`/`READY_FOR_PICKUP` with no rider, older than
+  `RIDER_ASSIGN_ALERT_MINUTES` (10), **raises an alert and is left alone**. Cancelling cooked food
+  throws it away and pays for it twice.
+
+One interval rather than a timer per order: per-order timers are lost on restart, and a restart
+during a deploy is exactly when a kitchen tablet is most likely to be going unwatched. The alert is
+stamped on the order (`riderSearchAlertedAt`) so the control room is told once and not once every
+thirty seconds.
+
+**New: `RESTAURANT_DID_NOT_RESPOND` and `PAYMENT_FAILED` cancellation reasons**, both with
+`actors: ['admin']` — a customer cannot pick them, and reports counting why orders are lost now see
+automated cancellations alongside human ones instead of missing them.
+
+**New: delivery proximity flag.** `transitionStatus` now compares the rider's last known position
+against the delivery address when an order is marked `DELIVERED`, and records
+`deliveryProximityFlag` past `DELIVERY_PROXIMITY_METRES` (300). The OTP proves the customer was
+involved; it does not prove the rider was there, because four digits travel down a phone line. This
+is **recorded, never enforced** — GPS is accurate to 60–150 m at best and refusing the transition
+would strand honest riders at real doorsteps. What it gives operations is the one thing that
+separates a gate handover from fraud: whether the same rider does it every time.
+
+### Switches an operator can throw
+
+**New: `apps/backend-api/src/modules/platform/featureFlags.ts`** — seven declared switches
+(`ordering`, `online_payments`, `cash_on_delivery`, `coupons`, `registrations`, `rider_broadcast`,
+`scheduled_reports`), each carrying the sentence the blocked person is shown. Turning one off
+returns **503 with that sentence**, so a failing gateway becomes "please pay cash" rather than a
+spinner. Every flag defaults to the value that keeps the platform running, so a fresh database or a
+restore from backup comes up serving customers.
+
+Wired into order creation, all three registration routes, and the rider broadcast. Admin routes:
+`GET /api/admin/settings` and `PUT /api/admin/settings/flags/:key`, both audited against the person
+who threw the switch.
+
+**New: `apps/admin-mobile/src/screens/SettingsScreen.tsx`**, reached from a new **Switches** item in
+the left rail. Backend-only switches would have meant reaching for `curl` during an incident, which
+is not a kill switch. Turning something **off** confirms first and shows the operator the exact
+sentence the affected person will read; turning it back **on** does not, because restoring service
+should never be the slower action. The screen also shows whether a dependency's circuit is open —
+that one nobody switched, the platform stopped calling it by itself.
+
+**New: `apps/backend-api/src/modules/platform/circuitBreaker.ts`** — Node's `fetch` has no default
+timeout, so a payment gateway that accepts connections and never replies held every checkout open
+indefinitely; an outage at one vendor would have become an outage of browsing and order tracking
+too. Every Razorpay call now runs under a 12-second deadline and a breaker that opens after five
+consecutive failures. **A 4xx does not count**: a gateway answering "card declined" is a working
+gateway, and tripping on that would take payments offline every time a few customers in a row were
+short of funds.
+
+**New: `apps/backend-api/src/modules/payments/reconciliation.ts`** — asks the gateway what it
+actually captured for orders stuck unpaid past `PAYMENT_RECONCILE_AFTER_MINUTES` (5). A captured
+payment is put through the same code path the webhook would have used. Nothing captured after
+`PAYMENT_ABANDON_AFTER_MINUTES` (30) is cancelled. It asks before giving up on anything —
+cancelling on age alone would eventually cancel a paid order.
+
+### Address search
+
+**New: `apps/backend-api/src/modules/places/placesService.ts` and `routes/placesRouter.ts`.**
+
+A note on the Google Maps question, because the answer is not the obvious one: **the map display
+needs no key at all.** `LiveRiderMap` renders real OpenStreetMap street tiles and always has.
+What costs money is Places autocomplete and Geocoding — turning what someone types into a real
+address with coordinates — and that key must never reach a phone, because a key in an APK is
+extracted with `unzip` and `grep` in about a minute and the bill arrives at month end.
+
+So: `GOOGLE_MAPS_SERVER_KEY` lives on the server, restricted by IP, and the apps call
+`/api/v1/places/*`. Behind authentication, because an open one is a free Places proxy for whoever
+finds the URL. Cached for an hour per phrase (autocomplete fires per keystroke), 60 lookups per
+minute per signed-in user, and its own circuit breaker. **Unconfigured, every endpoint returns an
+empty successful result and the apps fall back to typing an address by hand** — an absent key costs
+a convenience, never an outage.
+
+**New: `apps/customer-mobile/src/components/AddressSearchField.tsx`** — debounced 350 ms,
+sequence-numbered so a slow reply for "kor" cannot overwrite the better list for "koramangala", and
+it hides itself entirely when the server reports no key. Picking a place fills the city and PIN and
+pins the coordinates; the flat or house number is deliberately left alone, because no map knows it
+and it is the only part the rider needs at the door.
+
+### Privacy
+
+**New: `apps/backend-api/src/modules/orders/contactVisibility.ts`.** Customer and rider could see
+each other's real numbers permanently. Over a year that hands every rider a contact list of the
+homes they have delivered to. The number is now live only while the trip is; once the order is
+terminal both sides see the last three digits only, which is enough for support to confirm a number
+and not enough to call anyone. This is **not** telephony masking — that needs a proxy-number
+vendor, and `maskedCallProxy()` is the seam where one plugs in.
+
+Applied on the tracking response, on the order record itself, and on the kitchen's order lists —
+one rule in one place rather than three that drift apart. The first version was only on tracking,
+which did nothing: the customer app reads `order.riderPhone` first and falls back to the tracking
+one, so the field that won was the unmasked one.
+
+Noted while checking this: `customerPhone` is declared on `Order` and **never populated** by
+`createOrder`, so riders have never actually been able to call customers. That is left as it is.
+Fixing it would mean *adding* an exposure in the middle of a change that exists to reduce them, and
+it is a product decision rather than a defect.
+
+### A wallet balance that can be proved
+
+`walletRepository` assigned to `balance` directly, so a wrong balance could never be traced. Every
+movement now writes an immutable entry carrying the balance it produced, and `auditBalance` replays
+the journal. `GET /api/admin/finance/wallet-audit` reports every wallet that disagrees with its own
+history — and **reports rather than repairs**, because an automatic correction destroys the
+evidence of whatever caused it.
+
+---
+
+### Defects found and fixed
+
+1. **`GET /api/v1/orders/:id` handed the assigned rider the delivery OTP.** That code is the
+   entire proof that food reached a customer. A rider who can read it off their own order screen
+   can mark an order delivered without ever meeting anybody — the exact fraud the proximity flag
+   above was added to *detect*, handed over directly instead. Every other route had already been
+   careful about this: the rider router strips it, the restaurant routes strip it, the admin
+   shaping strips it, and the tracking endpoint was written specifically so the customer could
+   follow a rider "without being handed the whole order record (which contains the delivery OTP)".
+   The detail endpoint beside it returned the stored record verbatim. Found by probing the live
+   route rather than by reading it. The response is now shaped per reader
+   (`shapeOrderForViewer`): the customer gets the delivery OTP because they read it out at the
+   door, the rider and the kitchen get the pickup code they exchange at the counter, and an
+   allowlist means a field added to `Order` later has to be thought about before it reaches a
+   client.
+2. **An unassigned rider was shaped as the order's rider.** `viewerFor` fell back on the ROLE, so
+   any rider account looking at an order that was never theirs was handed its pickup code and the
+   customer's phone number. Holding a rider account is not the same as being this delivery's
+   rider. Unknown readers now get a least-privilege view with neither code and neither number.
+   Found because a mutation that should have broken a check did not, which meant the check could
+   not tell the two cases apart — so the test was strengthened, and the strengthened test failed
+   against the real code.
+3. **Privilege escalation — `GET /api/admin/settings` returned the whole settings map.** Pending
+   sign-in codes live in that map, keyed by phone number, with the SHA-256 of a six-digit code
+   beside each one. Six digits is a million hashes, which is about a second of work. Any admin
+   token, or any leak of one, was a way to sign in as an arbitrary customer. The response is now
+   built from the declared flag catalogue, so nothing written to that store can appear in it.
+4. **`walletRepository.credit(userId, -500)` subtracted five hundred rupees** while skipping the
+   insufficient-funds check, because that check lives in `debit`. Both now reject any non-positive
+   amount outright rather than flipping into the opposite operation.
+5. **The wallet journal drifted from the balance by construction.** The balance was rounded to
+   paise; the amount written to history was not. Every sub-paise entry moved the two further apart,
+   permanently.
+6. **Transaction ids could collide.** `Date.now()` plus six random characters, used as a Map key:
+   two entries in the same millisecond with the same suffix silently discarded one movement of
+   money and reported success. Now `crypto.randomUUID()`.
+7. **`markPaidByGateway` never scheduled a write.** It mutated the order in place, so memory was
+   correct and nothing persisted it. A restart between the payment and the next unrelated write
+   brought the order back unpaid with the customer's money already taken.
+8. **No timeout on any gateway call** (see the breaker above).
+9. **`check-production-boot.mjs` declared the server ready on a log line.** It matched
+   `/listening|running on|started/` against stdout, so the new `ORDER_SWEEPER_STARTED` line marked
+   the server ready before it was listening — and every request after that was reported as a
+   missing endpoint rather than as a race in the checker. It now polls `/health`, which nothing
+   anyone logs can break.
+10. **Every backend suite shared one `data/store.json`.** A suite exiting with a debounced write in
+   flight left the file half written; the next suite failed to parse it, never started its server,
+   and reported "the server does not handle it" against a pile of routes that were perfectly fine.
+   That is worse than no test, because somebody then goes hunting for a routing bug. Each suite now
+   gets its own disposable data directory via `scripts/run-backend-tests.mjs`, which also stops the
+   tests overwriting a developer's local store.
+
+---
+
+### Testing
+
+**New: `apps/backend-api/src/test/platform.test.ts` — 100 checks** covering the sweeper at its
+boundary with an injected clock, the breaker's state machine, the flags, the ledger, contact
+visibility, reconciliation and "a background job cannot take the server down".
+
+Every new check was **mutated to prove it fails when the code is broken** — a check that has never
+failed is not evidence. Eleven mutations were applied and reverted: removing the alert stamp,
+removing the negative-amount guard, making the breaker count 4xx as an outage, always exposing the
+phone number, removing the accept timeout, abandoning payments immediately, removing the flag
+guard, removing paise rounding, returning the raw order record again, treating every reader as
+staff, and treating any rider as the order's rider. Ten were caught by the named check. The
+eleventh — dropping the balance rounding while leaving the amount rounding in place — is genuinely
+unobservable, because amounts are already rounded before they reach the balance; that is defence in
+depth rather than a gap, and it is recorded here rather than papered over.
+
+Three of the mutations found real weaknesses that were then fixed in the product, not the test: the
+audit now compares each entry's recorded running total against the replay; it no longer rounds the
+discrepancy away (rounding is how a fraction of a paise per entry hides); and `viewerFor` no longer
+falls back on a role — the mutation that should have broken a check did not, which meant the check
+could not tell an assigned rider from any rider, and the strengthened check then failed against the
+real code.
+
+**Full gate, all green:**
+
+| Gate | Result |
+|---|---|
+| `check-secrets` | no secrets in 387 tracked files |
+| `check-hardcoded` | no hardcoded deployment URLs |
+| `check-i18n` | EN, HI, KN complete — 85 design-system strings each |
+| `typecheck` | 9 workspaces |
+| `test` | 18 backend suites |
+| `check-production-boot` | 17 checks |
+| `check-apk-secrets` | nothing sensitive in any built artifact |
+
+---
+
+### Configuration added
+
+All optional; every one has a working default.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `ORDER_ACCEPT_TIMEOUT_MINUTES` | `8` | When an unaccepted order is cancelled |
+| `RIDER_ASSIGN_ALERT_MINUTES` | `10` | When cooked food with no rider is escalated |
+| `ORDER_SWEEP_INTERVAL_SECONDS` | `30` | How often the sweeper looks |
+| `DELIVERY_PROXIMITY_METRES` | `300` | How far from the door before a handover is flagged |
+| `PAYMENT_RECONCILE_AFTER_MINUTES` | `5` | When to ask the gateway about a stuck payment |
+| `PAYMENT_ABANDON_AFTER_MINUTES` | `30` | When to give up on an unpaid order |
+| `GOOGLE_MAPS_SERVER_KEY` | *(empty)* | Enables address search. Server-side only |
+| `PLACES_REGION` | `in` | Biases address results to a country |
+
+**Known Issues:** None outstanding. Telephony number masking needs a proxy-number vendor and is
+stubbed at `maskedCallProxy()`. Address search is inert until a Places key is set.
+
+**NEXT AI SHOULD:** Read the setup steps at the top of this session's notes before changing
+deployment configuration.
+
+---
+
 ## [2026-09-05] -- Antigravity AI Engine -- Session 01
 **Description:** Phase 1 Interrogation completed, Phase 2 Synthesis approved by user, Phase 3 Document Generation executed.
 **Chunks Modified:** None (Documentation and Planning Phase)

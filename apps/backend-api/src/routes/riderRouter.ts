@@ -29,6 +29,8 @@ import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../db/client.
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
 import type { DeliveryRider, Order, SosAlert } from '@quick-bites/shared-types';
+import { requireFeature } from '../middlewares/featureGate.ts';
+import { visibleContact } from '../modules/orders/contactVisibility.ts';
 
 export const riderRouter = Router();
 
@@ -198,7 +200,10 @@ async function shapeTripForRider(order: Order) {
     pickupCoordinates,
     pickupPhone,
     customerName: order.customerName,
-    customerPhone: order.customerPhone,
+    // Live only while the trip is. Once the order is delivered or cancelled the
+    // rider keeps the name and loses the number — see contactVisibility.
+    customerPhone: visibleContact(order.customerPhone, order.status).phone,
+    customerPhoneMasked: visibleContact(order.customerPhone, order.status).maskedPhone,
     dropAddress: order.deliveryAddressText || 'Customer doorstep',
     dropCoordinates: order.deliveryCoordinates,
     distanceKm,
@@ -691,7 +696,7 @@ riderRouter.get('/policies/:id', (req, res, next) => {
  * are off shift are shown nothing, because accepting work while marked offline
  * is exactly the inconsistency the status toggle is supposed to prevent.
  */
-riderRouter.get('/orders/broadcast', async (req, res, next) => {
+riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (req, res, next) => {
   try {
     const rider = await requireRiderSelf(req);
 
@@ -737,7 +742,7 @@ riderRouter.get('/orders/active', async (req, res, next) => {
 });
 
 // POST /api/riders/orders/:id/claim — the caller claims the order for themselves.
-riderRouter.post('/orders/:id/claim', async (req, res, next) => {
+riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (req, res, next) => {
   try {
     const self = await requireRiderSelf(req);
 
@@ -924,12 +929,19 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
     // request body along with the destination wallet, so a rider could credit any
     // account any amount simply by asking.
     const payout = result.order!.riderPayout ?? calculateTripPayout(result.order!);
-    const wallet = await walletRepository.credit(
-      req.user!.id,
-      payout,
-      `Trip Payout for Order #${result.order!.orderNumber}`,
-      result.order!.id
-    );
+    // A zero payout must not stop a completed delivery. The wallet refuses a
+    // non-positive movement now, and throwing here would leave the rider unable
+    // to close a trip they have already finished — the food is delivered either
+    // way, so the handover completes and only the credit is skipped.
+    const wallet =
+      payout > 0
+        ? await walletRepository.credit(
+            req.user!.id,
+            payout,
+            `Trip Payout for Order #${result.order!.orderNumber}`,
+            result.order!.id
+          )
+        : await walletRepository.getByUserId(req.user!.id);
 
     // Cash the rider is now holding is tracked on the server, so it survives the
     // app being closed and can be offset against the next payout.

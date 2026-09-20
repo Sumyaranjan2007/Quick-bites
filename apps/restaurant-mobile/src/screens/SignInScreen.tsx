@@ -10,6 +10,7 @@ import {
   configureApi,
   currentApiUrl,
 } from '../lib/partnerApi';
+import { useHiddenSettings } from '../lib/useHiddenSettings';
 
 interface Props {
   onSignedIn: (token: string, user: any) => void;
@@ -51,6 +52,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   // kitchen app did not, which left it the only one that could not be pointed at
   // a staging or on-device backend for testing without rebuilding the APK.
   const [showServer, setShowServer] = useState(false);
+  const { unlocked, registerTap } = useHiddenSettings();
   const [apiUrl, setApiUrl] = useState(currentApiUrl());
 
   // Password recovery. The code is delivered by the server; on a deployment
@@ -153,7 +155,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
+        <View style={styles.header} onTouchEnd={registerTap}>
           <View style={styles.logo}>
             <ChefHat size={34} color={c.brand} />
           </View>
@@ -338,6 +340,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           </Text>
         )}
 
+        {unlocked && (
         <TouchableOpacity
           onPress={() => setShowServer(v => !v)}
           style={styles.serverToggle}
@@ -350,8 +353,9 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             <ChevronDown size={14} color={c.textMuted} />
           )}
         </TouchableOpacity>
+        )}
 
-        {showServer && (
+        {unlocked && showServer && (
           <TextInput
             style={styles.serverInput}
             value={apiUrl}

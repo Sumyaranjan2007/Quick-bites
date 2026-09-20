@@ -272,6 +272,25 @@ export interface Order {
   /** What the rider is paid for this trip, fixed when the trip is claimed. */
   riderPayout?: number;
   riderAssignedAt?: string;
+  /**
+   * When operations were told that nobody had picked this order up.
+   *
+   * Present so the sweeper alerts once rather than once every thirty seconds.
+   * A control room that receives the same alert two hundred times stops reading
+   * alerts, which is worse than having none.
+   */
+  riderSearchAlertedAt?: string;
+  /**
+   * Set when the handover was confirmed from somewhere that is not the delivery
+   * address. Not an accusation and not a block — the food may genuinely have
+   * been handed over at the gate of a large complex — but the distance is
+   * recorded so a rider who does it on every order can be found.
+   */
+  deliveryProximityFlag?: {
+    distanceMetres: number;
+    thresholdMetres: number;
+    flaggedAt: string;
+  };
   pickedUpAt?: string;
   cancelledAt?: string;
   cancellationReason?: string;
@@ -427,6 +446,17 @@ export interface WalletTransaction {
   type: 'CREDIT' | 'DEBIT';
   description: string;
   createdAt: string;
+  /**
+   * The balance immediately after this entry was applied.
+   *
+   * Redundant by design: it can be derived by replaying every earlier entry.
+   * That is exactly what makes it useful — when the stored balance and the
+   * replayed one disagree, this pins the disagreement to the single entry where
+   * they diverged, instead of leaving a year of history to bisect by hand.
+   *
+   * Optional because entries written before this field existed do not have it.
+   */
+  balanceAfter?: number;
 }
 
 export interface ApiResponse<T = any> {

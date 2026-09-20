@@ -15,6 +15,7 @@ import { Bike, ChevronDown, ChevronUp, ShieldCheck } from 'lucide-react-native';
 import { t } from '../theme';
 import { Button } from '../components/ui';
 import { api } from '../lib/api';
+import { useHiddenSettings } from '../lib/useHiddenSettings';
 
 /**
  * Signing in.
@@ -33,6 +34,7 @@ export const LoginScreen: React.FC<{
   const [email, setEmail] = useState(__DEV__ ? 'rider@quickbite.app' : '');
   const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
   const [showServer, setShowServer] = useState(false);
+  const { unlocked, registerTap } = useHiddenSettings();
 
   // Password recovery. A rider locked out mid-shift has no desk to walk to, so
   // the whole flow happens on this screen rather than pointing them at support.
@@ -88,7 +90,7 @@ export const LoginScreen: React.FC<{
       <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-          <View style={s.brandBlock}>
+          <View style={s.brandBlock} onTouchEnd={registerTap}>
             <View style={s.brandIcon}>
               <Bike size={38} color={t.color.go} />
             </View>
@@ -289,6 +291,7 @@ export const LoginScreen: React.FC<{
               </TouchableOpacity>
             ) : null}
 
+            {unlocked && (
             <TouchableOpacity
               style={s.serverToggle}
               onPress={() => setShowServer(v => !v)}
@@ -301,8 +304,9 @@ export const LoginScreen: React.FC<{
                 <ChevronDown size={14} color={t.color.textMuted} />
               )}
             </TouchableOpacity>
+            )}
 
-            {showServer ? (
+            {unlocked && showServer ? (
               <TextInput
                 style={[s.input, { marginTop: t.space[2] }]}
                 value={apiUrl}

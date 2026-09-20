@@ -158,6 +158,80 @@ export const config = {
   DEFAULT_PREP_MINUTES: Math.max(1, parseInt(process.env.DEFAULT_PREP_MINUTES || '20', 10)),
 
   /**
+   * How long a kitchen has to accept an order before the platform cancels it
+   * on the customer's behalf.
+   *
+   * Without this an ignored order sits forever: the customer waits, their money
+   * is held, and no rider is ever dispatched. Nobody is served by that, least of
+   * all the restaurant — a cancellation with a reason is recoverable, an order
+   * that silently never arrives is not.
+   */
+  ORDER_ACCEPT_TIMEOUT_MINUTES: Math.max(1, parseInt(process.env.ORDER_ACCEPT_TIMEOUT_MINUTES || '8', 10)),
+
+  /**
+   * How long food may sit packed with no rider before operations is told.
+   *
+   * This raises an alert rather than cancelling. Food that is already cooked is
+   * a different problem from an order nobody accepted, and cancelling it wastes
+   * the kitchen's work — a human should decide.
+   */
+  RIDER_ASSIGN_ALERT_MINUTES: Math.max(1, parseInt(process.env.RIDER_ASSIGN_ALERT_MINUTES || '10', 10)),
+
+  /**
+   * How long an order may sit in PAYMENT_PENDING before reconciliation asks the
+   * gateway what actually happened to it.
+   *
+   * Long enough that a customer still on the payment screen is left alone, and
+   * short enough that money taken with a lost webhook is found in minutes
+   * rather than at the end of the day.
+   */
+  PAYMENT_RECONCILE_AFTER_MINUTES: Math.max(1, parseInt(process.env.PAYMENT_RECONCILE_AFTER_MINUTES || '5', 10)),
+
+  /**
+   * When an unpaid order is given up on. The gateway is asked first, every
+   * time; this only applies once it has confirmed nothing was captured.
+   */
+  PAYMENT_ABANDON_AFTER_MINUTES: Math.max(5, parseInt(process.env.PAYMENT_ABANDON_AFTER_MINUTES || '30', 10)),
+
+  /**
+   * The Google Maps key used for Geocoding, Places and Distance Matrix.
+   *
+   * SERVER SIDE ONLY, and that is the whole point of it being here. Those three
+   * APIs are billed per call with no free ceiling beyond the monthly credit, so
+   * a key that reaches a phone is a key anyone can pull out of the APK and
+   * spend. Every lookup the apps need goes through this server instead, which
+   * means the key is restricted by IP to this deployment and the apps cannot
+   * make a request we did not write.
+   *
+   * The Android map-rendering key is a different key entirely, is restricted to
+   * the app's package and signing certificate, and is injected at build time by
+   * the withGoogleMapsKey plugin. It is not this one and must never be set to
+   * the same value.
+   *
+   * Absent, address lookup falls back to manual entry and nothing crashes.
+   */
+  GOOGLE_MAPS_SERVER_KEY: process.env.GOOGLE_MAPS_SERVER_KEY || '',
+
+  /**
+   * Biases address search toward the country being served, so "MG Road"
+   * returns Bengaluru rather than a street in another hemisphere.
+   */
+  PLACES_REGION: process.env.PLACES_REGION || 'in',
+
+  /** How often the sweeper looks. Short enough to be timely, long enough to be cheap. */
+  ORDER_SWEEP_INTERVAL_SECONDS: Math.max(5, parseInt(process.env.ORDER_SWEEP_INTERVAL_SECONDS || '30', 10)),
+
+  /**
+   * How far from the delivery address a rider may be when marking an order
+   * delivered before it is flagged for review.
+   *
+   * Flagged, never blocked: GPS is accurate to 60-150 metres at best and can be
+   * wrong by kilometres indoors, so refusing the handover would strand honest
+   * riders at real doorsteps. A flag costs a review; a block costs a delivery.
+   */
+  DELIVERY_PROXIMITY_METRES: Math.max(50, parseInt(process.env.DELIVERY_PROXIMITY_METRES || '300', 10)),
+
+  /**
    * The largest tip that will be accepted. An upper bound exists because the
    * tip is the only figure on the bill the client chooses outright, so an
    * unbounded one is a way to push an arbitrary amount through checkout — by a

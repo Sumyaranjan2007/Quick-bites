@@ -10,12 +10,18 @@ import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
 import { couponRepository } from '../../db/repositories/couponRepository.ts';
 import { razorpayAdapter } from '../payments/razorpayAdapter.ts';
-import { emitOrderCreated, emitOrderStatusUpdate, emitOrderAvailableForPickup } from '../../sockets/socketServer.ts';
+import {
+  emitOrderCreated,
+  emitOrderStatusUpdate,
+  emitOrderAvailableForPickup,
+  emitOpsAlert
+} from '../../sockets/socketServer.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { refundRepository } from '../../db/repositories/refundRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { config } from '../../config/env.ts';
 import { findCancellationReason, actorForRole } from './cancellationReasons.ts';
+import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 
@@ -209,6 +215,14 @@ export const orderService = {
   },
 
   async createOrder(input: CreateOrderInput) {
+    // Checked before the idempotency lookup so that a retry of a request sent
+    // while ordering was still open is refused too: the switch is thrown to
+    // stop orders reaching the kitchens now, and a replay would put one there.
+    assertEnabled('ordering');
+    if (input.paymentMethod === 'CASH_ON_DELIVERY') assertEnabled('cash_on_delivery');
+    if (input.paymentMethod === 'RAZORPAY_SANDBOX') assertEnabled('online_payments');
+    if (input.couponCode) assertEnabled('coupons');
+
     // 1. Check Idempotency Key (Rule 44 & 45)
     const existing = await orderRepository.findByIdempotencyKey(input.idempotencyKey);
     if (existing) {
@@ -779,7 +793,13 @@ export const orderService = {
     order.paymentStatus = 'PAID';
     order.status = 'ORDER_PLACED';
     order.razorpayPaymentId = detail.razorpayPaymentId;
-    order.updatedAt = new Date().toISOString();
+
+    // Saved rather than mutated in place. The object here is the same reference
+    // the store holds, so memory was already correct — but nothing scheduled a
+    // write, and a restart between the payment and the next unrelated write
+    // would have brought the order back as unpaid with the customer's money
+    // already taken.
+    await orderRepository.save(order);
 
     emitOrderCreated(order.restaurantId, order);
     emitOrderStatusUpdate(order.id, {
@@ -802,6 +822,47 @@ export const orderService = {
     if (nextStatus === 'DELIVERED') {
       if (!otp || otp !== order.deliveryOtp) {
         throw new AppError('Invalid delivery confirmation OTP. Handover failed.', 400, 'INVALID_OTP');
+      }
+    }
+
+    // Where the rider was standing when they said the food had been handed over.
+    //
+    // The OTP above proves the customer was involved; it does not prove the
+    // rider was there, because a customer can read four digits down a phone.
+    // That is the shape of the most common delivery fraud there is: mark it
+    // delivered from a mile away, keep the food, tell the customer it was left
+    // at the door. The distance is recorded rather than enforced — a genuine
+    // handover at the gate of a gated complex looks identical from here, and
+    // refusing the transition would strand an honest rider mid-trip. What it
+    // gives operations is the one thing that distinguishes the two: whether the
+    // same rider does it on every single order.
+    if (nextStatus === 'DELIVERED' && order.riderCoordinates && order.deliveryCoordinates) {
+      const distanceMetres = Math.round(
+        calculateDistanceKm(
+          order.riderCoordinates.latitude,
+          order.riderCoordinates.longitude,
+          order.deliveryCoordinates.latitude,
+          order.deliveryCoordinates.longitude
+        ) * 1000
+      );
+
+      if (distanceMetres > config.DELIVERY_PROXIMITY_METRES) {
+        const flaggedAt = new Date().toISOString();
+        await orderRepository.flagDeliveryProximity(orderId, {
+          distanceMetres,
+          thresholdMetres: config.DELIVERY_PROXIMITY_METRES,
+          flaggedAt
+        });
+        emitOpsAlert({
+          kind: 'DELIVERY_LOCATION_MISMATCH',
+          orderId,
+          orderNumber: order.orderNumber,
+          restaurantId: order.restaurantId,
+          detail:
+            `Marked delivered ${distanceMetres} m from the delivery address ` +
+            `(threshold ${config.DELIVERY_PROXIMITY_METRES} m), rider ${order.riderId || 'unknown'}.`,
+          raisedAt: flaggedAt
+        });
       }
     }
 

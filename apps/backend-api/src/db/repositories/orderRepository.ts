@@ -266,6 +266,66 @@ export const orderRepository = {
       .sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
+  /**
+   * Orders that are waiting on somebody who has not acted.
+   *
+   * Narrowed here rather than in the sweeper so the scan stays a scan of the
+   * live tail and not of every order ever placed. The two shapes it returns are
+   * different problems: ORDER_PLACED means the kitchen has not looked, and the
+   * cooked-with-no-rider ones mean nobody will collect it.
+   */
+  async listAwaitingAction(): Promise<Order[]> {
+    return Array.from(memoryStore.orders.values()).filter(
+      (o: Order) =>
+        o.status === 'ORDER_PLACED' ||
+        ((o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'READY_FOR_PICKUP') && !o.riderId)
+    );
+  },
+
+  /**
+   * Records that operations have been told about this one, so the next sweep
+   * does not tell them again thirty seconds later.
+   */
+  async markRiderSearchAlerted(id: string, at: string): Promise<boolean> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return false;
+    order.riderSearchAlertedAt = at;
+    order.updatedAt = new Date().toISOString();
+    triggerAutoSave();
+    return true;
+  },
+
+  /**
+   * Marks a handover that was confirmed away from the delivery address.
+   *
+   * Deliberately does not change the status: the order really was delivered as
+   * far as the customer is concerned, and blocking the transition would leave
+   * the rider unable to finish a trip over a GPS reading.
+   */
+  async flagDeliveryProximity(
+    id: string,
+    flag: { distanceMetres: number; thresholdMetres: number; flaggedAt: string }
+  ): Promise<boolean> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return false;
+    order.deliveryProximityFlag = flag;
+    triggerAutoSave();
+    return true;
+  },
+
+  /**
+   * Orders whose money has not settled — the input to reconciliation.
+   *
+   * Matches on paymentStatus as well as status: an order can be moved out of
+   * PAYMENT_PENDING by a path that never marked it paid, and an order that is
+   * live with PENDING money is exactly the case worth finding.
+   */
+  async listUnsettled(): Promise<Order[]> {
+    return Array.from(memoryStore.orders.values()).filter(
+      (o: Order) => o.status === 'PAYMENT_PENDING' && o.paymentStatus !== 'PAID'
+    );
+  },
+
   async listAll(): Promise<Order[]> {
     return Array.from(memoryStore.orders.values())
       .sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

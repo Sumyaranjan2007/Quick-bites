@@ -6,6 +6,7 @@ import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';
 import { createClient } from '../lib/api';
 import { DEFAULT_API_URL, type SessionState } from '../lib/session';
+import { useHiddenSettings } from '../lib/useHiddenSettings';
 
 const c = tokens.colors;
 
@@ -24,6 +25,7 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
   const [password, setPassword] = useState(__DEV__ ? 'pass123' : '');
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [showServer, setShowServer] = useState(false);
+  const { unlocked, registerTap } = useHiddenSettings();
 
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -81,7 +83,7 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
     <Screen>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-          <View style={s.brandBlock}>
+          <View style={s.brandBlock} onTouchEnd={registerTap}>
             <View style={s.brandMark}>
               <ShieldCheck size={30} color={c.brand.amber} />
             </View>
@@ -133,11 +135,13 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
             )}
           </Card>
 
-          <TouchableOpacity onPress={() => setShowServer(v => !v)} style={s.serverToggle}>
-            <Text style={s.serverToggleText}>{showServer ? 'Hide server settings' : 'Server settings'}</Text>
-          </TouchableOpacity>
+          {unlocked && (
+            <TouchableOpacity onPress={() => setShowServer(v => !v)} style={s.serverToggle}>
+              <Text style={s.serverToggleText}>{showServer ? 'Hide server settings' : 'Server settings'}</Text>
+            </TouchableOpacity>
+          )}
 
-          {showServer ? (
+          {unlocked && showServer ? (
             <Card>
               <Field
                 label="API base URL"

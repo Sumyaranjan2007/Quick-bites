@@ -12,6 +12,7 @@ import {
   LifeBuoy,
   FileCheck2,
   ShieldCheck,
+  SlidersHorizontal,
   UserCog
 } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -32,6 +33,7 @@ import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { RolesScreen } from './src/screens/RolesScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 
 const c = tokens.colors;
@@ -157,6 +159,15 @@ const SECTIONS: Array<{
     permissions: ['admin.roles.manage', 'admin.accounts.manage', 'admin.audit.view'],
     icon: active => <ShieldCheck size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     render: () => <RolesScreen />
+  },
+  {
+    key: 'settings',
+    label: 'Switches',
+    title: 'Platform switches',
+    subtitle: 'Take something offline without a deployment',
+    permissions: ['admin.settings.manage'],
+    icon: active => <SlidersHorizontal size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <SettingsScreen />
   },
   {
     key: 'profile',

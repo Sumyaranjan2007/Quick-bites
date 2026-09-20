@@ -274,16 +274,22 @@ orderRoutes.post(
       let refund: { amount: number } | null = null;
       if (req.body.refund && order.paymentStatus === 'PAID') {
         const amount = Number(order.bill?.totalAmount) || 0;
-        await walletRepository.credit(
-          order.customerId,
-          amount,
-          `Refund for cancelled order #${order.orderNumber}: ${req.body.reason}`,
-          order.id
-        );
-        order.paymentStatus = 'REFUNDED';
-        order.status = 'REFUNDED';
-        memoryStore.orders.set(order.id, order);
-        refund = { amount };
+        // Guarded because the wallet now refuses a non-positive movement. An
+        // order with no readable total is a data problem, not a refund of zero
+        // rupees, and crediting nothing while reporting a refund would be worse
+        // than declining to.
+        if (amount > 0) {
+          await walletRepository.credit(
+            order.customerId,
+            amount,
+            `Refund for cancelled order #${order.orderNumber}: ${req.body.reason}`,
+            order.id
+          );
+          order.paymentStatus = 'REFUNDED';
+          order.status = 'REFUNDED';
+          memoryStore.orders.set(order.id, order);
+          refund = { amount };
+        }
       }
 
       emitOrderStatusUpdate(order.id, {

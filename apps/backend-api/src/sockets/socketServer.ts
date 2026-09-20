@@ -456,6 +456,41 @@ export function emitSosAlert(alert: {
   }));
 }
 
+/**
+ * Raises an operational problem in the control room.
+ *
+ * Separate from `rider:sos`, which is a person in danger and must not be
+ * diluted by a queue of orders that need a rider. This channel carries the
+ * things a human has to resolve but nobody is hurt by: an order nobody will
+ * collect, a payment that will not settle.
+ *
+ * Logged as well as emitted, because an alert raised while the control room
+ * has nobody logged in would otherwise leave no trace at all.
+ */
+export function emitOpsAlert(alert: {
+  kind: string;
+  orderId?: string;
+  orderNumber?: string;
+  restaurantId?: string;
+  restaurantName?: string;
+  waitingMinutes?: number;
+  detail?: string;
+  raisedAt: string;
+}): void {
+  console.log(JSON.stringify({
+    level: 'WARN',
+    timestamp: alert.raisedAt,
+    event: `OPS_ALERT_${alert.kind}`,
+    orderId: alert.orderId,
+    orderNumber: alert.orderNumber,
+    restaurantId: alert.restaurantId,
+    waitingMinutes: alert.waitingMinutes,
+    detail: alert.detail
+  }));
+  if (!ioInstance) return;
+  ioInstance.to('admin:control_tower').emit('ops:alert', alert);
+}
+
 /** Delivers a chat message to everyone watching that order. */
 export function emitOrderMessage(orderId: string, message: unknown): void {
   if (!ioInstance) return;

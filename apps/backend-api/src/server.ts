@@ -12,6 +12,8 @@ import {
 import { seedDatabase, SEED_VERSION } from './db/seed.ts';
 import { adminRoleRepository } from './db/repositories/adminRoleRepository.ts';
 import { ensureBootstrapAdmin } from './db/bootstrapAdmin.ts';
+import { startOrderSweeper, stopOrderSweeper } from './modules/orders/orderSweeper.ts';
+import { startPaymentReconciliation, stopPaymentReconciliation } from './modules/payments/reconciliation.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -113,6 +115,12 @@ const server = app.listen(config.PORT, '0.0.0.0', () => {
 // Initialize real-time WebSocket server attached to HTTP listener
 initSocketServer(server);
 
+// Started after the sockets, not before: the sweeper's first act on finding a
+// stale order is to tell the customer it has been cancelled, and an emit with
+// no server behind it is a cancellation nobody is told about.
+startOrderSweeper();
+startPaymentReconciliation();
+
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
   console.log(`\nReceived ${signal}. Gracefully closing Quick Bites HTTP and Socket servers...`);
@@ -123,6 +131,8 @@ async function handleShutdown(signal: string) {
   } catch (err) {
     console.error('[ERROR] Final persist failed; recent writes may be lost:', err);
   }
+  stopOrderSweeper();
+  stopPaymentReconciliation();
   await closeSocketServer();
   if (usingDatabase) await closeDatabase();
   server.close(() => {

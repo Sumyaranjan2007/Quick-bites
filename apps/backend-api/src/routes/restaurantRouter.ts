@@ -19,6 +19,7 @@ import {
   MAX_UPLOAD_MB
 } from '../modules/restaurants/restaurantDocuments.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
+import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
 
 export const restaurantRouter = Router();
 
@@ -214,9 +215,11 @@ restaurantRouter.get('/:id/orders', authMiddleware('restaurant_owner'), async (r
     await assertOwnsRestaurant(req, req.params.id);
 
     const orders = await orderRepository.listByRestaurantId(req.params.id);
-    // The doorstep OTP lives on the order record. The kitchen never needs it, and
-    // leaking it would let staff close out a delivery that never happened.
-    const safeOrders = orders.map(({ deliveryOtp, ...rest }: any) => rest);
+    // Shaped rather than having one field deleted. The doorstep OTP is only the
+    // most obvious thing the kitchen must not have; the same shaping also stops
+    // a delivered order leaving the customer's phone number on a kitchen tablet
+    // indefinitely, which deleting one field did not.
+    const safeOrders = orders.map((order: any) => shapeOrderForViewer(order, 'restaurant'));
     return res.json({ success: true, data: { orders: safeOrders } });
   } catch (err) {
     next(err);
@@ -520,7 +523,7 @@ restaurantRouter.get('/:id/orders/history', authMiddleware('restaurant_owner'), 
           ? terminal.filter(o => o.status === 'CANCELLED' || o.status === 'REFUNDED')
           : terminal;
 
-    const orders = filtered.slice(0, limit).map(({ deliveryOtp, ...rest }: any) => rest);
+    const orders = filtered.slice(0, limit).map((order: any) => shapeOrderForViewer(order, 'restaurant'));
 
     res.json({
       success: true,

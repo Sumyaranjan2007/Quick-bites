@@ -1,7 +1,7 @@
 # What only you can do
 
-**Version:** 1.1.0
-**Date:** 19 September 2026
+**Version:** 1.2.0
+**Date:** 20 September 2026
 
 Everything in this file needs a human with an account, a legal identity, or a
 credit card. Nothing here can be done from a code editor. It is ordered so that
@@ -9,39 +9,57 @@ each step unblocks the next.
 
 ---
 
-## Part 0 — Do these two things IN THIS ORDER
+## Part 0 — What to do for THIS build, in this order
 
-The order matters. Getting it wrong takes the platform down.
+The variables from the last session are already set and the API is live. This
+build adds no variable that the service refuses to start without, so the order
+below is about getting a working deploy, not about avoiding an outage.
 
-### Step 1: set the Railway variables (section 1.1 below). **First.**
-
-The new backend **refuses to start** without `ADMIN_EMAIL`, `ADMIN_PASSWORD`
-and `JWT_SECRET`. That refusal is deliberate — a platform with no administrator
-cannot approve a single restaurant, and coming up with no way in is not a safer
-failure than not coming up at all.
-
-### Step 2: push and let Railway redeploy. **Second.**
-
-This session's work is committed locally but **has not been pushed**, so the
-hosted API is still running the previous release. Verified just now: it answers
-`404 Route POST /api/auth/otp/request not found`.
-
-That means **the new APKs cannot sign anyone in until you deploy.** The customer
-app asks for a verification code at an endpoint the live server does not yet
-have.
+### Step 1 — push, and wait for Railway to finish
 
 ```bash
 git push origin main
 ```
 
-**If you push before setting the variables, the deploy will fail to boot and the
-current working API goes down with it.** Variables first, push second.
+Railway redeploys on push. Watch the deploy log until you see the banner. Two new
+lines appear at boot that were not there before, and both are normal:
 
-Once it redeploys, this should answer `200` rather than `404`:
+```
+{"event":"ORDER_SWEEPER_STARTED","everySeconds":30,"acceptTimeoutMinutes":8,"riderAlertMinutes":10}
+{"event":"PAYMENT_RECONCILIATION_STARTED","everySeconds":180,"reconcileAfterMinutes":5,"abandonAfterMinutes":30}
+```
+
+If you do **not** see those two lines, the background jobs did not start: orders
+nobody accepts will sit there and lost payments will not be found. Everything
+else still works, so it is not an outage — but it is worth a redeploy.
+
+### Step 2 — confirm the deploy is healthy
 
 ```bash
-curl -X POST https://quick-bites-production-9f45.up.railway.app/api/auth/otp/request -H "Content-Type: application/json" -d "{\"phone\":\"9876543210\"}"
+curl https://quick-bites-production-9f45.up.railway.app/health
 ```
+
+Want: `"status":"HEALTHY"` and `"demoMode":false`.
+
+### Step 3 — confirm the new endpoints are live
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://quick-bites-production-9f45.up.railway.app/api/v1/places/status
+```
+
+Want **401**, not 404. 401 means the route exists and is correctly asking who you
+are. A 404 means the deploy did not take.
+
+### Step 4 — install the four APKs
+
+**Uninstall the old ones first.** These are signed with the same keys, so an
+update would normally work, but a clean install avoids any question about stale
+state while you are testing.
+
+### Step 5 — nothing else is required
+
+There is no new mandatory variable. Everything added this session has a working
+default. The two optional things you may want are in Part 1.4 and Part 1.5 below.
 
 ---
 
@@ -112,6 +130,161 @@ encrypted drive, a private cloud folder. If you lose one of these files:
 > installs and no reviews.
 
 Nobody can recover them for you. Not Google, not Anthropic, not me.
+
+---
+
+## Part 1.4 — Google Maps: what you actually need to buy, and what you do not
+
+You asked whether you need a Google Maps API key. The honest answer is narrower
+than the question suggests, and it saves you money, so it is worth reading
+before you enable billing on anything.
+
+### What you do NOT need a key for
+
+**The map itself.** The live tracking map in the customer app and the navigation
+map in the rider app render real street tiles from OpenStreetMap, which needs no
+account, no key and no card. That has been true since before this session. If
+what you wanted was "show a real map", you already have it, on every screen that
+shows one, for nothing.
+
+### What a key DOES buy
+
+One thing: turning what somebody types into a real address with coordinates.
+That is Google Places Autocomplete plus Geocoding, and it is the part that makes
+a delivery address reliable — the rider navigates to a point rather than to a
+sentence like "blue gate near the temple".
+
+This matters more than it sounds. A wrong address is the single largest cause of
+a failed delivery, and a hand-typed one gives nobody any way to tell it is
+wrong.
+
+### What it costs
+
+Google gives every project **$200 of Maps usage free every month**, which does
+not expire and renews monthly. At the time of writing, Autocomplete billed per
+session plus one Place Details call runs about **$0.017 per address entered**.
+
+That is roughly **11,000 addresses a month inside the free credit.** Customers
+enter an address once and reuse it, so at your stage this is very likely to cost
+you nothing at all. The server also caches every phrase for an hour, which
+collapses two hundred people typing "koramangala" into one billed call.
+
+You still have to put a card on file — Google will not enable the APIs without
+one — but you are extremely unlikely to be charged.
+
+### How to get the key (about ten minutes)
+
+1. Go to **console.cloud.google.com** and sign in.
+2. Top bar → project dropdown → **New Project**. Name it `quick-bites`. Create.
+3. Make sure the new project is selected in that dropdown before continuing.
+   Everything below applies to the selected project, and doing it in the wrong
+   one is the most common mistake here.
+4. **Billing** in the left menu → **Link a billing account** → add a card. You
+   are not charged until you exceed the free credit.
+5. Left menu → **APIs & Services** → **Library**. Search for and **Enable** each
+   of these three, one at a time:
+   - **Places API**
+   - **Geocoding API**
+   - **Maps JavaScript API** *(only if you later want maps in the two web
+     portals; skip it for now if you do not)*
+6. Left menu → **APIs & Services** → **Credentials** → **Create credentials** →
+   **API key**. Copy the key it shows you.
+7. **Restrict it before you close that dialog.** Click **Edit API key**:
+   - **Application restrictions** → **IP addresses** → add your Railway
+     deployment's outbound IP. If you do not know it, choose **None** for now and
+     come back — but do not leave it on None permanently.
+   - **API restrictions** → **Restrict key** → tick only **Places API** and
+     **Geocoding API**.
+   - **Save.**
+
+An unrestricted key that leaks is somebody else's bill. A key restricted to two
+APIs and one IP is worthless to anyone who finds it.
+
+### Where to put it
+
+Railway → your backend service → **Variables**:
+
+| Variable | Value |
+|---|---|
+| `GOOGLE_MAPS_SERVER_KEY` | the key you just copied |
+| `PLACES_REGION` | `in` |
+
+Redeploy. Then check it took:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://quick-bites-production-9f45.up.railway.app/api/v1/places/status
+```
+
+Still 401 (it needs a signed-in user). To see it properly, open the customer
+app → Profile → Saved addresses → Add an address. A **"Search your street,
+building or area"** box appears at the top of the sheet. If the key is missing
+that box is simply not there, and you type the address as before.
+
+### The key never goes in the app
+
+Deliberately. A key inside an APK is extracted with `unzip` and `grep` in about
+a minute, and then it is billed to you. It lives on the server, the apps call
+the server, and the server calls Google. That is why there is nothing to paste
+into any app config and nothing to rebuild when you rotate the key.
+
+---
+
+## Part 1.5 — Optional timings you can tune
+
+All of these have working defaults. Set them only if the defaults do not suit
+you. Railway → Variables → redeploy.
+
+| Variable | Default | Raise it if | Lower it if |
+|---|---|---|---|
+| `ORDER_ACCEPT_TIMEOUT_MINUTES` | `8` | Your kitchens are slow to reach a tablet during a rush | You would rather refund fast than keep people waiting |
+| `RIDER_ASSIGN_ALERT_MINUTES` | `10` | You have plenty of riders and few false alarms | You want the control room told sooner |
+| `ORDER_SWEEP_INTERVAL_SECONDS` | `30` | — | — (30s is already cheap) |
+| `DELIVERY_PROXIMITY_METRES` | `300` | You deliver to large gated complexes and see false flags | You deliver in a dense area and want tighter checking |
+| `PAYMENT_RECONCILE_AFTER_MINUTES` | `5` | — | You want lost payments found faster |
+| `PAYMENT_ABANDON_AFTER_MINUTES` | `30` | Your customers take a long time over bank OTP screens | — |
+
+---
+
+## Part 1.6 — The switches, and where to find them
+
+New this build: seven things you can turn off from the admin app without a
+deploy. This is what you reach for at eight in the evening when the payment
+gateway starts failing — a toggle instead of a forty-minute code change.
+
+Admin app → **Switches** in the left rail. Each one says what stops working
+and what the affected person is told.
+
+| Switch | Turn it off when |
+|---|---|
+| Accept new orders | Something is badly wrong and you need to stop the bleeding. Orders already placed carry on cooking and delivering. |
+| Online payment | The gateway is failing. Customers are offered cash on delivery instead of a spinner. |
+| Cash on delivery | You do not want riders carrying cash tonight. |
+| Coupon codes | A code has leaked or is being farmed, and you do not yet know which one. |
+| New sign-ups | You are seeing scripted registration. Existing accounts sign in normally. |
+| Offer orders to riders | You want to assign deliveries by hand instead of broadcasting them. |
+| Background jobs | You are investigating the sweeper or reconciliation and want them to stop. |
+
+Every flip is recorded against your name in the audit trail, with the note you
+type when you flip it. Write a real note — "gateway 5xx, ticket 4412" is worth a
+great deal at 2am.
+
+Under the switches you will also see **Dependencies**, which shows whether the
+payment gateway circuit is open. If it says open, the platform has stopped
+calling Razorpay because it failed five times in a row, and it will try again by
+itself after thirty seconds.
+
+---
+
+## Part 1.7 — Where "Server settings" went
+
+It is no longer visible on any of the four sign-in screens. You asked for that:
+no customer needs a "Backend API URL" box, and one typed into by accident leaves
+an app that looks broken with no obvious way back.
+
+**To reach it: tap the logo six times, quickly.** The field appears below, for
+the rest of that session. It works identically in all four apps.
+
+Nothing was removed — a tester can still point a build at a different server.
 
 ---
 

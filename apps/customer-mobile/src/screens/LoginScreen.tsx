@@ -17,6 +17,7 @@ import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
 import { useTranslation } from '../lib/i18n';
+import { useHiddenSettings } from '../lib/useHiddenSettings';
 
 const c = tokens.colors;
 
@@ -53,6 +54,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
+  const { unlocked, registerTap } = useHiddenSettings();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -194,7 +196,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.brand}>
+        <View style={styles.brand} onTouchEnd={registerTap}>
           <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.brandName}>Quick Bites</Text>
           <Text style={styles.brandTag}>{t('auth.tagline')}</Text>
@@ -350,6 +352,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
             </>
           )}
 
+          {unlocked && (
           <TouchableOpacity
             style={styles.serverToggle}
             onPress={() => setShowServerConfig(s => !s)}
@@ -360,8 +363,9 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
               {showServerConfig ? 'Hide server settings' : 'Server settings'}
             </Text>
           </TouchableOpacity>
+          )}
 
-          {showServerConfig && (
+          {unlocked && showServerConfig && (
             <View style={styles.serverBox}>
               <Text style={styles.label}>Backend API URL</Text>
               <View style={styles.field}>

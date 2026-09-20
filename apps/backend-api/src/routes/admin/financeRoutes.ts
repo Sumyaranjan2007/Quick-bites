@@ -405,6 +405,34 @@ async function unsettledFor(riderId: string) {
  * One row per rider: what they have earned, what has already been paid, and what
  * is outstanding — plus the settlement history behind those numbers.
  */
+/**
+ * GET /api/admin/finance/wallet-audit
+ *
+ * Replays every wallet's journal and reports the ones whose stored balance no
+ * longer matches it. An empty list is the expected answer and is the point:
+ * this is the check that turns "the balances are probably right" into a
+ * statement somebody has actually verified today.
+ *
+ * Reports rather than repairs. A silent correction would destroy the evidence
+ * of whatever caused the divergence, which is the only thing here worth acting
+ * on.
+ */
+financeRoutes.get('/wallet-audit', requirePermission('finance.revenue.view'), async (_req, res, next) => {
+  try {
+    const discrepancies = await walletRepository.auditAllBalances();
+    res.json({
+      success: true,
+      data: {
+        balanced: discrepancies.length === 0,
+        discrepancies,
+        checkedAt: new Date().toISOString()
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 financeRoutes.get('/payouts', requirePermission('finance.payouts.view'), async (req, res, next) => {
   try {
     const { q } = req.query as Record<string, string>;

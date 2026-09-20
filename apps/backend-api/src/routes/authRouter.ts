@@ -11,6 +11,7 @@ import { authMiddleware } from '../middlewares/auth.ts';
 import { config } from '../config/env.ts';
 import { validate } from '../middlewares/validate.ts';
 import { authRateLimiterMiddleware } from '../middlewares/rateLimiter.ts';
+import { requireFeature } from '../middlewares/featureGate.ts';
 import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
@@ -54,7 +55,7 @@ const RegisterSchema = z.object({
 });
 
 // POST /api/auth/register
-authRouter.post('/register', authRateLimiterMiddleware, validate({ body: RegisterSchema }), async (req, res) => {
+authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registrations'), validate({ body: RegisterSchema }), async (req, res) => {
   try {
     // Stored normalised so the account is found however it is later typed;
     // lookups trim and lowercase too, but the record itself should be clean.
@@ -330,6 +331,7 @@ async function assertIdentityFree(email: string, phone: string): Promise<void> {
 authRouter.post(
   '/register/partner',
   authRateLimiterMiddleware,
+  requireFeature('registrations'),
   validate({ body: PartnerRegistrationSchema }),
   async (req, res, next) => {
     try {
@@ -413,6 +415,7 @@ authRouter.post(
 authRouter.post(
   '/register/rider',
   authRateLimiterMiddleware,
+  requireFeature('registrations'),
   validate({ body: RiderRegistrationSchema }),
   async (req, res, next) => {
     try {

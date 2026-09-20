@@ -112,16 +112,43 @@ function boot(env, port) {
 
     child.stdout.on('data', d => {
       stdout += d.toString();
-      if (/listening|running on|started/i.test(stdout)) finish({ started: true });
     });
     child.stderr.on('data', d => {
       stderr += d.toString();
     });
     child.on('exit', code => finish({ started: false, exitCode: code }));
 
-    // Long enough for a real boot, short enough that a hung case does not stall
-    // the whole run.
-    const timer = setTimeout(() => finish({ started: true, assumed: true }), 12000);
+    // Readiness is "the port answers", not "a log line appeared".
+    //
+    // This used to match /listening|running on|started/ against stdout, which
+    // meant any future log line containing the word "started" — say
+    // ORDER_SWEEPER_STARTED — declared the server ready before it was
+    // listening. Every request that followed was then refused by a socket that
+    // did not exist yet, and the failure was reported against the endpoint
+    // rather than against the check. Polling the health endpoint cannot be
+    // broken by anything anyone logs.
+    const deadline = Date.now() + 15000;
+    const poll = async () => {
+      if (settled) return;
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/health`);
+        if (res.ok || res.status < 500) {
+          finish({ started: true });
+          return;
+        }
+      } catch {
+        /* not up yet */
+      }
+      if (Date.now() > deadline) {
+        finish({ started: false, timedOut: true });
+        return;
+      }
+      setTimeout(poll, 150);
+    };
+    setTimeout(poll, 150);
+
+    // A backstop, so a child that neither answers nor exits cannot stall the run.
+    const timer = setTimeout(() => finish({ started: false, timedOut: true }), 16000);
   });
 }
 

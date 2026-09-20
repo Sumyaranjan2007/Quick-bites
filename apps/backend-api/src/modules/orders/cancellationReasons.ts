@@ -102,6 +102,30 @@ export const CANCELLATION_REASONS: CancellationReason[] = [
     }
   },
   {
+    // Chosen by the platform itself, not by a person. Kept in the same
+    // catalogue as every other reason so that reports counting why orders are
+    // lost see automated cancellations alongside human ones rather than
+    // missing them entirely.
+    code: 'RESTAURANT_DID_NOT_RESPOND',
+    actors: ['admin'],
+    label: {
+      en: 'The restaurant did not respond in time',
+      hi: 'रेस्टोरेंट ने समय पर जवाब नहीं दिया',
+      kn: 'ರೆಸ್ಟೋರೆಂಟ್ ಸಮಯಕ್ಕೆ ಪ್ರತಿಕ್ರಿಯಿಸಲಿಲ್ಲ'
+    }
+  },
+  {
+    // Also chosen by the platform: reconciliation cancels an order once the
+    // gateway has confirmed it captured nothing.
+    code: 'PAYMENT_FAILED',
+    actors: ['admin'],
+    label: {
+      en: 'Payment was not completed',
+      hi: 'भुगतान पूरा नहीं हुआ',
+      kn: 'ಪಾವತಿ ಪೂರ್ಣಗೊಂಡಿಲ್ಲ'
+    }
+  },
+  {
     code: 'NO_RIDER_AVAILABLE',
     actors: ['admin'],
     label: {

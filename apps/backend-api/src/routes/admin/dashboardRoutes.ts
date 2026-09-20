@@ -10,6 +10,10 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { memoryStore } from '../../db/client.ts';
+import { listFlags, setFlag, isEnabled } from '../../modules/platform/featureFlags.ts';
+import { breakerSnapshots } from '../../modules/platform/circuitBreaker.ts';
+import { auditRepository } from '../../db/repositories/auditRepository.ts';
+import { AppError } from '../../utils/AppError.ts';
 import { ADMIN_PERMISSION_GROUPS } from '@quick-bites/shared-types';
 import type { Order } from '@quick-bites/shared-types';
 
@@ -195,9 +199,64 @@ dashboardRoutes.get('/live', requirePermission('analytics.dashboard.view'), asyn
   }
 });
 
-/** GET /api/admin/settings — runtime platform switches. */
+/**
+ * GET /api/admin/settings — the runtime switches, and nothing else.
+ *
+ * This used to return every entry in the settings map. That map is also where
+ * pending sign-in codes live, keyed by phone number, and where processed
+ * webhook ids are recorded. So the response carried a list of everyone
+ * currently signing in, with the SHA-256 of each one's six-digit code beside
+ * their number — and a six-digit space is a million hashes, which is a second
+ * of work. Any admin token, or any leak of one, was therefore a way to sign in
+ * as an arbitrary customer.
+ *
+ * The declared catalogue is now the whole response. Nothing undeclared can end
+ * up in it by being written to the same store.
+ */
 dashboardRoutes.get('/settings', requirePermission('admin.settings.manage'), async (_req, res) => {
-  const settings: Record<string, any> = {};
-  for (const [key, value] of memoryStore.settings.entries()) settings[key] = value;
-  res.json({ success: true, data: { settings, roles: await adminRoleRepository.list() } });
+  res.json({
+    success: true,
+    // The breakers ride along with the switches because they answer the same
+    // question at a glance: is anything currently off, and did a person do it
+    // or did a dependency do it?
+    data: { flags: listFlags(), dependencies: breakerSnapshots(), roles: await adminRoleRepository.list() }
+  });
+});
+
+/**
+ * PUT /api/admin/settings/flags/:key — throw a switch.
+ *
+ * Separate from a general settings write on purpose: the set of things an
+ * operator can change at runtime is exactly the catalogue, and a generic
+ * key/value endpoint would quietly grow past it.
+ */
+dashboardRoutes.put('/settings/flags/:key', requirePermission('admin.settings.manage'), async (req, res, next) => {
+  try {
+    const { enabled, note } = req.body ?? {};
+    if (typeof enabled !== 'boolean') {
+      throw new AppError('Send enabled as true or false.', 400, 'INVALID_FLAG_VALUE');
+    }
+
+    const before = isEnabled(req.params.key);
+    const record = setFlag(req.params.key, enabled, req.user?.fullName || req.user?.id, note);
+
+    // Recorded against the person, not the platform: switching off ordering is
+    // among the most consequential things anyone can do here, and the audit
+    // trail is what answers who did it at 20:14 on a Friday.
+    await auditRepository.record({
+      actorUserId: req.user!.id,
+      actorName: req.user?.fullName || 'admin',
+      actorRole: req.user?.role || 'admin',
+      action: enabled ? 'FEATURE_ENABLED' : 'FEATURE_DISABLED',
+      entityType: 'feature_flag',
+      entityId: req.params.key,
+      before: { enabled: before },
+      after: { enabled },
+      summary: `${enabled ? 'Enabled' : 'Disabled'} "${req.params.key}"${record.note ? ` — ${record.note}` : ''}.`
+    });
+
+    res.json({ success: true, data: { flags: listFlags() } });
+  } catch (err) {
+    next(err);
+  }
 });

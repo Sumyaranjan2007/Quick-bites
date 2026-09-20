@@ -11,6 +11,7 @@ import { walletRouter } from './walletRouter.ts';
 import { restaurantRouter } from './restaurantRouter.ts';
 import { supportRouter } from './supportRouter.ts';
 import { customerRouter } from './customerRouter.ts';
+import { placesRouter } from './placesRouter.ts';
 import { getHealth } from '../controllers/healthController.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -69,6 +70,9 @@ apiRouter.use('/wallets', authMiddleware(), walletRouter);
 // see which case.
 apiRouter.use('/support', supportRouter);
 apiRouter.use('/addresses', authMiddleware(), addressRouter);
+// Address lookup. Signed in because every call here is billed by Google, and
+// the per-caller ceiling can only count a caller that has a name.
+apiRouter.use('/places', authMiddleware(), placesRouter);
 // Favourites and the profile photo. Authentication is applied inside.
 apiRouter.use('/customers', customerRouter);
 apiRouter.use('/restaurants', restaurantRouter);

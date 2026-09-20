@@ -15,6 +15,7 @@ import { tokens } from '../theme/tokens';
 import { Card, EmptyState } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
+import { AddressSearchField, type ResolvedPlace } from '../components/AddressSearchField';
 
 const c = tokens.colors;
 
@@ -111,6 +112,23 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
       city: place.city || prev.city,
       pincode: place.pincode || prev.pincode
     }));
+  };
+
+  /**
+   * A place chosen from search fills the form and pins the coordinates in one
+   * step. The house or flat number is deliberately left for the customer: no
+   * map knows it, and overwriting what they already typed with a street name
+   * would lose the only part a rider actually needs at the door.
+   */
+  const usePickedPlace = (place: ResolvedPlace) => {
+    setCoordinates({ latitude: place.latitude, longitude: place.longitude });
+    setForm(prev => ({
+      ...prev,
+      addressLine: prev.addressLine.trim() ? prev.addressLine : place.formattedAddress,
+      city: place.locality || prev.city,
+      pincode: place.postalCode || prev.pincode
+    }));
+    setFormError(null);
   };
 
   const save = async () => {
@@ -281,6 +299,8 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
           <View style={styles.sheet}>
             <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
               <Text style={styles.sheetTitle}>{editingId ? 'Edit address' : 'Add a delivery address'}</Text>
+
+              <AddressSearchField apiUrl={apiUrl} token={token} near={coordinates} onPick={usePickedPlace} />
 
               <TouchableOpacity
                 style={[styles.locateButton, coordinates && styles.locateButtonDone]}
