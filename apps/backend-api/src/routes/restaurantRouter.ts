@@ -9,6 +9,7 @@ import { settlementRepository } from '../db/repositories/settlementRepository.ts
 import { calculateDistanceKm } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { estimateByRoad } from '../modules/places/routingService.ts';
+import { hasRealLocation } from '../modules/restaurants/restaurantLocation.ts';
 import { emitKitchenStatus, emitMenuUpdated, emitMenuRequestSubmitted } from '../sockets/socketServer.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -76,8 +77,18 @@ restaurantRouter.get('/', async (req, res) => {
     const origin = lat !== undefined && lng !== undefined ? { latitude: lat, longitude: lng } : null;
 
     let annotated = list.map((r: Restaurant) => {
-      if (!origin || !r.coordinates) {
-        return { ...r, distanceKm: undefined, isWithinServiceArea: true, estimatedDeliveryMinutes: undefined };
+      // A restaurant whose position was never set is not measured and not
+      // excluded. Judging it by distance would place every pre-map restaurant
+      // in Cubbon Park and empty the home screen for the people it actually
+      // delivers to — see modules/restaurants/restaurantLocation.ts.
+      if (!origin || !hasRealLocation(r)) {
+        return {
+          ...r,
+          distanceKm: undefined,
+          isWithinServiceArea: true,
+          locationPending: !hasRealLocation(r),
+          estimatedDeliveryMinutes: undefined
+        };
       }
 
       // Whether this kitchen delivers here is a question about a circle on a
@@ -100,6 +111,7 @@ restaurantRouter.get('/', async (req, res) => {
         // chain covers eight, and pretending otherwise promised deliveries that
         // would be declined.
         isWithinServiceArea: straightLine <= serviceRadius,
+        locationPending: false,
         // Prep plus travel at the configured speed, both settable without a
         // release, instead of a slope invented in this line.
         estimatedDeliveryMinutes: Math.round(

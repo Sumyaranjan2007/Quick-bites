@@ -1,6 +1,7 @@
 import { memoryStore, calculateDistanceKm, triggerAutoSave } from '../client.ts';
 import { config } from '../../config/env.ts';
 import { estimateByRoad } from '../../modules/places/routingService.ts';
+import { hasRealLocation } from '../../modules/restaurants/restaurantLocation.ts';
 import type { Restaurant } from '@quick-bites/shared-types';
 
 export interface NearbyFilter {
@@ -53,6 +54,14 @@ export const restaurantRepository = {
       if (restaurant.status !== 'ACTIVE') continue;
       if (filter.isVegOnly && !restaurant.isPureVeg) continue;
       if (filter.cuisine && !restaurant.cuisineTags.some((c: string) => c.toLowerCase() === filter.cuisine!.toLowerCase())) {
+        continue;
+      }
+
+      // A restaurant that was never placed on a map is kept rather than
+      // measured. See modules/restaurants/restaurantLocation.ts for why
+      // excluding it would empty the list for its own neighbours.
+      if (!hasRealLocation(restaurant)) {
+        results.push({ ...restaurant, distanceKm: 0 });
         continue;
       }
 

@@ -18,6 +18,7 @@ import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
 import { otpService } from '../modules/auth/otpService.ts';
 import { maskPhone } from '../modules/auth/otpDrivers.ts';
 import type { UserRole } from '@quick-bites/shared-types';
+import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
 
 export const authRouter = Router();
 
@@ -374,12 +375,18 @@ authRouter.post(
         addressLine: req.body.addressLine,
         city: req.body.city,
         pincode: req.body.pincode,
-        // Bangalore's centre until the owner sets a real pin. A kitchen with no
-        // coordinates would be invisible to proximity search even after
-        // approval, which looks like an approval that silently did nothing.
+        // The placeholder is Bangalore's centre, kept because `coordinates` is
+        // a required field and a kitchen with none would break callers that
+        // assume it. It is NOT treated as a location: `hasRealLocation` in
+        // modules/restaurants/restaurantLocation.ts recognises this exact pair
+        // as "never set", so a restaurant carrying it is listed everywhere
+        // rather than measured from a point nobody chose.
+        //
+        // The partner app now requires a pin before it will register, so this
+        // branch only runs for a client that has not been updated.
         coordinates: {
-          latitude: req.body.latitude ?? 12.9716,
-          longitude: req.body.longitude ?? 77.5946
+          latitude: req.body.latitude ?? UNSET_COORDINATES.latitude,
+          longitude: req.body.longitude ?? UNSET_COORDINATES.longitude
         },
         // Absent is meaningful: the listing falls back to the platform default
         // rather than storing a number nobody chose.

@@ -24,6 +24,9 @@ import { orderService } from '../modules/orders/orderService.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { refundRepository } from '../db/repositories/refundRepository.ts';
 import { menuRepository } from '../db/repositories/menuRepository.ts';
+import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
+import { memoryStore } from '../db/client.ts';
+import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
 import { syncService } from '../modules/search/syncService.ts';
 import { estimateArrival } from '../modules/orders/eta.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
@@ -340,6 +343,62 @@ async function run() {
   // is not judged against the ceiling — the alternative is an empty home screen
   // for anyone who has not set a location, which is a worse answer than an
   // unfiltered one.
+  // A restaurant that was never placed on a map must still be listed.
+  //
+  // This is the regression that region filtering nearly shipped, and it was
+  // real: every restaurant on the live deployment carries the register route's
+  // placeholder, because no partner app has ever sent coordinates. A kitchen in
+  // Harohalli is therefore recorded at the centre of Bengaluru, thirty
+  // kilometres from itself. Judge those by distance and the home screen goes
+  // EMPTY for precisely the customers they deliver to.
+  //
+  // Built here rather than relied on from the seed, because every seeded
+  // restaurant has a real position — so the seed cannot exercise this at all,
+  // which is exactly why it went unnoticed.
+  await restaurantRepository.create({
+    id: 'rst_no_pin_test',
+    ownerId: 'usr_no_pin_test',
+    name: 'Kitchen With No Pin',
+    slug: 'kitchen-with-no-pin',
+    phone: '9800000000',
+    addressLine: 'Somewhere nobody recorded',
+    city: 'Bengaluru',
+    pincode: '562112',
+    coordinates: { ...UNSET_COORDINATES },
+    isPureVeg: false,
+    packagingFee: 0,
+    status: 'ACTIVE',
+    kycStatus: 'ACTIVE',
+    ratingAverage: 4,
+    ratingCount: 1,
+    cuisineTags: ['Indian'],
+    isOpen: true
+  } as any);
+
+  // 12.65,77.48 is beside the seeded kitchens and ~38 km from the placeholder,
+  // so a restaurant carrying it is far outside any sane service radius and
+  // would certainly be dropped if it were being judged by distance.
+  const FAR_AWAY = 'lat=12.6500&lng=77.4800';
+  const unplaced = await api(`/restaurants?${FAR_AWAY}`);
+  const unplacedList = unplaced.json?.data?.restaurants || [];
+  check('A restaurant with no pin is listed even from far outside the placeholder',
+    unplacedList.some((r: any) => r.id === 'rst_no_pin_test'),
+    `${unplacedList.length} returned`);
+  check('A restaurant with no pin is flagged rather than silently placed',
+    unplacedList.find((r: any) => r.id === 'rst_no_pin_test')?.locationPending === true);
+  check('A restaurant with no pin carries no invented distance',
+    unplacedList
+      .filter((r: any) => r.locationPending === true)
+      .every((r: any) => r.distanceKm === undefined && r.estimatedDeliveryMinutes === undefined));
+  check('A restaurant that IS placed is still measured and still filtered',
+    unplacedList.some((r: any) => r.locationPending === false && typeof r.distanceKm === 'number'));
+
+  // Removed again before the checks below, which count the feed. A fixture that
+  // outlives its own assertions fails a later, unrelated check and sends
+  // whoever reads the output looking for a bug in the wrong place — which is
+  // exactly what it did on the first run of this block.
+  memoryStore.restaurants.delete('rst_no_pin_test');
+
   const noPosition = await api('/restaurants?maxDeliveryMinutes=25');
   check('Without a position, delivery times are absent rather than invented',
     (noPosition.json?.data?.restaurants || []).every(
