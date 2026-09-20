@@ -271,7 +271,14 @@ calls Google — which is also what makes the caching and rate limiting possible
 | `com.quickbite.app` | `27:73:59:D7:0F:68:63:1D:AF:63:FA:6C:EC:DA:CF:0D:14:25:F4:65` |
 | `com.quickbite.rider` | `51:12:84:DC:BD:56:59:24:2C:0D:AF:89:FA:E1:15:3A:72:8F:4E:D4` |
 | `com.quickbite.partner` | `90:CB:40:3A:70:B4:97:0D:3D:A1:32:1D:FB:DB:08:E1:8D:69:6E:89` |
-| `com.quickbite.admin` | `A5:22:F2:4F:2F:1D:A7:EA:D7:26:8D:A6:46:32:C8:99:82:76:5C:FE` |
+| `com.quickbite.admin` | `E7:90:8F:36:AE:E4:79:17:A7:7E:F9:87:D9:6D:50:57:A6:A9:01:FF` |
+
+> The admin fingerprint changed on 20 September. Its original keystore was
+> created without its password being recorded anywhere, so the app was silently
+> falling back to the ANDROID DEBUG KEY — unpublishable, and unable to update an
+> existing install. A fresh keystore was generated; the admin app had never been
+> published, so nothing was lost but the entry in this table. If you had already
+> registered `A5:22:F2:…` in the Cloud console, replace it with the value above.
 
 These fingerprints are from the release keystore this project signs with. If
 you ever publish through Google Play with Play App Signing, Play re-signs your
