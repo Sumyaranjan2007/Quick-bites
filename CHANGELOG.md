@@ -6,6 +6,231 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-20] -- Claude Opus 5 -- Session 28: v2 Stages 3, 4 and 5
+
+**Description:** The remaining three stages of `REBUILD_PLAN.md`, built in one
+pass: payments and membership, ordering and live tracking, then partner, admin
+and Play Store readiness.
+
+The pattern from Stage 2 held and got sharper. Almost none of this was missing
+code. It was **dead wiring** — fields declared and read by nothing, checks that
+a placeholder could satisfy, filters standing in for gates, and a client that
+disagreed with the server about the name of a thing. Every one of the faults
+below was found by calling the running system, not by reading it.
+
+---
+
+### Stage 3 — payments and membership
+
+**Razorpay was never wired up on the client.** `CartAndCheckoutScreen`
+hardcoded `paymentMethod: 'CASH_ON_DELIVERY'`, and the branch beside it posted a
+literal `'simulated_valid_signature'` — a string only demo mode accepts. Online
+payment could not have worked against a real deployment at any point.
+
+The server side was already correct and was left alone: `/payments/start`
+creates a Razorpay order from the **stored** bill rather than a figure the
+client names, `/webhook` is authenticated by signature, and `confirm-payment`
+re-computes the signature from the key secret.
+
+`react-native-razorpay`, pinned exactly, loaded through the same guarded path as
+the map: a build without the native module offers cash and does not crash. The
+checkout shows a choice only when the server holds keys **and** the build can
+open the sheet — two independent conditions that fail differently, and an option
+that fails at the last step of a checkout is worse than no option at all.
+
+Two error paths that matter more than the happy one:
+
+- A **dismissed** sheet is reported as cancelled, not as a failed payment.
+  Razorpay reports both through the same channel, and telling somebody their
+  payment failed when they merely changed their mind is a support call about
+  money that was never taken.
+- A confirm that fails **after** a successful charge says so explicitly and
+  tells them not to pay again. "Please try again" there is how somebody pays
+  twice.
+
+**MEMBERSHIP: an expiry that expires.** `UserProfile.goldExpiresAt` has existed
+in this codebase for a long time and was read by **nothing at all**. A
+membership sold against it would have been sold once and honoured forever —
+the most expensive kind of dead field there is.
+
+`isGoldActive()` is now the only question anything asks, and every gold decision
+in the order path goes through it. Plans are admin-editable, and activation
+**extends** rather than replaces: renewing eleven months into a yearly plan
+gives thirteen months, not one.
+
+The pricing engine gained `membershipDiscount` as its own line rather than
+folded into the coupon, so Gold is visible on the bills it pays for. It comes
+off the food total only — not delivery, packaging, GST or the platform fee,
+which are either already free for a member or are money owed to somebody else.
+
+Wallet top-up stays absent, deliberately: a loadable balance makes this platform
+the issuer of a prepaid payment instrument, which in India is an RBI-licensed
+activity. **Refunds to source were already correct** and were verified rather
+than rebuilt — online payments reverse at the gateway, wallet payments credit
+the wallet, and a gateway failure leaves the case open in the operations queue
+instead of the refund evaporating.
+
+### Stage 4 — ordering and live tracking
+
+**A basket could hold two kitchens.** `CartItem` carried no restaurant at all,
+so dishes from two restaurants sat in one cart and checkout posted the whole
+thing against whichever restaurant happened to be on screen — priced from that
+restaurant's menu, settled to that restaurant's account. The fallback when it
+had none was a **literal restaurant id written into the source**, so a checkout
+that lost track of its kitchen ordered from one specific real restaurant.
+
+A comment above `handleReorder` had been describing this rule for some time.
+Nothing enforced it.
+
+**A second order erased the first.** `activeOrder` was a single object: placing
+another order replaced it, and the first — still being cooked, still being
+delivered — became unreachable except through order history, which reads like a
+list of receipts. Live orders are now read from the server, so they survive a
+force-stop, which is exactly when somebody reopens the app to ask where their
+food is. A bar across the bottom of the home screen offers every one of them.
+
+**Searching for a dish found nothing.** The feed only ever matched restaurant
+names and cuisine tags, so typing "biryani" found a kitchen called Biryani House
+and missed every other kitchen in the city that cooks one.
+
+**Riders.** Three separate faults:
+
+- "One trip at a time" was enforced by **hiding** other trips from the offer
+  list. That is a filter, not a gate: a stale screen, or any client posting an
+  order id directly, could claim a second delivery — and a rider holding two
+  bags for two customers in opposite directions is a promise the platform
+  cannot keep. `/claim` now refuses it and names the order in the way.
+- Offers were sorted **newest first**, which offers a rider standing outside one
+  kitchen a pickup across town. Now nearest-kitchen-first — which needed a
+  position for an idle rider, and the only one stored came from `/telemetry`,
+  which runs during a delivery. New `/riders/location`: on shift only,
+  foreground only, coarser and slower than the delivery watcher.
+- **Accept-then-no-show had nothing watching it.** This is the gap that is
+  invisible from every screen: the order is not stuck waiting for a rider, it
+  *has* one, so the existing no-rider escalation never fired. The kitchen has
+  the food on a counter and the customer's app says "rider on the way to
+  collect". The sweeper now nudges at five minutes, releases at eight, returns
+  the trip to the pool, and flags the rider so a pattern is visible. Warn before
+  release, because releasing without warning strands a rider who is two minutes
+  away.
+
+The no-show tests caught a real aliasing bug on the first run. The repository
+hands back the **live** object from the in-memory store; `releaseRider` clears
+`riderId` on it; the sweeper then read that same field to flag the rider and got
+`undefined`. The release itself worked, which is what made it invisible —
+everything was correct except the one number operations would use.
+
+### Stage 5 — partner, admin, Play Store
+
+Most of this was already built and is **verified rather than rebuilt**: a
+restaurant is invisible until approved, veg and non-veg are marked at
+dish-request time and carried through, the partner's menu is the customer's menu
+with an approval in between, coupons work end to end, and support tickets from
+all three apps land in one queue.
+
+**Dish photos** were the real gap. The menu-request route has accepted
+`imageUrl` all along and the customer's dish row already renders one — no
+partner app had ever sent one. Two things would have made the new control fail
+quietly:
+
+- The partner app **blocked** `android.permission.CAMERA`, so "Take a photo"
+  would have done nothing with no explanation.
+- The partner route capped `imageUrl` at nothing while the admin catalogue
+  routes capped it at 200,000 characters, so a partner could submit a photo an
+  administrator could never edit — the first attempt to correct that dish would
+  fail validation on a field nobody had touched.
+
+`STORE_RELEASE.md` claimed "only INTERNET and VIBRATE requested; camera and
+microphone are blocked". That stopped being true this session. A Data Safety
+form filled in from that sentence would have been a false declaration. It now
+carries a per-app permission table and a per-data-type Data Safety table,
+including the row that is easiest to get wrong: **payment information is not
+collected**, because Razorpay's sheet handles the card and only a payment id and
+a signature ever reach us.
+
+---
+
+### Three faults that only calling the system could find
+
+**1. The backend has never loaded the repository's `.env`.**
+
+`path.resolve(__dirname, '../../../.env')` from `apps/backend-api/src/config` is
+`apps/` — not the repository root, and there has never been a `.env` there. The
+second path was `apps/backend-api/.env`, and there has never been one of those
+either. Neither file existed, so every local run has silently used the fallback
+defaults. Production was unaffected; Railway sets real environment variables.
+What it broke was every developer told to put their keys in `.env`.
+
+`RAZORPAY_KEY_ID` defaulted to the literal `'rzp_test_samplekey123'`. That
+begins with `rzp_`, which is the whole of the `isRazorpayConfigured()` test — so
+a deployment with no keys reported online payment as available, offered "Pay
+now", created an order, and failed when Razorpay refused the sample key. **A
+configuration check a placeholder can satisfy is worse than no check, because it
+answers confidently and wrongly.**
+
+**2. `/payments/config` returned `online: true` with no key at all.**
+
+It read `process.env.RAZORPAY_KEY_ID` while the check beside it read
+`config.RAZORPAY_KEY_ID`. With `.env` unloaded those disagreed, and the checkout
+only enables online payment when it sees a key — so it would have shipped as
+cash-only, silently. The same endpoint advertised `methods: ['RAZORPAY']` while
+`POST /orders` has only ever accepted `'RAZORPAY_SANDBOX'`, so a client that
+believed it was refused at the moment it placed the order.
+
+**3. The dish filter did nothing, on every deployment.**
+
+Meilisearch answers 200 with an empty list when it is absent or unsynced, which
+is indistinguishable from "nothing matches". The local config held
+`https://your-search.meilisearch.io`, a placeholder — and the **live deployment
+returned zero dishes** for biryani, pizza and paneer, all of which exist on its
+menus.
+
+`menuFallbackSearch.ts` walks the menus when the index returns nothing. It is
+not a search engine and says so. Only ACTIVE restaurants appear: an unapproved
+kitchen's menu must not be reachable by guessing a dish name, or the approval
+gate is bypassable by anyone who knows what they sell.
+
+---
+
+### Verified against the running system
+
+| Claim | Evidence |
+| --- | --- |
+| Razorpay keys are live | `POST /payments/start` → `order_TeKF2tLa6fCilk`, 36690 paise, status `created` |
+| Membership charges the plan price | purchase → `order_TeKFDpsXKJwpax`, 9900 paise for a ₹99 plan |
+| A forged signature grants nothing | refused `INVALID_PAYMENT_SIGNATURE`; a fresh account stays `active: false` |
+| Two orders at once | 3 live orders across 2 restaurants on one account |
+| Offers are nearest-first | 0.39 km ranked above 1.82 km |
+| One trip at a time is a gate | second `/claim` → `RIDER_ALREADY_ON_TRIP` |
+| Dish search finds kitchens | "dosa" → Davangere Benne Masala Dosa at Udupi Sri Krishna Bhavan |
+| The APK carries the features | `RNRazorpayCheckout`, `RAZORPAY_SANDBOX`, `membership/purchase`, `places/reverse` all present in the shipped bundle |
+
+**Gate:** 20 backend suites, nine workspaces typechecked, secret, URL and
+translation scans clean — now with `.env` actually loaded, which it never was.
+
+**Known Issues:**
+
+- The scrollable strip of dish photos on the home-screen restaurant card is not
+  built. It needs a menu fetch per restaurant on the most-visited screen in the
+  product, and a slow version of it is worse than none.
+- Tapping through the Razorpay sheet itself is unverified from this machine. The
+  key pair, the order creation and the signature rejection are all proven; what
+  is not is a human completing a test payment on a device.
+- The rider marker on the customer's tracking map still jumps between GPS fixes
+  rather than gliding.
+- Restaurants registered before Stage 2 still carry the placeholder position and
+  there is no screen yet for an existing partner to correct it.
+- The back-block during an in-flight order remains unverified on a device,
+  carried from Stage 1.
+
+**NEXT AI SHOULD:** Verify on hardware — real maps drawing, a Razorpay test
+payment completed through the sheet, and the Stage 1 back-block. Then the
+partner-profile screen that lets an existing restaurant fix its pin, which is
+the last thing standing between the live data and region-based listing being
+correct.
+
+---
+
 ## [2026-09-20] -- Claude Opus 5 -- Session 27: v2 Stage 2, maps and real distances
 
 **Description:** Stage 2 of `REBUILD_PLAN.md`. Real Google maps in three apps, a

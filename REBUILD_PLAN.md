@@ -120,7 +120,7 @@ arrived.
 
 ---
 
-## Stage 3 — payments and membership
+## Stage 3 — payments and membership — **SHIPPED**
 
 - Razorpay native SDK properly integrated. Test keys, test mode, real checkout
   sheet: UPI intent that opens GPay or PhonePe, cards, netbanking, wallets.
@@ -140,7 +140,7 @@ arrived.
 
 ---
 
-## Stage 4 — ordering and live tracking
+## Stage 4 — ordering and live tracking — **SHIPPED**
 
 - One restaurant per order. Adding a dish from a second restaurant asks whether to
   start a new order rather than silently mixing the bill.
@@ -170,7 +170,7 @@ delivery is worth testing across three phones.
 
 ---
 
-## Stage 5 — partner, admin, and the Play Store
+## Stage 5 — partner, admin, and the Play Store — **SHIPPED**, minus the dish-photo strip on the home card
 
 **Partner**
 
