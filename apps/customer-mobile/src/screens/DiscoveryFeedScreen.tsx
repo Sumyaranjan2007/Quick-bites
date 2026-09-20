@@ -605,16 +605,32 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
       )}
 
       {state === 'success' && visible.length === 0 && (
-        <EmptyState
-          title="Nothing matches that"
-          subtitle="Try a different dish, cuisine or filter."
-          action="Clear filters"
-          onAction={() => {
-            setSearchQuery('');
-            setActiveFilters(new Set());
-            setSort('relevance');
-          }}
-        />
+        /* Two different empty lists, and they need different advice.
+           Restaurants are now filtered by whether they deliver to where the
+           customer is, so an empty list is usually about the LOCATION rather
+           than the filters — and "try a different dish or filter" sends
+           somebody to fiddle with chips that cannot help. Seen on a device:
+           a pin dropped in the city centre, every kitchen thirty kilometres
+           away, and a screen advising a different cuisine. */
+        restaurants.length === 0 && origin ? (
+          <EmptyState
+            title="Nothing delivers here yet"
+            subtitle="No kitchen covers this address. Try a location closer to where you are, or check back as more restaurants join."
+            action="Change location"
+            onAction={() => setLocationSheetOpen(true)}
+          />
+        ) : (
+          <EmptyState
+            title="Nothing matches that"
+            subtitle="Try a different dish, cuisine or filter."
+            action="Clear filters"
+            onAction={() => {
+              setSearchQuery('');
+              setActiveFilters(new Set());
+              setSort('relevance');
+            }}
+          />
+        )
       )}
 
       {state === 'success' &&
