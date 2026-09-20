@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
@@ -118,19 +118,51 @@ const NativeRiderMap: React.FC<{ rider: Coords; destination: Coords }> = ({ ride
   const { Marker, Polyline, PROVIDER_GOOGLE } = Maps!;
   const ref = useRef<any>(null);
 
+  /**
+   * The camera is not touched until the map exists and has been measured.
+   *
+   * `fitToCoordinates` becomes `newLatLngBounds`, which throws on a map of zero
+   * size and takes the process with it:
+   *
+   *   Error using newLatLngBounds(LatLngBounds, int): Map size can't be 0.
+   *
+   * This crashed the partner app on a device. This screen is the one a customer
+   * opens when they are already anxious about where their food is, so it is the
+   * worst possible place to lose the process.
+   */
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const [mapReady, setMapReady] = useState(false);
+  const canDriveCamera = mapReady && mapSize.width > 0 && mapSize.height > 0;
+
   useEffect(() => {
+    if (!canDriveCamera) return;
     // Both points kept in frame: a map centred on the rider alone tells you
     // where they are and not whether they are getting closer.
     ref.current?.fitToCoordinates?.([rider, destination], {
       edgePadding: { top: 48, right: 48, bottom: 48, left: 48 },
       animated: true
     });
-  }, [rider.latitude, rider.longitude, destination.latitude, destination.longitude]);
+  }, [
+    rider.latitude,
+    rider.longitude,
+    destination.latitude,
+    destination.longitude,
+    canDriveCamera
+  ]);
 
   return (
+    <View
+      style={StyleSheet.absoluteFill}
+      onLayout={e => {
+        const { width, height } = e.nativeEvent.layout;
+        setMapSize({ width, height });
+      }}
+    >
+      {mapSize.width > 0 && mapSize.height > 0 && (
     <MapView
       ref={ref}
       style={StyleSheet.absoluteFill}
+      onMapReady={() => setMapReady(true)}
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
       initialRegion={{
         latitude: (rider.latitude + destination.latitude) / 2,
@@ -146,6 +178,8 @@ const NativeRiderMap: React.FC<{ rider: Coords; destination: Coords }> = ({ ride
       <Marker coordinate={rider} title="Your rider" pinColor={c.accent[500]} />
       <Polyline coordinates={[rider, destination]} strokeColor={c.primary[500]} strokeWidth={3} />
     </MapView>
+      )}
+    </View>
   );
 };
 

@@ -84,6 +84,24 @@ export const MapAddressPicker: React.FC<Props> = ({
   const { detect, detecting } = useDeviceLocation();
   const mapRef = useRef<any>(null);
 
+  /**
+   * The map is not mounted until its container has a real size, and the camera
+   * is not touched until the map reports itself ready.
+   *
+   * Without both, this crashes the process:
+   *
+   *   Error using newLatLngBounds(LatLngBounds, int): Map size can't be 0.
+   *
+   * `initialRegion` makes react-native-maps stash a pending bounds move while
+   * the view has no height, and its own recovery path then calls the overload
+   * that requires a non-zero size. Inside a Modal that slides in, zero size for
+   * the first frames is the normal case. Caught on a device; nothing static
+   * would have found it.
+   */
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const [mapReady, setMapReady] = useState(false);
+  const canDriveCamera = mapReady && mapSize.width > 0 && mapSize.height > 0;
+
   // Guards a late reverse-geocode from overwriting the address for a position
   // the customer has since dragged away from. Without it, a slow response for
   // an abandoned point lands after a fast one for the current point and the
@@ -125,24 +143,32 @@ export const MapAddressPicker: React.FC<Props> = ({
   // Opening is the one moment the address should be fetched immediately rather
   // than after the settle delay: there is nothing on screen yet to flicker.
   useEffect(() => {
+    if (!visible) {
+      setMapReady(false);
+      setMapSize({ width: 0, height: 0 });
+    }
+  }, [visible]);
+
+  useEffect(() => {
     if (!visible) return;
     const start = initial || FALLBACK_CENTRE;
     setCentre(start);
     setResolved(null);
     lookUp(start);
-    // `initialRegion` is only read when the map mounts. Whether a Modal's
-    // children unmount while hidden is a platform detail, so relying on it
-    // would mean the picker sometimes reopening on the LAST place it was used
-    // rather than the one it was asked for. Moving the camera explicitly is
-    // correct either way, and is a no-op on a map that just mounted there.
-    mapRef.current?.animateToRegion?.(
-      { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
-      0
-    );
+    // `initialRegion` is only read when the map mounts, and whether a Modal's
+    // children unmount while hidden is a platform detail — so the camera is
+    // placed explicitly. Gated, because doing it before the map is measured is
+    // the crash described above.
+    if (canDriveCamera) {
+      mapRef.current?.animateToRegion?.(
+        { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
+        0
+      );
+    }
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };
-  }, [visible, initial, lookUp]);
+  }, [visible, initial, lookUp, canDriveCamera]);
 
   /**
    * Called continuously while the map moves. The work is deferred until it has
@@ -166,12 +192,14 @@ export const MapAddressPicker: React.FC<Props> = ({
     setCentre(place.coordinates);
     // animateToRegion rather than a state-driven re-render: re-mounting the map
     // at a new region loses the tiles already drawn and blinks the whole view.
-    mapRef.current?.animateToRegion?.(
-      { ...place.coordinates, latitudeDelta: SPAN, longitudeDelta: SPAN },
-      450
-    );
+    if (canDriveCamera) {
+      mapRef.current?.animateToRegion?.(
+        { ...place.coordinates, latitudeDelta: SPAN, longitudeDelta: SPAN },
+        450
+      );
+    }
     lookUp(place.coordinates);
-  }, [detect, lookUp]);
+  }, [detect, lookUp, canDriveCamera]);
 
   const confirm = useCallback(() => {
     onConfirm(resolved || { coordinates: centre, addressLine: '' });
@@ -190,12 +218,19 @@ export const MapAddressPicker: React.FC<Props> = ({
           <View style={styles.headerButton} />
         </View>
 
-        <View style={styles.mapArea}>
-          {canRenderNativeMap && MapView ? (
+        <View
+          style={styles.mapArea}
+          onLayout={e => {
+            const { width, height } = e.nativeEvent.layout;
+            setMapSize({ width, height });
+          }}
+        >
+          {canRenderNativeMap && MapView && mapSize.width > 0 && mapSize.height > 0 ? (
             <>
               <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
+                onMapReady={() => setMapReady(true)}
                 provider={Platform.OS === 'android' ? Maps?.PROVIDER_GOOGLE : undefined}
                 initialRegion={{
                   ...(initial || FALLBACK_CENTRE),

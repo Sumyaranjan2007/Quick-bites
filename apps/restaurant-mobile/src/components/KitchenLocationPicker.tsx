@@ -55,6 +55,26 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
   const [label, setLabel] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const mapRef = useRef<any>(null);
+
+  /**
+   * The map is not mounted until its container has a real size, and the camera
+   * is not touched until the map says it is ready.
+   *
+   * Both are needed, and this crashed a release build without them:
+   *
+   *   com.google.maps.api.android.lib6.common.apiexception.c: Error using
+   *   newLatLngBounds(LatLngBounds, int): Map size can't be 0.
+   *
+   * `initialRegion` makes react-native-maps stash a pending bounds move when
+   * the view has no height yet, and its own recovery path then calls
+   * `newLatLngBounds(bounds, 0)` — the overload that requires a non-zero map
+   * size — so a map laid out at zero size takes the process down. Inside a
+   * Modal with a slide animation, zero size during the first frames is the
+   * normal case, not the edge case.
+   */
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const [mapReady, setMapReady] = useState(false);
+  const canDriveCamera = mapReady && mapSize.width > 0 && mapSize.height > 0;
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seq = useRef(0);
 
@@ -74,22 +94,32 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
     }
   }, []);
 
+  // Reset when the sheet closes, so reopening waits for a fresh layout rather
+  // than trusting a size measured for the previous presentation.
+  useEffect(() => {
+    if (!visible) {
+      setMapReady(false);
+      setMapSize({ width: 0, height: 0 });
+    }
+  }, [visible]);
+
   useEffect(() => {
     if (!visible) return;
     const start = initial || FALLBACK_CENTRE;
     setCentre(start);
     describe(start);
-    // See MapAddressPicker: `initialRegion` is read once at mount, so the
-    // camera is placed explicitly rather than trusting the Modal to have
-    // unmounted its children since last time.
-    mapRef.current?.animateToRegion?.(
-      { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
-      0
-    );
+    // Only once the map exists and has been measured. Calling this earlier is
+    // what the crash above was.
+    if (canDriveCamera) {
+      mapRef.current?.animateToRegion?.(
+        { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
+        0
+      );
+    }
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };
-  }, [visible, initial, describe]);
+  }, [visible, initial, describe, canDriveCamera]);
 
   const onRegionChange = useCallback(
     (region: KitchenPoint) => {
@@ -112,17 +142,19 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const point = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setCentre(point);
-      mapRef.current?.animateToRegion?.(
-        { ...point, latitudeDelta: SPAN, longitudeDelta: SPAN },
-        450
-      );
+      if (canDriveCamera) {
+        mapRef.current?.animateToRegion?.(
+          { ...point, latitudeDelta: SPAN, longitudeDelta: SPAN },
+          450
+        );
+      }
       describe(point);
     } catch {
       /* The pin stays where it is; the owner can still place it by hand. */
     } finally {
       setLocating(false);
     }
-  }, [describe]);
+  }, [describe, canDriveCamera]);
 
   const MapView = Maps?.default;
 
@@ -137,12 +169,19 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
           <View style={s.headerBtn} />
         </View>
 
-        <View style={s.mapArea}>
-          {canRenderNativeMap && MapView ? (
+        <View
+          style={s.mapArea}
+          onLayout={e => {
+            const { width, height } = e.nativeEvent.layout;
+            setMapSize({ width, height });
+          }}
+        >
+          {canRenderNativeMap && MapView && mapSize.width > 0 && mapSize.height > 0 ? (
             <>
               <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
+                onMapReady={() => setMapReady(true)}
                 provider={Platform.OS === 'android' ? Maps?.PROVIDER_GOOGLE : undefined}
                 initialRegion={{
                   ...(initial || FALLBACK_CENTRE),

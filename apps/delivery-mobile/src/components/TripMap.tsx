@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { t } from '../theme';
 import { Maps, canRenderNativeMap } from '../lib/nativeMap';
@@ -42,17 +42,39 @@ interface Props {
 export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel, carryingFood }) => {
   const ref = useRef<any>(null);
 
+  /**
+   * Nothing touches the camera until the map exists and has been measured.
+   *
+   * `fitToCoordinates` becomes `newLatLngBounds`, which throws — and takes the
+   * process with it — when the map has zero size:
+   *
+   *   Error using newLatLngBounds(LatLngBounds, int): Map size can't be 0.
+   *
+   * It crashed the partner app on a real device before this guard existed. A
+   * map inside a scrolling screen is measured a frame or two after it mounts,
+   * so this is the ordinary case rather than a rare one.
+   */
+  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
+  const [mapReady, setMapReady] = useState(false);
+  const canDriveCamera = mapReady && mapSize.width > 0 && mapSize.height > 0;
+
   // Declared before the early returns below: hooks cannot be called
   // conditionally, and a `return null` above a `useEffect` changes the hook
   // count between renders, which React treats as a fatal error rather than a
   // warning.
   useEffect(() => {
-    if (!rider || !destination) return;
+    if (!rider || !destination || !canDriveCamera) return;
     ref.current?.fitToCoordinates?.([rider, destination], {
       edgePadding: { top: 56, right: 56, bottom: 56, left: 56 },
       animated: true
     });
-  }, [rider?.latitude, rider?.longitude, destination?.latitude, destination?.longitude]);
+  }, [
+    rider?.latitude,
+    rider?.longitude,
+    destination?.latitude,
+    destination?.longitude,
+    canDriveCamera
+  ]);
 
   if (!destination) return null;
 
@@ -71,10 +93,18 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
   const { Marker, Polyline, PROVIDER_GOOGLE } = Maps;
 
   return (
-    <View style={s.frame}>
+    <View
+      style={s.frame}
+      onLayout={e => {
+        const { width, height } = e.nativeEvent.layout;
+        setMapSize({ width, height });
+      }}
+    >
+      {mapSize.width > 0 && mapSize.height > 0 && (
       <MapView
         ref={ref}
         style={StyleSheet.absoluteFill}
+        onMapReady={() => setMapReady(true)}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={{
           latitude: destination.latitude,
@@ -108,6 +138,7 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
           />
         )}
       </MapView>
+      )}
       <View style={s.tag}>
         <Text style={s.tagText}>{carryingFood ? 'To the customer' : 'To the kitchen'}</Text>
       </View>
