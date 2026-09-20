@@ -208,6 +208,16 @@ export const config = {
   DEFAULT_SERVICE_RADIUS_KM: numberFromEnv(process.env.DEFAULT_SERVICE_RADIUS_KM, 8, 1, 50),
 
   /**
+   * Whether this deployment will allow its data to be deleted wholesale.
+   *
+   * Off unless switched on deliberately, and meant to be switched off again
+   * immediately afterwards. It exists so that the reset endpoint is INERT on
+   * a deployment nobody has armed — a stolen super-admin token cannot use it
+   * against a production that has never enabled it.
+   */
+  ALLOW_PLATFORM_RESET: process.env.ALLOW_PLATFORM_RESET === 'true',
+
+  /**
    * How long a rider may hold an accepted trip before being reminded.
    *
    * Five minutes is long enough to cover traffic and a kitchen that is slow

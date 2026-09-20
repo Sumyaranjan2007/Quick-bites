@@ -40,6 +40,7 @@ const SUITES = [
   'search',
   'routing',
   'membership',
+  'platformReset',
   'sockets',
   'sockets.security',
   'otp',
