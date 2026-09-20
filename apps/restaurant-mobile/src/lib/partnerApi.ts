@@ -257,6 +257,8 @@ export function submitMenuRequest(
     price: number;
     isVeg: boolean;
     categoryName: string;
+    /** A data URI from dishPhoto.ts, already resized to fit the request body. */
+    imageUrl?: string;
   }
 ) {
   return request<{ request: any }>(

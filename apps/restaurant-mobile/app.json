@@ -103,12 +103,12 @@
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA"
+        "android.permission.RECORD_AUDIO"
       ],
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
       ]
     },
     "newArchEnabled": false,
@@ -126,6 +126,13 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "kotlinVersion": "1.9.25"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Quick Bites Partner uses your photos so you can add a picture to a dish.",
+          "cameraPermission": "Quick Bites Partner uses the camera so you can photograph a dish."
         }
       ],
       [

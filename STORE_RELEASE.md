@@ -113,8 +113,25 @@ version 1.1.0. Bump it before each release or Play will reject the duplicate.
 - Release signing via upload keystore (Expo config plugin, survives prebuild)
 - `targetSdk`/`compileSdk` 35, `minSdk` 24
 - AAB output with Proguard and resource shrinking
-- Only `INTERNET` and `VIBRATE` requested; Expo's default
-  `SYSTEM_ALERT_WINDOW`, storage, camera and microphone permissions are blocked
+- Permissions are declared per app rather than inherited, and each one is
+  requested at the moment it is used rather than at startup. What ships:
+
+  | App | Permissions | Why |
+  |---|---|---|
+  | Customer | `INTERNET`, `VIBRATE`, fine + coarse location, camera, microphone | Location places the delivery pin and sorts restaurants; camera is the profile photo; microphone is voice search |
+  | Partner | `INTERNET`, `VIBRATE`, fine + coarse location, camera | Location places the kitchen on the map at registration; camera photographs a dish |
+  | Rider | `INTERNET`, `VIBRATE`, fine + coarse location, camera | Location is the delivery itself; camera is documents and the profile photo |
+  | Admin | `INTERNET`, `VIBRATE` | Nothing else is needed |
+
+  `SYSTEM_ALERT_WINDOW` and legacy storage are blocked in all four.
+  `RECORD_AUDIO` is blocked in the partner, rider and admin apps — only the
+  customer app has a feature that records anything.
+
+- **Foreground location only.** No app declares `ACCESS_BACKGROUND_LOCATION`.
+  The rider reports position while the app is open and they are on shift, and
+  nothing else. This is deliberate: background location triggers a separate
+  Play review that takes weeks and asks you to justify a use case this product
+  does not have.
 - Demo credentials, one-tap demo login and the server-URL picker are `__DEV__`
   only, so they do not ship
 - In-app account deletion (`DELETE /auth/me`, re-authenticated) with
@@ -134,16 +151,32 @@ These cannot be done from the codebase.
 3. **Account deletion URL.** Play requires a *web* deletion route in addition to
    the in-app one. Publish a page that lets a user request deletion and link it
    in the Data Safety section.
-4. **Data Safety form.** Declare what is collected: name, email, phone, delivery
-   address, order history; plus precise location for the rider app.
+4. **Data Safety form.** Declare, for every app that collects it:
+
+   | Data | Apps | Collected | Shared | Why |
+   |---|---|---|---|---|
+   | Name, email, phone | all four | Yes | No | Account and order contact |
+   | Delivery address | customer | Yes | No | Delivering the order |
+   | Precise location | customer, partner, rider | Yes | No | Pin the delivery point, place the kitchen, route the rider |
+   | Photos | customer, partner, rider | Yes | No | Profile picture, dish photo, KYC documents |
+   | Purchase history | customer | Yes | No | Order history and refunds |
+   | Payment info | none | **No** | — | Razorpay's own sheet handles the card; no card data reaches this app or its server |
+
+   The last row matters and is easy to get wrong. Declaring that the app
+   collects payment information when it does not invites a review question you
+   cannot answer well; the checkout hands off to Razorpay's SDK and only ever
+   sees a payment id and a signature.
 5. **Content rating questionnaire.**
 6. **Store listing assets:** app icon 512×512, feature graphic 1024×500, and at
    least two phone screenshots per app.
-7. **Rider app location disclosure.** The rider app streams GPS during a trip.
-   Play requires a prominent in-app disclosure before the first location request,
-   and background location needs a separate declaration and review. Confirm
-   whether continuous background tracking is actually needed — foreground-only is
-   far easier to get approved.
+7. **Location disclosure, three apps not one.** The customer app asks for
+   location to place a delivery pin, the partner app to place its kitchen, and
+   the rider app to route and report a delivery. Play requires a prominent
+   in-app disclosure before the FIRST location request in each of them.
+
+   All three are foreground-only and none declares background location, so the
+   separate background-location review does not apply. Do not add it later
+   without budgeting weeks for that review.
 8. **Partner, rider and admin apps are closed-audience tools.** Play may query a
    public listing for an app only usable by onboarded staff. Prefer closed
    testing, or state the audience clearly in the listing.

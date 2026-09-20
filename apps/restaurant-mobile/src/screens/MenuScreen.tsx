@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Modal, TouchableOpacity, RefreshControl } from 'react-native';
-import { Plus, Clock3, CheckCircle2, XCircle } from 'lucide-react-native';
+import { View, Text, ScrollView, StyleSheet, Switch, Modal, TouchableOpacity, RefreshControl, Image } from 'react-native';
+import { Plus, Clock3, CheckCircle2, XCircle, Camera, Image as ImageIcon, X } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
 import { fetchMenu, setDishStock, submitMenuRequest, fetchMenuRequests } from '../lib/partnerApi';
+import { pickDishPhoto } from '../lib/dishPhoto';
 
 interface Props {
   restaurantId: string;
@@ -32,6 +33,30 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [sentNote, setSentNote] = useState(false);
+
+  /**
+   * The dish photo, as a data URI, or null.
+   *
+   * Optional on purpose. A kitchen adding twenty dishes on a Tuesday evening
+   * should not be blocked on photographing each one, and a menu with no
+   * pictures is still a menu — where a menu that could not be added at all is
+   * nothing.
+   */
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const choosePhoto = async (source: 'camera' | 'library') => {
+    setPhotoBusy(true);
+    setSubmitError(null);
+    try {
+      const uri = await pickDishPhoto(source);
+      if (uri) setPhoto(uri);
+    } catch (err: any) {
+      setSubmitError(err?.message || 'That photo could not be used.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh') => {
@@ -107,7 +132,8 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
       description: form.description.trim() || undefined,
       price: Number(form.price),
       isVeg: form.isVeg,
-      categoryName: form.categoryName.trim()
+      categoryName: form.categoryName.trim(),
+      ...(photo ? { imageUrl: photo } : {})
     });
     setSubmitting(false);
 
@@ -117,6 +143,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
     }
     setComposerOpen(false);
     setForm({ name: '', description: '', price: '', categoryName: '', isVeg: true });
+    setPhoto(null);
     setSentNote(true);
     setTimeout(() => setSentNote(false), 4000);
     load('initial');
@@ -266,6 +293,41 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                 multiline
               />
 
+              {/* The photo. Optional, and last, so it never blocks a kitchen
+                  adding twenty dishes on a Tuesday evening. */}
+              <Text style={styles.photoLabel}>Photo (optional)</Text>
+              {photo ? (
+                <View style={styles.photoWrap}>
+                  <Image source={{ uri: photo }} style={styles.photoPreview} />
+                  <TouchableOpacity
+                    style={styles.photoRemove}
+                    onPress={() => setPhoto(null)}
+                    accessibilityLabel="Remove photo"
+                  >
+                    <X size={16} color={c.surface} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.photoActions}>
+                  <TouchableOpacity
+                    style={styles.photoBtn}
+                    onPress={() => choosePhoto('camera')}
+                    disabled={photoBusy}
+                  >
+                    <Camera size={16} color={c.brand} />
+                    <Text style={styles.photoBtnText}>Take a photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.photoBtn}
+                    onPress={() => choosePhoto('library')}
+                    disabled={photoBusy}
+                  >
+                    <ImageIcon size={16} color={c.brand} />
+                    <Text style={styles.photoBtnText}>Choose one</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.vegRow}>
                 <Text style={styles.vegLabel}>Vegetarian</Text>
                 <Switch
@@ -292,6 +354,35 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
 };
 
 const styles = StyleSheet.create({
+  photoLabel: { fontSize: 13, fontWeight: '700', color: c.text, marginTop: spacing.lg },
+  photoActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  photoBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: c.brand,
+    backgroundColor: c.surface
+  },
+  photoBtnText: { color: c.brand, fontSize: 13, fontWeight: '700' },
+  photoWrap: { marginTop: spacing.sm },
+  // 4:3, the aspect the picker crops to, so the preview is what gets sent.
+  photoPreview: { width: '100%', aspectRatio: 4 / 3, borderRadius: radii.md, backgroundColor: c.bg },
+  photoRemove: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)'
+  },
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xl, paddingBottom: 48 },
   sentNote: { backgroundColor: c.successSoft, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },

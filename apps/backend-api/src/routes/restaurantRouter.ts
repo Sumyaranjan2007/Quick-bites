@@ -473,7 +473,15 @@ const MenuRequestSchema = z.object({
   price: z.number().positive('Price must be greater than zero').max(100000),
   isVeg: z.boolean(),
   categoryName: z.string().trim().min(1, 'Category is required').max(80),
-  imageUrl: z.string().url('Image URL must be a valid link').optional()
+  /**
+   * A link, or a data URI from the partner app's own camera.
+   *
+   * Capped at the same 200,000 characters the admin catalogue routes use. They
+   * disagreed before: a partner could submit a photo larger than an
+   * administrator could ever edit, so the first attempt to correct that dish
+   * would fail validation on a field nobody had touched.
+   */
+  imageUrl: z.string().trim().max(200000).optional()
 });
 
 // POST /api/restaurants/:id/menu/requests — partner submits a menu change for review
