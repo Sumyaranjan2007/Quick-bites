@@ -225,9 +225,26 @@ calls Google — which is also what makes the caching and rate limiting possible
 
 6. **Credentials** → **Create credentials** → **API key**. Copy it.
 7. **Edit API key** before closing:
-   - **Application restrictions** → **IP addresses** → your Railway outbound IP.
-     If you do not know it yet, leave **None** and come back — but do not leave
-     it on None permanently.
+   - **Application restrictions** → **None**.
+
+     This is deliberate and it is the opposite of what this guide said before.
+     IP restriction is the right answer on a host with a fixed address; Railway
+     does not give you one on the plans this runs on, so an IP allow-list either
+     blocks your own server today or breaks silently the next time the
+     deployment moves. The symptom is not an error on screen — address search
+     simply returns nothing, exactly as it would if no such street existed.
+
+     What protects this key instead: it exists only as a Railway variable, it
+     never enters an APK (`check-apk-secrets.mjs` fails any build that contains
+     one), and it is limited to four APIs below. If you later move to a host
+     with a static egress IP, add it here.
+
+   - **DO NOT reuse the Android key here.** An Android-restricted key refuses
+     every server-side call with `REQUEST_DENIED — This IP, site or mobile
+     application is not authorized to use this API key`, and the apps degrade to
+     manual address entry with nothing on screen to say why. These are two
+     separate keys with two different restrictions; that is the whole point of
+     there being two.
    - **API restrictions** → **Restrict key** → tick **Places**, **Geocoding**,
      **Distance Matrix** and **Directions**. Do **not** tick Maps SDK for
      Android; that belongs to the other key.
@@ -282,6 +299,29 @@ The map: same sheet → **Choose on map**. Real streets means the Android key an
 its restrictions are right. A **grey square with a Google logo** means the key
 is present but rejected — almost always the package name or SHA-1 not matching.
 The words *"Map not available in this build"* mean there is no key at all.
+
+### If address search comes back empty
+
+The health endpoint says whether the key reached the server:
+
+```bash
+curl -s https://quick-bites-production-9f45.up.railway.app/health | grep -o '"addressLookup":{[^}]*}'
+```
+
+`"configured":true` only means a key is SET. Whether Google accepts it is a
+different question, and the answer is in the Railway logs:
+
+```
+PLACES_API_REFUSED   googleStatus=REQUEST_DENIED   detail=...
+```
+
+That line names the cause in Google's own words. The three that actually happen:
+
+| `detail` says | What to change |
+|---|---|
+| "This IP, site or mobile application is not authorized" | Application restrictions are blocking your server — set them to **None**, or you pasted the Android key |
+| "This API project is not authorized to use this API" | The API is not enabled in the Library |
+| "You must enable Billing" | No card on the project |
 
 ---
 
