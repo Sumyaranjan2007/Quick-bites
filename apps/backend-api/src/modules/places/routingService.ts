@@ -54,6 +54,13 @@ const breaker = new CircuitBreaker('Road distance', {
   timeoutMs: 5_000
 });
 
+/**
+ * Why Google last refused a routing call. See placesService for the reasoning:
+ * "configured" and "working" are different questions, and only the first was
+ * answerable without reading the deployment logs.
+ */
+let lastRefusal: { status: string; detail?: string; at: string } | null = null;
+
 export interface RoadDistance {
   distanceKm: number;
   durationMinutes: number;
@@ -255,6 +262,13 @@ async function callDistanceMatrix(
     // it would silently degrade every fee on the platform to an estimate with
     // nothing in the logs to say why.
     if (!body || (body.status && body.status !== 'OK')) {
+      if (body?.status) {
+        lastRefusal = {
+          status: String(body.status),
+          detail: body.error_message ? String(body.error_message) : undefined,
+          at: new Date().toISOString()
+        };
+      }
       console.log(JSON.stringify({
         level: 'ERROR',
         timestamp: new Date().toISOString(),
@@ -296,6 +310,8 @@ export function routingStatus() {
     configured: isPlacesConfigured(),
     roadFactor: config.ROAD_DISTANCE_FACTOR,
     cachedRoutes: cache.size,
+    /** Absent on a healthy deployment; present, it names the fix. */
+    lastRefusal,
     dependency: breaker.snapshot()
   };
 }

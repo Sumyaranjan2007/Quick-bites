@@ -43,6 +43,20 @@ const breaker = new CircuitBreaker('Address lookup', {
   timeoutMs: 6_000
 });
 
+/**
+ * Why Google last refused a call, if it did.
+ *
+ * Kept because "configured" and "working" are different questions and only the
+ * first was answerable. A key can be set, reach Google, and be rejected — and
+ * the only symptom is an empty result, which is indistinguishable from a street
+ * that does not exist. Diagnosing that previously meant reading the deployment
+ * logs; this puts Google's own words in the health payload.
+ *
+ * `detail` is Google's `error_message`, which names the misconfiguration ("This
+ * API project is not authorized to use this API") and carries no key material.
+ */
+let lastRefusal: { status: string; detail?: string; at: string } | null = null;
+
 export function isPlacesConfigured(): boolean {
   return config.GOOGLE_MAPS_SERVER_KEY.length > 0;
 }
@@ -188,6 +202,11 @@ async function callGoogle(url: string): Promise<any | null> {
     // REQUEST_DENIED both arrive as HTTP 200 and would otherwise read as an
     // address that does not exist.
     if (body.status && body.status !== 'OK' && body.status !== 'ZERO_RESULTS') {
+      lastRefusal = {
+        status: String(body.status),
+        detail: body.error_message ? String(body.error_message) : undefined,
+        at: new Date().toISOString()
+      };
       console.log(JSON.stringify({
         level: 'ERROR',
         timestamp: new Date().toISOString(),
@@ -246,8 +265,12 @@ export async function suggestAddresses(
     params.set('radius', '30000');
   }
 
+  const refusalsBefore = lastRefusal?.at;
   const body = await callGoogle(`${GOOGLE}/place/autocomplete/json?${params.toString()}`);
+  // A refusal returns nothing AND is not cached below, so the next keystroke
+  // after the key is fixed gets a real answer.
   if (!body || !Array.isArray(body.predictions)) return [];
+  if (lastRefusal?.at !== refusalsBefore) return [];
 
   const suggestions: PlaceSuggestion[] = body.predictions.slice(0, 8).map((p: any) => ({
     placeId: p.place_id,
@@ -282,10 +305,15 @@ export async function resolvePlace(
   });
   if (sessionToken) params.set('sessiontoken', sessionToken);
 
+  const refusalsBefore = lastRefusal?.at;
   const body = await callGoogle(`${GOOGLE}/place/details/json?${params.toString()}`);
   const location = body?.result?.geometry?.location;
   if (!location) {
-    placeCache.set(placeId, null);
+    // Only cache a genuine "no such place". A refused or failed call must not
+    // be remembered, or fixing the key leaves every address anybody has already
+    // looked up broken for a day — which is exactly long enough for somebody to
+    // conclude the fix did not work.
+    if (body && lastRefusal?.at === refusalsBefore) placeCache.set(placeId, null);
     return null;
   }
 
@@ -323,10 +351,12 @@ export async function reverseGeocode(
     result_type: 'street_address|premise|subpremise|route|neighborhood'
   });
 
+  const refusalsBefore = lastRefusal?.at;
   const body = await callGoogle(`${GOOGLE}/geocode/json?${params.toString()}`);
   const first = body?.results?.[0];
   if (!first) {
-    reverseCache.set(cacheKey, null);
+    // See resolvePlace: a refusal is not an answer and is not cached.
+    if (body && lastRefusal?.at === refusalsBefore) reverseCache.set(cacheKey, null);
     return null;
   }
 
@@ -366,6 +396,11 @@ export function placesStatus() {
     configured: isPlacesConfigured(),
     region: config.PLACES_REGION,
     cachedSuggestions: suggestionCache.size,
+    /**
+     * Present only when Google has actually refused something. Its absence on a
+     * configured deployment is the good case; its presence names the fix.
+     */
+    lastRefusal,
     dependency: breaker.snapshot()
   };
 }
