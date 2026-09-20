@@ -111,6 +111,10 @@ fi
 echo "JDK 17:      $JAVA_HOME"
 echo "Android SDK: $ANDROID_HOME_NATIVE"
 
+# Apps that came out debug-signed, reported again at the end: a warning printed
+# before four minutes of Gradle output is a warning nobody sees.
+DEBUG_SIGNED=()
+
 APPS=(
   "customer-mobile:QuickBites-Customer"
   "restaurant-mobile:QuickBites-Partner"
@@ -155,6 +159,30 @@ for entry in "${APPS[@]}"; do
 
   echo "sdk.dir=$ANDROID_HOME_NATIVE" > android/local.properties
 
+  # Refuse to quietly hand back a DEBUG-SIGNED release.
+  #
+  # withReleaseSigning falls back to Android's debug keystore when it cannot
+  # find credentials, and Gradle says nothing about it. That is how the admin
+  # app came out of a full build signed with the debug key while the other
+  # three were signed properly — the APK looked normal, installed on a clean
+  # device, and would have been refused as an update by every phone that had
+  # the real one, besides being unpublishable.
+  #
+  # Not fatal, because a contributor without the keystores must still be able
+  # to build and run these apps. Loud, because the difference is invisible
+  # afterwards unless somebody thinks to check a fingerprint.
+  if [[ ! -f android/keystore.properties ]] && [[ -z "${QB_KEYSTORE_PATH:-}" ]]; then
+    echo "" >&2
+    echo "  ############################################################" >&2
+    echo "  #  WARNING: $app has no release keystore configured." >&2
+    echo "  #  This APK will be signed with the ANDROID DEBUG KEY." >&2
+    echo "  #  It cannot update an existing install and must not be" >&2
+    echo "  #  published. Create android/keystore.properties to fix." >&2
+    echo "  ############################################################" >&2
+    echo "" >&2
+    DEBUG_SIGNED+=("$app")
+  fi
+
   # See note 1: never let one app's module list leak into the next app's build.
   rm -rf "$ROOT/node_modules/expo/android/build"
 
@@ -178,3 +206,10 @@ done
 
 echo ""
 echo "Done. APKs in $OUT_DIR"
+
+if [[ ${#DEBUG_SIGNED[@]} -gt 0 ]]; then
+  echo "" >&2
+  echo "  DEBUG-SIGNED, DO NOT PUBLISH: ${DEBUG_SIGNED[*]}" >&2
+  echo "  Each needs apps/<app>/android/keystore.properties." >&2
+  echo "" >&2
+fi
