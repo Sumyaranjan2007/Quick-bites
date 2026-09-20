@@ -78,7 +78,28 @@ const WIPED = [
   'supportTickets'
 ] as const;
 
-platformRoutes.post('/platform/reset', validateBody, async (req, res, next) => {
+/*
+ * THE GUARDS ANSWER IN THE ORDER THEY MATTER, so the refusal says which one
+ * stopped you.
+ *
+ * The confirmation phrase used to be checked first, in middleware, before
+ * anything else ran. That made the two refusals indistinguishable from
+ * outside: sending a deliberately wrong phrase to find out whether the
+ * deployment was armed came back `CONFIRMATION_REQUIRED` either way, because
+ * the phrase was rejected before the flag was ever read.
+ *
+ * That is not a theoretical problem. It was used exactly that way, twice, to
+ * check whether `ALLOW_PLATFORM_RESET` was still set on a live deployment, and
+ * it gave the wrong answer both times — reporting a platform as armed when it
+ * was not. A diagnostic that answers confidently and wrongly is worse than one
+ * that refuses to answer.
+ *
+ * Caller first, then the deployment, then the phrase. Nothing is leaked by
+ * this ordering: every one of these replies is already behind an
+ * authenticated admin route, and the flag's state is something the person
+ * holding a super-admin token set themselves.
+ */
+platformRoutes.post('/platform/reset', async (req, res, next) => {
   try {
     if (req.user?.role !== 'super_admin') {
       throw new AppError(
@@ -94,6 +115,15 @@ platformRoutes.post('/platform/reset', validateBody, async (req, res, next) => {
           'perform the reset, then switch it off again.',
         403,
         'PLATFORM_RESET_DISABLED'
+      );
+    }
+
+    const parsed = ResetSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(
+        parsed.error.issues[0]?.message || `To confirm, send confirm: "${CONFIRMATION}"`,
+        400,
+        'CONFIRMATION_REQUIRED'
       );
     }
 
@@ -157,23 +187,3 @@ platformRoutes.post('/platform/reset', validateBody, async (req, res, next) => {
     next(err);
   }
 });
-
-/**
- * Body validation, written out here rather than through the shared `validate`
- * middleware so the confirmation phrase is checked before anything else runs
- * and the failure message can name the phrase.
- */
-function validateBody(req: any, _res: any, next: any) {
-  const parsed = ResetSchema.safeParse(req.body);
-  if (!parsed.success) {
-    next(
-      new AppError(
-        parsed.error.issues[0]?.message || `To confirm, send confirm: "${CONFIRMATION}"`,
-        400,
-        'CONFIRMATION_REQUIRED'
-      )
-    );
-    return;
-  }
-  next();
-}

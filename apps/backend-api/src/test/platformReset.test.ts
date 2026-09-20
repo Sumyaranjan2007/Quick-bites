@@ -84,6 +84,33 @@ try {
   );
   check('and nothing was deleted', memoryStore.restaurants.size > 0);
 
+  /*
+   * THE REFUSAL NAMES THE GUARD THAT STOPPED YOU.
+   *
+   * The phrase used to be checked first, in middleware, so a wrong phrase came
+   * back CONFIRMATION_REQUIRED whether or not the deployment was armed. Sending
+   * a deliberately wrong phrase is the obvious way to ask "is this switched on
+   * without risking a wipe" — and it was used that way against a live
+   * deployment, twice, and reported a platform as armed when it was not.
+   *
+   * On an UNARMED deployment the flag has to be the answer, even when the
+   * phrase is also wrong.
+   */
+  const wrongPhraseUnarmed = await api('/admin/platform/reset', { confirm: 'no' }, superToken);
+  check(
+    'An unarmed deployment says so, even when the phrase is wrong too',
+    wrongPhraseUnarmed.status === 403 &&
+      wrongPhraseUnarmed.json?.error?.code === 'PLATFORM_RESET_DISABLED',
+    `${wrongPhraseUnarmed.status} ${wrongPhraseUnarmed.json?.error?.code}`
+  );
+
+  const noBodyUnarmed = await api('/admin/platform/reset', {}, superToken);
+  check(
+    'and says so with no confirmation at all',
+    noBodyUnarmed.json?.error?.code === 'PLATFORM_RESET_DISABLED',
+    noBodyUnarmed.json?.error?.code
+  );
+
   // Armed from here on, so the remaining refusals are about the CALLER and the
   // confirmation rather than about the flag still being off.
   (config as any).ALLOW_PLATFORM_RESET = true;
