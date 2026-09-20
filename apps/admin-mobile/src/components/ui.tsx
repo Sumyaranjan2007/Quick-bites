@@ -196,7 +196,12 @@ export const StatTile: React.FC<{
   onPress?: () => void;
   wide?: boolean;
 }> = ({ label, value, hint, icon, tone = 'neutral', onPress, wide }) => {
-  const accent =
+  // The wash behind the icon and the colour of the figure are NOT the same
+  // value, and treating them as one is what made the gold tiles unreadable:
+  // #FFC928 is a fine 12%-opacity wash on white and about 1.7:1 as text on it,
+  // which is a number you cannot read at a glance — on the one screen whose
+  // entire job is numbers read at a glance.
+  const wash =
     tone === 'amber'
       ? c.brand.amber
       : tone === 'success'
@@ -209,10 +214,12 @@ export const StatTile: React.FC<{
               ? c.state.info
               : c.text.secondary;
 
+  const accent = tone === 'amber' ? c.brand.amberText : wash;
+
   const body = (
     <View style={s.statTile}>
       <View style={s.statTop}>
-        {icon ? <View style={[s.statIcon, { backgroundColor: `${accent}1F` }]}>{icon}</View> : null}
+        {icon ? <View style={[s.statIcon, { backgroundColor: `${wash}1F` }]}>{icon}</View> : null}
         <Text style={s.statLabel} numberOfLines={2}>
           {label}
         </Text>
@@ -668,7 +675,7 @@ const s = StyleSheet.create({
   headerSubtitle: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
   headerRight: { marginLeft: tokens.space[3], flexShrink: 0 },
   backButton: { paddingRight: tokens.space[3] },
-  backChevron: { fontSize: 30, color: c.brand.amber, lineHeight: 32 },
+  backChevron: { fontSize: 30, color: c.brand.maroon, lineHeight: 32 },
 
   railWrap: { borderBottomWidth: 1, borderBottomColor: c.border.subtle, backgroundColor: c.bg.raised },
   railContent: { paddingHorizontal: tokens.space[3], paddingVertical: tokens.space[2], gap: tokens.space[2] },

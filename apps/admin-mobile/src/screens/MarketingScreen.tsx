@@ -391,7 +391,9 @@ const s = StyleSheet.create({
     marginBottom: tokens.space[2]
   },
   actionRow: { flexDirection: 'row', gap: tokens.space[3] },
-  stars: { fontSize: tokens.font.size.md, color: c.brand.amber, letterSpacing: 2 },
+  // Mid gold rather than the bright brand gold: star glyphs in #FFC928 on a
+  // cream ground are about 1.7:1 and read as a smudge.
+  stars: { fontSize: tokens.font.size.md, color: c.state.warning, letterSpacing: 2 },
   comment: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20, marginTop: tokens.space[3], fontStyle: 'italic' },
   noComment: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: tokens.space[3] },
   meta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] }
