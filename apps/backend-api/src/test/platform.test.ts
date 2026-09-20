@@ -147,6 +147,102 @@ async function run() {
   }
 
   // ==================================================================
+  console.log('\n--- A rider who accepts and never turns up ---');
+
+  {
+    // The gap this closes is invisible from every screen: the order is not
+    // stuck waiting for a rider, it HAS one, so the no-rider escalation below
+    // never fires for it. The kitchen has the food on a counter and the
+    // customer's app says "rider on the way to collect".
+    const order = await placeOrder();
+    memoryStore.riders.set('rdr_noshow_test', {
+      id: 'rdr_noshow_test',
+      fullName: 'Test Rider',
+      isOnline: true
+    } as any);
+    await orderRepository.assignRider(order.id, 'rdr_noshow_test', 'Test Rider', '9800000001', 40);
+
+    const assigned = await orderRepository.findById(order.id);
+    check('A claimed trip sits in RIDER_ASSIGNED', assigned?.status === 'RIDER_ASSIGNED', `got ${assigned?.status}`);
+
+    // A minute before the warning. The boundary is the point: a sweeper that
+    // warns immediately passes a test that only looks at old assignments.
+    const early = await sweepStaleOrders(minutesFromNow(config.RIDER_NOSHOW_WARN_MINUTES - 1));
+    check(
+      'No nudge one minute before the warning window',
+      !early.noShowWarned.includes(order.id),
+      `warned ${JSON.stringify(early.noShowWarned)}`
+    );
+    check('and the trip is still theirs', !early.released.includes(order.id));
+
+    const warned = await sweepStaleOrders(minutesFromNow(config.RIDER_NOSHOW_WARN_MINUTES + 1));
+    check(
+      'The rider is nudged once the warning window passes',
+      warned.noShowWarned.includes(order.id),
+      `warned ${JSON.stringify(warned.noShowWarned)}`
+    );
+    check(
+      'and the trip is NOT taken off them yet',
+      !warned.released.includes(order.id),
+      'releasing without warning strands a rider who is two minutes away'
+    );
+
+    // One reminder, not one every thirty seconds.
+    const nagged = await sweepStaleOrders(minutesFromNow(config.RIDER_NOSHOW_WARN_MINUTES + 2));
+    check(
+      'The nudge is sent once, not on every sweep',
+      !nagged.noShowWarned.includes(order.id),
+      `warned again: ${JSON.stringify(nagged.noShowWarned)}`
+    );
+
+    const released = await sweepStaleOrders(minutesFromNow(config.RIDER_NOSHOW_RELEASE_MINUTES + 1));
+    check(
+      'The trip is released once the release window passes',
+      released.released.includes(order.id),
+      `released ${JSON.stringify(released.released)}`
+    );
+
+    const pooled = await orderRepository.findById(order.id);
+    check('and it goes back to the pool at READY_FOR_PICKUP', pooled?.status === 'READY_FOR_PICKUP', `got ${pooled?.status}`);
+    check('with no rider on it', !pooled?.riderId, `riderId ${pooled?.riderId}`);
+    check(
+      'and it is not offered straight back to the rider who dropped it',
+      (pooled?.declinedByRiderIds || []).includes('rdr_noshow_test')
+    );
+
+    const flagged = memoryStore.riders.get('rdr_noshow_test');
+    check(
+      'The rider is flagged so a pattern is visible to operations',
+      (flagged?.noShowCount || 0) === 1,
+      `count ${flagged?.noShowCount}`
+    );
+
+    const again = await sweepStaleOrders(minutesFromNow(config.RIDER_NOSHOW_RELEASE_MINUTES + 5));
+    check(
+      'A second sweep does not release it again',
+      !again.released.includes(order.id),
+      `released ${JSON.stringify(again.released)}`
+    );
+
+    // A rider who DOES collect must not be punished by a sweep that races them.
+    const collected = await placeOrder();
+    memoryStore.riders.set('rdr_ontime_test', { id: 'rdr_ontime_test', fullName: 'Punctual Rider', isOnline: true } as any);
+    await orderRepository.assignRider(collected.id, 'rdr_ontime_test', 'Punctual Rider', '9800000002', 40);
+    await orderRepository.updateStatus(collected.id, 'OUT_FOR_DELIVERY');
+    const raced = await sweepStaleOrders(minutesFromNow(config.RIDER_NOSHOW_RELEASE_MINUTES + 1));
+    check(
+      'A rider who collected the order keeps it',
+      !raced.released.includes(collected.id),
+      `released ${JSON.stringify(raced.released)}`
+    );
+    check(
+      'and is not flagged',
+      !memoryStore.riders.get('rdr_ontime_test')?.noShowCount,
+      `count ${memoryStore.riders.get('rdr_ontime_test')?.noShowCount}`
+    );
+  }
+
+  // ==================================================================
   console.log('\n--- Cooked food with no rider is escalated, never thrown away ---');
 
   {

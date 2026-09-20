@@ -406,6 +406,16 @@ export interface DeliveryRider {
    */
   offersReceived?: number;
   offersAccepted?: number;
+  /**
+   * Trips accepted and then never collected.
+   *
+   * Counted, not punished. One is a puncture or a dead phone; a pattern is
+   * somebody protecting their acceptance rate by taking trips they then drop,
+   * which costs a customer their dinner each time. The count is what makes the
+   * difference visible to operations.
+   */
+  noShowCount?: number;
+  lastNoShowAt?: string;
   /** Set once name, photo, driver ID and the mandatory documents are all in. */
   profileCompletedAt?: string;
 }

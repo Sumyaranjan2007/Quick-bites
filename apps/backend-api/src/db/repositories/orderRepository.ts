@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import { memoryStore, triggerAutoSave } from '../client.ts';
-import type { Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
+import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
+import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
 
 export const orderRepository = {
   async findById(id: string): Promise<Order | null> {
@@ -241,11 +241,43 @@ export const orderRepository = {
    * declined job reappears on the next refresh and the rider is asked the same
    * question forever.
    */
-  async listAvailableBroadcasts(forRiderId?: string): Promise<Order[]> {
-    return Array.from(memoryStore.orders.values())
+  /**
+   * Unclaimed trips, nearest kitchen first.
+   *
+   * Ordered by how far the rider has to ride to COLLECT, which is the part of
+   * the journey they are choosing between — the drop is wherever it is either
+   * way. This used to be ordered by how recently the order was placed, which
+   * offered a rider standing outside one restaurant a pickup across town
+   * because it happened to be newer.
+   *
+   * Falls back to newest-first when the rider has no recorded position: an
+   * arbitrary order is better than one built on a coordinate we do not have,
+   * and a rider who has just come on shift has not pinged yet.
+   */
+  async listAvailableBroadcasts(forRiderId?: string, near?: Coordinates): Promise<Order[]> {
+    const available = Array.from(memoryStore.orders.values())
       .filter((o: Order) => (o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'READY_FOR_PICKUP') && !o.riderId)
-      .filter((o: Order) => !forRiderId || !(o.declinedByRiderIds || []).includes(forRiderId))
-      .sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .filter((o: Order) => !forRiderId || !(o.declinedByRiderIds || []).includes(forRiderId));
+
+    if (!near || !Number.isFinite(near.latitude) || !Number.isFinite(near.longitude)) {
+      return available.sort(
+        (a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+
+    const toKitchen = (o: Order) =>
+      o.restaurantCoordinates
+        ? calculateDistanceKm(
+            near.latitude,
+            near.longitude,
+            o.restaurantCoordinates.latitude,
+            o.restaurantCoordinates.longitude
+          )
+        : // A kitchen with no recorded position sorts last rather than first,
+          // which is where a NaN comparison would have left it.
+          Number.MAX_SAFE_INTEGER;
+
+    return available.sort((a: Order, b: Order) => toKitchen(a) - toKitchen(b));
   },
 
   async listByCustomerId(customerId: string): Promise<Order[]> {
@@ -280,6 +312,55 @@ export const orderRepository = {
         o.status === 'ORDER_PLACED' ||
         ((o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'READY_FOR_PICKUP') && !o.riderId)
     );
+  },
+
+  /**
+   * Takes a trip back off a rider who accepted it and never turned up.
+   *
+   * Returns the order to the pool at READY_FOR_PICKUP rather than to whatever
+   * it was before, because by the time a rider has been sitting on it for
+   * several minutes the food is made. The rider is added to `declinedByRiderIds`
+   * so the same trip is not immediately offered back to the person who has just
+   * failed to collect it — which, with proximity ordering, is exactly who would
+   * be top of the list.
+   *
+   * Returns null if somebody collected it in the meantime, so a sweep racing a
+   * real pickup cannot snatch an order out of a rider's hands.
+   */
+  async releaseRider(id: string, riderId: string): Promise<Order | null> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return null;
+    if (order.riderId !== riderId) return null;
+    if (order.status !== 'RIDER_ASSIGNED') return null;
+
+    order.declinedByRiderIds = Array.from(new Set([...(order.declinedByRiderIds || []), riderId]));
+    order.riderId = undefined;
+    order.riderName = undefined;
+    order.riderPhone = undefined;
+    order.riderStage = undefined;
+    order.riderAssignedAt = undefined;
+    order.status = 'READY_FOR_PICKUP';
+    order.updatedAt = new Date().toISOString();
+    memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return order;
+  },
+
+  /** Every trip a rider has accepted and not yet collected. */
+  async listAssignedAwaitingPickup(): Promise<Order[]> {
+    return Array.from(memoryStore.orders.values()).filter(
+      (o: Order) => o.status === 'RIDER_ASSIGNED' && !!o.riderId
+    );
+  },
+
+  /** So one warning is sent rather than one every thirty seconds. */
+  async markNoShowWarned(id: string, at: string): Promise<boolean> {
+    const order = memoryStore.orders.get(id);
+    if (!order || (order as any).noShowWarnedAt) return false;
+    (order as any).noShowWarnedAt = at;
+    memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return true;
   },
 
   /**

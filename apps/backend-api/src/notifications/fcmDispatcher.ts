@@ -47,6 +47,24 @@ class FcmNotificationDispatcher {
     });
   }
 
+  /**
+   * Sent to a RIDER, not a customer: everything else here goes the other way.
+   *
+   * The nudge before a trip is taken back. Worded as a question rather than an
+   * accusation, because the common cause is a kitchen that has not finished
+   * bagging it, and telling that rider off is how you lose them.
+   */
+  async notifyRiderNoShowWarning(riderId: string, orderId: string, orderNumber: string, restaurantName: string) {
+    return this.sendPushNotification({
+      userId: riderId,
+      orderId,
+      orderNumber,
+      title: 'Still collecting?',
+      body: `Order #${orderNumber} is waiting at ${restaurantName}. It will be offered to another rider shortly.`,
+      data: { type: 'NO_SHOW_WARNING', orderId, orderNumber }
+    });
+  }
+
   async notifyOrderPreparing(userId: string, orderId: string, orderNumber: string, prepMins: number = 20) {
     return this.sendPushNotification({
       userId,

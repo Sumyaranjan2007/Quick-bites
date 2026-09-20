@@ -304,6 +304,51 @@ function DeliveryApp() {
     return () => clearInterval(timer);
   }, [token, isOnline, activeTrip?.id, syncOffers]);
 
+  /**
+   * Reports where the rider is while they are on shift and free.
+   *
+   * Offers are ordered by how far the rider has to ride to COLLECT, and that
+   * needs a position. The only position the server had came from /telemetry,
+   * which runs during a delivery — so an idle rider had none, and the offer
+   * list fell back to newest-first. That is how a rider standing outside one
+   * kitchen gets offered a pickup across town.
+   *
+   * On shift and between trips only. Off shift nothing is sent, and while
+   * carrying an order /telemetry is already reporting. Foreground only: there
+   * is no background location here and nothing that needs Play's background
+   * location review.
+   */
+  useEffect(() => {
+    if (!token || !isOnline || activeTrip) return;
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled || status !== 'granted') return;
+      subscription = await Location.watchPositionAsync(
+        // Coarser and slower than the delivery watcher. This only has to place
+        // a rider well enough to sort a list of kitchens by distance, and a
+        // high-accuracy fix every five seconds while nobody is riding anywhere
+        // is somebody's battery.
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 60_000, distanceInterval: 200 },
+        location => {
+          api
+            .shiftLocation(ctxRef.current, {
+              lat: location.coords.latitude,
+              lng: location.coords.longitude
+            })
+            .catch(() => {});
+        }
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [token, isOnline, activeTrip?.id]);
+
   const { connected: liveConnected } = useLiveOffers(
     token && isOnline && !activeTrip ? apiUrl : null,
     token,

@@ -118,6 +118,25 @@ export class RiderRepository {
     triggerAutoSave();
   }
 
+  /**
+   * Records that this rider accepted a trip and never collected it.
+   *
+   * Counted rather than punished. One no-show is a puncture, a phone that died,
+   * or a rider who had an accident; a pattern of them is somebody accepting
+   * trips to keep their acceptance rate up and then dropping the ones they do
+   * not fancy, which costs a customer their dinner every time. The number is
+   * what makes the difference visible in the admin app — this code has no
+   * business deciding which one it was.
+   */
+  async recordNoShow(id: string): Promise<void> {
+    const rider = memoryStore.riders.get(id);
+    if (!rider) return;
+    rider.noShowCount = (rider.noShowCount || 0) + 1;
+    rider.lastNoShowAt = new Date().toISOString();
+    memoryStore.riders.set(id, rider);
+    triggerAutoSave();
+  }
+
   async adjustCashInHand(id: string, delta: number): Promise<DeliveryRider | null> {
     const rider = memoryStore.riders.get(id);
     if (!rider) return null;

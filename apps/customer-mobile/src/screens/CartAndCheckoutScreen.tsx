@@ -298,7 +298,11 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            restaurantId: restaurantId || 'rst_bbh_01',
+            // No fallback. This used to default to a literal restaurant id, so a
+        // checkout that had somehow lost track of which kitchen it was for
+        // would silently order the basket from a specific real restaurant —
+        // whichever one happened to be written here.
+        restaurantId: restaurantId || cart[0]?.restaurantId,
             ...(selectedAddressId ? { deliveryAddressId: selectedAddressId } : {}),
             items: cart.map(item => ({
               dishId: item.dishId,

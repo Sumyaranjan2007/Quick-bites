@@ -28,6 +28,8 @@
  * a kitchen tablet is most likely to be going unwatched.
  */
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
+import { riderRepository } from '../../db/repositories/riderRepository.ts';
+import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from './orderService.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
@@ -56,6 +58,10 @@ export interface SweepResult {
   alerted: string[];
   /** Order ids that should have been cancelled but could not be. */
   failed: Array<{ orderId: string; reason: string }>;
+  /** Riders reminded that they are holding a trip they have not collected. */
+  noShowWarned: string[];
+  /** Trips taken back off a rider who never turned up, and returned to the pool. */
+  released: string[];
 }
 
 function minutesSince(iso: string | undefined, now: Date): number {
@@ -73,7 +79,14 @@ function minutesSince(iso: string | undefined, now: Date): number {
  * boundary without waiting eight real minutes.
  */
 export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepResult> {
-  const result: SweepResult = { scanned: 0, cancelled: [], alerted: [], failed: [] };
+  const result: SweepResult = {
+    scanned: 0,
+    cancelled: [],
+    alerted: [],
+    failed: [],
+    noShowWarned: [],
+    released: []
+  };
 
   const orders = await orderRepository.listAwaitingAction();
   result.scanned = orders.length;
@@ -160,6 +173,103 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
       entityId: order.id,
       summary: `No rider accepted this order after ${Math.round(waiting)} minutes. Raised to operations.`
     });
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  Accepted, and never collected                                     *
+   * ------------------------------------------------------------------ */
+  //
+  // The third gap, and the one that is invisible from every screen. A rider
+  // accepts a trip and then does nothing: the kitchen has the food on a
+  // counter, the customer's app says "rider on the way to collect", and
+  // nothing in the system disagrees. The order was not stuck waiting for a
+  // rider — it HAS one — so the alert above never fires for it.
+  //
+  // Warn first, release second. Releasing without warning strands a rider who
+  // is genuinely two minutes away, and they arrive at a kitchen to find the
+  // order gone.
+  for (const order of await orderRepository.listAssignedAwaitingPickup()) {
+    if (!order.riderId || !order.riderAssignedAt) continue;
+
+    // Copied out BEFORE anything is released.
+    //
+    // The repository hands back the live object from the in-memory store rather
+    // than a copy, and `releaseRider` clears `riderId` on it — so reading
+    // `order.riderId` after the release gives undefined, and the rider who
+    // dropped the trip is never flagged. The release still worked, which is
+    // what made this invisible: everything looked right except the one number
+    // operations would use to spot a pattern.
+    const riderId = order.riderId;
+    const heldSince = order.riderAssignedAt;
+    const restaurantName = (order as Order & { restaurantName?: string }).restaurantName;
+    const held = minutesSince(heldSince, now);
+
+    if (held >= config.RIDER_NOSHOW_RELEASE_MINUTES) {
+      // Returns null if the rider collected it between the read above and now,
+      // so a sweep racing a real pickup cannot take an order out of somebody's
+      // hands.
+      const released = await orderRepository.releaseRider(order.id, riderId);
+      if (!released) continue;
+
+      await riderRepository.recordNoShow(riderId);
+      result.released.push(order.id);
+
+      emitOpsAlert({
+        kind: 'RIDER_NO_SHOW',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurantId: order.restaurantId,
+        restaurantName,
+        waitingMinutes: Math.round(held),
+        raisedAt: now.toISOString()
+      });
+
+      await auditRepository.record({
+        actorUserId: SYSTEM_ACTOR.userId,
+        actorName: SYSTEM_ACTOR.name,
+        actorRole: SYSTEM_ACTOR.role,
+        action: 'RIDER_RELEASED_NO_SHOW',
+        entityType: 'order',
+        entityId: order.id,
+        summary:
+          `${order.riderName || 'The rider'} accepted this trip and had not collected it after ` +
+          `${Math.round(held)} minutes. Returned to the pool and flagged.`
+      });
+
+      console.log(JSON.stringify({
+        level: 'WARN',
+        timestamp: now.toISOString(),
+        event: 'RIDER_NO_SHOW_RELEASED',
+        orderId: order.id,
+        riderId,
+        heldMinutes: Math.round(held)
+      }));
+      continue;
+    }
+
+    if (held >= config.RIDER_NOSHOW_WARN_MINUTES) {
+      // Returns false if this one has already been warned, so the rider gets
+      // one nudge rather than one every thirty seconds.
+      const isNew = await orderRepository.markNoShowWarned(order.id, now.toISOString());
+      if (!isNew) continue;
+
+      result.noShowWarned.push(order.id);
+      await fcmDispatcher.notifyRiderNoShowWarning(
+        riderId,
+        order.id,
+        order.orderNumber,
+        restaurantName || 'the restaurant'
+      );
+
+      console.log(JSON.stringify({
+        level: 'INFO',
+        timestamp: now.toISOString(),
+        event: 'RIDER_NO_SHOW_WARNED',
+        orderId: order.id,
+        riderId,
+        heldMinutes: Math.round(held)
+      }));
+    }
   }
 
   return result;

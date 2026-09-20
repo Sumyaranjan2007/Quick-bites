@@ -130,6 +130,17 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   const [locality, setLocality] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+
+  /**
+   * Restaurants that serve a dish matching what was typed, and which dish.
+   *
+   * The search here only ever looked at restaurant names and cuisine tags, so
+   * typing "biryani" found a kitchen called Biryani House and missed every
+   * other kitchen in the city that actually cooks one. What somebody searching
+   * for a dish wants is the list of places that have it — which is a question
+   * about menus, and menus are indexed separately.
+   */
+  const [dishMatches, setDishMatches] = useState<Map<string, string>>(new Map());
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
 
   /**
@@ -315,6 +326,53 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     load();
   };
 
+  /**
+   * Looks up which restaurants serve what was typed.
+   *
+   * Debounced, and skipped under three characters: "b" matches most menus in
+   * the country and costs a request to say so. The restaurant-name match above
+   * stays instant and local, so the list never waits on this — dish results
+   * arrive and widen it a moment later.
+   */
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 3 || !apiUrl) {
+      setDishMatches(new Map());
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ q, type: 'dishes', limit: '40' });
+        const here = originRef.current;
+        if (here) {
+          params.set('lat', String(here.latitude));
+          params.set('lng', String(here.longitude));
+        }
+        const res = await apiFetch(`${apiUrl}/search?${params.toString()}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const found = new Map<string, string>();
+        for (const dish of data?.data?.dishes || []) {
+          // First match per restaurant wins; the card has room for one dish
+          // name and the point is which kitchens have it, not how many.
+          if (dish.restaurantId && !found.has(dish.restaurantId)) {
+            found.set(dish.restaurantId, dish.name);
+          }
+        }
+        setDishMatches(found);
+      } catch {
+        // The name-based results stand on their own.
+        if (!cancelled) setDishMatches(new Map());
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, apiUrl]);
+
   const toggleFilter = (key: string) => {
     setActiveFilters(prev => {
       const next = new Set(prev);
@@ -393,8 +451,11 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   // firing a request per keystroke.
   const visible = restaurants.filter(r => {
     const q = searchQuery.trim().toLowerCase();
-    if (q && !r.name.toLowerCase().includes(q) && !r.cuisine.toLowerCase().includes(q)) return false;
-    return true;
+    if (!q) return true;
+    if (r.name.toLowerCase().includes(q) || r.cuisine.toLowerCase().includes(q)) return true;
+    // Or it serves a dish by that name, which is what somebody typing the name
+    // of a food is actually asking.
+    return dishMatches.has(r.id);
   });
 
   return (
@@ -620,6 +681,14 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                 <Text style={styles.cuisineText} numberOfLines={1}>
                   {r.cuisine} • ₹{r.priceForTwo} for two
                 </Text>
+                {dishMatches.get(r.id) && (
+                  /* Why this restaurant is in a list somebody searched for a
+                     dish in. Without it, a kitchen whose name has nothing to do
+                     with the query looks like a mistake in the results. */
+                  <Text style={styles.dishMatch} numberOfLines={1}>
+                    Serves {dishMatches.get(r.id)}
+                  </Text>
+                )}
               </View>
             </Card>
           </TouchableOpacity>
@@ -712,6 +781,12 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  dishMatch: {
+    fontSize: tokens.font.size.xs,
+    color: c.dietary.veg,
+    fontWeight: '700',
+    marginTop: 2
+  },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   locationSheet: {
     backgroundColor: c.surface.card,

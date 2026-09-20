@@ -5,7 +5,8 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  StatusBar
+  StatusBar,
+  Alert
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
@@ -19,6 +20,8 @@ import { CartAndCheckoutScreen } from './src/screens/CartAndCheckoutScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { WalletScreen } from './src/screens/WalletScreen';
 import { MembershipScreen } from './src/screens/MembershipScreen';
+import { ActiveOrderBar } from './src/components/ActiveOrderBar';
+import { useActiveOrders, type ActiveOrder } from './src/lib/useActiveOrders';
 import { AddressBookScreen } from './src/screens/AddressBookScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -48,6 +51,7 @@ function AppRoot() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string; orderId?: string } | null>(null);
+
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_API_URL);
 
   /**
@@ -65,6 +69,35 @@ function AppRoot() {
    */
   const [deliveryAddressId, setDeliveryAddressId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string>('');
+
+  /**
+   * Every order in flight, not just the last one placed.
+   *
+   * `activeOrder` above is which order the TRACKING SCREEN is currently showing.
+   * These are all of them, read from the server, and they are what the bar at
+   * the bottom of the home screen offers. Before this, placing a second order
+   * replaced the first in memory and the first became unreachable except
+   * through order history — while it was still being cooked.
+   */
+  const { orders: liveOrders, refresh: refreshLiveOrders } = useActiveOrders(apiUrl, authToken);
+
+  // Re-read the set whenever the customer lands back on the home screen.
+  // An order can finish, be cancelled by the kitchen, or reach the door while
+  // they are somewhere else in the app, and a bar still offering to track a
+  // delivered order is worse than no bar.
+  useEffect(() => {
+    if (currentScreen === 'feed') refreshLiveOrders();
+  }, [currentScreen, refreshLiveOrders]);
+
+  const openLiveOrder = useCallback((order: ActiveOrder) => {
+    setActiveOrder({
+      orderId: order.orderId,
+      orderNumber: order.orderNumber,
+      total: order.total,
+      otp: order.otp
+    });
+    setCurrentScreen('tracking');
+  }, []);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   // Null while the stored session is being read. Rendering the login screen
   // during that moment would flash it at someone who is already signed in.
@@ -94,7 +127,39 @@ function AppRoot() {
     setCurrentScreen('detail');
   };
 
+  /**
+   * Adds a dish, and refuses to mix two kitchens in one basket.
+   *
+   * A cart is only meaningful against one restaurant: the bill is priced from
+   * that restaurant's menu and packaging fee, the commission and settlement are
+   * per kitchen, and one rider collects from one door. Nothing enforced that —
+   * a dish added from a second restaurant simply joined the list, and checkout
+   * then posted the whole basket against whichever restaurant was on screen,
+   * so the items and the kitchen they were charged to could be different.
+   *
+   * Asked rather than refused, and asked with the kitchen named. "You already
+   * have items" with no name is a dead end for somebody who has forgotten what
+   * is in their basket.
+   */
   const handleAddToCart = (item: CartItem) => {
+    const clash = cart.find(i => i.restaurantId && i.restaurantId !== item.restaurantId);
+    if (clash) {
+      Alert.alert(
+        'Start a new order?',
+        `Your basket has food from ${clash.restaurantName || 'another restaurant'}. ` +
+          `Quick Bites delivers from one kitchen at a time, so adding this will empty it.`,
+        [
+          { text: 'Keep my basket', style: 'cancel' },
+          {
+            text: 'Start new order',
+            style: 'destructive',
+            onPress: () => setCart([item])
+          }
+        ]
+      );
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -122,6 +187,9 @@ function AppRoot() {
     setActiveOrder(orderData);
     setCart([]);
     setCurrentScreen('tracking');
+    // The new order joins the others rather than displacing them, which is the
+    // whole point of being able to have two.
+    refreshLiveOrders();
   };
 
   /**
@@ -140,6 +208,8 @@ function AppRoot() {
       items.map((item: any) => ({
         id: `${item.dishId}_reorder`,
         dishId: item.dishId,
+        restaurantId: basket.restaurantId,
+        restaurantName: basket.restaurantName || '',
         name: item.name,
         price: Number(item.unitPrice),
         quantity: Number(item.quantity) || 1,
@@ -406,6 +476,15 @@ function AppRoot() {
           />
         )}
       </View>
+
+      {/* Orders in flight.
+          Above the tab bar and below the screen, so it is reachable from the
+          screen somebody lands on without covering anything they were reading.
+          Only on the feed: on the tracking screen it would point at the thing
+          already filling the display. */}
+      {currentScreen === 'feed' && (
+        <ActiveOrderBar orders={liveOrders} onOpen={openLiveOrder} />
+      )}
 
       {/* Bottom Navigation Bar (Visible on feed and profile) */}
       {(currentScreen === 'feed' || currentScreen === 'profile') && (

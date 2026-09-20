@@ -20,6 +20,17 @@ const c = tokens.colors;
 export interface CartItem {
   id: string;
   dishId: string;
+  /**
+   * Which kitchen this dish came from.
+   *
+   * Carried on every item because a basket is only meaningful against one
+   * restaurant: the bill is priced from that restaurant's menu, packaging and
+   * commission, and one rider collects from one door. Without this the cart
+   * could hold two kitchens' food and checkout would post all of it against
+   * whichever restaurant happened to be on screen last.
+   */
+  restaurantId: string;
+  restaurantName: string;
   name: string;
   price: number;
   quantity: number;
@@ -167,6 +178,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
       onAddToCart({
         id: `cart_${dish.id}_standard`,
         dishId: dish.id,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
         name: dish.name,
         price: dish.price,
         quantity: 1,
@@ -185,6 +198,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
     onAddToCart({
       id: `cart_${selectedDish.id}_${option?.id ?? 'standard'}`,
       dishId: selectedDish.id,
+      restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
       name: `${selectedDish.name} (${variant})`,
       price: selectedDish.price + delta,
       quantity: 1,

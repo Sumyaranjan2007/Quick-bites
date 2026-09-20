@@ -163,6 +163,21 @@ export const api = {
     });
   },
 
+  /**
+   * Where this rider is while waiting for work.
+   *
+   * Separate from `telemetry`, which reports a position during a delivery and
+   * is broadcast to the customer watching it. This one is never shown to a
+   * customer; it exists so offers can be sorted by how far the rider actually
+   * has to ride to collect.
+   */
+  shiftLocation(ctx: ApiContext, body: { lat: number; lng: number }) {
+    return request<{ recorded: boolean }>(ctx, '/riders/location', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+  },
+
   telemetry(ctx: ApiContext, body: { orderId: string; lat: number; lng: number; bearing?: number }) {
     return request<{ updatedAt: string }>(ctx, '/riders/telemetry', {
       method: 'POST',

@@ -712,7 +712,10 @@ riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (r
       return;
     }
 
-    const broadcasts = await orderRepository.listAvailableBroadcasts(rider.id);
+    const broadcasts = await orderRepository.listAvailableBroadcasts(
+      rider.id,
+      rider.currentCoordinates
+    );
     const shaped = await Promise.all(broadcasts.map(o => shapeTripForRider(withoutDeliveryOtp(o) as Order)));
 
     for (const order of broadcasts) {
@@ -755,6 +758,26 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
         `Finish your profile before accepting trips: ${completion.missing.join(', ')}.`,
         409,
         'PROFILE_INCOMPLETE'
+      );
+    }
+
+    // One trip at a time, enforced HERE and not only by hiding the list.
+    //
+    // /orders/broadcast already declines to offer anything to a rider who is
+    // carrying an order, but that is a filter and this is the gate. A rider
+    // whose offer list was fetched a minute ago, a screen that has not
+    // refreshed, or any client that posts this id directly would otherwise pick
+    // up a second delivery — and a rider holding two bags for two customers in
+    // opposite directions is a promise the platform cannot keep.
+    const carrying = await orderRepository.listByRiderId(self.id);
+    const inFlight = carrying.find(
+      o => o.status === 'RIDER_ASSIGNED' || o.status === 'OUT_FOR_DELIVERY'
+    );
+    if (inFlight) {
+      throw new AppError(
+        `Finish order #${inFlight.orderNumber} before accepting another trip.`,
+        409,
+        'RIDER_ALREADY_ON_TRIP'
       );
     }
 
@@ -1052,6 +1075,41 @@ const TelemetrySchema = z.object({
   lat: z.number(),
   lng: z.number(),
   bearing: z.number().optional()
+});
+
+const ShiftLocationSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180)
+});
+
+/**
+ * POST /api/riders/location — where this rider is while waiting for work.
+ *
+ * Separate from /telemetry, which reports a position DURING a delivery and is
+ * broadcast to the customer watching that order. This one is never shown to a
+ * customer. It exists so that offers can be sorted by how far a rider actually
+ * has to ride, which was impossible before: the only stored position came from
+ * an in-progress trip, so an idle rider had no position at all and every offer
+ * list was ordered by how recently the order was placed.
+ *
+ * Refused off shift. A rider who has finished for the day is not sending us
+ * their location, and accepting it would be collecting a position we have no
+ * reason to hold — which is also what we tell the Play Store.
+ */
+riderRouter.post('/location', validate({ body: ShiftLocationSchema }), async (req, res, next) => {
+  try {
+    const self = await requireRiderSelf(req);
+    if (!self.isOnline) {
+      throw new AppError('You are off shift.', 409, 'RIDER_OFFLINE');
+    }
+    await riderRepository.updateLocation(self.id, {
+      latitude: Number(req.body.lat),
+      longitude: Number(req.body.lng)
+    });
+    res.json({ success: true, data: { recorded: true } });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/riders/telemetry

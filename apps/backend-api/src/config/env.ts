@@ -185,6 +185,24 @@ export const config = {
   DEFAULT_SERVICE_RADIUS_KM: numberFromEnv(process.env.DEFAULT_SERVICE_RADIUS_KM, 8, 1, 50),
 
   /**
+   * How long a rider may hold an accepted trip before being reminded.
+   *
+   * Five minutes is long enough to cover traffic and a kitchen that is slow
+   * to hand the bag over, and short enough that the food is still worth
+   * eating when somebody else is asked to take it.
+   */
+  RIDER_NOSHOW_WARN_MINUTES: numberFromEnv(process.env.RIDER_NOSHOW_WARN_MINUTES, 5, 1, 60),
+
+  /**
+   * When the trip is taken back and offered to somebody else.
+   *
+   * Must be greater than the warning, or the rider is released before being
+   * told anything — which is how a rider arrives at a kitchen to find the
+   * order gone.
+   */
+  RIDER_NOSHOW_RELEASE_MINUTES: numberFromEnv(process.env.RIDER_NOSHOW_RELEASE_MINUTES, 8, 2, 120),
+
+  /**
    * Minutes added to every estimate for the parts of a delivery that are not
    * travel: parking, finding the counter, waiting for a lift, reaching a door.
    */
