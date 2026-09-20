@@ -17,6 +17,12 @@ import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus, Navigation } from 'lucide-react-native';
 import { CartItem } from './RestaurantDetailScreen';
 import { apiFetch } from '../lib/apiFetch';
+import {
+  razorpayAvailable,
+  openRazorpay,
+  isCancellation,
+  paymentErrorMessage
+} from '../lib/nativePayments';
 import { DEFAULT_API_URL } from '../config';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { useTranslation } from '../lib/i18n';
@@ -108,6 +114,44 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
    * paying rather than after.
    */
   const [billHidden, setBillHidden] = useState(true);
+
+  /**
+   * How this order will be paid for, and whether online payment is possible at
+   * all on this deployment and in this build.
+   *
+   * Two independent things have to be true, and they fail differently:
+   * the SERVER must have Razorpay keys (otherwise `/payments/start` cannot
+   * create anything to pay for), and the BUILD must have the native checkout
+   * module linked. Offering a method that fails at the last step of a checkout
+   * is worse than not offering it, so the option only appears when both hold.
+   */
+  const [paymentMethod, setPaymentMethod] = useState<'CASH_ON_DELIVERY' | 'RAZORPAY'>(
+    'CASH_ON_DELIVERY'
+  );
+  const [onlineKeyId, setOnlineKeyId] = useState<string | null>(null);
+  const onlineAvailable = razorpayAvailable && !!onlineKeyId;
+
+  useEffect(() => {
+    if (!apiUrl) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${apiUrl}/payments/config`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.success && data.data?.online && data.data?.keyId) {
+          setOnlineKeyId(String(data.data.keyId));
+        }
+      } catch {
+        // Cash on delivery remains, which is the honest fallback: a checkout
+        // that cannot reach the payment config has no business offering to
+        // take a card.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl]);
 
   // Saved delivery addresses — customers must be able to say where they live,
   // and the server rejects an address that isn't theirs.
@@ -349,10 +393,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           quantity: item.quantity,
           ...(item.selectedOptions ? { selectedOptions: item.selectedOptions } : {})
         })),
-        // Cash on delivery is the only method this build can honestly complete:
-        // there is no Razorpay SDK integrated, and the server (correctly) refuses
-        // simulated payment signatures outside demo mode.
-        paymentMethod: 'CASH_ON_DELIVERY',
+        paymentMethod,
         couponCode: appliedCoupon || undefined,
         ...(tipAmount > 0 ? { tipAmount } : {}),
         idempotencyKey: generatedUUID,
@@ -377,9 +418,59 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         );
       }
 
-      // A Razorpay order is created as PAYMENT_PENDING; it only reaches the kitchen
-      // once payment is confirmed. Demo mode accepts the simulated sandbox signature.
+      // An online order is created as PAYMENT_PENDING and does not reach the
+      // kitchen until the payment is confirmed. This used to post a literal
+      // 'simulated_valid_signature', which only demo mode would accept — so
+      // online payment could never have worked against a real deployment.
       if (order.status === 'PAYMENT_PENDING') {
+        // 1. Ask the server for something to pay for. The amount comes from the
+        //    stored bill on the server side, never from this client: a client
+        //    that can name its own price eventually will.
+        const startRes = await apiFetch(`${effectiveBase}/payments/start`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ orderId: order.id })
+        });
+        const startData = await startRes.json();
+        const rzpOrder = startData?.data?.razorpayOrder;
+        if (!startRes.ok || !startData.success || !rzpOrder?.id) {
+          throw new Error(
+            startData?.error?.message || 'We could not start the payment. You have not been charged.'
+          );
+        }
+
+        // 2. Hand off to Razorpay's own sheet — real UPI intent into GPay or
+        //    PhonePe, cards, netbanking, wallets. Nothing about which methods
+        //    appear is decided here; that is the merchant configuration.
+        let result;
+        try {
+          result = await openRazorpay({
+            key: onlineKeyId!,
+            order_id: rzpOrder.id,
+            amount: rzpOrder.amount,
+            currency: rzpOrder.currency || 'INR',
+            name: 'Quick Bites',
+            description: `Order ${order.orderNumber}`,
+            theme: { color: c.primary[500] }
+          });
+        } catch (payErr) {
+          // Closing the sheet is not a failed payment, and saying so would be
+          // a support call about money that was never taken. The order stays
+          // PAYMENT_PENDING and the server's reconciliation sweep releases it.
+          throw new Error(
+            isCancellation(payErr)
+              ? 'Payment cancelled. Your order has not been placed and you have not been charged.'
+              : paymentErrorMessage(payErr)
+          );
+        }
+
+        // 3. The server re-computes the signature from its own key secret. The
+        //    one the sheet returned is evidence, not proof — a client could
+        //    post anything here, which is exactly why this check is not done
+        //    on this side of the wire.
         const payRes = await apiFetch(`${effectiveBase}/orders/${order.id}/confirm-payment`, {
           method: 'POST',
           headers: {
@@ -387,13 +478,18 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
-            razorpayPaymentId: `pay_test_${Date.now()}`,
-            razorpaySignature: 'simulated_valid_signature'
+            razorpayPaymentId: result.razorpay_payment_id,
+            razorpaySignature: result.razorpay_signature
           })
         });
         const payData = await payRes.json();
         if (!payRes.ok || !payData.success) {
-          throw new Error(payData?.error?.message || 'Payment could not be confirmed. You have not been charged.');
+          // The money may genuinely have left their account by this point, so
+          // this must never read as "nothing happened".
+          throw new Error(
+            payData?.error?.message ||
+              'Your payment went through but we could not confirm the order. Do not pay again — support can see this payment.'
+          );
         }
         order = payData.data?.order ?? order;
       }
@@ -693,6 +789,47 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           )}
         </Card>
 
+        {/* How to pay.
+            Shown only when there is a genuine choice. A single option rendered
+            as a picker is a decision the customer does not have, dressed up as
+            one — and the reason there is only one is worth saying plainly
+            instead, so "why can I not pay by card" has an answer on screen. */}
+        <Card style={{ marginTop: 12 }}>
+          <Text style={styles.blockTitle}>Payment</Text>
+          {onlineAvailable ? (
+            <View style={styles.methodList}>
+              {([
+                { key: 'RAZORPAY', label: 'Pay now', hint: 'UPI, cards, netbanking or wallet' },
+                { key: 'CASH_ON_DELIVERY', label: 'Cash on delivery', hint: 'Pay the rider at your door' }
+              ] as const).map(m => {
+                const active = paymentMethod === m.key;
+                return (
+                  <TouchableOpacity
+                    key={m.key}
+                    style={[styles.methodRow, active && styles.methodRowActive]}
+                    onPress={() => setPaymentMethod(m.key)}
+                    activeOpacity={0.85}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <View style={[styles.methodDot, active && styles.methodDotActive]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.methodLabel}>{m.label}</Text>
+                      <Text style={styles.methodHint}>{m.hint}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.methodHint}>
+              {razorpayAvailable
+                ? 'Online payment is not switched on for this server yet, so this order is cash on delivery.'
+                : 'This build cannot open the payment sheet, so this order is cash on delivery.'}
+            </Text>
+          )}
+        </Card>
+
         {checkoutError && (
           <View style={styles.checkoutErrorBox}>
             <Text style={styles.checkoutErrorText}>{checkoutError}</Text>
@@ -818,7 +955,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       <View style={styles.payBar}>
         <View>
           <Text style={styles.payBarAmount}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
-          <Text style={styles.payBarSub}>Cash on delivery</Text>
+          <Text style={styles.payBarSub}>
+            {paymentMethod === 'RAZORPAY' ? 'Pay online' : 'Cash on delivery'}
+          </Text>
         </View>
         <TouchableOpacity
           style={[styles.payButton, isProcessing && { opacity: 0.6 }]}
@@ -835,6 +974,27 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  methodList: { gap: 8, marginTop: 10 },
+  methodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.border.subtle
+  },
+  methodRowActive: { borderColor: c.primary[500], backgroundColor: c.primary[50] },
+  methodDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: c.border.strong
+  },
+  methodDotActive: { borderColor: c.primary[500], borderWidth: 6 },
+  methodLabel: { fontSize: 14, fontWeight: '700', color: c.text.primary },
+  methodHint: { fontSize: 12, color: c.text.secondary, marginTop: 2, lineHeight: 17 },
   addressPicker: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
   addressChip: {
     paddingHorizontal: 14,

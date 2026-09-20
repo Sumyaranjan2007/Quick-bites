@@ -18,6 +18,7 @@ import { RestaurantDetailScreen, CartItem } from './src/screens/RestaurantDetail
 import { CartAndCheckoutScreen } from './src/screens/CartAndCheckoutScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
 import { WalletScreen } from './src/screens/WalletScreen';
+import { MembershipScreen } from './src/screens/MembershipScreen';
 import { AddressBookScreen } from './src/screens/AddressBookScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -33,7 +34,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentScreen, setCurrentScreen] = useState<
-    'feed' | 'detail' | 'cart' | 'tracking' | 'profile' | 'orders' | 'support' | 'wallet' | 'addresses'
+    | 'feed'
+    | 'detail'
+    | 'cart'
+    | 'tracking'
+    | 'profile'
+    | 'orders'
+    | 'support'
+    | 'wallet'
+    | 'membership'
+    | 'addresses'
   >('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -334,6 +344,7 @@ function AppRoot() {
             onOpenOrders={() => setCurrentScreen('orders')}
             onOpenSupport={() => setCurrentScreen('support')}
             onOpenWallet={() => setCurrentScreen('wallet')}
+            onOpenMembership={() => setCurrentScreen('membership')}
             onOpenAddresses={() => setCurrentScreen('addresses')}
             apiUrl={apiUrl}
             token={authToken}
@@ -365,6 +376,14 @@ function AppRoot() {
               setCurrentScreen('tracking');
             }}
             onReorder={handleReorder}
+            apiUrl={apiUrl}
+            token={authToken}
+          />
+        )}
+
+        {currentScreen === 'membership' && (
+          <MembershipScreen
+            onBack={() => setCurrentScreen('profile')}
             apiUrl={apiUrl}
             token={authToken}
           />

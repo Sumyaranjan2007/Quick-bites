@@ -39,6 +39,7 @@ const SUITES = [
   'orders',
   'search',
   'routing',
+  'membership',
   'sockets',
   'sockets.security',
   'otp',

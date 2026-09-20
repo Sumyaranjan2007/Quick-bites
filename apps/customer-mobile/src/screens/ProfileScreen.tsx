@@ -26,6 +26,7 @@ import {
   Check,
   X,
   Sparkles,
+  Crown,
   Camera
 } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
@@ -42,6 +43,7 @@ interface Props {
   onOpenOrders: () => void;
   onOpenSupport: () => void;
   onOpenWallet: () => void;
+  onOpenMembership: () => void;
   onOpenAddresses: () => void;
   apiUrl?: string;
   token?: string;
@@ -66,6 +68,7 @@ export const ProfileScreen: React.FC<Props> = ({
   onOpenOrders,
   onOpenSupport,
   onOpenWallet,
+  onOpenMembership,
   onOpenAddresses,
   apiUrl,
   token,
@@ -358,6 +361,12 @@ export const ProfileScreen: React.FC<Props> = ({
           title={t('profile.wallet')}
           sub={wallet !== null ? `₹${wallet.toFixed(2)} available` : 'Balance and refunds'}
           onPress={onOpenWallet}
+        />
+        <Row
+          icon={<Crown size={18} color={c.dietary.gold} />}
+          title="Quick Bites Gold"
+          sub="Free delivery, a discount on every order, priority support"
+          onPress={onOpenMembership}
           last
         />
       </Card>

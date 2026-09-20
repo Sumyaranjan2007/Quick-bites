@@ -31,6 +31,21 @@ export interface PricingInput {
    * total, so a promotion cannot be funded out of the rider's tip.
    */
   tipAmount?: number;
+
+  /**
+   * The extra percentage a paid membership takes off the food total.
+   *
+   * Passed in rather than looked up here, because which plan someone holds and
+   * whether it has expired are questions about an account, and this file is a
+   * pure function of its inputs — that is what makes the bill reproducible from
+   * a stored order months later.
+   *
+   * Zero for everyone without a live membership. See
+   * modules/membership/membershipService.ts, and in particular `isGoldActive`:
+   * reading the raw `isGold` flag here would honour a lapsed membership
+   * forever.
+   */
+  membershipDiscountPercent?: number;
 }
 
 export interface CalculatedBill {
@@ -40,6 +55,15 @@ export interface CalculatedBill {
   deliveryFee: number;
   platformFee: number;
   couponDiscount: number;
+  /**
+   * What the membership took off, as its own line.
+   *
+   * Separate from `couponDiscount` on purpose: a customer looking at a bill
+   * should be able to see what their membership is earning them, and rolling
+   * it into the coupon line would make Gold invisible on every order it paid
+   * for — which is how a subscription stops feeling worth renewing.
+   */
+  membershipDiscount: number;
   /** Paid on top of everything else, and passed to the rider in full. */
   tipAmount: number;
   totalAmount: number;
@@ -91,6 +115,17 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   }
   couponDiscount = Math.round(couponDiscount * 100) / 100;
 
+  // 6b. Membership discount, on the food total only.
+  //
+  // Not on delivery, packaging, GST or the platform fee: those are either
+  // already free for a member or are money owed to somebody else, and a
+  // percentage that ate into them would be the platform discounting a third
+  // party's income. Stacks with a coupon, which is deliberate — a member who
+  // also has a voucher should get both, and the floor below keeps the total
+  // from going negative.
+  const membershipPercent = Math.min(50, Math.max(0, input.membershipDiscountPercent || 0));
+  const membershipDiscount = Math.round(itemsTotal * membershipPercent) / 100;
+
   // 7. Tip — rounded and floored at zero, so a negative figure cannot be used
   //    to reduce the bill. It is added after the discount rather than before,
   //    because a percentage coupon must not be computed on the rider's tip.
@@ -98,7 +133,10 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
 
   // 8. Total Payable
   const preDiscount = itemsTotal + gstAmount + packagingFee + deliveryFee + platformFee;
-  const totalAmount = Math.max(0, Math.round((preDiscount - couponDiscount) * 100) / 100 + tipAmount);
+  const totalAmount = Math.max(
+    0,
+    Math.round((preDiscount - couponDiscount - membershipDiscount) * 100) / 100 + tipAmount
+  );
 
   // 9. Restaurant Net Payout: Food Total - 15% Commission - 1% TDS + Packaging
   //    The tip is deliberately absent: it belongs to the rider, not the kitchen.
@@ -113,6 +151,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     deliveryFee,
     platformFee,
     couponDiscount,
+    membershipDiscount,
     tipAmount,
     totalAmount,
     restaurantNetPayout

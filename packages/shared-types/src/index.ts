@@ -13,8 +13,18 @@ export interface UserProfile {
   phone?: string;
   fullName: string;
   role: UserRole;
+  /**
+   * Whether this customer holds a Gold membership.
+   *
+   * Never read this directly where money is decided — a flag with no regard for
+   * `goldExpiresAt` honours an expired membership forever. `isGoldActive()` in
+   * modules/membership/membershipService.ts is the question to ask.
+   */
   isGold: boolean;
+  /** When the membership lapses. Absent means it does not. */
   goldExpiresAt?: string;
+  /** Which plan was bought, which is what sets the extra discount. */
+  goldPlanId?: string;
   preferredLanguage: LanguageCode;
   createdAt: string;
   /**

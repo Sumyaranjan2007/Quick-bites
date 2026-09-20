@@ -12,6 +12,7 @@ import { restaurantRouter } from './restaurantRouter.ts';
 import { supportRouter } from './supportRouter.ts';
 import { customerRouter } from './customerRouter.ts';
 import { placesRouter } from './placesRouter.ts';
+import { membershipRouter } from './membershipRouter.ts';
 import { getHealth } from '../controllers/healthController.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -61,6 +62,7 @@ apiRouter.use('/auth', authRouter);
 // Unauthenticated by design: the webhook inside is authenticated by its
 // signature, which is the only thing that makes it trustworthy.
 apiRouter.use('/payments', paymentRouter);
+apiRouter.use('/membership', membershipRouter);
 apiRouter.use('/kyc', authMiddleware(), kycRouter);
 apiRouter.use('/admin', authMiddleware('admin'), adminRouter);
 apiRouter.use('/riders', authMiddleware('rider'), riderRouter);

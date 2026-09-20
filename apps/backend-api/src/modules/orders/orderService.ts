@@ -7,6 +7,7 @@ import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
+import { isGoldActive, goldDiscountPercent } from '../membership/membershipService.ts';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
 import { couponRepository } from '../../db/repositories/couponRepository.ts';
@@ -194,7 +195,11 @@ export const orderService = {
       })),
       packagingFee: Number(restaurant.packagingFee),
       distanceKm: tripDistanceKm,
-      isGold: customer.isGold,
+      // Expiry-aware. `customer.isGold` alone honours a lapsed membership
+      // forever, which is what `goldExpiresAt` existing and being read by
+      // nothing actually meant.
+      isGold: isGoldActive(customer),
+      membershipDiscountPercent: goldDiscountPercent(customer),
       coupon: validatedCoupon,
       tipAmount: clampTip(input.tipAmount)
     });
@@ -206,7 +211,7 @@ export const orderService = {
       tipAmount: bill.tipAmount,
       maxTipAmount: config.MAX_TIP_AMOUNT,
       distanceKm: tripDistanceKm,
-      isGold: Boolean(customer.isGold),
+      isGold: isGoldActive(customer),
       appliedCouponCode: appliedCode,
       couponError,
       restaurantIsOpen: restaurant.isOpen !== false && restaurant.status === 'ACTIVE',
@@ -369,7 +374,11 @@ export const orderService = {
       })),
       packagingFee: Number(restaurant.packagingFee),
       distanceKm: tripDistanceKm,
-      isGold: customer.isGold,
+      // Expiry-aware. `customer.isGold` alone honours a lapsed membership
+      // forever, which is what `goldExpiresAt` existing and being read by
+      // nothing actually meant.
+      isGold: isGoldActive(customer),
+      membershipDiscountPercent: goldDiscountPercent(customer),
       coupon: validatedCoupon,
       tipAmount: clampTip(input.tipAmount)
     });
