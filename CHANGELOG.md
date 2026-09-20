@@ -6,6 +6,250 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-20] -- Claude Opus 5 -- Session 29: what running it on a device found
+
+**Description:** The plan's five stages were code-complete and gate-green at the
+end of Session 28. This session put the APKs on a phone, pointed the apps at the
+live deployment, and called the production API. Everything below was found that
+way. None of it was visible to the typechecker, the 20 backend suites, the
+secret scans, or to reading the code.
+
+That is the whole point of the standing rule in `REBUILD_PLAN.md` — *nothing is
+reported as working because it compiles* — and this session is the strongest
+evidence for it so far: a crash that killed the app on the first tap, a signing
+key that had silently become Android's debug key, and a Google key that was
+refusing every call while reporting itself configured.
+
+---
+
+### The map took the whole app down
+
+Tapping "Place your kitchen on the map" killed the partner app outright:
+
+```
+com.google.maps.api.android.lib6.common.apiexception.c: Error using
+newLatLngBounds(LatLngBounds, int): Map size can't be 0. Most likely, layout
+has not yet occurred for the map view.
+  at com.rnmaps.maps.MapManager.updateExtraData
+```
+
+The mechanism is inside react-native-maps' own recovery path. `initialRegion`
+calls `moveToRegion`, which — finding the view has no height yet — stashes the
+bounds and waits for layout. When layout is reported it calls
+`newLatLngBounds(bounds, 0)`, the overload that **requires** a non-zero map
+size, and throws when width or height is still zero. Inside a Modal that slides
+in, zero size for the first frames is the ordinary case, not an edge case, so
+this was not intermittent — it was every time.
+
+**All four map components had the same shape**, including the customer's order
+tracking map. That one is on the screen somebody opens when they are already
+anxious about where their food is, which is the worst place in the product to
+lose the process.
+
+Fixed the same way in all four: the MapView is not mounted until its container
+reports a real size, and nothing touches the camera until `onMapReady` has fired
+**and** that size is non-zero. `fitToCoordinates` is the same call underneath.
+
+It typechecked. It passed the gate. The APK contained every feature marker. It
+crashed on the first tap.
+
+### An empty list because of WHERE you are is not a filter problem
+
+With the crash fixed, the map opened on real Bengaluru tiles and a pin was
+dropped on Cubbon Park. The restaurant list came back empty — **correctly**,
+because every seeded kitchen is in Harohalli, thirty-eight kilometres away and
+far outside its own service radius. Region filtering working exactly as
+designed.
+
+The screen said: *"Nothing matches that — try a different dish, cuisine or
+filter"*, with a **Clear filters** button. No filter had been applied. Clearing
+them does nothing. Somebody following that advice fiddles with chips until they
+give up.
+
+An empty list with no filters and a known position now says **"Nothing delivers
+here yet"** and offers to change the location, which is the only thing that can
+help. This is the second defect in this project that existed *because* a feature
+started working.
+
+### The admin app had been signing itself with the debug key
+
+A full four-app build produced three release-signed APKs and one signed with
+Android's debug keystore, and nothing said so. `withReleaseSigning` falls back to
+the debug key when it finds no credentials, and Gradle treats that as
+unremarkable. `admin-mobile` had no `android/keystore.properties`; the other
+three did.
+
+The APK looked normal and installed on a clean device. It simply could never
+update an existing install and could never be published.
+
+`STORE_RELEASE.md` had warned about precisely this for some time, with the
+keytool command to check for it. **The warning was correct and it happened
+anyway, because a warning in a document is not a control.** The build now
+prints a block warning when an app takes the fallback and repeats the list at
+the end — a warning printed before four minutes of Gradle output is a warning
+nobody sees. Deliberately not fatal: a contributor without the keystores must
+still be able to build and run these apps.
+
+Worse, the key was unrecoverable. Its password had never been recorded — not in
+a `.password` file, not in `keystore.properties`, not in git — and a keystore
+stores a hash rather than the password. A fresh keystore was generated, which
+cost nothing because the admin app had never been published. That is exactly why
+finding it now rather than after a launch mattered.
+
+```
+com.quickbite.admin  E7:90:8F:36:AE:E4:79:17:A7:7E:F9:87:D9:6D:50:57:A6:A9:01:FF
+```
+
+All four now carry `CN=Quick Bites` rather than `CN=Android Debug`.
+
+### Google was refusing every call and the platform said it was configured
+
+Address search, pin-to-address and road distances were all returning nothing on
+the live deployment. `placesStatus()` reported `configured: true`, which only
+ever meant *a key is set*. Whether Google accepts it is a different question and
+was answerable only by reading the deployment logs.
+
+Both services now keep Google's own last refusal — status and `error_message` —
+and report it in `/health`. Asked that way, the live deployment answered
+immediately:
+
+```
+REQUEST_DENIED — You must enable Billing on the Google Cloud Project
+```
+
+Not the API list. Not the restrictions. One sentence, in Google's words, that
+had been sitting in a log nobody was reading.
+
+**And a second fault that would have hidden the fix.** A failed lookup cached
+`null` for twenty-four hours and an empty autocomplete for one. So the moment
+the key was corrected, every address anybody had already searched would stay
+broken for a day — long enough to conclude the fix had not worked and change
+something else. Only a genuine "no such place" is cached now.
+
+This is the same rule already enforced in `routingService` — *an ESTIMATE is
+never cached, so a blip does not outlive itself*. `placesService` predates that
+rule and never got it.
+
+### Advice in this repository that was wrong
+
+`OWNER_ACTIONS.md` said to restrict the Maps server key by IP address. **Railway
+does not give a stable outbound IP** on the plans this runs on, so that
+allow-list either blocks your own server immediately or breaks silently the next
+time the deployment moves — and the symptom is not an error, it is address
+search returning nothing, which looks exactly like a street that does not exist.
+
+Corrected to Application restrictions **None**, with the key limited to four
+APIs and kept only as a deployment variable. It also now states plainly not to
+reuse the ANDROID key as the server key: an Android-restricted key refuses every
+server call with the same `REQUEST_DENIED`, producing the same silent emptiness.
+Reproduced against Google to confirm the message.
+
+A diagnostic table was added mapping each refusal Google actually returns to the
+specific thing to change.
+
+### Nothing could fix a restaurant's position
+
+Every restaurant on the live deployment carries the register route's placeholder
+— the centre of Bengaluru — while trading from Harohalli. The `locationPending`
+guard from Session 27 keeps them listed, but they can never be measured: no real
+distance, no real delivery time.
+
+There was no route back to the truth. The partner app sets a pin only during
+REGISTRATION, and the admin schema had no coordinates field, so a live kitchen
+thirty kilometres from itself was stuck there permanently.
+`PATCH /api/admin/restaurants/:id` now accepts `coordinates` and
+`serviceRadiusKm`, bounded exactly as at registration.
+
+### Emptying the platform, on purpose and with difficulty
+
+A deployment used for testing fills with half-finished accounts, abandoned
+orders and restaurants nobody remembers creating, and before real customers
+arrive the honest thing is to start again. There was no way to do it —
+persistence is a Railway volume, so a redeploy does not clear it.
+
+**New: `routes/admin/platformRoutes.ts`.** It is the most destructive operation
+in the product, so each guard exists because removing it leaves a plausible path
+to somebody doing this by accident:
+
+- **Super admin only.** An operations or support login has no business holding
+  this; that check is the difference between a compromised support account being
+  bad and being terminal.
+- **`ALLOW_PLATFORM_RESET` must be true on the deployment**, so the endpoint is
+  inert anywhere nobody has deliberately armed it. Meant to be switched off
+  again immediately afterwards.
+- **An exact typed phrase**, not a boolean. `confirm: true` is one stray line in
+  a script.
+- **Administrators, their roles and the audit log survive.** Wiping the accounts
+  that can sign in to operations, from inside operations, would lock the owner
+  out by pressing the button meant to give them a clean start — and an audit
+  trail erasable by the action it audits is not one.
+
+Collections are listed explicitly rather than "everything except a few", so a
+collection added later survives a route nobody revisited. The snapshot is
+written synchronously rather than left to the debounced auto-save: a restart in
+the next few seconds would otherwise come back with every deleted record still
+on disk.
+
+23 checks, and most of them assert that it **refuses**.
+
+### Smaller things
+
+- A rider's no-shows are shown beside their acceptance rate in operations. The
+  sweeper counted them and nothing displayed them, which made the count useless
+  for the one thing it exists for. Shown only when non-zero: a column of zeroes
+  is a column nobody reads.
+- The changelog claimed a mixed cart would price a basket against the wrong
+  restaurant. It would not — the server refuses a dish that is not on the named
+  restaurant's menu, confirmed by ordering a Milano dish from the Biryani House.
+  The real symptom was a confusing `INVALID_DISH_ID` at checkout. The fix is the
+  same; the reason given for it was wrong and has been corrected.
+
+---
+
+### Verified on a device and against production
+
+| Claim | Evidence |
+| --- | --- |
+| Maps render with the real key | Partner and customer pickers on real Bengaluru tiles, zero FATAL EXCEPTION |
+| The Android key restriction is correct | Google served tiles to an app signed with the release keystore |
+| Stage 1 back handling | "Press back again to exit" toast, on a three-button device |
+| Stage 1 insets | Content clears the navigation bar |
+| Stage 4 conditional filter | "Under 30 min" absent without a position, present with one |
+| Razorpay is live | `order_TeKF2tLa6fCilk`, 36690 paise, status `created` |
+| Membership changes a bill | ₹732.90 → ₹658.10; free delivery plus 7% of ₹640 |
+| A forged signature grants nothing | `INVALID_PAYMENT_SIGNATURE`; a fresh account stays inactive |
+| Two orders at once | 3 live orders across 2 restaurants |
+| Offers are nearest-first | 0.39 km ranked above 1.82 km |
+| One trip at a time is a gate | second claim → `RIDER_ALREADY_ON_TRIP` |
+| No-show release | Ran unprompted on the real clock: warned at 5 min, released at 8, rider flagged |
+| The live home screen is not empty | 3 restaurants listed from any position, `locationPending` |
+| Dish search works in production | "biryani" → Wakei, Veg kitchen; "dosa" → Veg kitchen |
+
+**Gate:** 21 backend suites, nine workspaces typechecked, secret, URL and
+translation scans clean. All four APKs scanned: no credentials in any artifact.
+
+**Known Issues:**
+
+- **Billing is not enabled on the Google Cloud project.** Address search,
+  pin-to-address and road distances return nothing until it is. Maps inside the
+  apps are unaffected — different key.
+- Two of the three enabled APIs are the wrong variants: Places API (New) and
+  Routes API, where the code calls legacy Places and Distance Matrix.
+- Completing a Razorpay payment through the sheet is unverified on a device. The
+  key pair, order creation and signature rejection are all proven; a human
+  finishing a test payment is not.
+- A full rider trip has not been driven on a device.
+- The back-block during an in-flight order remains unverified, carried from
+  Stage 1.
+- The scrollable dish-photo strip on the home card is still not built.
+
+**NEXT AI SHOULD:** Enable billing, confirm `/health` reports no `lastRefusal`,
+then drive one complete order across three phones — partner registers with a
+real pin, admin approves, customer orders, rider delivers. That is the only path
+through this product that has never been run end to end on hardware.
+
+---
+
 ## [2026-09-20] -- Claude Opus 5 -- Session 28: v2 Stages 3, 4 and 5
 
 **Description:** The remaining three stages of `REBUILD_PLAN.md`, built in one
