@@ -2189,6 +2189,108 @@ end to end through the apps rather than through the log.
 
 ---
 
+---
+
+## [2026-09-20] -- Claude Opus 5 -- Menu approval, grouped review, and a usable rider account
+
+**Feature/Issue:** Reported: approving a dish in the admin console answered "there
+is no menu" and refused; the review queue was unusable at scale ("if like 20
+restaurants sent menu at once it would be hard to approve everything as all are
+non organised and messy"); and no delivery-partner account could be signed into
+to check live tracking.
+**Status:** Completed
+
+### The deadlock, and why it was hitting production right now
+
+Approving a dish calls `menuRepository.addItem`, which returned `null` when the
+restaurant had no menu document, which the route reported as *"That restaurant has
+no menu to add to."* A newly onboarded restaurant has no menu document — and the
+only way one could come into existence was by approving a dish. So **every new
+restaurant was permanently unable to publish anything**, and the administrator was
+told the restaurant was at fault.
+
+This was not hypothetical. Both restaurants live on production at the time of this
+entry — `rst_1789883596350_0f3u` (Wakei) and `rst_1789883510776_ie9r` (Aditya ka
+dhaba) — were self-registered, had submitted dishes, and **had no menu document**.
+Neither could have had a single dish approved.
+
+A menu is a container, not something a kitchen must be granted before it may have
+dishes. `ensureMenu()` creates it on demand.
+
+### The queue was the wrong shape for the job
+
+Menu review is a per-restaurant judgement — you read what one kitchen proposes,
+find the two dishes that are wrong, and pass the rest. The console rendered one
+card per dish in submission order, so twenty restaurants submitting five dishes
+each produced a hundred interleaved cards to be approved one at a time, with no
+way to tell whether you had finished a restaurant.
+
+`GET /api/admin/menu-requests/grouped` returns the queue by restaurant.
+`POST /api/admin/menu-requests/bulk-review` settles one restaurant in a single
+decision: name the dishes being turned down and why, and the rest go live.
+
+Two things the bulk path is careful about:
+- Each dish is still reviewed individually underneath, so one failure cannot
+  silently approve or skip the others — every outcome is reported back.
+- The client sends the request ids it was showing, so a dish submitted while the
+  administrator was reading is **left for the next pass** rather than approved
+  without being read. The response says how many were skipped for that reason.
+
+A restaurant with no live menu is flagged in the queue as an opening menu, which
+is a different decision from adding one dish.
+
+### A delivery partner that can actually be signed into
+
+`ensureTestRider` — an opt-in, idempotent boot step that provisions a rider from
+`TEST_RIDER_EMAIL` / `TEST_RIDER_PASSWORD`, KYC-approved so dispatch will actually
+offer it work, positioned near the restaurants so offers are in range. It exists
+because a self-registered rider correctly signs up and *waits* for approval, which
+leaves nobody able to exercise a trip end to end.
+
+**No credential is committed.** With the variables unset it does nothing at all.
+
+**Backend/API/database changes:** `menuRepository.ensureMenu`; grouped and
+bulk-review endpoints in `catalogRoutes`; `db/ensureTestRider.ts`; boot wiring in
+`server.ts`.
+**Frontend changes:** `admin-mobile/src/screens/CatalogScreen.tsx` — the requests
+tab is now a grouped, per-restaurant review sheet with per-dish rejection.
+
+**Testing performed:** 24 new regression checks covering the first-dish deadlock,
+grouping, partial approval, the mandatory rejection reason, the stale-screen
+guard, and RBAC refusal of bulk approval. Full suite **798 checks, 0 failures**.
+Typecheck clean across all five workspaces.
+
+### Session conflict resolved
+
+A parallel session had pushed **34 commits** (133 files, ~16k insertions) while
+this work was in progress, including a change of the customer auth model from
+email+password to phone+OTP, self-service onboarding, and real Razorpay. This
+session's three commits were **rebased onto** that work rather than merged over
+it; three conflicts were resolved by keeping both sides:
+- `customer-mobile/App.tsx` — their reorder handler and this session's session-
+  restore effect are both kept.
+- `CHANGELOG.md` — both sessions' entries kept, per the append-only protocol.
+- `regression.test.ts` — their phone-OTP enumeration section replaced the email
+  one it superseded; this session's menu block sits before it.
+
+Their `ensureBootstrapAdmin` and this session's `ensureTestRider` are both wired
+into boot, and are the same idea applied to two roles.
+
+**Known issues / pending work:**
+- The admin console and rider app cannot be signed into on production until
+  `ADMIN_EMAIL`/`ADMIN_PASSWORD` and `TEST_RIDER_EMAIL`/`TEST_RIDER_PASSWORD` are
+  set on Railway. Both are re-applied on every boot by design.
+- Password-reset email still has no provider (`EMAIL_API_URL` etc. unset).
+- The Railway trial was showing "5 days or $4.89 left" on 2026-09-17.
+- APKs have **not** been rebuilt since the parallel session's auth change; the
+  published binaries predate phone sign-in.
+
+**NEXT AI SHOULD:** Rebuild all four APKs — the published set predates both the
+phone-auth change and this session's console work — then drive the menu approval
+against production once `ADMIN_PASSWORD` is set.
+
+---
+
 ## Session Log Template (For Future Sessions)
 
 `changelog.md` (this file — `CHANGELOG.md`, the same file on a case-insensitive filesystem) is the **shared source of truth** for this project. Multiple sessions work in this one checkout at the same time.
