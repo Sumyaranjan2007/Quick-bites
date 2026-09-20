@@ -157,7 +157,7 @@ Quick Bite is an integrated, multi-sided marketplace platform designed to delive
 | **Document Store** | Catalogs & Logs | MongoDB Dedicated ($60+/mo) | MongoDB Atlas M0 Free Tier (512MB) | **₹0** |
 | **Cache & Queue** | Live state & Pub/Sub | AWS ElastiCache ($80+/mo) | Upstash Redis Free / Local Redis | **₹0** |
 | **Search Engine** | Search & Autocomplete | Elastic Cloud ($95+/mo) | Meilisearch (Open-Source Docker) | **₹0** |
-| **Maps & Routing** | Geocoding & Nav | Google Maps Platform ($200+/mo) | Leaflet + OpenStreetMap + OSRM | **₹0** |
+| **Maps & Routing** | Geocoding & Nav | Google Maps Platform | Google Maps Platform (India price list) — see 2.1 | **₹0** until ~1,150 orders/day |
 | **Push Notifications**| Push Alerts | OneSignal Paid ($99/mo) | Firebase Cloud Messaging (FCM) | **₹0** |
 | **Authentication**| Mobile OTP | Twilio / MSG91 (₹0.20/SMS) | Email OTP / In-App Mock OTP | **₹0** |
 | **File Storage** | Menu photos, avatars | AWS S3 + CloudFront | Cloudflare R2 (10 GB free, $0 egress) | **₹0** |
@@ -168,6 +168,121 @@ Quick Bite is an integrated, multi-sided marketplace platform designed to delive
 | **TOTAL INITIAL RUNWAY** | | | | **₹0 - ₹2,900** |
 
 ---
+
+---
+
+### 2.1 Google Maps Platform — what it actually costs
+
+Priced against the **India price list**, which is what applies to a billing account
+registered in India. It is a different and much cheaper list than the global one,
+and the free allowances on it are seven times larger, so quoting global figures
+here would overstate the bill by roughly an order of magnitude.
+
+Two facts decide almost everything below, and both are easy to get wrong:
+
+**The map itself is free.** Rendering a Google map inside an Android or iOS app
+is the *Mobile Native Dynamic Maps* SKU, and it has unlimited free usage. There
+is no per-map-load charge, no cap, and no credit being consumed. The map on the
+customer's tracking screen and the map on the rider's navigation screen cost
+nothing however many times they are opened. Only the *web* map (Dynamic Maps,
+for the two browser portals) is metered, at $2.10 per 1,000 loads after 70,000
+free.
+
+**The $200 monthly credit no longer exists.** Google removed it in March 2025 and
+replaced it with a free monthly allowance *per SKU*. Every article still telling
+you about "$200 free" is out of date. In practice the replacement is better for
+this platform: 70,000 free calls per SKU per month in India, against a single
+shared $200 that everything drew from.
+
+#### The price list that applies to us
+
+| What we call | SKU | Free per month | Then, per 1,000 |
+| --- | --- | --- | --- |
+| The map in the apps | Mobile Native Dynamic Maps | **Unlimited** | **$0** |
+| Address search as you type | Autocomplete Requests | 70,000 | $0.85 |
+| …grouped into one session | Autocomplete Session Usage | **Unlimited** | **$0** |
+| Coordinates for a chosen address | Place Details (Essentials) | 70,000 | $1.50 |
+| Address at a dropped pin | Geocoding | 70,000 | $1.50 |
+| Road route and road ETA | Directions (Essentials) | 70,000 | $1.50 |
+| Road distance for the delivery fee | Distance Matrix (Essentials) | 70,000 | $1.50 |
+| The map in the two web portals | Dynamic Maps | 70,000 | $2.10 |
+
+Prices are quoted by Google in **USD** even on the India list. Converted below at
+₹84 to the dollar.
+
+#### How many calls one order actually makes
+
+This is the part that decides the bill, and it is a property of how this platform
+is built rather than something to look up.
+
+| Call | Per order | Why that number |
+| --- | --- | --- |
+| Distance Matrix | 2 | Once as the basket changes, once at checkout |
+| Directions | 2 | Rider to the restaurant, then rider to the customer |
+| Autocomplete requests | ~0.6 | Customers reuse saved addresses; roughly one new address per five orders, ~3 billed keystroke requests each |
+| Place Details | ~0.2 | One per new address saved |
+| Geocoding | ~0.2 | Only when somebody drags the pin |
+| Map loads | any number | Free |
+
+The two that matter are Distance Matrix and Directions, because they fire on
+*every* order. Everything to do with typing an address is amortised across the
+five or so orders that address is then used for.
+
+#### The bill, at each scale
+
+| Orders/day | Orders/month | Cost/month | | What is being billed |
+| --- | --- | --- | --- | --- |
+| 50 | 1,500 | **$0** | ₹0 | Nothing — inside every free cap |
+| 100 | 3,000 | **$0** | ₹0 | Nothing |
+| 250 | 7,500 | **$0** | ₹0 | Nothing |
+| 500 | 15,000 | **$0** | ₹0 | Nothing |
+| 1,000 | 30,000 | **$0** | ₹0 | Nothing |
+| 2,000 | 60,000 | **$150** | ₹12,600 | Distance Matrix and Directions |
+| 5,000 | 150,000 | **$707** | ₹59,400 | The above, plus autocomplete |
+
+**You pay nothing until roughly 1,150 orders a day.** That is where Distance
+Matrix and Directions — at two calls each per order — first cross 70,000 in a
+month. Testing, the pilot, and the first year of a single-city operation all sit
+comfortably inside the free tier.
+
+At the point where this does start costing money, it is costing ₹12,600 a month
+against 60,000 orders — about **21 paise per order**. That is not a number that
+changes any decision about whether to use it.
+
+#### What it costs to get it wrong
+
+Three ways this bill stops being small, in the order they are likely:
+
+1. **An unrestricted key that leaks.** A key with no restrictions, found in a
+   public repository or extracted from an APK, is billed to you at whatever rate
+   the finder can generate. This is the only realistic path to a genuinely
+   frightening invoice, and it is entirely preventable — see the restrictions in
+   `OWNER_ACTIONS.md` Part 1.4.
+2. **Autocomplete without session tokens.** Firing a request per keystroke with
+   no session grouping turns one address into 10–12 billed calls instead of
+   being covered by the unlimited session SKU. The apps already send session
+   tokens and debounce at 350 ms.
+3. **Distance Matrix used as a loop.** It bills **per element** — origins ×
+   destinations — so one call asking for 1 rider against 40 restaurants is 40
+   billed elements, not one. Any "nearest rider" or "restaurants near me"
+   feature must be written with that in mind, or it multiplies the bill by the
+   size of the list.
+
+A hard budget cap is worth setting anyway: Google Cloud Console → Billing →
+Budgets & alerts. A cap of **$25/month** is far above anything this platform
+will spend before it is making real money, and it turns the worst case from an
+unbounded invoice into an outage you get an email about.
+
+#### Where this leaves the row in the table above
+
+The "Maps & Routing — ₹0 via Leaflet + OpenStreetMap" line was accurate and is
+being deliberately given up. OSM tiles cost nothing and need no account, and the
+tracking map has run on them since the beginning. What they cannot do is tell
+you that "blue gate near the temple" is a real place at a real coordinate, give
+a road distance rather than a straight line, or draw a route that follows the
+roads. Those are the three things that decide whether a delivery arrives, so the
+row moves from ₹0 to ₹0-until-1,150-orders-a-day, which is the same thing for
+as long as it matters.
 
 ---
 
