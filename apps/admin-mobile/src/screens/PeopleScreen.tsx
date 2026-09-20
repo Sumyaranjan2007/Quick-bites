@@ -331,7 +331,8 @@ const DriversTab: React.FC = () => {
             { key: 'ONLINE', label: 'Online' },
             { key: 'ACTIVE', label: 'Approved' },
             { key: 'PENDING', label: 'Pending' },
-            { key: 'SUSPENDED', label: 'Suspended' }
+            { key: 'SUSPENDED', label: 'Suspended' },
+            { key: 'BLOCKED', label: 'Blocked' }
           ]}
           value={status}
           onChange={setStatus}
@@ -360,6 +361,10 @@ const DriversTab: React.FC = () => {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Badge label={driver.kycStatus} tone={toneForStatus(driver.kycStatus)} />
+                {/* Shown above the shift badge because it outranks it: a blocked
+                    rider cannot be on shift, and the two states answer different
+                    questions about the same person. */}
+                {driver.isBlocked ? <Badge label="Blocked" tone="danger" /> : null}
                 {driver.isOnline ? <Badge label="On shift" tone="success" /> : null}
               </View>
             </View>
@@ -415,6 +420,33 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
     }
   };
 
+  /**
+   * Blocking the login account, which is a different thing from suspending.
+   *
+   * A suspended rider cannot take trips but can still sign in to see why and
+   * fix it — which is what almost every suspension needs. Blocking locks them
+   * out of the platform, takes them off shift and out of the dispatch pool
+   * immediately, and applies to the session they already have open rather
+   * than at a next sign-in that is never going to happen.
+   */
+  const setBlocked = async (isBlocked: boolean) => {
+    if (isBlocked && !reason.trim()) {
+      Alert.alert('Reason required', 'Blocking an account is recorded against your name. Say why.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.patch(`/admin/drivers/${id}`, { isBlocked, blockReason: isBlocked ? reason.trim() : '' });
+      setReason('');
+      await resource.reload();
+      onChanged();
+    } catch (err: any) {
+      Alert.alert('Could not update', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Sheet visible={Boolean(id)} onClose={onClose} title={driver?.fullName || 'Delivery partner'} subtitle={driver?.driverCode}>
       {resource.loading && !resource.data ? <Loading /> : null}
@@ -425,6 +457,15 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             <KeyValue label="Vehicle" value={`${humanise(driver.vehicleType)} · ${driver.vehicleRcNumber || 'no RC on file'}`} />
             <KeyValue label="Licence" value={driver.licenseNumber} />
             <KeyValue label="Status" value={humanise(driver.kycStatus)} tone="strong" />
+            <KeyValue
+              label="Account"
+              value={
+                resource.data?.account?.isBlocked
+                  ? `Blocked — ${resource.data.account.blockReason || 'no reason recorded'}`
+                  : 'Can sign in'
+              }
+              tone={resource.data?.account?.isBlocked ? 'strong' : undefined}
+            />
             <KeyValue label="On shift" value={driver.isOnline ? `Yes, since ${formatDateTime(driver.onlineSince)}` : 'No'} />
             <KeyValue label="Last seen" value={timeAgo(driver.lastPingAt)} />
           </Card>
@@ -501,6 +542,31 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
                   <Button label="Approve" variant="success" full loading={busy} onPress={() => setKyc('ACTIVE')} />
                 ) : null}
               </View>
+
+              <Divider />
+              <Text style={s.muted}>
+                Suspending stops them delivering. Blocking locks them out of the app entirely and takes effect
+                straight away, on the session they already have open.
+              </Text>
+              <View style={s.actionRow}>
+                {resource.data?.account?.isBlocked ? (
+                  <Button
+                    label="Unblock account"
+                    variant="success"
+                    full
+                    loading={busy}
+                    onPress={() => setBlocked(false)}
+                  />
+                ) : (
+                  <Button
+                    label="Block account"
+                    variant="danger"
+                    full
+                    loading={busy}
+                    onPress={() => setBlocked(true)}
+                  />
+                )}
+              </View>
             </Card>
           ) : null}
         </>
@@ -531,7 +597,8 @@ const RestaurantsTab: React.FC = () => {
             { key: 'ACTIVE', label: 'Active' },
             { key: 'PENDING_APPROVAL', label: 'Pending' },
             { key: 'SUSPENDED', label: 'Suspended' },
-            { key: 'CLOSED', label: 'Closed' }
+            { key: 'CLOSED', label: 'Closed' },
+            { key: 'BLOCKED', label: 'Blocked' }
           ]}
           value={status}
           onChange={setStatus}
@@ -560,6 +627,7 @@ const RestaurantsTab: React.FC = () => {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Badge label={restaurant.status} tone={toneForStatus(restaurant.status)} />
+                {restaurant.isBlocked ? <Badge label="Owner blocked" tone="danger" /> : null}
                 {restaurant.isOpen ? <Badge label="Open" tone="success" /> : <Badge label="Closed" tone="neutral" />}
               </View>
             </View>
@@ -614,6 +682,34 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
     }
   };
 
+  /**
+   * Blocking the OWNER'S login account, which is not the same as suspending
+   * the restaurant.
+   *
+   * Suspending takes a kitchen out of the customer feed and stops it going
+   * online, while the owner can still sign in, read why, and re-send a
+   * rejected licence. Blocking locks the owner out of the partner app
+   * altogether — for fraud, not for a hygiene complaint somebody is expected
+   * to fix.
+   */
+  const setBlocked = async (isBlocked: boolean) => {
+    if (isBlocked && !reason.trim()) {
+      Alert.alert('Reason required', 'Blocking an account is recorded against your name. Say why.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.patch(`/admin/restaurants/${id}`, { isBlocked, blockReason: isBlocked ? reason.trim() : '' });
+      setReason('');
+      await resource.reload();
+      onChanged();
+    } catch (err: any) {
+      Alert.alert('Could not update', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const save = async () => {
     setBusy(true);
     try {
@@ -640,6 +736,15 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
           <Card>
             <KeyValue label="Owner" value={resource.data.owner?.fullName} />
             <KeyValue label="Owner email" value={resource.data.owner?.email} />
+            <KeyValue
+              label="Owner account"
+              value={
+                resource.data.owner?.isBlocked
+                  ? `Blocked — ${resource.data.owner.blockReason || 'no reason recorded'}`
+                  : 'Can sign in'
+              }
+              tone={resource.data.owner?.isBlocked ? 'strong' : undefined}
+            />
             <KeyValue label="Phone" value={restaurant.phone} />
             <KeyValue label="City" value={`${restaurant.city} ${restaurant.pincode || ''}`} />
             <KeyValue label="FSSAI" value={restaurant.fssaiLicenseNumber} />
@@ -693,6 +798,35 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
                   <Button label="Suspend" variant="danger" full loading={busy} onPress={() => setStatus('SUSPENDED')} />
                 ) : (
                   <Button label="Activate" variant="success" full loading={busy} onPress={() => setStatus('ACTIVE')} />
+                )}
+              </View>
+              <Text style={s.muted}>
+                A restaurant that is not ACTIVE is hidden from customers, cannot take orders, and cannot switch
+                itself online.
+              </Text>
+
+              <Divider />
+              <Text style={s.muted}>
+                Blocking locks the owner out of the partner app entirely and takes effect straight away, on the
+                session they already have open. Suspending leaves them able to sign in and fix what is wrong.
+              </Text>
+              <View style={s.actionRow}>
+                {resource.data?.owner?.isBlocked ? (
+                  <Button
+                    label="Unblock owner"
+                    variant="success"
+                    full
+                    loading={busy}
+                    onPress={() => setBlocked(false)}
+                  />
+                ) : (
+                  <Button
+                    label="Block owner"
+                    variant="danger"
+                    full
+                    loading={busy}
+                    onPress={() => setBlocked(true)}
+                  />
                 )}
               </View>
             </Card>

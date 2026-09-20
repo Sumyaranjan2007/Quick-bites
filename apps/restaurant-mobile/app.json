@@ -131,8 +131,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Quick Bites Partner uses your photos so you can add a picture to a dish.",
-          "cameraPermission": "Quick Bites Partner uses the camera so you can photograph a dish."
+          "photosPermission": "Quick Bites Partner uses your photos so you can add a picture to a dish and send photos of your licence and PAN for verification.",
+          "cameraPermission": "Quick Bites Partner uses the camera so you can photograph a dish and photograph your licence and PAN for verification."
         }
       ],
       [

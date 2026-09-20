@@ -29,6 +29,25 @@ export function currentApiUrl(): string {
   return apiUrl;
 }
 
+/*
+ * What to do when the server says this account is no longer allowed in.
+ *
+ * A block now applies to the session the partner already has open rather than
+ * to a next sign-in that will never happen, which means a signed-in partner can
+ * be refused on the next request they make. Without this the app stays on the
+ * dashboard showing stale figures, and every tap produces the same red banner
+ * until they work out for themselves that they should sign out.
+ *
+ * Registered by the shell rather than imported from it, so this module keeps
+ * knowing nothing about the screens.
+ */
+type SessionEndedReason = { code: 'ACCOUNT_BLOCKED' | 'ACCOUNT_NOT_FOUND'; message: string };
+let onSessionEnded: ((reason: SessionEndedReason) => void) | null = null;
+
+export function setSessionEndedHandler(handler: ((reason: SessionEndedReason) => void) | null): void {
+  onSessionEnded = handler;
+}
+
 function headers(): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) h.Authorization = `Bearer ${token}`;
@@ -72,7 +91,15 @@ async function request<T>(
     const payload = await res.json().catch(() => ({}));
 
     if (!res.ok || payload?.success === false) {
-      return { ok: false, message: messageFrom(payload, fallbackMessage) };
+      const message = messageFrom(payload, fallbackMessage);
+      const code = payload?.error?.code;
+      // Told once, and the session ends. The message is the server's own —
+      // it carries the reason an administrator recorded, which is the only
+      // part a partner can actually do something about.
+      if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_NOT_FOUND') {
+        onSessionEnded?.({ code, message });
+      }
+      return { ok: false, message };
     }
     return { ok: true, data: payload?.data as T, message: payload?.message };
   } catch (err: any) {
@@ -257,7 +284,7 @@ export function submitMenuRequest(
     price: number;
     isVeg: boolean;
     categoryName: string;
-    /** A data URI from dishPhoto.ts, already resized to fit the request body. */
+    /** A data URI from photo.ts, already resized to fit the request body. */
     imageUrl?: string;
   }
 ) {

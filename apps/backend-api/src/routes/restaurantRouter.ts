@@ -429,8 +429,39 @@ const KitchenStatusSchema = z.object({
 // POST /api/restaurants/:id/kitchen-status
 restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'), validate({ body: KitchenStatusSchema }), async (req, res, next) => {
   try {
-    await assertOwnsRestaurant(req, req.params.id);
+    const owned = await assertOwnsRestaurant(req, req.params.id);
     const { isKitchenActive } = req.body;
+
+    /*
+     * Going online is gated on approval; going offline never is.
+     *
+     * The delivery app has had this check since it was written — a rider whose
+     * KYC is not ACTIVE is refused at `POST /riders/shift`. The partner app had
+     * nothing equivalent, so a restaurant that registered thirty seconds ago,
+     * with no documents submitted and nobody having looked at it, could press
+     * Online and be told "Kitchen is now ONLINE".
+     *
+     * It was not, in the way that mattered: the customer feed reads
+     * `listActive()` and order creation refuses a non-ACTIVE restaurant, so no
+     * customer ever saw it and no order could reach it. What the partner saw
+     * was a green toggle and a promise, and they waited for orders that could
+     * not arrive. A control that lies in the safe direction is still a control
+     * that lies.
+     *
+     * Refused here rather than hidden in the app, because hiding a button is a
+     * courtesy and this is the switch that decides whether a kitchen is open.
+     */
+    if (isKitchenActive && owned.status !== 'ACTIVE') {
+      throw new AppError(
+        owned.status === 'SUSPENDED'
+          ? 'Your restaurant is suspended, so it cannot go online. Contact Quick Bites support.'
+          : owned.status === 'CLOSED'
+            ? 'This restaurant is closed on the platform and cannot go online.'
+            : 'Your restaurant is still being verified. You can go online once our team approves your documents.',
+        409,
+        owned.status === 'PENDING_APPROVAL' ? 'RESTAURANT_NOT_APPROVED' : 'RESTAURANT_NOT_ACTIVE'
+      );
+    }
 
     // Goes through the repository so the change is persisted. Assigning isOpen on
     // the object skipped triggerAutoSave, so the kitchen reverted to its previous
@@ -648,7 +679,27 @@ restaurantRouter.get('/:id/documents', authMiddleware('restaurant_owner'), async
 const UploadDocumentSchema = z.object({
   documentType: z.enum(RESTAURANT_DOCUMENT_TYPES),
   documentNumber: z.string().trim().min(1, 'Enter the number printed on the document').max(40),
-  fileUrl: z.string().min(1, 'A file is required')
+  /*
+   * A photograph, not a sentence.
+   *
+   * This field used to accept any non-empty string, and the partner app sent
+   * one: it had no picker at all, so it asked the partner to email the document
+   * to support and type a note here describing where to find it. What reached
+   * the reviewer was "emailed on 14 Sep" — a KYC queue full of prose that had
+   * to be cross-referenced against an inbox by hand.
+   *
+   * Bounded and typed exactly as the rider route's equivalent. The ceiling is
+   * the one the image helper in the app resizes to stay under, so an oversized
+   * photo fails on the device with something the partner can act on rather than
+   * being cut off by the 1 MB body limit.
+   */
+  fileUrl: z
+    .string()
+    .max(700_000, 'That photo is too large. Take a new one from inside the app.')
+    .refine(
+      v => v.startsWith('data:image/') || /^https?:\/\//.test(v),
+      'Attach a photo of the document.'
+    )
 });
 
 /**

@@ -31,7 +31,7 @@ import { I18nProvider, useTranslation, Language } from './src/lib/i18n';
 import { NotificationsProvider, useNotifications, STATUS_NOTIFICATION } from './src/lib/useNotifications';
 import { NotificationBell } from './src/components/NotificationBell';
 import { useOrderSocket } from './src/lib/useOrderSocket';
-import { apiFetch } from './src/lib/apiFetch';
+import { apiFetch, setSessionEndedHandler } from './src/lib/apiFetch';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 function AppRoot() {
@@ -290,6 +290,25 @@ function AppRoot() {
     setCurrentScreen('feed');
     setCart([]);
   };
+
+  /*
+   * An account blocked, or deleted, while the app is open.
+   *
+   * The refusal arrives on whatever request comes next rather than at a next
+   * sign-in, so the session ends here and the server's own words — which carry
+   * the reason an administrator recorded — are shown once. Without this the
+   * customer sits on a feed that will not load and a basket that will not
+   * price, with a different unexplained error on each screen.
+   */
+  useEffect(() => {
+    setSessionEndedHandler(({ message }) => {
+      Alert.alert('You have been signed out', message);
+      handleLogout();
+    });
+    return () => setSessionEndedHandler(null);
+    // handleLogout closes over stable setters only, so this registers once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Where the back gesture goes from each screen.

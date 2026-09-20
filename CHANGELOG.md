@@ -6,6 +6,232 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-21] -- Claude Opus 5 -- Session 30: verification that verifies, and a block that blocks
+
+**Description:** Reported from the partner app: there is no way to upload an
+image when sending a document. That turned out to be true, and to be the visible
+end of a chain — the platform had a verification process that could be satisfied
+without verifying anything, and an admin screen whose Block button did not stop
+the person it named.
+
+Three things were asked for and all three are done. Finding out WHY the first one
+was broken uncovered two defects nobody had reported.
+
+---
+
+### The partner app could not attach a document at all
+
+The Documents screen asked for a **"File reference"** — a line of text — with the
+hint *"Send the PDF/JPG/PNG to partners@quickbite.app, then note here how to find
+it."* There was no camera, no gallery, no picker of any kind. The delivery app
+has photographed documents since it was written. The partner app, which is the
+one asking for the FSSAI food licence a kitchen may not legally trade without,
+asked the partner to go and use their email client.
+
+What reached the reviewer was prose: `"emailed 14 Sep"`. Verification then
+depended on a human matching that sentence against an inbox, which is why
+partners sat at "In review" for days.
+
+Everything needed was already installed — `expo-image-picker`,
+`expo-image-manipulator`, the CAMERA permission, the config plugin — and used on
+the same app's dish photos. Only this screen never got it.
+
+`lib/dishPhoto.ts` becomes `lib/photo.ts` and grows `pickDocumentPhoto`. A
+document is not a dish: 1280px against 720, lighter compression, and **no crop**.
+A licence, a PAN card and a bank statement are three different shapes, and
+forcing any of them into a 4:3 frame loses the corner the reviewer needs. Both
+camera and gallery are offered, because a partner has usually already
+photographed their licence and making them do it again is how a document never
+gets sent.
+
+The photo they sent is shown back to them on the card, so a partner facing a
+rejection can see which attempt was reviewed.
+
+**The server accepted the prose, so it is now typed.** `fileUrl` was
+`z.string().min(1)`. It is bounded at 700,000 characters and must be an image
+data URI or an https link — exactly as on the rider route, which had it right
+all along. The catalogue also stopped advertising **PDF**: it had been listed
+since the catalogue was written and was never once accepted, because nothing in
+this platform can store or render one.
+
+### Verification could be passed without being verified
+
+Following the upload path to the reviewer found this, in the document review
+route:
+
+```ts
+await restaurantRepository.updateKycStatus(restaurant.id, action === 'APPROVE' ? 'ACTIVE' : 'REJECTED');
+if (action === 'APPROVE' && restaurant.status === 'PENDING_APPROVAL') {
+  await restaurantRepository.updateStatus(restaurant.id, 'ACTIVE');
+}
+```
+
+**Approving ONE document approved the restaurant.** Not the required ones — the
+first one to be looked at. A partner who submitted nothing but a bank account
+proof, which is OPTIONAL, became ACTIVE, appeared on customers' home screens and
+took orders **with no food licence on file at all**. The single document a
+kitchen may not legally trade without was the one nothing checked for.
+
+The same line in reverse: rejecting an optional GST registration marked the whole
+partner REJECTED while leaving `status` ACTIVE, so its KYC said one thing and its
+trading state said another.
+
+The decision is now re-derived from **every** document through
+`buildDocumentOverview` — the same function the partner app renders, so what the
+partner is told and what the platform enforces cannot drift apart. An approval
+never reduces standing; only a rejection moves anybody backwards. And a REQUIRED
+document withdrawn from a kitchen that is already trading closes it: an FSSAI
+licence rejected as expired means that kitchen may not sell food today, and
+leaving it listed because it was listed an hour ago is the platform knowingly
+offering an unlicensed kitchen. Back to PENDING_APPROVAL rather than SUSPENDED,
+so the partner can photograph a valid one and send it from the same screen.
+
+**And a second upload route spoke a different language.** `POST /api/kyc/submit`
+took `documentType: z.string().min(1)` — any string at all. The onboarding test
+had been submitting `FSSAI_LICENSE` for as long as it has existed. The
+requirement is called `FSSAI`. The document was filed under a name nothing would
+ever look for, queued, approved by a reviewer, and the food licence requirement
+was still outstanding afterwards. It looked like it worked only because approving
+any single document approved the partner.
+
+That route now validates the type against the catalogue for that entity, carries
+the same `fileUrl` rule, and `GET /kyc/status` stopped reporting ACTIVE because
+one document of several was approved. Its restaurant branch also assigned
+`kycStatus` directly without `triggerAutoSave` — the third instance of that exact
+defect in this codebase.
+
+### An unapproved kitchen could switch itself Online
+
+`POST /restaurants/:id/kitchen-status` had no gate. The delivery app has refused
+this since it was written — a rider whose KYC is not ACTIVE is turned away at
+`POST /riders/shift` — and the partner app had nothing equivalent. A restaurant
+that registered thirty seconds ago could press Online and be told
+*"Kitchen is now ONLINE"*.
+
+It was not online in any way that mattered: the feed reads `listActive()` and
+order creation refuses a non-ACTIVE restaurant, so no customer saw it and no
+order could reach it. What the partner saw was a green toggle and a promise, and
+they waited for orders that could not arrive. **A control that lies in the safe
+direction is still a control that lies.**
+
+Refused on the server, with the reason named. The app also stops sending the
+request and says what to do instead, and the toggle reads **Locked** with
+"Awaiting verification" beside it — because "Offline" means "you could be
+online", which for an unapproved kitchen is the wrong word.
+
+Going OFFLINE is never gated. A partner put back into review must still be able
+to close a kitchen they had left open.
+
+### Blocked meant blocked at the next sign-in, which never comes
+
+Tokens last seven days and there was no way to withdraw one. `authMiddleware`
+verified the signature and trusted every claim in it, consulting the store for
+nothing. So **blocking an account did nothing to the session that account
+already had open** — and a blocked account is precisely the one that will not
+sign in again.
+
+Proven against the running system: a customer was blocked through the admin API
+and went on reading their addresses, pricing baskets and using every
+authenticated route, with the token they were holding when it happened. The admin
+screen said "Blocked" and meant it about a login that was never going to happen.
+
+`middlewares/adminAccess.ts` already carries the rule, written in its own header:
+*"Permissions are resolved from the stored user record on each request, not from
+the token. Tokens last a week."* It was written for exactly this and had never
+been extended to the account itself.
+
+Every authenticated request now resolves the account:
+
+- **Blocked** → 403 `ACCOUNT_BLOCKED`, carrying the reason an administrator
+  recorded. 403 and not 401, and said plainly, because somebody told
+  "unauthorised" signs out and back in forever.
+- **Gone** → 401 `ACCOUNT_NOT_FOUND`. A deleted account's token outlived it by up
+  to a week, which is also every token issued before a platform reset.
+- **Role changed** → the stored role wins. A demotion applies now rather than in
+  a week.
+
+All four apps end the session on that code and show the server's own words once,
+rather than leaving somebody tapping through a screen that refuses everything
+without saying why. The customer app has no central request wrapper, so this
+reads the refusal from a `clone()` of the response — the screens each read the
+body themselves, and a body can only be read once.
+
+### Blocking, for partners and riders
+
+Only customers could be blocked. A rider could be **suspended**, a restaurant
+**suspended**, but neither had any lever against the login account behind it — so
+a rider running a cash scam could be stopped from delivering and went on using
+everything else with the same token.
+
+The two are deliberately kept apart, because they are different decisions:
+
+- **SUSPEND** stops them trading and leaves them able to sign in, read why, fix a
+  rejected document and reach support. That is almost every suspension: a problem
+  somebody is expected to resolve, and locking them out of the screen that
+  explains it guarantees they cannot.
+- **BLOCK** locks the account out entirely. For fraud and abuse.
+
+`PATCH /admin/drivers/:id` and `PATCH /admin/restaurants/:id` both take
+`isBlocked` and `blockReason` now, applied to the person's user account. Blocking
+a rider takes them off shift and out of the dispatch pool in the same breath — a
+blocked rider holding an open socket would otherwise keep receiving offers until
+it dropped, and every offer they take is somebody's dinner. Blocking a restaurant
+owner closes the kitchen, because a kitchen showing as open with nobody able to
+sign in and accept an order is worse than a closed one.
+
+Both are shown where they were applied — a Blocked badge, a filter tab, the
+reason on the detail sheet. An administrator who blocks somebody has to be able
+to see that they did.
+
+---
+
+### Verified against the running system
+
+| Claim | Evidence |
+| --- | --- |
+| A blocked account stops mid-session | The token issued BEFORE the block is refused on `/auth/me`, `/addresses` and `/orders/quote` |
+| The reason travels | "Repeated fraudulent refund claims" comes back in the refusal |
+| Unblocking restores the same token | Not a fresh one — a mistake must be undoable without forcing a sign-in |
+| A suspended rider can still get in | 200 on `/riders/me`, 409 on `/riders/shift` |
+| A blocked rider cannot | 403 `ACCOUNT_BLOCKED`, and `isOnline` false, asserted after putting them ON shift first |
+| A deleted account's token dies with it | 401 `ACCOUNT_NOT_FOUND` |
+| A kitchen registered seconds ago | Refused `RESTAURANT_NOT_APPROVED`; absent from the feed; direct order by id refused |
+| An optional document approves nothing | BANK_PROOF approved → still PENDING_APPROVAL, still cannot go online |
+| One required document of two | FSSAI approved, PAN outstanding → still PENDING_APPROVAL |
+| Both required approved | ACTIVE, online, and on the customer feed — in that order |
+| A withdrawn licence closes the kitchen | FSSAI rejected → not ACTIVE, `isOpen` false, gone from the feed |
+| and re-approval restores it | A valid licence sent from the same screen puts them back |
+| A document type nobody asks for | `FSSAI_LICENSE` refused at `/kyc/submit` |
+| Prose is not a document | "emailed on 14 Sep" refused 400; a data URI accepted 201 |
+
+**Gate:** 22 backend suites, nine workspaces typechecked, secret, URL and
+translation scans clean.
+
+**Mutation tested, 10 of 10 caught.** One survived the first run: the check that
+a blocked rider is taken off shift passed against a build with no such side
+effect, because the rider starts offline and the assertion was true before the
+block. It now puts them on shift first and asserts that too. A check that has
+never failed is not evidence.
+
+**Known Issues:**
+
+- Completing a Razorpay payment through the sheet is still unverified on a
+  device, carried from Session 28.
+- A full rider trip has not been driven on hardware.
+- The back-block during an in-flight order remains unverified, carried from
+  Stage 1.
+- Billing is still not enabled on the Google Cloud project, so address search,
+  pin-to-address and road distances return nothing. Maps inside the apps are
+  unaffected — different key.
+- The scrollable dish-photo strip on the home card is still not built.
+
+**NEXT AI SHOULD:** Drive the new partner path on hardware — register, photograph
+an FSSAI and a PAN, approve both from the admin app, and watch the toggle go from
+Locked to Offline to Online. Every step of it is covered by tests against a real
+HTTP server; none of it has been done with a thumb on a phone.
+
+---
+
 ## [2026-09-20] -- Claude Opus 5 -- Session 29: what running it on a device found
 
 **Description:** The plan's five stages were code-complete and gate-green at the

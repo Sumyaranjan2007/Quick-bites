@@ -464,3 +464,7 @@ a {
 .perm-details { margin-top: var(--space-4); }
 .perm-details summary { cursor: pointer; font-size: var(--font-size-sm); color: var(--color-primary-500); font-weight: 600; }
 .perm-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px; margin-top: var(--space-3); color: var(--text-secondary); }
+/* The scan a reviewer is deciding on. Capped rather than shown at whatever
+   size the phone photographed it, and clickable to open full size — a
+   fourteen-digit licence number has to be legible before anyone approves it. */
+.doc-scan { display: block; max-width: 100%; max-height: 320px; border-radius: var(--radius-md); border: 1px solid var(--border, rgba(255,255,255,0.12)); background: #FFFFFF; object-fit: contain; }

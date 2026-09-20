@@ -1,10 +1,25 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, StatusBar, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  StatusBar,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+  Alert
+} from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
 import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { c, radii, spacing } from './src/theme';
-import { configureApi, currentApiUrl, fetchOwnedRestaurant, setKitchenOpen } from './src/lib/partnerApi';
+import {
+  configureApi,
+  currentApiUrl,
+  fetchOwnedRestaurant,
+  setKitchenOpen,
+  setSessionEndedHandler
+} from './src/lib/partnerApi';
 import { useLiveUpdates } from './src/lib/useLiveUpdates';
 import { prepareOrderAlerts, releaseOrderAlerts, stopOrderAlert } from './src/lib/orderAlert';
 import { SignInScreen } from './src/screens/SignInScreen';
@@ -134,6 +149,25 @@ function PartnerApp() {
     setTab('dashboard');
   };
 
+  /*
+   * An account blocked while the app is open.
+   *
+   * Blocking applies to the session a partner already has, so the refusal
+   * arrives on whatever request they happen to make next — a dashboard
+   * refresh, a status change, anything. Leaving them inside the app produces
+   * the same red banner on every tap and no way to understand it, so the
+   * session ends and the server's own words are shown once.
+   */
+  useEffect(() => {
+    setSessionEndedHandler(({ message }) => {
+      Alert.alert('You have been signed out', message);
+      void signOut();
+    });
+    return () => setSessionEndedHandler(null);
+    // signOut closes over stable setters only, so this registers once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const { connected } = useLiveUpdates(
     token && restaurant?.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
     currentApiUrl(),
@@ -144,6 +178,26 @@ function PartnerApp() {
   const toggleKitchen = async () => {
     if (!restaurant) return;
     const next = !restaurant.isOpen;
+
+    /*
+     * Say why, here, rather than sending a request that will be refused.
+     *
+     * The server refuses this too — `POST /restaurants/:id/kitchen-status` is
+     * the control, and hiding a button is a courtesy, not one. But a partner
+     * who taps Online and gets a red banner has learnt nothing about what to
+     * do next, and the answer is always the same: finish verification.
+     */
+    if (next && restaurant.status !== 'ACTIVE') {
+      setProfileError(
+        restaurant.status === 'SUSPENDED'
+          ? 'Your restaurant is suspended, so it cannot go online. Contact Quick Bites support.'
+          : restaurant.status === 'CLOSED'
+            ? 'This restaurant is closed on the platform and cannot go online.'
+            : 'Your restaurant is still being verified. Send your documents from the Docs tab — you can go online once our team approves them.'
+      );
+      setTab(restaurant.status === 'PENDING_APPROVAL' ? 'documents' : 'help');
+      return;
+    }
 
     setTogglingKitchen(true);
     const res = await setKitchenOpen(restaurant.id, next);
@@ -209,6 +263,12 @@ function PartnerApp() {
   }
 
   const open = Boolean(restaurant.isOpen);
+  /*
+   * "Offline" means "you could be online". For a kitchen that has not been
+   * approved it is the wrong word: nothing the partner does to this switch
+   * will change anything, and they waited for orders that could not arrive.
+   */
+  const approved = restaurant.status === 'ACTIVE';
 
   return (
     <SafeScreen style={styles.safe}>
@@ -220,24 +280,46 @@ function PartnerApp() {
             {restaurant.name}
           </Text>
           <View style={styles.storeMeta}>
-            <View style={[styles.dot, { backgroundColor: open ? c.success : c.textMuted }]} />
-            <Text style={styles.storeMetaText}>{open ? 'Taking orders' : 'Closed'}</Text>
+            <View
+              style={[
+                styles.dot,
+                { backgroundColor: !approved ? c.warning : open ? c.success : c.textMuted }
+              ]}
+            />
+            <Text style={styles.storeMetaText}>
+              {!approved
+                ? restaurant.status === 'SUSPENDED'
+                  ? 'Suspended'
+                  : restaurant.status === 'CLOSED'
+                    ? 'Closed by Quick Bites'
+                    : 'Awaiting verification'
+                : open
+                  ? 'Taking orders'
+                  : 'Closed'}
+            </Text>
             {connected && <Text style={styles.liveTag}>LIVE</Text>}
           </View>
         </View>
 
         <TouchableOpacity
-          style={[styles.kitchenToggle, open ? styles.kitchenOn : styles.kitchenOff]}
+          style={[
+            styles.kitchenToggle,
+            open ? styles.kitchenOn : styles.kitchenOff,
+            !approved && styles.kitchenLocked
+          ]}
           onPress={toggleKitchen}
           disabled={togglingKitchen}
           accessibilityRole="switch"
-          accessibilityState={{ checked: open }}
+          accessibilityState={{ checked: open, disabled: !approved }}
+          accessibilityHint={
+            approved ? undefined : 'Your restaurant has not been verified yet, so it cannot go online.'
+          }
         >
           {togglingKitchen ? (
             <ActivityIndicator size="small" color={open ? '#FFFFFF' : c.textSoft} />
           ) : (
             <Text style={[styles.kitchenToggleText, open && { color: '#FFFFFF' }]}>
-              {open ? 'Online' : 'Offline'}
+              {!approved ? 'Locked' : open ? 'Online' : 'Offline'}
             </Text>
           )}
         </TouchableOpacity>
@@ -336,6 +418,7 @@ const styles = StyleSheet.create({
   },
   kitchenOn: { backgroundColor: c.success, borderColor: c.success },
   kitchenOff: { backgroundColor: 'transparent', borderColor: c.border },
+  kitchenLocked: { backgroundColor: 'transparent', borderColor: c.warning, opacity: 0.85 },
   kitchenToggleText: { fontSize: 13, fontWeight: '800', color: c.textSoft },
   body: { flex: 1 },
   tabBar: {

@@ -119,7 +119,7 @@ version 1.1.0. Bump it before each release or Play will reject the duplicate.
   | App | Permissions | Why |
   |---|---|---|
   | Customer | `INTERNET`, `VIBRATE`, fine + coarse location, camera, microphone | Location places the delivery pin and sorts restaurants; camera is the profile photo; microphone is voice search |
-  | Partner | `INTERNET`, `VIBRATE`, fine + coarse location, camera | Location places the kitchen on the map at registration; camera photographs a dish |
+  | Partner | `INTERNET`, `VIBRATE`, fine + coarse location, camera | Location places the kitchen on the map at registration; camera photographs a dish and the FSSAI/PAN documents sent for verification |
   | Rider | `INTERNET`, `VIBRATE`, fine + coarse location, camera | Location is the delivery itself; camera is documents and the profile photo |
   | Admin | `INTERNET`, `VIBRATE` | Nothing else is needed |
 
@@ -254,12 +254,16 @@ Before an iOS release someone must:
 
 ## iOS-specific review notes
 
-- **Add usage-description strings before adding any permission-using feature.**
-  None are declared today because none of the apps currently use camera,
-  photos, contacts or location. The rider app sends simulated coordinates, not
-  device GPS. The moment real GPS is added it needs
-  `NSLocationWhenInUseUsageDescription` — Apple rejects a permission prompt with
-  no purpose string.
+- **Usage-description strings are required and are now declared.** This note
+  used to say none of the apps used camera, photos, contacts or location, and
+  that the rider sent simulated coordinates. All of that stopped being true:
+  every app takes real GPS, three of them take photographs, and the purpose
+  strings are set in each `app.json` through the `expo-image-picker` and
+  `expo-location` plugin options. Apple rejects a permission prompt with no
+  purpose string, so check these against the table above before each submission
+  — **a purpose string that no longer describes what the app does is the same
+  false declaration as a missing one**, and the partner app's said "photograph a
+  dish" for a build that also photographed a food licence.
 - **Guideline 4.2 (minimum functionality).** The partner, rider and admin apps
   are staff tools; a public listing for an app only usable by onboarded staff
   attracts scrutiny. Prefer TestFlight or a private distribution method.

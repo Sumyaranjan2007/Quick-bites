@@ -40,7 +40,15 @@ import { IncentivesScreen } from './src/screens/IncentivesScreen';
 import { WeeklyTripsScreen } from './src/screens/WeeklyTripsScreen';
 import { SafetyScreen } from './src/screens/SafetyScreen';
 import { PoliciesScreen } from './src/screens/PoliciesScreen';
-import { api, ApiError, type ApiContext, type DashboardResponse, type Trip, type TripStage } from './src/lib/api';
+import {
+  api,
+  ApiError,
+  setSessionEndedHandler,
+  type ApiContext,
+  type DashboardResponse,
+  type Trip,
+  type TripStage
+} from './src/lib/api';
 import { clearSession, loadSession, saveSession } from './src/lib/session';
 import {
   notifyNewOrder,
@@ -196,6 +204,23 @@ function DeliveryApp() {
     setSubScreen(null);
     announcedOffers.current.clear();
   }, []);
+
+  /*
+   * An account blocked, or deleted, while the app is open.
+   *
+   * A block applies to the session the rider already holds rather than to a
+   * next sign-in they are never going to make, so the refusal arrives on
+   * whatever call comes next. The session ends and the server's own words —
+   * which carry the reason an administrator recorded — are put on the login
+   * screen, where they are still readable after the sign-out.
+   */
+  useEffect(() => {
+    setSessionEndedHandler(({ message }) => {
+      setLoginError(message);
+      void handleLogout();
+    });
+    return () => setSessionEndedHandler(null);
+  }, [handleLogout]);
 
   /**
    * A token that has expired or been revoked should return the rider to the

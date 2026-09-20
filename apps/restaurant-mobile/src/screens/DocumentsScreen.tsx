@@ -1,9 +1,20 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Modal, RefreshControl, ActivityIndicator } from 'react-native';
-import { FileText, CheckCircle2, Clock3, XCircle, Upload, ShieldCheck } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Modal,
+  RefreshControl,
+  ActivityIndicator,
+  TouchableOpacity
+} from 'react-native';
+import { FileText, CheckCircle2, Clock3, XCircle, Camera, ShieldCheck } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote } from '../components/ui';
 import { fetchDocuments, uploadDocument } from '../lib/partnerApi';
+import { chooseDocumentPhoto } from '../lib/photo';
 
 interface Props {
   restaurantId: string;
@@ -18,10 +29,18 @@ interface Props {
  * now come from the server's catalogue, so what the partner is told and what the
  * reviewer enforces cannot drift apart.
  *
- * There is no file picker yet: the platform has no upload storage, so asking for
- * a file and then discarding it would be worse than being honest. The partner
- * sends the document reference and support attaches the file, which is what
- * actually happens today.
+ * THE DOCUMENT IS A PHOTOGRAPH, taken here.
+ *
+ * It was not. This screen asked for a "file reference" — a line of text — and
+ * told the partner to email the licence to support and describe here where to
+ * find it. There was no picker, no camera, no way to attach anything at all.
+ * The delivery app has photographed documents since it was written; the
+ * partner app, which is the one asking for an FSSAI licence without which a
+ * kitchen cannot legally trade, asked the partner to use their email client.
+ *
+ * What reached the reviewer was prose: "emailed on 14 Sep". Verification then
+ * depended on somebody matching that sentence to an inbox by hand, which is
+ * why partners sat at "In review" for days.
  */
 export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
   const [data, setData] = useState<any | null>(null);
@@ -31,7 +50,8 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
 
   const [target, setTarget] = useState<any | null>(null);
   const [number, setNumber] = useState('');
-  const [reference, setReference] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -57,8 +77,26 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
   const open = (slot: any) => {
     setTarget(slot);
     setNumber(slot.documentNumber || '');
-    setReference('');
+    // Never carried over from the last document: attaching the FSSAI licence to
+    // a PAN submission by accident is a rejection and another day of waiting.
+    setPhoto(null);
     setFormError(null);
+  };
+
+  const attach = async () => {
+    if (!target) return;
+    setPicking(true);
+    try {
+      const uri = await chooseDocumentPhoto(target.label);
+      if (uri) {
+        setPhoto(uri);
+        setFormError(null);
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'That photo could not be used. Try taking it again.');
+    } finally {
+      setPicking(false);
+    }
   };
 
   const send = async () => {
@@ -67,8 +105,8 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
       setFormError('Enter the number printed on the document.');
       return;
     }
-    if (reference.trim().length < 3) {
-      setFormError('Describe the file you are sending, so support can match it up.');
+    if (!photo) {
+      setFormError('Add a photo of the document. The reviewer has to be able to read it.');
       return;
     }
 
@@ -76,7 +114,7 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
     const res = await uploadDocument(restaurantId, {
       documentType: target.documentType,
       documentNumber: number.trim(),
-      fileUrl: reference.trim()
+      fileUrl: photo
     });
     setBusy(false);
 
@@ -85,6 +123,7 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
       return;
     }
     setTarget(null);
+    setPhoto(null);
     load('initial');
   };
 
@@ -175,6 +214,12 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
               </View>
             )}
 
+            {/* The photo they actually sent. Without it a partner facing a
+                rejection has no way to tell which attempt was reviewed. */}
+            {!!slot.fileUrl && slot.fileUrl.startsWith('data:image/') && (
+              <Image source={{ uri: slot.fileUrl }} style={styles.sentThumb} resizeMode="cover" />
+            )}
+
             {slot.status === 'PENDING' && (
               <Text style={styles.quiet}>Submitted {new Date(slot.submittedAt).toLocaleDateString('en-IN')}. Our team reviews within one working day.</Text>
             )}
@@ -190,8 +235,9 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
         ))}
 
         <Text style={styles.footnote}>
-          Documents are reviewed by the Quick Bites operations team. Anything rejected can be corrected and sent
-          again from this screen.
+          Documents are reviewed by the Quick Bites operations team. Your kitchen stays hidden from customers and
+          cannot go online until the required documents are approved. Anything rejected can be photographed and
+          sent again from this screen.
         </Text>
       </ScrollView>
 
@@ -200,7 +246,7 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
           <View style={styles.sheet}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <View style={styles.sheetHead}>
-                <Upload size={20} color={c.brand} />
+                <Camera size={20} color={c.brand} />
                 <Text style={styles.sheetTitle}>{target?.label}</Text>
               </View>
               <Text style={styles.sheetBody}>{target?.mustShow}</Text>
@@ -214,14 +260,33 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
                 placeholder={target?.documentType === 'FSSAI' ? '14-digit licence number' : 'As printed'}
                 autoCapitalize="characters"
               />
-              <Field
-                label="File reference"
-                value={reference}
-                onChangeText={setReference}
-                placeholder="e.g. emailed to partners@quickbite.app on 14 Sep"
-                hint={`Send the ${target?.acceptedFormats?.join('/')} to partners@quickbite.app, then note here how to find it. File upload from the app is coming.`}
-                multiline
-              />
+
+              <Text style={styles.photoLabel}>Photo of the document</Text>
+              <TouchableOpacity
+                style={[styles.photoBox, photo ? styles.photoBoxFilled : null]}
+                onPress={attach}
+                disabled={picking}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={photo ? 'Replace the document photo' : 'Add a photo of the document'}
+              >
+                {picking ? (
+                  <ActivityIndicator color={c.brand} />
+                ) : photo ? (
+                  <>
+                    {/* Shown at the size it was taken, so a partner can SEE it is
+                        blurred or cropped before a reviewer rejects it tomorrow. */}
+                    <Image source={{ uri: photo }} style={styles.preview} resizeMode="cover" />
+                    <Text style={styles.photoReplace}>Tap to take it again</Text>
+                  </>
+                ) : (
+                  <>
+                    <Camera size={22} color={c.textMuted} />
+                    <Text style={styles.photoHint}>Add a photo of the document</Text>
+                    <Text style={styles.photoSub}>Camera or gallery · lay it flat, all four corners visible</Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
               <Button label="Submit for review" onPress={send} busy={busy} />
               <Button
@@ -273,6 +338,40 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radii.lg,
     padding: spacing.xxl,
     maxHeight: '88%'
+  },
+  photoLabel: {
+    fontSize: 12,
+    color: c.textMuted,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm
+  },
+  photoBox: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: c.border,
+    backgroundColor: c.bg,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+    marginBottom: spacing.xl
+  },
+  photoBoxFilled: { borderStyle: 'solid', borderColor: c.success, paddingVertical: spacing.md },
+  photoHint: { fontSize: 14, color: c.text, fontWeight: '700', marginTop: spacing.sm },
+  photoSub: { fontSize: 12, color: c.textMuted, marginTop: 4, textAlign: 'center' },
+  photoReplace: { fontSize: 12, color: c.textMuted, marginTop: spacing.sm },
+  preview: { width: '100%', height: 180, borderRadius: radii.sm },
+  sentThumb: {
+    width: '100%',
+    height: 120,
+    borderRadius: radii.sm,
+    marginTop: spacing.md,
+    backgroundColor: c.bg
   },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   sheetTitle: { fontSize: 20, fontWeight: '800', color: c.text },

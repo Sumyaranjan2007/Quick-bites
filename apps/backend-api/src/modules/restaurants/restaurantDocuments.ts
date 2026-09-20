@@ -15,7 +15,17 @@ export type RestaurantDocumentType = (typeof RESTAURANT_DOCUMENT_TYPES)[number];
 /** Without these a restaurant cannot be approved to take orders. */
 export const MANDATORY_RESTAURANT_DOCUMENTS: RestaurantDocumentType[] = ['FSSAI', 'PAN'];
 
-export const ACCEPTED_FORMATS = ['PDF', 'JPG', 'PNG'] as const;
+/*
+ * Photographs only.
+ *
+ * PDF was advertised here for as long as this catalogue has existed and was
+ * never once accepted: the partner app has no file browser, the upload route
+ * takes an image data URI or an https link, and nothing in the platform can
+ * store or render a PDF. Telling a partner a format is accepted when the only
+ * control on the screen is a camera is how somebody spends an evening trying to
+ * attach one.
+ */
+export const ACCEPTED_FORMATS = ['JPG', 'PNG'] as const;
 export const MAX_UPLOAD_MB = 5;
 
 export interface DocumentRequirement {

@@ -108,9 +108,43 @@ async function run() {
   const bankSlot = slots.find((s: any) => s.documentType === 'BANK_PROOF');
   check('The payout account is offered as a document', Boolean(bankSlot));
 
-  const upload = await api(
+  /*
+   * What the app now sends: a photograph, as a data URI.
+   *
+   * These uploads used to post 'emailed 14 Sep' — because that is what the
+   * partner app asked for. It had no picker, so it told the partner to email
+   * the file to support and type a note here saying where to find it, and the
+   * KYC queue filled with prose a reviewer had to match against an inbox by
+   * hand. The app photographs the document now, so the fixtures do too.
+   */
+  const PHOTO =
+    'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
+
+  // A file reference that is not a file is refused now rather than filed.
+  const prose = await api(
     `/restaurants/${RESTAURANT}/documents`,
     { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: 'emailed 14 Sep' } },
+    partner.token
+  );
+  check('A note describing a file is not a document', prose.status === 400, `status ${prose.status}`);
+
+  const huge = await api(
+    `/restaurants/${RESTAURANT}/documents`,
+    {
+      method: 'POST',
+      body: {
+        documentType: 'BANK_PROOF',
+        documentNumber: 'HDFC0001234',
+        fileUrl: `data:image/jpeg;base64,${'A'.repeat(700_001)}`
+      }
+    },
+    partner.token
+  );
+  check('A photo over the ceiling is refused', huge.status === 400, `status ${huge.status}`);
+
+  const upload = await api(
+    `/restaurants/${RESTAURANT}/documents`,
+    { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: PHOTO } },
     partner.token
   );
   check('A document can be submitted', upload.status === 201, `status ${upload.status}`);
@@ -118,7 +152,7 @@ async function run() {
 
   const again = await api(
     `/restaurants/${RESTAURANT}/documents`,
-    { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: 'again' } },
+    { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: PHOTO } },
     partner.token
   );
   check('A document already under review cannot be re-sent', again.status === 409, `status ${again.status}`);
@@ -147,7 +181,7 @@ async function run() {
 
   const reupload = await api(
     `/restaurants/${RESTAURANT}/documents`,
-    { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: 'clearer scan' } },
+    { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: PHOTO } },
     partner.token
   );
   check('A rejected document can be sent again', reupload.status === 201, `status ${reupload.status}`);

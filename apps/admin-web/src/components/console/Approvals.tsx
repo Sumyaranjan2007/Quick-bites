@@ -296,10 +296,29 @@ export const DocumentReview: React.FC = () => {
                 <div>
                   <dt>File</dt>
                   <dd>
-                    {d.fileUrl ? (
-                      <span className="mono small">{d.fileUrl}</span>
-                    ) : (
+                    {/*
+                      THE DOCUMENT ITSELF, not a description of it.
+
+                      This printed `fileUrl` as monospace text. That was almost
+                      readable while partners were sending a sentence about an
+                      email — and became a wall of base64 the moment the apps
+                      started sending the actual photograph, which is roughly
+                      half a megabyte of it. A reviewer approving a food licence
+                      has to be able to READ the licence.
+                    */}
+                    {!d.fileUrl ? (
                       <span className="warn-text">no file attached</span>
+                    ) : /^(data:image\/|https?:\/\/)/.test(d.fileUrl) ? (
+                      <a href={d.fileUrl} target="_blank" rel="noreferrer noopener">
+                        <img className="doc-scan" src={d.fileUrl} alt={`${d.documentType} submitted for review`} />
+                      </a>
+                    ) : (
+                      // Anything else predates the upload control and is prose
+                      // somebody typed. Say so, rather than rendering a broken
+                      // image and leaving the reviewer to guess.
+                      <span className="warn-text">
+                        No photograph — the partner sent a note: &ldquo;{String(d.fileUrl).slice(0, 120)}&rdquo;
+                      </span>
                     )}
                   </dd>
                 </div>

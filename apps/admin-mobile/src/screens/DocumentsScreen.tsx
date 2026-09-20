@@ -32,7 +32,7 @@ export const DocumentsScreen: React.FC = () => {
   const review = async (doc: any, action: 'APPROVE' | 'REJECT' | 'REQUEST_REUPLOAD', rejectionReason?: string) => {
     setBusyId(doc.id);
     try {
-      await api.post('/admin/documents/review', {
+      const result = await api.post<any>('/admin/documents/review', {
         documentId: doc.id,
         action,
         ...(rejectionReason ? { rejectionReason } : {})
@@ -40,11 +40,27 @@ export const DocumentsScreen: React.FC = () => {
       setRejecting(null);
       setReason('');
       await list.reload();
+
+      /*
+       * The server's own words, because this screen used to guess.
+       *
+       * It said "<partner> can now trade on the platform" after EVERY
+       * approval — which was true while approving any one document approved
+       * the whole partner, and is a lie now that the required set has to be
+       * complete. A reviewer who approves a bank proof and is told the
+       * restaurant is trading will not go looking for the food licence.
+       */
+      const outcome = result?.outcome;
       Alert.alert(
-        action === 'APPROVE' ? 'Approved' : 'Sent back',
         action === 'APPROVE'
-          ? `${doc.entityName || 'The partner'} can now trade on the platform.`
-          : 'The partner has been told what to fix and can resubmit.'
+          ? outcome?.verified === false
+            ? 'Approved — still not verified'
+            : 'Approved'
+          : 'Sent back',
+        outcome?.summary ||
+          (action === 'APPROVE'
+            ? `${doc.entityName || 'The partner'} can now trade on the platform.`
+            : 'The partner has been told what to fix and can resubmit.')
       );
     } catch (err: any) {
       Alert.alert('Could not review', err?.message || 'Nothing was changed.');

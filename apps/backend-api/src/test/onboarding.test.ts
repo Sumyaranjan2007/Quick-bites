@@ -187,42 +187,99 @@ async function run() {
     },
     partnerToken
   );
-  check('The partner can submit their licence', partnerDoc.status === 200 || partnerDoc.status === 201,
-    `status ${partnerDoc.status} ${JSON.stringify(partnerDoc.json).slice(0, 160)}`);
-
-  const riderDoc = await api(
-    '/kyc/submit',
-    {
-      method: 'POST',
-      body: {
-        entityType: 'RIDER',
-        entityId: newRiderId,
-        entityName: 'Arjun Nair',
-        documentType: 'DRIVING_LICENSE',
-        fileUrl: 'https://example.test/licence.jpg'
-      }
-    },
-    riderToken
+  /*
+   * A DOCUMENT TYPE THE CATALOGUE DOES NOT KNOW IS REFUSED.
+   *
+   * This test used to submit `FSSAI_LICENSE` and pass. The requirement is
+   * called `FSSAI`, so the document was filed under a name nothing would ever
+   * look for: it sat in the review queue, an administrator approved it, and
+   * the restaurant's food licence requirement was still outstanding. It looked
+   * like it worked only because approving any single document used to approve
+   * the whole partner.
+   */
+  check(
+    'A document type the platform does not ask for is refused',
+    partnerDoc.status === 400,
+    `status ${partnerDoc.status} ${JSON.stringify(partnerDoc.json).slice(0, 160)}`
   );
-  check('The rider can submit their licence', riderDoc.status === 200 || riderDoc.status === 201,
-    `status ${riderDoc.status}`);
 
-  const partnerDocId = partnerDoc.json?.data?.document?.id;
-  const riderDocId = riderDoc.json?.data?.document?.id;
+  // Both REQUIRED documents, under the names the requirement catalogue uses.
+  const partnerDocIds: string[] = [];
+  for (const [documentType, documentNumber] of [
+    ['FSSAI', '12345678901234'],
+    ['PAN', 'ABCDE1234F']
+  ]) {
+    const sent = await api(
+      '/kyc/submit',
+      {
+        method: 'POST',
+        body: {
+          entityType: 'RESTAURANT',
+          entityId: newRestaurantId,
+          entityName: 'Meera Rao Kitchen',
+          documentType,
+          documentNumber,
+          fileUrl: 'https://example.test/doc.jpg'
+        }
+      },
+      partnerToken
+    );
+    check(`The partner can submit their ${documentType}`, sent.status === 201,
+      `status ${sent.status} ${JSON.stringify(sent.json).slice(0, 160)}`);
+    partnerDocIds.push(sent.json?.data?.document?.id);
+  }
+
+  const riderDocIds: string[] = [];
+  for (const documentType of ['DRIVING_LICENSE', 'VEHICLE_RC']) {
+    const sent = await api(
+      '/kyc/submit',
+      {
+        method: 'POST',
+        body: {
+          entityType: 'RIDER',
+          entityId: newRiderId,
+          entityName: 'Arjun Nair',
+          documentType,
+          fileUrl: 'https://example.test/licence.jpg'
+        }
+      },
+      riderToken
+    );
+    check(`The rider can submit their ${documentType}`, sent.status === 201, `status ${sent.status}`);
+    riderDocIds.push(sent.json?.data?.document?.id);
+  }
+
+  // The first of two required documents approved is not approval.
+  const firstPartner = await api(
+    '/admin/documents/review',
+    { method: 'POST', body: { documentId: partnerDocIds[0], action: 'APPROVE' } },
+    adminToken
+  );
+  check('The administrator approves the first document', firstPartner.status === 200,
+    `status ${firstPartner.status}`);
+  const halfway = newRestaurantId ? await restaurantRepository.findById(newRestaurantId) : null;
+  check(
+    'One required document of two does not open the gates',
+    halfway?.status === 'PENDING_APPROVAL',
+    String(halfway?.status)
+  );
 
   const approvePartner = await api(
     '/admin/documents/review',
-    { method: 'POST', body: { documentId: partnerDocId, action: 'APPROVE' } },
+    { method: 'POST', body: { documentId: partnerDocIds[1], action: 'APPROVE' } },
     adminToken
   );
   check('The administrator approves the restaurant', approvePartner.status === 200,
     `status ${approvePartner.status} ${JSON.stringify(approvePartner.json).slice(0, 160)}`);
 
-  const approveRider = await api(
-    '/admin/documents/review',
-    { method: 'POST', body: { documentId: riderDocId, action: 'APPROVE' } },
-    adminToken
-  );
+  let approveRider = { status: 0 } as { status: number };
+  for (const documentId of riderDocIds) {
+    approveRider = await api(
+      '/admin/documents/review',
+      { method: 'POST', body: { documentId, action: 'APPROVE' } },
+      adminToken
+    );
+  }
   check('and the rider', approveRider.status === 200, `status ${approveRider.status}`);
 
   // ------------------------------------------------------------------

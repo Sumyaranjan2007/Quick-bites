@@ -4,7 +4,7 @@ import { Plus, Clock3, CheckCircle2, XCircle, Camera, Image as ImageIcon, X } fr
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
 import { fetchMenu, setDishStock, submitMenuRequest, fetchMenuRequests } from '../lib/partnerApi';
-import { pickDishPhoto } from '../lib/dishPhoto';
+import { pickDishPhoto } from '../lib/photo';
 
 interface Props {
   restaurantId: string;

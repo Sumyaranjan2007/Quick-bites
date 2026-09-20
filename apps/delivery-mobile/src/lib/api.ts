@@ -25,6 +25,19 @@ export interface ApiContext {
   token?: string;
 }
 
+/**
+ * What the app does when the server says this account may no longer act.
+ *
+ * Registered by the shell rather than imported from it, so this module goes on
+ * knowing nothing about the screens.
+ */
+type SessionEndedReason = { code: 'ACCOUNT_BLOCKED' | 'ACCOUNT_NOT_FOUND'; message: string };
+let onSessionEnded: ((reason: SessionEndedReason) => void) | null = null;
+
+export function setSessionEndedHandler(handler: ((reason: SessionEndedReason) => void) | null): void {
+  onSessionEnded = handler;
+}
+
 async function request<T>(
   ctx: ApiContext,
   path: string,
@@ -76,7 +89,20 @@ async function request<T>(
       (typeof body?.error === 'string' ? body.error : null) ||
       body?.message ||
       'Something went wrong. Please try again.';
-    throw new ApiError(message, body?.error?.code || 'REQUEST_FAILED', res.status);
+    const code = body?.error?.code || 'REQUEST_FAILED';
+    /*
+     * The account was blocked, or removed, while the app was open.
+     *
+     * A block now applies to the session a rider already holds rather than to
+     * a next sign-in that a blocked account is never going to make, so the
+     * refusal arrives on whatever call happens next — a shift toggle, a
+     * telemetry ping, an offer. Left alone, the rider stays on a dashboard
+     * that refuses everything with no explanation of why.
+     */
+    if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_NOT_FOUND') {
+      onSessionEnded?.({ code, message });
+    }
+    throw new ApiError(message, code, res.status);
   }
 
   return body.data as T;

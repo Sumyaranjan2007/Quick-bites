@@ -5,16 +5,65 @@ import { restaurantRepository } from '../db/repositories/restaurantRepository.ts
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
+import { RIDER_DOCUMENT_TYPES, MANDATORY_RIDER_DOCUMENTS } from '../db/repositories/riderRepository.ts';
+import {
+  RESTAURANT_DOCUMENT_TYPES,
+  buildDocumentOverview
+} from '../modules/restaurants/restaurantDocuments.ts';
+import { triggerAutoSave } from '../db/client.ts';
 
 export const kycRouter = Router();
 
-const SubmitKycSchema = z.object({
-  entityType: z.enum(['RESTAURANT', 'RIDER']),
-  entityId: z.string().min(1, 'entityId is required'),
-  entityName: z.string().min(1, 'entityName is required'),
-  documentType: z.string().min(1, 'documentType is required'),
-  fileUrl: z.string().min(1, 'fileUrl is required')
-});
+/*
+ * ONE VOCABULARY, shared with the requirement catalogues.
+ *
+ * `documentType` used to be any non-empty string here, while the partner and
+ * rider routes accept a fixed enum and the requirement catalogues are written
+ * in that same enum. So a client could submit `FSSAI_LICENSE` through this
+ * route — a plausible-looking name that is not the `FSSAI` the catalogue asks
+ * for — and the document would be filed, queued, and approved by a reviewer
+ * without ever satisfying the requirement it was sent to satisfy.
+ *
+ * Nothing caught it because approving any single document used to approve the
+ * whole partner. With approval now derived from the catalogue, a document
+ * filed under a name the catalogue does not know is a document that can never
+ * verify anybody, and the partner waits for an approval that has already
+ * happened.
+ *
+ * A type is checked against the ENTITY it belongs to, so a rider cannot file a
+ * FSSAI licence and a restaurant cannot file a driving licence.
+ */
+const ENTITY_DOCUMENT_TYPES: Record<string, readonly string[]> = {
+  RESTAURANT: RESTAURANT_DOCUMENT_TYPES,
+  RIDER: RIDER_DOCUMENT_TYPES
+};
+
+const SubmitKycSchema = z
+  .object({
+    entityType: z.enum(['RESTAURANT', 'RIDER']),
+    entityId: z.string().min(1, 'entityId is required'),
+    entityName: z.string().min(1, 'entityName is required'),
+    documentType: z.string().min(1, 'documentType is required'),
+    /* Bounded and typed as on the partner and rider routes: a photograph or a
+     * link to one, never a sentence describing where the file was emailed. */
+    fileUrl: z
+      .string()
+      .max(700_000, 'That photo is too large. Take a new one from inside the app.')
+      .refine(
+        v => v.startsWith('data:image/') || /^https?:\/\//.test(v),
+        'Attach a photo of the document.'
+      )
+  })
+  .superRefine((value, ctx) => {
+    const allowed = ENTITY_DOCUMENT_TYPES[value.entityType] || [];
+    if (!allowed.includes(value.documentType)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['documentType'],
+        message: `Not a document this platform asks for. Expected one of: ${allowed.join(', ')}.`
+      });
+    }
+  });
 
 /**
  * KYC records carry government identity numbers. Both routes used to accept any
@@ -53,14 +102,27 @@ kycRouter.post('/submit', validate({ body: SubmitKycSchema }), async (req, res, 
       fileUrl
     });
 
-    // Update entity status to PENDING_APPROVAL
+    /*
+     * A submission puts the entity back into review — unless it is already
+     * trading, in which case sending an optional extra document must not
+     * quietly un-verify a live restaurant or take a rider off the road.
+     *
+     * The restaurant branch used to assign `rest.kycStatus` directly and never
+     * call `triggerAutoSave`, so the change survived only if some unrelated
+     * write happened to save the store before the next restart. That is the
+     * same defect the kitchen toggle and the document review both had.
+     */
     if (entityType === 'RESTAURANT') {
       const rest = await restaurantRepository.findById(entityId);
-      if (rest) {
+      if (rest && rest.status !== 'ACTIVE' && rest.kycStatus !== 'ACTIVE') {
         rest.kycStatus = 'PENDING_APPROVAL';
+        triggerAutoSave();
       }
     } else if (entityType === 'RIDER') {
-      await riderRepository.updateKycStatus(entityId, 'PENDING_APPROVAL');
+      const rider = await riderRepository.findById(entityId);
+      if (rider && rider.kycStatus !== 'ACTIVE') {
+        await riderRepository.updateKycStatus(entityId, 'PENDING_APPROVAL');
+      }
     }
 
     return res.status(201).json({
@@ -81,11 +143,31 @@ kycRouter.get('/status/:entityType/:entityId', async (req, res, next) => {
 
     const docs = await kycRepository.findByEntity(entityType as any, entityId);
 
-    let overallStatus = 'PENDING_APPROVAL';
-    if (docs.some(d => d.status === 'APPROVED')) {
-      overallStatus = 'ACTIVE';
-    } else if (docs.some(d => d.status === 'REJECTED')) {
-      overallStatus = 'REJECTED';
+    /*
+     * ACTIVE means every REQUIRED document is approved, not that one of them is.
+     *
+     * This read said ACTIVE as soon as any single document was approved, so a
+     * restaurant with an approved bank proof and no food licence reported
+     * itself verified to anything asking — which is the same mistake the review
+     * route made when it wrote the decision.
+     */
+    let overallStatus: string;
+    if (entityType === 'RESTAURANT') {
+      const overview = buildDocumentOverview(docs);
+      const requiredRejected = overview.slots.some(s => s.required && s.status === 'REJECTED');
+      overallStatus = overview.verified ? 'ACTIVE' : requiredRejected ? 'REJECTED' : 'PENDING_APPROVAL';
+    } else {
+      const approved = new Set(docs.filter(d => d.status === 'APPROVED').map(d => d.documentType));
+      const requiredRejected = docs.some(
+        d =>
+          d.status === 'REJECTED' &&
+          (MANDATORY_RIDER_DOCUMENTS as readonly string[]).includes(d.documentType)
+      );
+      overallStatus = MANDATORY_RIDER_DOCUMENTS.every(t => approved.has(t))
+        ? 'ACTIVE'
+        : requiredRejected
+          ? 'REJECTED'
+          : 'PENDING_APPROVAL';
     }
 
     return res.json({

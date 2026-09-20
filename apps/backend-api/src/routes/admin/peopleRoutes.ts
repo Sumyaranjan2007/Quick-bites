@@ -11,6 +11,8 @@ import { AppError } from '../../utils/AppError.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
+import { MANDATORY_RIDER_DOCUMENTS } from '../../db/repositories/riderRepository.ts';
+import { buildDocumentOverview } from '../../modules/restaurants/restaurantDocuments.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { kycRepository } from '../../db/repositories/kycRepository.ts';
@@ -18,9 +20,47 @@ import { payoutRepository } from '../../db/repositories/payoutRepository.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
+import { setRiderOfferPoolMembership } from '../../sockets/socketServer.ts';
 import type { Order } from '@quick-bites/shared-types';
 
 export const peopleRoutes = Router();
+
+/**
+ * Blocking the LOGIN ACCOUNT behind a rider or a restaurant.
+ *
+ * Suspending and blocking are deliberately different things, and both are
+ * needed:
+ *
+ *   SUSPEND (a rider's kycStatus, a restaurant's status) stops them trading.
+ *   They can still sign in, read why, fix a rejected document and talk to
+ *   support. That is the normal case — almost every suspension is a problem
+ *   somebody is expected to resolve, and locking them out of the screen that
+ *   explains it guarantees they cannot.
+ *
+ *   BLOCK (`user.isBlocked`) locks the account out of the platform entirely.
+ *   It is for fraud and abuse, and it is the lever that had no equivalent for
+ *   partners or riders at all — only customers could be blocked, so a rider
+ *   running a refund scam could be suspended from delivering and go on using
+ *   every other endpoint with the same token.
+ *
+ * Blocking takes effect on the next request rather than the next sign-in; see
+ * `middlewares/auth.ts`.
+ */
+async function setAccountBlocked(
+  userId: string | undefined,
+  isBlocked: boolean,
+  blockReason: string | undefined
+): Promise<void> {
+  if (!userId) return;
+  const user = await userRepository.findById(userId);
+  if (!user) return;
+  await userRepository.update(userId, {
+    isBlocked,
+    // Cleared on unblock rather than left behind, or the next block with no
+    // reason given would quietly reuse the last one.
+    blockReason: isBlocked ? blockReason || '' : ''
+  } as any);
+}
 
 /* ------------------------------- Customers ------------------------------- */
 
@@ -204,6 +244,11 @@ peopleRoutes.get('/drivers', requirePermission('users.drivers.view'), async (req
         phone: rider.phone,
         vehicleType: rider.vehicleType,
         kycStatus: rider.kycStatus,
+        // The account lock, which is a different thing from the KYC state and
+        // was previously invisible on this screen — so an administrator could
+        // block a rider and then see no trace of having done it.
+        isBlocked: Boolean((memoryStore.users.get(rider.userId) as any)?.isBlocked),
+        blockReason: (memoryStore.users.get(rider.userId) as any)?.blockReason || '',
         isOnline: rider.isOnline,
         onlineSince: rider.onlineSince,
         lastPingAt: rider.lastPingAt,
@@ -237,6 +282,7 @@ peopleRoutes.get('/drivers', requirePermission('users.drivers.view'), async (req
     if (status === 'ACTIVE') drivers = drivers.filter(d => d.kycStatus === 'ACTIVE');
     if (status === 'PENDING') drivers = drivers.filter(d => d.kycStatus === 'PENDING_APPROVAL');
     if (status === 'SUSPENDED') drivers = drivers.filter(d => d.kycStatus === 'SUSPENDED');
+    if (status === 'BLOCKED') drivers = drivers.filter(d => d.isBlocked);
     if (q) drivers = drivers.filter(d => matchesQuery(q, d.fullName, d.driverCode, d.phone, d.id));
 
     drivers.sort((a, b) => Number(b.isOnline) - Number(a.isOnline) || b.trips - a.trips);
@@ -260,6 +306,11 @@ peopleRoutes.get('/drivers/:id', requirePermission('users.drivers.view'), async 
       success: true,
       data: {
         driver: rider,
+        account: {
+          userId: rider.userId,
+          isBlocked: Boolean((memoryStore.users.get(rider.userId) as any)?.isBlocked),
+          blockReason: (memoryStore.users.get(rider.userId) as any)?.blockReason || ''
+        },
         documents: await kycRepository.findByEntity('RIDER', rider.id),
         wallet: await walletRepository.getByUserId(rider.userId),
         payouts: await payoutRepository.list({ riderId: rider.id }),
@@ -283,6 +334,9 @@ const DriverUpdateSchema = z.object({
   phone: z.string().trim().max(20).optional(),
   vehicleType: z.enum(['BIKE', 'EV', 'CYCLE']).optional(),
   kycStatus: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'SUSPENDED', 'REJECTED']).optional(),
+  /** Locks the rider's login account. See `setAccountBlocked` above. */
+  isBlocked: z.boolean().optional(),
+  blockReason: z.string().trim().max(300).optional(),
   reason: z.string().trim().max(300).optional()
 });
 
@@ -296,8 +350,13 @@ peopleRoutes.patch(
       const rider = await riderRepository.findById(req.params.id);
       if (!rider) throw new AppError('Delivery partner not found.', 404, 'RIDER_NOT_FOUND');
 
-      const { kycStatus, reason, ...fields } = req.body;
-      const before = { kycStatus: rider.kycStatus, ...fields };
+      const { kycStatus, reason, isBlocked, blockReason, ...fields } = req.body;
+      const owner = await userRepository.findById(rider.userId);
+      const before = {
+        kycStatus: rider.kycStatus,
+        isBlocked: Boolean((owner as any)?.isBlocked),
+        ...fields
+      };
 
       if (Object.keys(fields).length) await riderRepository.update(rider.id, fields);
       // Routed through updateKycStatus rather than a plain patch so the
@@ -305,8 +364,25 @@ peopleRoutes.patch(
       // cannot be skipped.
       if (kycStatus) await riderRepository.updateKycStatus(rider.id, kycStatus);
 
+      if (isBlocked !== undefined) {
+        await setAccountBlocked(rider.userId, isBlocked, blockReason);
+        if (isBlocked) {
+          // Off shift and out of the dispatch pool immediately. A blocked rider
+          // holding an open socket would otherwise keep receiving offers until
+          // it dropped, and every offer they take is a customer's dinner.
+          await riderRepository.updateOnlineStatus(rider.id, false);
+          setRiderOfferPoolMembership(rider.userId, false);
+        }
+      }
+
       recordAudit(req, {
-        action: kycStatus ? `DRIVER_${kycStatus}` : 'DRIVER_UPDATED',
+        action: isBlocked !== undefined
+          ? isBlocked
+            ? 'DRIVER_BLOCKED'
+            : 'DRIVER_UNBLOCKED'
+          : kycStatus
+            ? `DRIVER_${kycStatus}`
+            : 'DRIVER_UPDATED',
         entityType: 'RIDER',
         entityId: rider.id,
         summary: `Updated delivery partner ${rider.fullName}${reason ? ` — ${reason}` : ''}`,
@@ -344,6 +420,8 @@ peopleRoutes.get('/restaurants', requirePermission('users.restaurants.view'), as
         cuisineTags: restaurant.cuisineTags,
         status: restaurant.status,
         kycStatus: restaurant.kycStatus,
+        isBlocked: Boolean((memoryStore.users.get(restaurant.ownerId) as any)?.isBlocked),
+        blockReason: (memoryStore.users.get(restaurant.ownerId) as any)?.blockReason || '',
         isOpen: restaurant.isOpen,
         isPureVeg: restaurant.isPureVeg,
         rating: restaurant.ratingAverage,
@@ -357,7 +435,8 @@ peopleRoutes.get('/restaurants', requirePermission('users.restaurants.view'), as
       };
     });
 
-    if (status && status !== 'ALL') restaurants = restaurants.filter(r => r.status === status);
+    if (status === 'BLOCKED') restaurants = restaurants.filter(r => r.isBlocked);
+    else if (status && status !== 'ALL') restaurants = restaurants.filter(r => r.status === status);
     if (q) restaurants = restaurants.filter(r => matchesQuery(q, r.name, r.city, r.phone, r.id));
 
     restaurants.sort((a, b) => b.revenue - a.revenue);
@@ -382,7 +461,16 @@ peopleRoutes.get('/restaurants/:id', requirePermission('users.restaurants.view')
       success: true,
       data: {
         restaurant,
-        owner: owner ? { id: owner.id, fullName: owner.fullName, email: owner.email, phone: owner.phone } : null,
+        owner: owner
+          ? {
+              id: owner.id,
+              fullName: owner.fullName,
+              email: owner.email,
+              phone: owner.phone,
+              isBlocked: Boolean((owner as any).isBlocked),
+              blockReason: (owner as any).blockReason || ''
+            }
+          : null,
         menu: memoryStore.menus.get(restaurant.id) || null,
         documents: await kycRepository.findByEntity('RESTAURANT', restaurant.id),
         orders: orders.slice(0, 50).map(summariseOrder),
@@ -429,6 +517,9 @@ const RestaurantUpdateSchema = z.object({
     .optional(),
   /** How far this kitchen delivers. Bounded as at registration. */
   serviceRadiusKm: z.number().min(1).max(25).optional(),
+  /** Locks the owner's login account. See `setAccountBlocked` above. */
+  isBlocked: z.boolean().optional(),
+  blockReason: z.string().trim().max(300).optional(),
   reason: z.string().trim().max(300).optional()
 });
 
@@ -442,8 +533,13 @@ peopleRoutes.patch(
       const restaurant = await restaurantRepository.findById(req.params.id);
       if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
 
-      const { reason, status, ...fields } = req.body;
-      const before = { status: restaurant.status, name: restaurant.name };
+      const { reason, status, isBlocked, blockReason, ...fields } = req.body;
+      const owner = await userRepository.findById(restaurant.ownerId);
+      const before = {
+        status: restaurant.status,
+        name: restaurant.name,
+        isBlocked: Boolean((owner as any)?.isBlocked)
+      };
 
       Object.assign(restaurant, fields);
       if (status) {
@@ -455,11 +551,24 @@ peopleRoutes.patch(
         // A partner that is not trading must not keep taking orders.
         if (status !== 'ACTIVE') restaurant.isOpen = false;
       }
+      if (isBlocked !== undefined) {
+        await setAccountBlocked(restaurant.ownerId, isBlocked, blockReason);
+        // A kitchen whose owner cannot sign in must not be left showing as
+        // open to customers with nobody able to accept an order.
+        if (isBlocked) restaurant.isOpen = false;
+      }
+
       memoryStore.restaurants.set(restaurant.id, restaurant);
       triggerAutoSave();
 
       recordAudit(req, {
-        action: status ? `RESTAURANT_${status}` : 'RESTAURANT_UPDATED',
+        action: isBlocked !== undefined
+          ? isBlocked
+            ? 'RESTAURANT_OWNER_BLOCKED'
+            : 'RESTAURANT_OWNER_UNBLOCKED'
+          : status
+            ? `RESTAURANT_${status}`
+            : 'RESTAURANT_UPDATED',
         entityType: 'RESTAURANT',
         entityId: restaurant.id,
         summary: `Updated restaurant ${restaurant.name}${reason ? ` — ${reason}` : ''}`,
@@ -522,23 +631,145 @@ peopleRoutes.post(
       const doc = await kycRepository.reviewDocument(documentId, status, rejectionReason);
       if (!doc) throw new AppError('Document not found.', 404, 'DOCUMENT_NOT_FOUND');
 
+      /*
+       * The decision is re-derived from EVERY document, not taken from this one.
+       *
+       * This block used to read `action === 'APPROVE' ? 'ACTIVE' : 'REJECTED'`
+       * and activate the restaurant on any single approval. Two consequences,
+       * both of which put an unverified kitchen in front of customers:
+       *
+       *   - Approving ONE document approved the restaurant. A partner who
+       *     submitted only a bank account proof — which is OPTIONAL — became
+       *     ACTIVE, visible, and able to take orders with no FSSAI food
+       *     licence on file at all. The one document a kitchen may not legally
+       *     trade without was the one nothing checked for.
+       *
+       *   - Rejecting one document rejected the restaurant. Turning down an
+       *     optional GST registration marked the whole partner REJECTED while
+       *     leaving `status` ACTIVE, so its KYC said one thing and its trading
+       *     state said another.
+       *
+       * `buildDocumentOverview` already answers the real question — are all the
+       * MANDATORY documents approved — and it is the same function the partner
+       * app renders, so what the partner is told and what the platform enforces
+       * cannot drift apart.
+       */
+      /*
+       * What the decision achieved, reported back.
+       *
+       * A reviewer used to approve one document and the partner went live, so
+       * there was nothing to say. Now that approval is derived from the whole
+       * required set, the reviewer needs to know which of the two it was:
+       * "one more to go" or "this restaurant is now trading". Without it they
+       * approve a licence, see nothing happen, and go looking for a button
+       * that does not exist.
+       */
+      let outcome: {
+        verified: boolean;
+        outstanding: string[];
+        entityStatus?: string;
+        summary: string;
+      } | null = null;
+
       if (doc.entityType === 'RESTAURANT') {
         const restaurant = await restaurantRepository.findById(doc.entityId);
         if (restaurant) {
-          // Through the repository so the decision is written down. Assigning the
-          // fields and calling memoryStore.set skipped triggerAutoSave, so an
-          // approval survived only if some unrelated write happened to save the
-          // store before the next restart — the same shape as the kitchen toggle.
-          await restaurantRepository.updateKycStatus(
-            restaurant.id,
-            action === 'APPROVE' ? 'ACTIVE' : 'REJECTED'
+          const overview = buildDocumentOverview(
+            await kycRepository.findByEntity('RESTAURANT', restaurant.id)
           );
-          if (action === 'APPROVE' && restaurant.status === 'PENDING_APPROVAL') {
+          const mandatoryRejected = overview.slots.some(s => s.required && s.status === 'REJECTED');
+
+          // Through the repository so the decision is written down. Assigning
+          // the fields and calling memoryStore.set skipped triggerAutoSave, so
+          // an approval survived only if some unrelated write happened to save
+          // the store first — the same shape as the kitchen toggle.
+          /*
+           * An APPROVAL never reduces standing.
+           *
+           * Writing the computed status unconditionally would take a trading
+           * restaurant back to PENDING_APPROVAL the moment somebody approved
+           * an optional extra document for it — including every partner an
+           * administrator activated by hand, whose required documents were
+           * verified outside the queue. Only a rejection moves anybody
+           * backwards.
+           */
+          if (overview.verified) {
+            await restaurantRepository.updateKycStatus(restaurant.id, 'ACTIVE');
+          } else if (mandatoryRejected) {
+            await restaurantRepository.updateKycStatus(restaurant.id, 'REJECTED');
+          } else if (restaurant.kycStatus !== 'ACTIVE') {
+            await restaurantRepository.updateKycStatus(restaurant.id, 'PENDING_APPROVAL');
+          }
+
+          if (overview.verified && restaurant.status === 'PENDING_APPROVAL') {
             await restaurantRepository.updateStatus(restaurant.id, 'ACTIVE');
           }
+
+          /*
+           * A required document rejected on a kitchen that is already trading
+           * takes it out of trading.
+           *
+           * This is the unpleasant case and it is the right one: an FSSAI
+           * licence turned down as expired or forged means the kitchen may not
+           * sell food today, and leaving it open because it was open an hour
+           * ago is the platform knowingly listing an unlicensed kitchen. Back
+           * to PENDING_APPROVAL rather than SUSPENDED, because the partner is
+           * expected to photograph a valid one and send it again.
+           */
+          if (mandatoryRejected && restaurant.status === 'ACTIVE') {
+            await restaurantRepository.updateStatus(restaurant.id, 'PENDING_APPROVAL');
+            await restaurantRepository.setOpenState(restaurant.id, false);
+          }
+
+          const after = await restaurantRepository.findById(restaurant.id);
+          const stillNeeded = overview.slots
+            .filter(s => s.required && s.status !== 'APPROVED')
+            .map(s => s.label);
+          outcome = {
+            verified: overview.verified,
+            outstanding: stillNeeded,
+            entityStatus: after?.status,
+            summary: overview.verified
+              ? `${restaurant.name} is verified and now trading.`
+              : mandatoryRejected
+                ? `${restaurant.name} is not verified and has been taken off the customer feed. Still needed: ${stillNeeded.join(', ')}.`
+                : `Recorded. ${restaurant.name} is not verified yet — still needed: ${stillNeeded.join(', ')}.`
+          };
         }
       } else if (doc.entityType === 'RIDER') {
-        await riderRepository.updateKycStatus(doc.entityId, action === 'APPROVE' ? 'ACTIVE' : 'REJECTED');
+        // The same rule for riders. Their shift gate separately requires an
+        // approved licence and RC, so this was not reachable as an unlicensed
+        // rider on the road — but a rider whose AADHAAR was approved read as
+        // ACTIVE everywhere operations looked, which is the figure a dispatcher
+        // trusts.
+        const riderDocs = await kycRepository.findByEntity('RIDER', doc.entityId);
+        const approvedTypes = new Set(
+          riderDocs.filter(d => d.status === 'APPROVED').map(d => d.documentType)
+        );
+        const mandatoryRejected = riderDocs.some(
+          d => d.status === 'REJECTED' && (MANDATORY_RIDER_DOCUMENTS as readonly string[]).includes(d.documentType)
+        );
+        const allMandatoryApproved = MANDATORY_RIDER_DOCUMENTS.every(t => approvedTypes.has(t));
+
+        const currentRider = await riderRepository.findById(doc.entityId);
+        if (allMandatoryApproved) {
+          await riderRepository.updateKycStatus(doc.entityId, 'ACTIVE');
+        } else if (mandatoryRejected) {
+          await riderRepository.updateKycStatus(doc.entityId, 'REJECTED');
+        } else if (currentRider && currentRider.kycStatus !== 'ACTIVE') {
+          await riderRepository.updateKycStatus(doc.entityId, 'PENDING_APPROVAL');
+        }
+
+        const stillNeeded = MANDATORY_RIDER_DOCUMENTS.filter(t => !approvedTypes.has(t)) as string[];
+        const afterRider = await riderRepository.findById(doc.entityId);
+        outcome = {
+          verified: allMandatoryApproved,
+          outstanding: stillNeeded,
+          entityStatus: afterRider?.kycStatus,
+          summary: allMandatoryApproved
+            ? `${doc.entityName || 'This rider'} is verified and can go online.`
+            : `Recorded. Still needed before they can go online: ${stillNeeded.join(', ')}.`
+        };
       }
 
       recordAudit(req, {
@@ -551,7 +782,11 @@ peopleRoutes.post(
         after: { status }
       });
 
-      res.json({ success: true, data: { document: doc } });
+      res.json({
+        success: true,
+        data: { document: doc, outcome },
+        message: outcome?.summary
+      });
     } catch (err) {
       next(err);
     }
