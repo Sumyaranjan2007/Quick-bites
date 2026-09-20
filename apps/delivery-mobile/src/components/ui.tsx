@@ -54,16 +54,21 @@ export const SectionTitle: React.FC<{ children: string; action?: string; onActio
 export const Button: React.FC<{
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'money';
+  variant?: 'primary' | 'go' | 'secondary' | 'ghost' | 'danger' | 'money';
   size?: 'md' | 'lg';
   icon?: React.ReactNode;
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
 }> = ({ label, onPress, variant = 'primary', size = 'md', icon, disabled, loading, style }) => {
+  // Primary is the brand burgundy, not the go-green. Green stays reserved for
+  // the one thing it means in this app — the rider is on shift and moving — so
+  // a sign-in button and a "you are live" badge cannot be confused at a glance
+  // on a handlebar.
   const palette: Record<string, { bg: string; fg: string; border?: string }> = {
-    primary: { bg: t.color.go, fg: '#04231A' },
-    money: { bg: t.color.money, fg: '#3A2708' },
+    primary: { bg: t.color.brand, fg: '#FFF7E8' },
+    go: { bg: t.color.go, fg: '#FFF7E8' },
+    money: { bg: t.color.money, fg: '#FFF7E8' },
     secondary: { bg: t.color.surfaceRaised, fg: t.color.text, border: t.color.borderStrong },
     ghost: { bg: 'transparent', fg: t.color.textSecondary, border: t.color.border },
     danger: { bg: t.color.danger, fg: '#FFFFFF' }
