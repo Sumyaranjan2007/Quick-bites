@@ -64,7 +64,13 @@ export function isRazorpayConfigured(): boolean {
   return Boolean(
     config.RAZORPAY_KEY_ID &&
       config.RAZORPAY_KEY_SECRET &&
-      config.RAZORPAY_KEY_ID.startsWith('rzp_')
+      config.RAZORPAY_KEY_ID.startsWith('rzp_') &&
+      // `requireSecret` hands back a random `dev-only-...` value outside
+      // production when the secret is absent. A key id with that as its secret
+      // reports itself as configured and then fails every signature check, so
+      // the customer reaches the payment sheet and the confirmation is refused
+      // afterwards — the worst order to discover it in.
+      !config.RAZORPAY_KEY_SECRET.startsWith('dev-only-')
   );
 }
 

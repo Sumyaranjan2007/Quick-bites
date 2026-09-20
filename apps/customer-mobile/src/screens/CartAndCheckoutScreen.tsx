@@ -125,7 +125,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
    * module linked. Offering a method that fails at the last step of a checkout
    * is worse than not offering it, so the option only appears when both hold.
    */
-  const [paymentMethod, setPaymentMethod] = useState<'CASH_ON_DELIVERY' | 'RAZORPAY'>(
+  // 'RAZORPAY_SANDBOX' is what POST /orders accepts and what is stored on
+  // every order. The name is historical; the path carries live keys.
+  const [paymentMethod, setPaymentMethod] = useState<'CASH_ON_DELIVERY' | 'RAZORPAY_SANDBOX'>(
     'CASH_ON_DELIVERY'
   );
   const [onlineKeyId, setOnlineKeyId] = useState<string | null>(null);
@@ -803,7 +805,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           {onlineAvailable ? (
             <View style={styles.methodList}>
               {([
-                { key: 'RAZORPAY', label: 'Pay now', hint: 'UPI, cards, netbanking or wallet' },
+                { key: 'RAZORPAY_SANDBOX', label: 'Pay now', hint: 'UPI, cards, netbanking or wallet' },
                 { key: 'CASH_ON_DELIVERY', label: 'Cash on delivery', hint: 'Pay the rider at your door' }
               ] as const).map(m => {
                 const active = paymentMethod === m.key;
@@ -960,7 +962,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         <View>
           <Text style={styles.payBarAmount}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
           <Text style={styles.payBarSub}>
-            {paymentMethod === 'RAZORPAY' ? 'Pay online' : 'Cash on delivery'}
+            {paymentMethod === 'RAZORPAY_SANDBOX' ? 'Pay online' : 'Cash on delivery'}
           </Text>
         </View>
         <TouchableOpacity

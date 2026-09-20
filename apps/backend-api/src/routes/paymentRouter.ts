@@ -31,6 +31,7 @@ import { razorpayAdapter, isRazorpayConfigured } from '../modules/payments/razor
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { orderService } from '../modules/orders/orderService.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
+import { config } from '../config/env.ts';
 
 export const paymentRouter = Router();
 
@@ -50,8 +51,19 @@ paymentRouter.get('/config', (_req, res) => {
       online: isRazorpayConfigured(),
       // The publishable key. Not a secret — it identifies the merchant to the
       // checkout. The key secret never leaves the server.
-      keyId: isRazorpayConfigured() ? process.env.RAZORPAY_KEY_ID : null,
-      methods: isRazorpayConfigured() ? ['CASH_ON_DELIVERY', 'RAZORPAY'] : ['CASH_ON_DELIVERY']
+      keyId: isRazorpayConfigured() ? config.RAZORPAY_KEY_ID : null,
+      /**
+       * The values the ORDER endpoint accepts, not prettier synonyms of them.
+       *
+       * This advertised 'RAZORPAY' while `POST /orders` has only ever accepted
+       * 'RAZORPAY_SANDBOX', so a client that believed this endpoint was refused
+       * at the moment it tried to place the order. The name is historical — the
+       * same path now carries live keys — but it is the value stored on every
+       * existing order, so it is the value that stays.
+       */
+      methods: isRazorpayConfigured()
+        ? ['CASH_ON_DELIVERY', 'RAZORPAY_SANDBOX']
+        : ['CASH_ON_DELIVERY']
     }
   });
 });

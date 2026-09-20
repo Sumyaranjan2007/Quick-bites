@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
+import { config } from '../config/env.ts';
 import { razorpayAdapter, isRazorpayConfigured } from '../modules/payments/razorpayAdapter.ts';
 import {
   listPlans,
@@ -92,7 +93,7 @@ membershipRouter.post(
           // The publishable key, returned with the thing it is needed for.
           // Making the client fetch it separately from /payments/config is one
           // more call that can fail between choosing a plan and paying for it.
-          keyId: process.env.RAZORPAY_KEY_ID
+          keyId: config.RAZORPAY_KEY_ID
         }
       });
     } catch (err) {

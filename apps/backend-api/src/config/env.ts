@@ -6,8 +6,23 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from root or apps/backend-api
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+/**
+ * Load .env from the repository root, then from apps/backend-api.
+ *
+ * The first path used to be '../../../.env'. This file lives in
+ * apps/backend-api/src/config, so three levels up is `apps/` — not the
+ * repository root, and there has never been a .env there. The second was
+ * '../../.env', which is apps/backend-api/.env, and there has never been one
+ * of those either.
+ *
+ * So NEITHER file existed and the root .env was never read. Every local run
+ * has been on the fallback defaults below, silently: a developer setting
+ * RAZORPAY_KEY_ID in the .env they were told to edit got a server that did not
+ * know about it, and the only symptom was a payment failing against a sample
+ * key. Production was unaffected, because Railway sets real environment
+ * variables and never relied on this.
+ */
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -77,7 +92,15 @@ export const config = {
   
   // Razorpay — the secret verifies payment signatures, so a published default
   // would let anyone mint a "paid" order.
-  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_samplekey123',
+  /**
+   * No fallback. This used to default to 'rzp_test_samplekey123', which begins
+   * with 'rzp_' and therefore satisfied `isRazorpayConfigured()` — so a
+   * deployment with no Razorpay keys at all reported that online payment was
+   * available, offered "Pay now" at checkout, and failed when Razorpay refused
+   * the sample key. A configuration check that a placeholder can satisfy is
+   * worse than no check, because it answers confidently and wrongly.
+   */
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || '',
   RAZORPAY_KEY_SECRET: requireSecret('RAZORPAY_KEY_SECRET', process.env.RAZORPAY_KEY_SECRET),
 
   /**
