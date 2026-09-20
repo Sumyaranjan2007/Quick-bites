@@ -410,6 +410,25 @@ const RestaurantUpdateSchema = z.object({
   packagingFee: z.number().min(0).max(200).optional(),
   isPureVeg: z.boolean().optional(),
   status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'SUSPENDED', 'CLOSED']).optional(),
+  /**
+   * Where the kitchen actually is.
+   *
+   * Editable here because there was nowhere else. Every restaurant onboarded
+   * before the partner app grew a map carries the register route's placeholder
+   * — the centre of Bengaluru — and the partner app can only set a pin during
+   * REGISTRATION. So a live restaurant sitting thirty kilometres from itself
+   * had no route back to the truth: not through its own app, not through
+   * operations, not at all. It was listed (see restaurantLocation.ts) but never
+   * measured, so it could never show a real distance or delivery time.
+   */
+  coordinates: z
+    .object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180)
+    })
+    .optional(),
+  /** How far this kitchen delivers. Bounded as at registration. */
+  serviceRadiusKm: z.number().min(1).max(25).optional(),
   reason: z.string().trim().max(300).optional()
 });
 

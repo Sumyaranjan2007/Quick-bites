@@ -393,6 +393,50 @@ async function run() {
   check('A restaurant that IS placed is still measured and still filtered',
     unplacedList.some((r: any) => r.locationPending === false && typeof r.distanceKm === 'number'));
 
+  // Operations can correct a placeholder position.
+  //
+  // Until this existed there was no route back to the truth for a restaurant
+  // carrying the register route's placeholder: the partner app only sets a pin
+  // during REGISTRATION, and the admin schema had no coordinates field. A live
+  // kitchen thirty kilometres from itself stayed that way for good, listed but
+  // never measured, so it could never show a real distance or delivery time.
+  {
+    const adminLogin = await api('/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@quickbite.app', password: 'pass123' }
+    });
+    const adminToken = adminLogin.json?.data?.token;
+    check('An administrator can sign in', Boolean(adminToken));
+
+    const fixed = await api(
+      '/admin/restaurants/rst_bbh_01',
+      {
+        method: 'PATCH',
+        body: {
+          coordinates: { latitude: 12.7001, longitude: 77.5001 },
+          serviceRadiusKm: 12
+        }
+      },
+      adminToken
+    );
+    check('Operations can set a restaurant position', fixed.status === 200, `got ${fixed.status}`);
+
+    const moved = await restaurantRepository.findById('rst_bbh_01');
+    check('and it is stored', moved?.coordinates?.latitude === 12.7001, JSON.stringify(moved?.coordinates));
+    check('along with the delivery radius', (moved as any)?.serviceRadiusKm === 12);
+
+    // Put it back, so the checks below still measure from the seeded position.
+    await api(
+      '/admin/restaurants/rst_bbh_01',
+      {
+        method: 'PATCH',
+        body: { coordinates: { latitude: 12.6802, longitude: 77.4734 } }
+      },
+      adminToken
+    );
+  }
+
+
   // Removed again before the checks below, which count the feed. A fixture that
   // outlives its own assertions fails a later, unrelated check and sends
   // whoever reads the output looking for a bug in the wrong place — which is
