@@ -10,6 +10,7 @@ import {
   closeDatabase
 } from './db/postgresStore.ts';
 import { seedDatabase, SEED_VERSION } from './db/seed.ts';
+import { ensureTestRider } from './db/ensureTestRider.ts';
 import { adminRoleRepository } from './db/repositories/adminRoleRepository.ts';
 import { ensureBootstrapAdmin } from './db/bootstrapAdmin.ts';
 import { startOrderSweeper, stopOrderSweeper } from './modules/orders/orderSweeper.ts';
@@ -95,6 +96,13 @@ await adminRoleRepository.ensureSystemRoles();
 // those. Re-applied on every boot, which is the documented way back in for a
 // locked-out administrator: change ADMIN_PASSWORD on the host and redeploy.
 await ensureBootstrapAdmin();
+
+// The same idea for a delivery partner, and for the same reason: a self-
+// registered rider signs up and waits for approval, which is correct but leaves
+// nobody able to exercise a trip end to end on a fresh deployment. Opt-in and a
+// no-op unless TEST_RIDER_EMAIL and TEST_RIDER_PASSWORD are set; the account it
+// provisions is KYC-approved so it can actually be offered work.
+await ensureTestRider();
 
 await flushStore();
 

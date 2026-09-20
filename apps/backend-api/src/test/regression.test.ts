@@ -66,6 +66,9 @@ async function run() {
 
   const superAdmin = await login('admin@quickbite.app');
   const customer = await login('customer@quickbite.app');
+  // A deliberately narrow admin, used to prove the server refuses rather than
+  // the app merely hiding a button.
+  const support = await login('support@quickbite.app');
 
   /* ------------------------------------------------------------------ *
    * Phone validation — accounts could be created with unreachable numbers
@@ -554,6 +557,143 @@ async function run() {
     riderSeesRestaurantMoney.status === 403,
     String(riderSeesRestaurantMoney.status)
   );
+
+  /* ------------------------------------------------------------------ *
+   * Menu approval — a new restaurant could never publish its first dish
+   * ------------------------------------------------------------------ */
+
+  // A restaurant onboarded today has no menu document. Approving its first dish
+  // used to fail with "That restaurant has no menu to add to", and the only way
+  // a menu could come into existence was by approving a dish.
+  const freshRestaurantId = `rst_regress_${Date.now()}`;
+  memoryStore.restaurants.set(freshRestaurantId, {
+    id: freshRestaurantId,
+    name: 'Brand New Kitchen',
+    ownerId: partnerForChat.user.id,
+    city: 'Bengaluru',
+    status: 'ACTIVE',
+    isOpen: true,
+    kycStatus: 'ACTIVE',
+    packagingFee: 20,
+    cuisines: ['South Indian'],
+    rating: 0,
+    coordinates: { latitude: 12.96, longitude: 77.64 }
+  });
+  check('A newly onboarded restaurant has no menu document yet', !memoryStore.menus.has(freshRestaurantId));
+
+  const firstRequest = await api(
+    `/restaurants/${freshRestaurantId}/menu/requests`,
+    {
+      method: 'POST',
+      body: { kind: 'ADD_ITEM', name: 'Opening Day Dosa', price: 120, isVeg: true, categoryName: 'Breakfast' }
+    },
+    partnerForChat.token
+  );
+  check('Its first dish can be submitted', firstRequest.status === 201, String(firstRequest.status));
+
+  const firstApproval = await api(
+    `/admin/menu-requests/${firstRequest.json?.data?.request?.id}/review`,
+    { method: 'POST', body: { action: 'APPROVE' } },
+    superAdmin.token
+  );
+  check(
+    'and approving it creates the menu instead of refusing',
+    firstApproval.status === 200,
+    `${firstApproval.status} ${JSON.stringify(firstApproval.json?.error || '')}`
+  );
+  check('The dish is on the live menu', firstApproval.json?.data?.item?.name === 'Opening Day Dosa');
+  check('and the menu document now exists', memoryStore.menus.has(freshRestaurantId));
+
+  /* ------------------------------------------------------------------ *
+   * Menu approval — grouped by restaurant, settled in one decision
+   * ------------------------------------------------------------------ */
+
+  const submit = async (name: string, price: number) =>
+    api(
+      `/restaurants/${freshRestaurantId}/menu/requests`,
+      { method: 'POST', body: { kind: 'ADD_ITEM', name, price, isVeg: true, categoryName: 'Mains' } },
+      partnerForChat.token
+    );
+
+  const batch = [];
+  for (const [name, price] of [['Masala Dosa', 140], ['Rava Dosa', 150], ['Mysore Dosa', 160], ['Typo Dosa', 28000]] as Array<[string, number]>) {
+    batch.push((await submit(name, price)).json?.data?.request);
+  }
+  check('Four more dishes are submitted', batch.every(Boolean));
+
+  const grouped = await api('/admin/menu-requests/grouped', {}, superAdmin.token);
+  check('The queue can be read grouped by restaurant', grouped.status === 200, String(grouped.status));
+  const freshGroup = (grouped.json?.data?.groups || []).find((g: any) => g.restaurantId === freshRestaurantId);
+  check('The new restaurant appears as one group', Boolean(freshGroup));
+  check('carrying all four of its pending dishes', freshGroup?.pendingCount === 4, String(freshGroup?.pendingCount));
+  check('and naming the restaurant, not just its id', freshGroup?.restaurantName === 'Brand New Kitchen');
+  check(
+    'The summary counts restaurants waiting, not just requests',
+    typeof grouped.json?.data?.restaurantsWaiting === 'number' && grouped.json.data.restaurantsWaiting >= 1
+  );
+
+  // The real job: turn down the mispriced one, wave the rest through.
+  const typo = batch.find((r: any) => r.payload.name === 'Typo Dosa');
+  const bulk = await api(
+    '/admin/menu-requests/bulk-review',
+    {
+      method: 'POST',
+      body: {
+        restaurantId: freshRestaurantId,
+        rejections: [{ requestId: typo.id, rejectionReason: 'Rs 28000 looks like a typo for Rs 280.' }],
+        expectedRequestIds: batch.map((r: any) => r.id)
+      }
+    },
+    superAdmin.token
+  );
+  check('A restaurant queue can be settled in one decision', bulk.status === 200, String(bulk.status));
+  check('Three dishes approved', bulk.json?.data?.approvedCount === 3, String(bulk.json?.data?.approvedCount));
+  check('One dish rejected', bulk.json?.data?.rejectedCount === 1, String(bulk.json?.data?.rejectedCount));
+  check('Nothing failed to apply', (bulk.json?.data?.failed || []).length === 0, JSON.stringify(bulk.json?.data?.failed));
+
+  const liveMenu = await api(`/restaurants/${freshRestaurantId}/menu`);
+  const liveNames = (liveMenu.json?.data?.menu?.categories || []).flatMap((c: any) => c.items.map((i: any) => i.name));
+  check('The approved dishes are live for customers', ['Masala Dosa', 'Rava Dosa', 'Mysore Dosa'].every(n => liveNames.includes(n)), JSON.stringify(liveNames));
+  check('The rejected dish is not', !liveNames.includes('Typo Dosa'));
+
+  const afterBulk = await api('/admin/menu-requests/grouped', {}, superAdmin.token);
+  const settled = (afterBulk.json?.data?.groups || []).find((g: any) => g.restaurantId === freshRestaurantId);
+  check('The restaurant no longer has anything pending', !settled || settled.pendingCount === 0, String(settled?.pendingCount));
+
+  const rejectedRequest = await api('/admin/menu-requests?status=REJECTED', {}, superAdmin.token);
+  const rejectedTypo = (rejectedRequest.json?.data?.requests || []).find((r: any) => r.id === typo.id);
+  check('The partner is told why theirs was turned down', String(rejectedTypo?.rejectionReason || '').includes('typo'), String(rejectedTypo?.rejectionReason));
+
+  // A reason is mandatory: a rejection the partner cannot act on is not a review.
+  const reasonless = await api(
+    '/admin/menu-requests/bulk-review',
+    { method: 'POST', body: { restaurantId: freshRestaurantId, rejections: [{ requestId: 'x', rejectionReason: '' }] } },
+    superAdmin.token
+  );
+  check('A rejection with no reason is refused', reasonless.status === 400, String(reasonless.status));
+
+  // Anything submitted after the screen was loaded must not be approved unseen.
+  const lateDish = (await submit('Arrived After You Looked', 200)).json?.data?.request;
+  const staleScreen = await api(
+    '/admin/menu-requests/bulk-review',
+    { method: 'POST', body: { restaurantId: freshRestaurantId, expectedRequestIds: ['some-older-id'] } },
+    superAdmin.token
+  );
+  check('A dish submitted after the screen loaded is not approved unseen', staleScreen.json?.data?.approvedCount === 0, String(staleScreen.json?.data?.approvedCount));
+  check('and is reported as skipped', staleScreen.json?.data?.skippedUnseen === 1, String(staleScreen.json?.data?.skippedUnseen));
+
+  const stillPending = await api('/admin/menu-requests?status=PENDING', {}, superAdmin.token);
+  check(
+    'so it is still waiting for a human',
+    (stillPending.json?.data?.requests || []).some((r: any) => r.id === lateDish.id)
+  );
+
+  const supportTriesToApprove = await api(
+    '/admin/menu-requests/bulk-review',
+    { method: 'POST', body: { restaurantId: freshRestaurantId } },
+    support.token
+  );
+  check('An admin without menu review cannot bulk-approve', supportTriesToApprove.status === 403, String(supportTriesToApprove.status));
 
   /* ------------------------------------------------------------------ *
    * Sign-in must not become an account-enumeration oracle

@@ -13,14 +13,39 @@ export const menuRepository = {
     return menu;
   },
 
+  /**
+   * The restaurant's menu document, created empty if it does not exist yet.
+   *
+   * A menu is a container, not a thing a restaurant has to be given before it
+   * can have dishes. Treating its absence as an error produced a deadlock that
+   * no partner could escape: a newly onboarded restaurant has no menu document,
+   * so approving its very first dish failed with "That restaurant has no menu to
+   * add to" — and the only way a menu could come into existence was by approving
+   * a dish. Every new restaurant was therefore permanently unable to publish
+   * anything, and the administrator was told the restaurant was at fault.
+   */
+  async ensureMenu(restaurantId: string): Promise<RestaurantMenu> {
+    const existing = memoryStore.menus.get(restaurantId);
+    if (existing) return existing;
+
+    const menu: RestaurantMenu = {
+      id: 'menu_' + crypto.randomUUID(),
+      restaurantId,
+      categories: [],
+      updatedAt: new Date().toISOString()
+    } as RestaurantMenu;
+    memoryStore.menus.set(restaurantId, menu);
+    triggerAutoSave();
+    return menu;
+  },
+
   /** Adds a dish to a category, creating the category when it does not exist. */
   async addItem(
     restaurantId: string,
     categoryName: string,
     item: Omit<MenuItem, 'id'>
   ): Promise<MenuItem | null> {
-    const menu = memoryStore.menus.get(restaurantId);
-    if (!menu) return null;
+    const menu = await this.ensureMenu(restaurantId);
 
     let category = menu.categories.find((c: any) => c.name.toLowerCase() === categoryName.toLowerCase());
     if (!category) {

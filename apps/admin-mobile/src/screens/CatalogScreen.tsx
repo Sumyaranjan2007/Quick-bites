@@ -277,36 +277,11 @@ const MenuSheet: React.FC<{ restaurantId: string | null; onClose: () => void; on
 const RequestsTab: React.FC = () => {
   const { api, can } = useSession();
   const [status, setStatus] = useState('PENDING');
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
-  const [rejecting, setRejecting] = useState<any | null>(null);
+  const [openRestaurant, setOpenRestaurant] = useState<any | null>(null);
 
-  const list = useResource(() => api.get<any>(`/admin/menu-requests${query({ status })}`), [status]);
-  const requests = list.data?.requests || [];
+  const list = useResource(() => api.get<any>(`/admin/menu-requests/grouped${query({ status })}`), [status]);
+  const groups = list.data?.groups || [];
   const canReview = can('catalog.menus.review');
-
-  const review = async (request: any, action: 'APPROVE' | 'REJECT', rejectionReason?: string) => {
-    setBusyId(request.id);
-    try {
-      await api.post(`/admin/menu-requests/${request.id}/review`, {
-        action,
-        ...(rejectionReason ? { rejectionReason } : {})
-      });
-      setRejecting(null);
-      setReason('');
-      await list.reload();
-      Alert.alert(
-        action === 'APPROVE' ? 'Approved' : 'Rejected',
-        action === 'APPROVE'
-          ? `"${request.payload.name}" is now on the live menu and visible to customers.`
-          : 'The partner has been told why, so they can correct and resubmit.'
-      );
-    } catch (err: any) {
-      Alert.alert('Could not review the request', err?.message || 'Nothing was changed.');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -323,11 +298,11 @@ const RequestsTab: React.FC = () => {
         />
       </View>
 
-      {list.loading && requests.length === 0 ? <Loading /> : null}
-      {!list.loading && requests.length === 0 ? (
+      {list.loading && groups.length === 0 ? <Loading /> : null}
+      {!list.loading && groups.length === 0 ? (
         <EmptyState
           title="Nothing waiting for review"
-          message="Partner menu changes appear here before they reach customers."
+          message="Partner menu changes appear here before they reach customers, grouped by restaurant."
           icon={<Inbox size={34} color={c.text.muted} />}
         />
       ) : null}
@@ -336,64 +311,239 @@ const RequestsTab: React.FC = () => {
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
-        {requests.map((request: any) => (
-          <Card key={request.id}>
+        {/* How much work is actually waiting, in the unit the work is done in:
+            kitchens, not dishes. */}
+        {groups.length > 0 && status === 'PENDING' ? (
+          <Text style={s.queueSummary}>
+            {list.data?.totalPending} dish{list.data?.totalPending === 1 ? '' : 'es'} from{' '}
+            {list.data?.restaurantsWaiting} restaurant{list.data?.restaurantsWaiting === 1 ? '' : 's'}
+          </Text>
+        ) : null}
+
+        {groups.map((group: any) => (
+          <Card key={group.restaurantId} onPress={canReview ? () => setOpenRestaurant(group) : undefined}>
             <View style={s.rowTop}>
               <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
                 <Text style={s.title} numberOfLines={1}>
-                  {request.payload.name}
+                  {group.restaurantName}
                 </Text>
                 <Text style={s.sub} numberOfLines={1}>
-                  {request.restaurantName || request.restaurantId} · {humanise(request.kind)}
+                  {[group.city, `oldest ${timeAgo(group.oldestSubmittedAt)}`].filter(Boolean).join(' · ')}
                 </Text>
               </View>
-              <Badge label={request.status} />
+              {group.pendingCount > 0 ? (
+                <Badge label={`${group.pendingCount} waiting`} tone="warning" />
+              ) : (
+                <Badge label="Settled" tone="success" />
+              )}
             </View>
 
-            <Divider />
-            <KeyValue label="Price" value={formatMoney(request.payload.price)} tone="money" />
-            <KeyValue label="Category" value={request.payload.categoryName} />
-            <KeyValue label="Diet" value={request.payload.isVeg ? 'Vegetarian' : 'Non-vegetarian'} />
-            {request.payload.description ? <KeyValue label="Description" value={request.payload.description} /> : null}
-            <KeyValue label="Submitted" value={timeAgo(request.submittedAt)} />
-            {request.rejectionReason ? <KeyValue label="Rejected because" value={request.rejectionReason} /> : null}
+            {/* A kitchen with no menu at all is submitting its opening list. It
+                is a different judgement from a kitchen adding one dish, and the
+                administrator should not have to work that out themselves. */}
+            {group.isFirstMenu ? (
+              <>
+                <Divider />
+                <Text style={s.firstMenuNote}>
+                  This is this restaurant's opening menu — nothing of theirs is live yet.
+                </Text>
+              </>
+            ) : null}
 
-            {request.status === 'PENDING' && canReview ? (
-              rejecting?.id === request.id ? (
-                <>
-                  <Divider />
-                  <Field label="Why is it being rejected?" value={reason} onChangeText={setReason} placeholder="The price looks like a typo — ₹2800 for a starter." multiline />
-                  <View style={s.actionRow}>
-                    <Button label="Back" variant="secondary" full onPress={() => setRejecting(null)} />
-                    <Button
-                      label="Reject"
-                      variant="danger"
-                      full
-                      loading={busyId === request.id}
-                      onPress={() => {
-                        if (!reason.trim()) {
-                          Alert.alert('A reason is required', 'The partner is shown this so they can fix it.');
-                          return;
-                        }
-                        review(request, 'REJECT', reason.trim());
-                      }}
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Divider />
-                  <View style={s.actionRow}>
-                    <Button label="Reject" variant="danger" full onPress={() => setRejecting(request)} />
-                    <Button label="Approve" variant="success" full loading={busyId === request.id} onPress={() => review(request, 'APPROVE')} />
-                  </View>
-                </>
-              )
+            <Divider />
+            {group.requests.slice(0, 4).map((request: any) => (
+              <View key={request.id} style={s.dishLine}>
+                <Text style={s.dishName} numberOfLines={1}>
+                  {request.payload.name}
+                </Text>
+                <Text style={s.dishPrice}>{formatMoney(request.payload.price)}</Text>
+              </View>
+            ))}
+            {group.requests.length > 4 ? (
+              <Text style={s.muted}>and {group.requests.length - 4} more</Text>
+            ) : null}
+
+            {canReview && group.pendingCount > 0 ? (
+              <>
+                <Divider />
+                <Button label={`Review ${group.pendingCount} dish${group.pendingCount === 1 ? '' : 'es'}`} full onPress={() => setOpenRestaurant(group)} />
+              </>
             ) : null}
           </Card>
         ))}
       </ScrollView>
+
+      <RestaurantReviewSheet
+        group={openRestaurant}
+        onClose={() => setOpenRestaurant(null)}
+        onReviewed={() => {
+          setOpenRestaurant(null);
+          void list.reload();
+        }}
+      />
     </View>
+  );
+};
+
+/**
+ * One restaurant's submission, judged together.
+ *
+ * The administrator marks the dishes they are turning down and says why, then
+ * approves in one action: everything unmarked goes live. That is the shape of
+ * the actual decision — you read a kitchen's list, find the two that are wrong,
+ * and pass the rest — and it replaces a flat queue where a hundred interleaved
+ * dish cards had to be approved one at a time with no way to tell whether you
+ * had finished a restaurant.
+ */
+const RestaurantReviewSheet: React.FC<{
+  group: any | null;
+  onClose: () => void;
+  onReviewed: () => void;
+}> = ({ group, onClose, onReviewed }) => {
+  const { api } = useSession();
+  const [rejections, setRejections] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  // The sheet is keyed by restaurant, so marks from a previous restaurant never
+  // leak into this one.
+  const key = group?.restaurantId || '';
+  const [markedFor, setMarkedFor] = useState('');
+  if (key !== markedFor) {
+    setMarkedFor(key);
+    setRejections({});
+  }
+
+  const pending = (group?.requests || []).filter((r: any) => r.status === 'PENDING');
+  const rejectedIds = Object.keys(rejections);
+  const approvingCount = pending.length - rejectedIds.length;
+
+  const toggleReject = (requestId: string) => {
+    setRejections(prev => {
+      const next = { ...prev };
+      if (next[requestId] !== undefined) delete next[requestId];
+      else next[requestId] = '';
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    const missingReason = rejectedIds.find(id => !rejections[id].trim());
+    if (missingReason) {
+      Alert.alert(
+        'Say why it was turned down',
+        'The partner is shown this so they can correct the dish and resubmit it.'
+      );
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = await api.post<any>('/admin/menu-requests/bulk-review', {
+        restaurantId: group.restaurantId,
+        rejections: rejectedIds.map(id => ({ requestId: id, rejectionReason: rejections[id].trim() })),
+        // Anything submitted since this screen loaded is left for the next pass
+        // rather than approved without being read.
+        expectedRequestIds: pending.map((r: any) => r.id)
+      });
+
+      const parts = [`${result.approvedCount} approved`];
+      if (result.rejectedCount) parts.push(`${result.rejectedCount} turned down`);
+      if (result.failed?.length) parts.push(`${result.failed.length} could not be applied`);
+      if (result.skippedUnseen) parts.push(`${result.skippedUnseen} arrived after you opened this and are still waiting`);
+
+      onReviewed();
+      Alert.alert(`${result.restaurantName} reviewed`, parts.join(', ') + '.');
+    } catch (err: any) {
+      Alert.alert('Could not review the menu', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      visible={Boolean(group)}
+      onClose={onClose}
+      title={group?.restaurantName || 'Menu review'}
+      subtitle={group ? `${pending.length} dish${pending.length === 1 ? '' : 'es'} waiting` : undefined}
+    >
+      {group ? (
+        <>
+          {group.isFirstMenu ? (
+            <Card>
+              <Text style={s.firstMenuNote}>
+                This is {group.restaurantName}'s opening menu. Nothing of theirs is live yet, so approving here is what
+                puts them in front of customers.
+              </Text>
+            </Card>
+          ) : null}
+
+          {pending.map((request: any) => {
+            const isRejected = rejections[request.id] !== undefined;
+            return (
+              <Card key={request.id}>
+                <View style={s.rowTop}>
+                  <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
+                    <Text style={s.title} numberOfLines={2}>
+                      {request.payload.name}
+                    </Text>
+                    <Text style={s.sub} numberOfLines={1}>
+                      {humanise(request.kind)} · {timeAgo(request.submittedAt)}
+                    </Text>
+                  </View>
+                  <Badge label={isRejected ? 'Rejecting' : 'Approving'} tone={isRejected ? 'danger' : 'success'} />
+                </View>
+
+                <Divider />
+                <KeyValue label="Price" value={formatMoney(request.payload.price)} tone="money" />
+                <KeyValue label="Category" value={request.payload.categoryName} />
+                <KeyValue label="Diet" value={request.payload.isVeg ? 'Vegetarian' : 'Non-vegetarian'} />
+                {request.payload.description ? (
+                  <KeyValue label="Description" value={request.payload.description} />
+                ) : null}
+
+                <Divider />
+                <Toggle
+                  label="Turn this dish down"
+                  value={isRejected}
+                  onChange={() => toggleReject(request.id)}
+                />
+                {isRejected ? (
+                  <Field
+                    label="Why?"
+                    value={rejections[request.id]}
+                    onChangeText={text => setRejections(prev => ({ ...prev, [request.id]: text }))}
+                    placeholder="The price looks like a typo — Rs 2800 for a starter."
+                    multiline
+                  />
+                ) : null}
+              </Card>
+            );
+          })}
+
+          <Card>
+            <Text style={s.cardHeading}>What this will do</Text>
+            <KeyValue label="Go live now" value={`${approvingCount} dish${approvingCount === 1 ? '' : 'es'}`} tone="strong" />
+            <KeyValue label="Sent back to the partner" value={`${rejectedIds.length}`} />
+            <View style={{ height: tokens.space[4] }} />
+            <Button
+              label={
+                approvingCount > 0
+                  ? `Approve ${approvingCount} and finish`
+                  : rejectedIds.length > 0
+                    ? `Reject all ${rejectedIds.length} and finish`
+                    : 'Nothing to review'
+              }
+              variant={approvingCount > 0 ? 'success' : 'danger'}
+              disabled={pending.length === 0}
+              loading={busy}
+              full
+              onPress={submit}
+            />
+          </Card>
+        </>
+      ) : null}
+    </Sheet>
   );
 };
 
@@ -529,7 +679,25 @@ const s = StyleSheet.create({
     borderTopColor: c.border.subtle,
     flexWrap: 'wrap'
   },
-  dishName: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
+  // flexShrink lets a long dish name yield to the price beside it rather than
+  // pushing the amount off the row.
+  dishName: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold, flexShrink: 1 },
   dishMeta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
+  queueSummary: {
+    fontSize: tokens.font.size.sm,
+    color: c.text.secondary,
+    marginBottom: tokens.space[3],
+    fontWeight: '600'
+  },
+  firstMenuNote: { fontSize: tokens.font.size.sm, color: c.brand.amberText, lineHeight: 20 },
+  dishLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4
+  },
+  dishPrice: { fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 0 },
+  muted: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4 },
   dishActions: { flexDirection: 'row', gap: tokens.space[2] }
 });

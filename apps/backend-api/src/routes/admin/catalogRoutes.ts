@@ -214,6 +214,224 @@ catalogRoutes.get('/menu-requests', requirePermission('catalog.menus.view', 'cat
   }
 });
 
+/**
+ * GET /api/admin/menu-requests/grouped — the review queue, by restaurant.
+ *
+ * A flat list of dishes is the wrong shape for this job. Twenty restaurants
+ * submitting five dishes each produced a hundred interleaved cards, and an
+ * administrator had to approve them one at a time while keeping track of which
+ * kitchen they were half-way through. Menu review is a per-restaurant decision —
+ * you look at what one kitchen is proposing, judge it together, and act on it —
+ * so the queue is shaped that way, newest submission first.
+ */
+catalogRoutes.get(
+  '/menu-requests/grouped',
+  requirePermission('catalog.menus.view', 'catalog.menus.review'),
+  async (req, res, next) => {
+    try {
+      const status = String(req.query.status || 'PENDING').toUpperCase();
+      const requests =
+        status === 'ALL'
+          ? await menuRequestRepository.listAll()
+          : await menuRequestRepository.listByStatus(status as any);
+
+      const byRestaurant = new Map<string, any>();
+      for (const request of requests) {
+        let group = byRestaurant.get(request.restaurantId);
+        if (!group) {
+          const restaurant = await restaurantRepository.findById(request.restaurantId);
+          group = {
+            restaurantId: request.restaurantId,
+            restaurantName: request.restaurantName || restaurant?.name || request.restaurantId,
+            city: restaurant?.city,
+            // Said plainly, because it changes the decision: a kitchen that is
+            // not yet trading is usually submitting its opening menu.
+            restaurantStatus: restaurant?.status,
+            isFirstMenu: !(await menuRepository.findByRestaurantId(request.restaurantId)),
+            requests: [],
+            pendingCount: 0,
+            oldestSubmittedAt: request.submittedAt,
+            newestSubmittedAt: request.submittedAt
+          };
+          byRestaurant.set(request.restaurantId, group);
+        }
+        group.requests.push(request);
+        if (request.status === 'PENDING') group.pendingCount++;
+        if (request.submittedAt < group.oldestSubmittedAt) group.oldestSubmittedAt = request.submittedAt;
+        if (request.submittedAt > group.newestSubmittedAt) group.newestSubmittedAt = request.submittedAt;
+      }
+
+      const groups = Array.from(byRestaurant.values()).sort(
+        (a, b) => new Date(b.newestSubmittedAt).getTime() - new Date(a.newestSubmittedAt).getTime()
+      );
+
+      res.json({
+        success: true,
+        data: {
+          groups,
+          totalRequests: requests.length,
+          totalPending: requests.filter((r: any) => r.status === 'PENDING').length,
+          restaurantsWaiting: groups.filter((g: any) => g.pendingCount > 0).length
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const BulkReviewSchema = z.object({
+  restaurantId: z.string().min(1),
+  /**
+   * The dishes to turn down, each with its own reason. Everything else still
+   * pending for this restaurant is approved.
+   */
+  rejections: z
+    .array(
+      z.object({
+        requestId: z.string().min(1),
+        rejectionReason: z.string().trim().min(1).max(400)
+      })
+    )
+    .max(200)
+    .optional(),
+  /**
+   * Guards against acting on a stale screen. The client sends the request ids it
+   * was showing; anything that arrived since is left alone rather than approved
+   * sight-unseen.
+   */
+  expectedRequestIds: z.array(z.string()).max(500).optional()
+});
+
+/**
+ * POST /api/admin/menu-requests/bulk-review
+ *
+ * Settles one restaurant's queue in a single decision: name the dishes being
+ * turned down and why, and the rest go live. This is how the work is actually
+ * done — an administrator reads a kitchen's submission, finds the two dishes
+ * with a mispriced starter or a missing description, and waves the other eight
+ * through. Doing that through the single-request route meant ten round trips and
+ * no way to tell whether you had finished.
+ *
+ * Each dish is still reviewed individually underneath, through the same code the
+ * single-request route uses, so a failure on one does not silently approve or
+ * skip the others — every outcome is reported back.
+ */
+catalogRoutes.post(
+  '/menu-requests/bulk-review',
+  requirePermission('catalog.menus.review'),
+  validate({ body: BulkReviewSchema }),
+  async (req, res, next) => {
+    try {
+      const { restaurantId, rejections = [], expectedRequestIds } = req.body;
+
+      const restaurant = await restaurantRepository.findById(restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+
+      const rejectionByRequestId = new Map<string, string>(
+        rejections.map((r: any) => [r.requestId, r.rejectionReason])
+      );
+
+      let pending = (await menuRequestRepository.listByRestaurant(restaurantId)).filter(
+        (r: any) => r.status === 'PENDING'
+      );
+
+      // Anything submitted after the administrator loaded the screen is left for
+      // the next pass: approving a dish nobody has read is exactly the failure
+      // this endpoint exists to avoid.
+      let skippedUnseen = 0;
+      if (expectedRequestIds) {
+        const seen = new Set(expectedRequestIds);
+        const before = pending.length;
+        pending = pending.filter((r: any) => seen.has(r.id));
+        skippedUnseen = before - pending.length;
+      }
+
+      const approved: any[] = [];
+      const rejected: any[] = [];
+      const failed: any[] = [];
+
+      for (const request of pending) {
+        const rejectionReason = rejectionByRequestId.get(request.id);
+        try {
+          if (rejectionReason) {
+            const reviewed = await menuRequestRepository.review(request.id, 'REJECTED', req.user!.id, {
+              rejectionReason
+            });
+            emitMenuRequestReviewed({ id: request.id, restaurantId, status: 'REJECTED' });
+            rejected.push(reviewed);
+            continue;
+          }
+
+          const final = { ...request.payload };
+          const { categoryName, ...item } = final;
+
+          let dish;
+          if (request.kind === 'EDIT_ITEM' && request.dishId) {
+            dish = await menuRepository.updateItem(restaurantId, request.dishId, { ...item, categoryName });
+            if (!dish) {
+              failed.push({ requestId: request.id, name: request.payload.name, reason: 'The dish this request edits no longer exists.' });
+              continue;
+            }
+          } else {
+            dish = await menuRepository.addItem(restaurantId, categoryName, {
+              ...item,
+              description: item.description || '',
+              isAvailable: true
+            } as any);
+            if (!dish) {
+              failed.push({ requestId: request.id, name: request.payload.name, reason: 'The dish could not be written to the menu.' });
+              continue;
+            }
+          }
+
+          const reviewed = await menuRequestRepository.review(request.id, 'APPROVED', req.user!.id, {
+            resultingDishId: dish.id
+          });
+          emitMenuRequestReviewed({ id: request.id, restaurantId, status: 'APPROVED' });
+          approved.push({ request: reviewed, item: dish });
+        } catch (err: any) {
+          failed.push({ requestId: request.id, name: request.payload?.name, reason: err?.message || 'Unknown error' });
+        }
+      }
+
+      if (approved.length) emitMenuUpdated(restaurantId);
+
+      // One audit entry for one decision, naming what was turned down. A line per
+      // dish would bury the judgement that was actually made.
+      recordAudit(req, {
+        action: 'MENU_REQUESTS_BULK_REVIEWED',
+        entityType: 'RESTAURANT',
+        entityId: restaurantId,
+        summary:
+          `Reviewed ${restaurant.name}'s menu: approved ${approved.length}, rejected ${rejected.length}` +
+          (failed.length ? `, ${failed.length} could not be applied` : '') +
+          (rejected.length ? ` — turned down ${rejected.map((r: any) => `"${r.payload?.name}"`).join(', ')}` : ''),
+        after: {
+          approved: approved.map((a: any) => a.item?.name),
+          rejected: rejected.map((r: any) => r.payload?.name)
+        }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          restaurantId,
+          restaurantName: restaurant.name,
+          approvedCount: approved.length,
+          rejectedCount: rejected.length,
+          approved: approved.map((a: any) => ({ requestId: a.request.id, dishId: a.item.id, name: a.item.name })),
+          rejected: rejected.map((r: any) => ({ requestId: r.id, name: r.payload?.name })),
+          failed,
+          skippedUnseen
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 const ReviewMenuRequestSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT']),
   rejectionReason: z.string().trim().max(400).optional(),
