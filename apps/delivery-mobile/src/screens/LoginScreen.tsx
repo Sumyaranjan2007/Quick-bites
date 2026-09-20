@@ -16,6 +16,7 @@ import { t } from '../theme';
 import { Button } from '../components/ui';
 import { api } from '../lib/api';
 import { useHiddenSettings } from '../lib/useHiddenSettings';
+import { useBlockHardwareBack } from '../lib/useHardwareBack';
 
 /**
  * Signing in.
@@ -38,7 +39,14 @@ export const LoginScreen: React.FC<{
 
   // Password recovery. A rider locked out mid-shift has no desk to walk to, so
   // the whole flow happens on this screen rather than pointing them at support.
-  const [mode, setMode] = useState<'signin' | 'forgot' | 'register' | 'registered'>('signin');
+  const [mode, setMode] = useState<'signin' | 'forgot' | 'register' | 'registered'>('signin');
+
+  /**
+   * Back is refused while a request is in flight. Rider registration creates an
+   * account and uploads documents; backing out mid-request leaves the rider
+   * unsure whether they are registered, and the retry fails on a duplicate.
+   */
+  useBlockHardwareBack(busy, 'One moment — finishing that off.');
 
   // Registering. A rider could not get onto the platform at all before this:
   // the only rider account was seeded with a password held in one deployment's

@@ -11,6 +11,7 @@ import {
   currentApiUrl,
 } from '../lib/partnerApi';
 import { useHiddenSettings } from '../lib/useHiddenSettings';
+import { useBlockHardwareBack } from '../lib/useHardwareBack';
 
 interface Props {
   onSignedIn: (token: string, user: any) => void;
@@ -44,6 +45,14 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [fssai, setFssai] = useState('');
 
   const [busy, setBusy] = useState(false);
+
+  /**
+   * Back is refused while a sign-in or a registration is in flight. Registering
+   * a restaurant creates an account on the server; backing out mid-request
+   * leaves the owner unsure whether it worked, and their second attempt hits a
+   * duplicate-email error they cannot explain.
+   */
+  useBlockHardwareBack(busy, 'One moment — finishing that off.');
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [registered, setRegistered] = useState(false);

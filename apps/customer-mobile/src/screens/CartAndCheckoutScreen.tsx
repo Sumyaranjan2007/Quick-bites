@@ -20,6 +20,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { DEFAULT_API_URL } from '../config';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { useTranslation } from '../lib/i18n';
+import { useBlockHardwareBack } from '../lib/useHardwareBack';
 
 /**
  * Suggested tips, and the ceiling the server also enforces.
@@ -57,6 +58,16 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  /**
+   * Back is refused while an order is going through.
+   *
+   * Between "Place order" and the server answering, the money may already have
+   * moved. Backing out of that screen does not cancel anything — it just loses
+   * the customer's view of what happened, and the next thing they see is either
+   * an order they do not remember or a charge with nothing to show for it.
+   */
+  useBlockHardwareBack(isProcessing, 'Hold on — we are placing your order.');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
