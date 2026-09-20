@@ -25,11 +25,30 @@ export interface StoredSession {
 export async function loadStoredSession(): Promise<StoredSession | null> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    if (!raw) return null;
+    if (!raw) {
+      // Nothing stored. A first launch, a sign-out, or a reinstall — Android
+      // wipes an app's storage when it is uninstalled, so re-sideloading a new
+      // APK always lands here and that is not a fault.
+      console.log('[session] nothing stored — signing in fresh');
+      return null;
+    }
     const parsed = JSON.parse(raw) as StoredSession;
-    if (!parsed?.token || !parsed?.apiUrl) return null;
+    if (!parsed?.token || !parsed?.apiUrl) {
+      console.log('[session] stored record is unusable, ignoring it', {
+        hasToken: Boolean(parsed?.token),
+        hasApiUrl: Boolean(parsed?.apiUrl)
+      });
+      return null;
+    }
+    console.log('[session] restored', { savedAt: parsed.savedAt, apiUrl: parsed.apiUrl });
     return parsed;
-  } catch {
+  } catch (error) {
+    // Said out loud rather than swallowed. This used to return null on any
+    // failure with nothing written anywhere, so "it asks for my number every
+    // time" was indistinguishable from "there was nothing to restore" — and a
+    // storage module that is not linked in a release build fails exactly here,
+    // silently, forever.
+    console.warn('[session] could not be read', error);
     return null;
   }
 }
@@ -37,8 +56,12 @@ export async function loadStoredSession(): Promise<StoredSession | null> {
 export async function saveStoredSession(session: Omit<StoredSession, 'savedAt'>): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY, JSON.stringify({ ...session, savedAt: new Date().toISOString() }));
-  } catch {
-    // This launch still works; the next one will ask for a password again.
+    console.log('[session] saved');
+  } catch (error) {
+    // This launch still works; the next one will ask again. Logged because a
+    // save that never happens is the cause of a complaint made a day later,
+    // and nothing else records it.
+    console.warn('[session] could not be saved — this sign-in will not survive a restart', error);
   }
 }
 

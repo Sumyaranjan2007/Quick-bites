@@ -6,6 +6,152 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-20] -- Claude Opus 5 -- Session 26: v2 Stage 1, foundations
+
+**Description:** The first of five stages in `REBUILD_PLAN.md`. Three of the four
+headline complaints turned out to be defects in code that already existed, and
+finding out why mattered more than the fixes: two of them shared a single root
+cause that no amount of reading the JavaScript would have revealed.
+
+---
+
+### Why the back button closed the app, on all four apps at once
+
+Every app has a `useHardwareBack` hook wired to its own navigation, and it was
+correct. It had simply stopped being called.
+
+Android 13 introduced the predictive back gesture. When it is active the system
+no longer calls the legacy `Activity.onBackPressed()`; it dispatches to
+`OnBackPressedDispatcher` callbacks instead. React Native 0.76's `BackHandler`
+is built on the legacy path and registers no such callback, so the dispatcher
+finds nothing to run, falls through to the platform default, and finishes the
+activity. The app vanishes, from any screen, and nothing in JavaScript is wrong.
+
+It went unnoticed because it depends on the Android version in your hand rather
+than on the code. The manifest carried no `android:enableOnBackInvokedCallback`
+at all — Expo writes it only when `android.predictiveBackGestureEnabled` is set
+in app.json — so the behaviour was whatever default the OS applied.
+
+**New: `packages/config/expo-plugins/withLegacyBackGesture.js`** declares
+`android:enableOnBackInvokedCallback="false"` on the application element, opting
+these apps out of predictive back so `BackHandler` keeps receiving events. Set
+on the application rather than on MainActivity, so an activity added later
+cannot reintroduce it.
+
+This is correct while the apps target SDK 35 on React Native 0.76. At targetSdk
+36 Android ignores the flag and the real fix is React Native 0.81, which
+registers a proper callback. The plugin says so, so whoever does that upgrade
+knows to delete it.
+
+**Second half of the same complaint:** even with the handler firing, every app
+returned `false` at its home screen, which closes the app on one press — how a
+half-filled cart is lost to a misplaced thumb. `useHardwareBackWithExitConfirm`
+now shows Android's usual "Press back again to exit" toast and requires a second
+press within two seconds. `useBlockHardwareBack` is there for screens where
+going back is not a navigation question but a wrong answer — mid-payment,
+part-way through registration.
+
+### Why the apps did not fit phones with a three-button navigation bar
+
+`SafeScreen` padded the **top only**, from `StatusBar.currentHeight`. There was
+no bottom inset at all, so on the very common three-button layout Android's
+back, home and recents keys sat on top of the app's own bottom row: the last
+item in a list, the "Place order" button, the tab bar — partly or wholly
+unreachable.
+
+On a gesture-navigation phone there is only a thin pill and the fault is close
+to invisible, which is exactly why it survived a release. It is a defect you
+cannot see on the device you happen to be testing on.
+
+`StatusBar.currentHeight` is also a number read once. It does not move when the
+keyboard opens, when the device rotates, or when Android switches between
+gesture and three-button navigation while the app is running.
+
+All four apps now use `useSafeAreaInsets` from `react-native-safe-area-context`,
+which reports what the window manager actually says per edge and re-renders when
+it changes — top, **bottom**, and the sides for cutouts and curved edges. Each
+app root is wrapped in `SafeAreaProvider`, without which every inset reads zero
+and the bottom row slides straight back under the navigation bar. The admin
+console had no `SafeScreen` at all; its `Screen` component had the same
+top-only defect and got the same fix.
+
+### Being asked to sign in on every launch
+
+`storedSession.ts` already persisted the token, the account and the server
+address. Every sign-in path already called it. Nothing in the app clears it
+except an explicit sign-out.
+
+What it did not do was say anything when it failed. Every read and write was
+wrapped in a `catch` that returned silently, so "it asks for my number every
+time" was indistinguishable from "there was nothing to restore" — and a storage
+module that is not linked in a release build fails exactly there, silently,
+forever. The paths now log what happened, including the benign case: Android
+wipes an app's storage on uninstall, so re-sideloading a new APK always starts
+signed out and that is not a fault.
+
+This one is **not claimed as fixed.** It is made diagnosable. If it recurs,
+`adb logcat | grep session` now names the cause in one line.
+
+---
+
+### Everything else in Stage 1
+
+**Customer**
+
+- The sign-up bonus is **gone**, not zeroed. It credited ₹100 to anyone who
+  could supply a phone number, and the wallet it landed in no longer takes
+  top-ups, so the balance had nowhere to come from. Removed from both the
+  password and the phone registration paths.
+- The bill breakdown at checkout now starts **collapsed**. What a customer
+  checks before paying is the number they are about to be charged; eight line
+  items above it is the reason a fair bill still feels padded. "Show bill" is
+  one tap and shows the full split — before paying, not after.
+- The logo sits in a frame, as the other three apps' marks already do. The
+  artwork is not optically centred in its own bounding box — the swoosh extends
+  to the upper right — so centring the box left the mark looking pushed aside,
+  and it was the only one of the four without a container to sit in.
+- **A restaurant's menu is one list again.** It rendered one category at a time
+  behind a row of tabs, so finding out what a kitchen served meant tabbing
+  through every section, and dishes in the sections nobody opened were
+  invisible. Every dish is now on one page under its heading, with a **MENU**
+  button that opens the category list and jumps straight to one. The tabs
+  remain, and now scroll rather than filter.
+
+**Rider, partner and operations** move to the brand cream palette — `#FFF7E8`
+canvas, `#641C32` structure, `#FFC928` for what needs acting on, `#171313`
+text — so the four apps read as one product. Three points worth recording:
+
+- The signal colours are **darker** than their dark-theme equivalents on
+  purpose. Mint green and bright amber sing against near-black and are close to
+  invisible against cream, and a status badge nobody can read is worse than no
+  badge.
+- Gold is a **fill behind near-black text, never text**. Anything named `*Text`
+  is the deep gold that actually passes on this ground.
+- Eight status bars were still set to `light-content`, which is invisible on
+  cream. Every hardcoded white was checked and left alone: each one sits on a
+  coloured fill — a danger badge, a brand button, the SOS card — where white is
+  still correct.
+
+**Operations:** role creation was already restricted to super admin on both the
+server and the client. Rather than assume, the platform suite now signs in as a
+scoped operations admin, confirms it is refused a role creation with 403, and
+confirms a super admin is allowed — because a gate that refuses everybody is not
+a gate.
+
+---
+
+**Gate:** 18 backend suites (115 checks in the platform suite), nine workspaces
+typechecked, secret, URL and translation scans clean.
+
+**Known Issues:** Staying signed in is instrumented rather than proven fixed —
+the root cause was never reproduced locally, and the logging exists so the next
+occurrence names itself.
+
+**NEXT AI SHOULD:** Stage 2 of `REBUILD_PLAN.md` — maps and addresses. It needs
+`GOOGLE_MAPS_SERVER_KEY` in Railway and `GOOGLE_MAPS_ANDROID_KEY` at build time.
+
+---
+
 ## [2026-09-20] -- Claude Opus 5 -- Session 25: the things that run when nobody is watching
 
 **Description:** Built every phase of `SCALE_PLAN.md` — the plan drawn up by comparing this

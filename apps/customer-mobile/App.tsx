@@ -8,7 +8,7 @@ import {
   StatusBar
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
-import { useHardwareBack } from './src/lib/useHardwareBack';
+import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { tokens } from './src/theme/tokens';
@@ -28,6 +28,7 @@ import { NotificationsProvider, useNotifications, STATUS_NOTIFICATION } from './
 import { NotificationBell } from './src/components/NotificationBell';
 import { useOrderSocket } from './src/lib/useOrderSocket';
 import { apiFetch } from './src/lib/apiFetch';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -222,7 +223,7 @@ function AppRoot() {
     }
   }, [currentScreen]);
 
-  useHardwareBack(goBack);
+  useHardwareBackWithExitConfirm(goBack);
 
   // Nothing is rendered until the stored session has been consulted; the splash
   // stays up for the few milliseconds it takes.
@@ -479,11 +480,15 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <ErrorBoundary appName="Quick Bites" accent="#5B0E20">
-      <I18nProvider>
-        <NotificationsProvider>
-          <AppRoot />
-        </NotificationsProvider>
-      </I18nProvider>
+    {/* Required by useSafeAreaInsets. Without it every inset reads zero and
+        the bottom row slides back under Android's navigation bar. */}
+    <SafeAreaProvider>
+        <I18nProvider>
+          <NotificationsProvider>
+            <AppRoot />
+          </NotificationsProvider>
+        </I18nProvider>
+    </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

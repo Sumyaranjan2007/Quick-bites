@@ -77,7 +77,16 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   const [customTip, setCustomTip] = useState<number | null>(null);
   const [customTipText, setCustomTipText] = useState('');
   /** Collapses the itemised breakdown; the amount payable always stays visible. */
-  const [billHidden, setBillHidden] = useState(false);
+  /**
+   * The breakdown starts collapsed.
+   *
+   * What a customer checks before paying is the one number they are about to be
+   * charged. Eight line items above it — GST, packaging, platform fee — is a
+   * wall to read past, and it is the reason a bill feels padded even when every
+   * line is fair. "Show bill" is one tap away and shows the full split, before
+   * paying rather than after.
+   */
+  const [billHidden, setBillHidden] = useState(true);
 
   // Saved delivery addresses — customers must be able to say where they live,
   // and the server rejects an address that isn't theirs.

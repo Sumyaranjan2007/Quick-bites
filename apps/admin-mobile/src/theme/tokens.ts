@@ -1,10 +1,15 @@
 /**
  * Quick Bites Operations — design tokens.
  *
- * The console is the one Quick Bites surface that is read for hours at a time in
- * a back office, so it keeps the brand's maroon and amber but sits them on a
- * near-black ground: a cream canvas at this density is glare, and the figures
- * are what the screen is for.
+ * The console is read for hours at a time in a back office, so legibility at
+ * density is what it is tuned for. It now sits on the brand cream ground shared
+ * with the rider and partner apps, so the four surfaces read as one product
+ * rather than three.
+ *
+ * The signal colours are darker than their dark-theme equivalents on purpose: a
+ * mint green or a bright amber that sings against near-black is close to
+ * invisible against cream, and a status badge nobody can read is worse than no
+ * badge. Gold is a fill behind near-black text, never text itself.
  *
  * Numbers, not strings: React Native rejects "px".
  */
@@ -12,48 +17,50 @@ export const tokens = {
   colors: {
     /** Page ground, cards, and the layers between them. */
     bg: {
-      base: '#120609',
-      raised: '#1C0B11',
-      card: '#24101A',
-      sunken: '#0D0407',
-      overlay: 'rgba(6, 2, 4, 0.82)'
+      base: '#FFF7E8',
+      raised: '#FFFFFF',
+      card: '#FFFFFF',
+      sunken: '#F6EBD6',
+      overlay: 'rgba(23, 19, 19, 0.55)'
     },
     border: {
-      subtle: '#33161F',
-      medium: '#45202C',
-      strong: '#5E2C3A'
+      subtle: '#EADCC2',
+      medium: '#D8C39F',
+      strong: '#C2A87E'
     },
     text: {
-      primary: '#FCF5F0',
-      secondary: '#C4AFA6',
-      muted: '#907C76',
-      inverse: '#1A0A10'
+      primary: '#171313',
+      secondary: '#5C5048',
+      muted: '#8A7C70',
+      inverse: '#FFF7E8'
     },
     brand: {
-      maroon: '#5B0E20',
-      maroonSoft: '#3A0A15',
-      amber: '#F5A623',
-      amberSoft: '#3A2708',
-      amberText: '#FFC766'
+      maroon: '#641C32',
+      maroonSoft: '#F7E7EB',
+      amber: '#FFC928',
+      amberSoft: '#FFF3CC',
+      // Gold is unreadable as text on cream, so anything named *Text is the
+      // deep gold that actually passes against this ground.
+      amberText: '#8A5A00'
     },
     /** Status colours, each with the tinted ground its badge sits on. */
     state: {
-      success: '#31C48D',
-      successBg: '#0C3326',
-      warning: '#F5A623',
-      warningBg: '#3A2708',
-      danger: '#F26D6D',
-      dangerBg: '#3D1416',
-      info: '#5AB0F5',
-      infoBg: '#0F2A40',
-      neutral: '#A28B83',
-      neutralBg: '#2A1119'
+      success: '#1E7A4C',
+      successBg: '#E3F5EB',
+      warning: '#B76E00',
+      warningBg: '#FFF3CC',
+      danger: '#C0392B',
+      dangerBg: '#FBE7E4',
+      info: '#2A6FB5',
+      infoBg: '#E5EFF9',
+      neutral: '#6E625A',
+      neutralBg: '#F1E7D6'
     },
     chart: {
-      line: '#F5A623',
-      fill: 'rgba(245, 166, 35, 0.16)',
-      grid: '#33161F',
-      secondary: '#5AB0F5'
+      line: '#641C32',
+      fill: 'rgba(100, 28, 50, 0.14)',
+      grid: '#EADCC2',
+      secondary: '#B76E00'
     }
   },
   space: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 7: 32, 8: 40 },
@@ -71,7 +78,7 @@ export const tokens = {
   shadow: {
     card: {
       shadowColor: '#000000',
-      shadowOpacity: 0.35,
+      shadowOpacity: 0.10,
       shadowRadius: 16,
       shadowOffset: { width: 0, height: 6 },
       elevation: 6

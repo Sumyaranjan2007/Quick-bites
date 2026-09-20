@@ -35,9 +35,10 @@ import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { RolesScreen } from './src/screens/RolesScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
-import { useHardwareBack } from './src/lib/useHardwareBack';
+import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 import { createClient } from './src/lib/api';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const c = tokens.colors;
 
@@ -188,7 +189,7 @@ const Console: React.FC = () => {
   const [active, setActive] = useState('dashboard');
 
   // Any section but the dashboard returns to it; the dashboard leaves the app.
-  useHardwareBack(
+  useHardwareBackWithExitConfirm(
     useCallback(() => {
       if (active !== 'dashboard') {
         setActive('dashboard');
@@ -364,7 +365,11 @@ const st = StyleSheet.create({
 export default function App() {
   return (
     <ErrorBoundary appName="Quick Bites Operations" accent={c.brand.amber}>
-      <AdminApp />
+    {/* Required by useSafeAreaInsets. Without it every inset reads zero and
+        the bottom row slides back under Android's navigation bar. */}
+    <SafeAreaProvider>
+        <AdminApp />
+    </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

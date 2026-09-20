@@ -197,7 +197,9 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.brand} onTouchEnd={registerTap}>
-          <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
+          <View style={styles.logoFrame}>
+            <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
+          </View>
           <Text style={styles.brandName}>Quick Bites</Text>
           <Text style={styles.brandTag}>{t('auth.tagline')}</Text>
         </View>
@@ -391,7 +393,26 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
 
   brand: { alignItems: 'center', marginBottom: 26 },
-  logo: { width: 128, height: 128 },
+  /**
+   * The mark sits in a frame, the way the partner, rider and operations apps
+   * already present theirs.
+   *
+   * It used to be a bare 128px image. The artwork is not optically centred
+   * inside its own bounding box — the swoosh extends to the upper right — so
+   * centring the box left the mark looking pushed off to one side, and it was
+   * the only one of the four apps without a container to sit in. A fixed frame
+   * with the image contained inside it aligns the mark and makes the four
+   * sign-in screens look like one product.
+   */
+  logoFrame: {
+    width: 104,
+    height: 104,
+    borderRadius: 32,
+    backgroundColor: c.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  logo: { width: 76, height: 76 },
   brandName: {
     fontSize: tokens.font.size['2xl'],
     fontWeight: tokens.font.weight.extrabold,

@@ -799,6 +799,31 @@ async function run() {
       body: JSON.stringify({ enabled: true })
     });
     check('Restoring it puts coupons back', isEnabled('coupons'));
+
+    // Roles are the keys to the whole console, so only a super admin may cut
+    // new ones. Checked from an ordinary admin account because the client also
+    // hides these buttons, and a check that only exercises the hidden path
+    // proves nothing about the server.
+    const opsToken = await signIn('ops@quickbite.app');
+    check('A scoped operations admin can sign in', Boolean(opsToken));
+
+    const opsMe = await api('/admin/me', opsToken);
+    check('and is NOT a super admin', opsMe.json?.data?.isSuperAdmin === false, JSON.stringify(opsMe.json?.data?.isSuperAdmin));
+
+    const attempt = await fetch(`http://127.0.0.1:${PORT}/api/admin/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${opsToken}` },
+      body: JSON.stringify({ name: 'Should Not Exist', permissions: ['orders.view'] })
+    });
+    check('and cannot create a role', attempt.status === 403, String(attempt.status));
+
+    const bySuper = await fetch(`http://127.0.0.1:${PORT}/api/admin/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ name: `Check ${Date.now()}`, permissions: ['orders.view'] })
+    });
+    // The other half: a gate that refuses everybody is not a gate.
+    check('while a super admin can', bySuper.status === 200 || bySuper.status === 201, String(bySuper.status));
   }
 
   server.close();

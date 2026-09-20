@@ -50,9 +50,10 @@ import {
   stopOrderAlert
 } from './src/lib/orderAlert';
 import { startShiftService, stopShiftService } from './src/lib/shiftService';
-import { useHardwareBack } from './src/lib/useHardwareBack';
+import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 
 import { DEFAULT_API_URL } from './src/config';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 type Tab = 'home' | 'trips' | 'earnings' | 'profile';
 type SubScreen = 'documents' | 'ratings' | 'incentives' | 'weekly' | 'safety' | 'policies' | 'settlement';
@@ -92,7 +93,7 @@ function DeliveryApp() {
    * the gesture closed the whole app, which for a rider mid-shift meant losing
    * the trip screen entirely.
    */
-  useHardwareBack(
+  useHardwareBackWithExitConfirm(
     useCallback(() => {
       if (subScreen) {
         setSubScreen(null);
@@ -524,7 +525,7 @@ function DeliveryApp() {
   if (booting) {
     return (
       <SafeScreen style={s.boot}>
-        <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
+        <StatusBar barStyle="dark-content" backgroundColor={t.color.bg} />
         <ActivityIndicator color={t.color.go} size="large" />
       </SafeScreen>
     );
@@ -637,7 +638,7 @@ function DeliveryApp() {
 
   return (
     <SafeScreen style={s.screen} edgeToEdge>
-      <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={t.color.bg} />
 
       {subScreen ? (
         <View style={s.subHeader}>
@@ -900,7 +901,11 @@ const s = StyleSheet.create({
 export default function App() {
   return (
     <ErrorBoundary>
-      <DeliveryApp />
+    {/* Required by useSafeAreaInsets. Without it every inset reads zero and
+        the bottom row slides back under Android's navigation bar. */}
+    <SafeAreaProvider>
+        <DeliveryApp />
+    </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

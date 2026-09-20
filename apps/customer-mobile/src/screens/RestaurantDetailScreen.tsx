@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -78,7 +78,20 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /**
+   * Which heading to scroll to, not which slice to show.
+   *
+   * The menu used to render one category at a time behind a row of tabs, so a
+   * customer who wanted to see what a kitchen actually served had to tab
+   * through every section to find out — and dishes in the sections they did not
+   * open were invisible. The whole menu is now one list, and this is only used
+   * to highlight where the reader currently is.
+   */
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** Vertical offset of each category heading, measured as it lays out. */
+  const sectionOffsets = useRef<Record<string, number>>({});
+  const scrollRef = useRef<ScrollView>(null);
 
   const loadMenu = async () => {
     setIsLoading(true);
@@ -126,7 +139,24 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const categories = Array.from(new Set(dishes.map(d => d.categoryName).filter(Boolean))) as string[];
-  const shown = activeCategory ? dishes.filter(d => d.categoryName === activeCategory) : dishes;
+
+  // The whole menu, grouped under its headings. Nothing is filtered out.
+  const grouped: Array<{ category: string; items: Dish[] }> = categories.length
+    ? categories.map(category => ({
+        category,
+        items: dishes.filter(d => d.categoryName === category)
+      }))
+    : [{ category: '', items: dishes }];
+
+  const jumpToCategory = (category: string) => {
+    setMenuOpen(false);
+    setActiveCategory(category);
+    const y = sectionOffsets.current[category];
+    if (typeof y === 'number') {
+      // A little above the heading so it does not sit flush against the top.
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    }
+  };
 
   const handleAddDish = (dish: Dish) => {
     if (!dish.isAvailable) return;
@@ -167,7 +197,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={styles.hero}>
           {restaurant.bannerUrl ? (
@@ -227,11 +257,11 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
           ))}
         </ScrollView>
 
-        {/* Category tabs */}
+        {/* Categories jump to their heading. They no longer hide the rest. */}
         {categories.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
             {categories.map(cat => (
-              <TouchableOpacity key={cat} onPress={() => setActiveCategory(cat)} activeOpacity={0.8}>
+              <TouchableOpacity key={cat} onPress={() => jumpToCategory(cat)} activeOpacity={0.8}>
                 <View style={styles.tab}>
                   <Text style={[styles.tabText, activeCategory === cat && styles.tabTextActive]}>{cat}</Text>
                   {activeCategory === cat && <View style={styles.tabUnderline} />}
@@ -257,9 +287,19 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
           <EmptyState title="No dishes yet" subtitle="This restaurant hasn't published its menu." />
         )}
 
-        {/* Menu */}
+        {/* The whole menu, in one list, grouped under its headings. */}
         <View style={styles.menuList}>
-          {shown.map(dish => {
+          {grouped.map(group => (
+          <View
+            key={group.category || 'all'}
+            onLayout={event => {
+              // Recorded as it lays out so the Menu sheet can scroll straight
+              // here. Measuring on demand would be a frame too late.
+              if (group.category) sectionOffsets.current[group.category] = event.nativeEvent.layout.y;
+            }}
+          >
+            {!!group.category && <Text style={styles.sectionHeading}>{group.category}</Text>}
+            {group.items.map(dish => {
             const inCart = cart.filter(x => x.dishId === dish.id).reduce((s, x) => s + x.quantity, 0);
             return (
               <View key={dish.id} style={[styles.dishRow, !dish.isAvailable && styles.dishRowOut]}>
@@ -297,9 +337,46 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
                 </View>
               </View>
             );
-          })}
+            })}
+          </View>
+          ))}
         </View>
       </ScrollView>
+
+      {/*
+        One button for the whole menu.
+        Sits above the cart bar when there is one, so it never covers the total.
+      */}
+      {categories.length > 1 && (
+        <TouchableOpacity
+          style={[styles.menuFab, totalCartCount > 0 && styles.menuFabRaised]}
+          onPress={() => setMenuOpen(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Browse the menu by category"
+        >
+          <Text style={styles.menuFabText}>MENU</Text>
+        </TouchableOpacity>
+      )}
+
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={styles.menuBackdrop} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuSheet}>
+            <Text style={styles.menuSheetTitle}>Menu</Text>
+            {grouped.map(group => (
+              <TouchableOpacity
+                key={group.category}
+                style={styles.menuSheetRow}
+                onPress={() => jumpToCategory(group.category)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.menuSheetLabel}>{group.category}</Text>
+                <Text style={styles.menuSheetCount}>{group.items.length}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Cart bar */}
       {totalCartCount > 0 && (
@@ -442,6 +519,55 @@ const styles = StyleSheet.create({
   },
 
   menuList: { paddingHorizontal: 16, paddingTop: 8 },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: c.text.primary,
+    marginTop: 18,
+    marginBottom: 4,
+    letterSpacing: 0.2
+  },
+  /**
+   * Centred rather than in a corner: it is the primary way to move around a
+   * long menu, and a thumb reaches the middle of the bottom edge most easily.
+   */
+  menuFab: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: 24,
+    backgroundColor: c.text.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 22,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 }
+  },
+  /** Lifted clear of the cart bar when one is showing. */
+  menuFabRaised: { bottom: 96 },
+  menuFabText: { color: c.text.inverse, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
+  menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  menuSheet: {
+    backgroundColor: c.surface.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 30
+  },
+  menuSheetTitle: { fontSize: 17, fontWeight: '800', color: c.text.primary, marginBottom: 6 },
+  menuSheetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border.subtle
+  },
+  menuSheetLabel: { fontSize: 15, color: c.text.primary, fontWeight: '600' },
+  menuSheetCount: { fontSize: 13, color: c.text.secondary },
   dishRow: {
     flexDirection: 'row',
     paddingVertical: 18,

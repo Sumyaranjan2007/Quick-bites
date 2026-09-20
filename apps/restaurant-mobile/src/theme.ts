@@ -1,32 +1,37 @@
 /**
  * The partner app's palette.
  *
- * A warm dark scheme: a kitchen screen is looked at in glances, often on a
- * grease-smeared phone propped by the pass, so contrast matters more than
- * subtlety. Brand amber carries anything that needs acting on; the maroon
- * surfaces come from the Quick Bites logo.
+ * A kitchen screen is looked at in glances, often on a grease-smeared phone
+ * propped by the pass, so contrast matters more than subtlety. This is the
+ * brand cream ground shared with the rider and operations apps; it replaces a
+ * warm dark scheme, and a kitchen is a bright room, which is the case a dark
+ * palette handles worst.
+ *
+ * Burgundy carries structure, gold carries anything that needs acting on — as a
+ * fill behind near-black text, never as text itself, because gold on cream is
+ * close to invisible.
  */
 export const c = {
-  bg: '#17090E',
-  surface: '#26111A',
-  surfaceRaised: '#2F1622',
-  border: '#3E1E28',
+  bg: '#FFF7E8',
+  surface: '#FFFFFF',
+  surfaceRaised: '#FFFFFF',
+  border: '#EADCC2',
 
-  text: '#FBF3EE',
-  textMuted: '#A8968E',
-  textSoft: '#D8C9C0',
+  text: '#171313',
+  textMuted: '#8A7C70',
+  textSoft: '#5C5048',
 
-  brand: '#F5A623',
-  brandDeep: '#E08E0B',
+  brand: '#641C32',
+  brandDeep: '#4A1425',
 
-  success: '#2E9E62',
-  successSoft: '#123B28',
-  danger: '#D2544B',
-  warning: '#E0A62B',
-  info: '#4A8FD4',
+  success: '#1E7A4C',
+  successSoft: '#E3F5EB',
+  danger: '#C0392B',
+  warning: '#B76E00',
+  info: '#2A6FB5',
 
-  veg: '#2E9E62',
-  nonVeg: '#D2544B'
+  veg: '#1E7A4C',
+  nonVeg: '#C0392B'
 } as const;
 
 export const spacing = {

@@ -16,10 +16,11 @@ import { MenuScreen } from './src/screens/MenuScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
 import { ErrorNote } from './src/components/ui';
-import { useHardwareBack } from './src/lib/useHardwareBack';
+import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 
 import { DEFAULT_API_URL } from './src/config';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help' | 'settlements';
 
@@ -54,7 +55,7 @@ function PartnerApp() {
   // Any tab but the dashboard returns to it; the dashboard leaves the app.
   // Previously the gesture closed the app from wherever the kitchen happened
   // to be, mid-service.
-  useHardwareBack(
+  useHardwareBackWithExitConfirm(
     useCallback(() => {
       if (tab !== 'dashboard') {
         setTab('dashboard');
@@ -169,7 +170,7 @@ function PartnerApp() {
   if (restoringSession) {
     return (
       <SafeScreen style={styles.safe}>
-        <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+        <StatusBar barStyle="dark-content" backgroundColor={c.bg} />
       </SafeScreen>
     );
   }
@@ -177,7 +178,7 @@ function PartnerApp() {
   if (!token) {
     return (
       <SafeScreen style={styles.safe}>
-        <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+        <StatusBar barStyle="dark-content" backgroundColor={c.bg} />
         <SignInScreen onSignedIn={onSignedIn} />
       </SafeScreen>
     );
@@ -194,7 +195,7 @@ function PartnerApp() {
   if (!restaurant) {
     return (
       <SafeScreen style={styles.safe}>
-        <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+        <StatusBar barStyle="dark-content" backgroundColor={c.bg} />
         <View style={styles.blocked}>
           <ShieldCheck size={40} color={c.warning} />
           <Text style={styles.blockedTitle}>Kitchen not linked yet</Text>
@@ -211,7 +212,7 @@ function PartnerApp() {
 
   return (
     <SafeScreen style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={c.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={c.bg} />
 
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
@@ -298,7 +299,11 @@ function PartnerApp() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <PartnerApp />
+    {/* Required by useSafeAreaInsets. Without it every inset reads zero and
+        the bottom row slides back under Android's navigation bar. */}
+    <SafeAreaProvider>
+        <PartnerApp />
+    </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

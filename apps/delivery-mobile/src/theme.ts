@@ -1,44 +1,48 @@
 /**
  * Quick Bites Rider — design tokens.
  *
- * A rider reads this screen in daylight, one-handed, often with the phone
- * clamped to a handlebar. So: a dark canvas that does not glare at night, very
- * large numerals for the things that matter (money, codes, distance), generous
- * hit targets, and exactly one accent colour for "go" so the eye never has to
- * hunt for the next action.
+ * A rider reads this screen one-handed, often with the phone clamped to a
+ * handlebar and usually in daylight. So: very large numerals for the things
+ * that matter (money, codes, distance), generous hit targets, and exactly one
+ * accent colour for "go" so the eye never has to hunt for the next action.
  *
- * The maroon and amber come from the Quick Bites brand shared with the customer
- * and partner apps; the mint green is the rider app's own signal colour for
- * being on shift.
+ * The canvas is the brand cream, shared now with the partner and operations
+ * apps so the four surfaces read as one product. It replaces a dark scheme
+ * chosen for night riding; daylight is the harder case and the one riders are
+ * in most of the time, and a cream ground is far easier to read under sun.
+ *
+ * Signal colours are darkened from their usual values because a colour that
+ * reads well on near-black is often unreadable on cream — mint green and bright
+ * gold both vanish. Gold stays as a FILL behind near-black text, never as text.
  */
 export const t = {
   color: {
-    // Canvas and raised surfaces.
-    bg: '#140A0E',
-    surface: '#211219',
-    surfaceRaised: '#2C1922',
-    surfaceSunken: '#0E0609',
-    border: '#3A2029',
-    borderStrong: '#4E2C38',
+    // Canvas and raised surfaces. Cream ground, white cards.
+    bg: '#FFF7E8',
+    surface: '#FFFFFF',
+    surfaceRaised: '#FFFFFF',
+    surfaceSunken: '#F6EBD6',
+    border: '#EADCC2',
+    borderStrong: '#D8C39F',
 
     // Text.
-    text: '#FBF3EE',
-    textSecondary: '#CBB6AF',
-    textMuted: '#94807B',
-    textInverse: '#1A0A10',
+    text: '#171313',
+    textSecondary: '#5C5048',
+    textMuted: '#8A7C70',
+    textInverse: '#FFF7E8',
 
     // Signals.
-    go: '#24C88E',
-    goSoft: '#0E4534',
-    goText: '#5BE5B4',
-    money: '#FFC24D',
-    moneySoft: '#3E2C10',
-    danger: '#F0555B',
-    dangerSoft: '#3E1218',
-    warning: '#F5A623',
-    info: '#5B9BFF',
-    brand: '#8E1F3C',
-    brandSoft: '#3A0E1D'
+    go: '#1E7A4C',
+    goSoft: '#E3F5EB',
+    goText: '#14603A',
+    money: '#8A5A00',
+    moneySoft: '#FFF3CC',
+    danger: '#C0392B',
+    dangerSoft: '#FBE7E4',
+    warning: '#B76E00',
+    info: '#2A6FB5',
+    brand: '#641C32',
+    brandSoft: '#F7E7EB'
   },
   space: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 7: 28, 8: 32, 10: 40, 12: 48 },
   radius: { sm: 10, md: 14, lg: 20, xl: 26, full: 999 },

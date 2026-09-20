@@ -87,7 +87,7 @@ export const LoginScreen: React.FC<{
 
   return (
     <SafeScreen style={s.screen}>
-      <StatusBar barStyle="light-content" backgroundColor={t.color.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={t.color.bg} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.brandBlock} onTouchEnd={registerTap}>

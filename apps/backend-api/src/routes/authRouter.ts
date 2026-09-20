@@ -81,10 +81,11 @@ authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registra
       preferredLanguage: 'en'
     });
 
-    // Auto-create wallet for customers and riders
-    if (assignedRole === 'customer') {
-      await walletRepository.credit(user.id, 100.00, 'Sign-up Bonus Balance');
-    }
+    // No sign-up bonus. It used to credit Rs 100 to every new customer, which
+    // is money given away to anyone who can supply a phone number — and the
+    // wallet it landed in no longer accepts top-ups, so the balance had nowhere
+    // to come from and no reason to exist. The wallet is created on first use
+    // by getByUserId; nothing needs to seed it.
 
     return res.status(201).json({
       success: true,
@@ -597,7 +598,6 @@ authRouter.post(
           isGold: false,
           preferredLanguage: 'en'
         });
-        await walletRepository.credit(user.id, 100.0, 'Sign-up Bonus Balance');
         created = true;
       } else if (user.role !== 'customer') {
         // A staff member's number reaching this endpoint must not hand out a

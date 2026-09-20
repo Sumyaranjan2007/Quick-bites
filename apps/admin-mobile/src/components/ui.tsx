@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { tokens, toneForStatus, humanise } from '../theme/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const c = tokens.colors;
 
@@ -35,11 +36,35 @@ const c = tokens.colors;
  * scrolling rail can still bleed to both edges without the page itself scrolling
  * sideways.
  */
+/**
+ * The outermost frame of the console.
+ *
+ * Padded only at the top from `StatusBar.currentHeight`, which left the bottom
+ * edge unreserved: on a three-button navigation phone Android's back, home and
+ * recents keys sat on top of the console's own bottom row, and the last row of
+ * every list was unreachable. Invisible on a gesture-navigation device, which
+ * is why it survived.
+ *
+ * `useSafeAreaInsets` reports what the window manager actually says per edge and
+ * re-renders when it changes — rotation, keyboard, or Android switching between
+ * gesture and three-button navigation while the app is open.
+ */
 export const Screen: React.FC<{ children?: React.ReactNode; style?: ViewStyle }> = ({ children, style }) => {
-  const topInset = Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0;
+  const insets = useSafeAreaInsets();
   return (
-    <View style={[s.screen, { paddingTop: topInset }, style]}>
-      <StatusBar barStyle="light-content" backgroundColor={c.bg.base} translucent={false} />
+    <View
+      style={[
+        s.screen,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right
+        },
+        style
+      ]}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={c.bg.base} translucent={false} />
       {children}
     </View>
   );
