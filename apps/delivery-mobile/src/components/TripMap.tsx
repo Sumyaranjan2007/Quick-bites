@@ -101,43 +101,43 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
       }}
     >
       {mapSize.width > 0 && mapSize.height > 0 && (
-      <MapView
-        ref={ref}
-        style={StyleSheet.absoluteFill}
-        onMapReady={() => setMapReady(true)}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{
-          latitude: destination.latitude,
-          longitude: destination.longitude,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02
-        }}
-        // The rider's own position is drawn by the OS blue dot rather than by a
-        // marker of ours: it carries the accuracy circle and the heading arrow,
-        // both of which matter on a bike and neither of which a plain pin has.
-        showsUserLocation
-        showsMyLocationButton={false}
-        toolbarEnabled={false}
-        // Scroll is off because this map lives inside a scrolling screen. A
-        // pannable map in a ScrollView steals every vertical drag that starts
-        // on it, so the rider cannot scroll past it to reach the buttons below.
-        scrollEnabled={false}
-        zoomEnabled={false}
-      >
-        <Marker
-          coordinate={destination}
-          title={destinationLabel}
-          pinColor={carryingFood ? t.color.go : t.color.money}
-        />
-        {rider && (
-          <Polyline
-            coordinates={[rider, destination]}
-            strokeColor={t.color.brand}
-            strokeWidth={3}
-            lineDashPattern={[8, 6]}
+        <MapView
+          ref={ref}
+          style={StyleSheet.absoluteFill}
+          onMapReady={() => setMapReady(true)}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+          initialRegion={{
+            latitude: destination.latitude,
+            longitude: destination.longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02
+          }}
+          // The rider's own position is drawn by the OS blue dot rather than by a
+          // marker of ours: it carries the accuracy circle and the heading arrow,
+          // both of which matter on a bike and neither of which a plain pin has.
+          showsUserLocation
+          showsMyLocationButton={false}
+          toolbarEnabled={false}
+          // Scroll is off because this map lives inside a scrolling screen. A
+          // pannable map in a ScrollView steals every vertical drag that starts
+          // on it, so the rider cannot scroll past it to reach the buttons below.
+          scrollEnabled={false}
+          zoomEnabled={false}
+        >
+          <Marker
+            coordinate={destination}
+            title={destinationLabel}
+            pinColor={carryingFood ? t.color.go : t.color.money}
           />
-        )}
-      </MapView>
+          {rider && (
+            <Polyline
+              coordinates={[rider, destination]}
+              strokeColor={t.color.brand}
+              strokeWidth={3}
+              lineDashPattern={[8, 6]}
+            />
+          )}
+        </MapView>
       )}
       <View style={s.tag}>
         <Text style={s.tagText}>{carryingFood ? 'To the customer' : 'To the kitchen'}</Text>

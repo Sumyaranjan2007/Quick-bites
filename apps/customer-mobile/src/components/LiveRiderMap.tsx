@@ -159,25 +159,25 @@ const NativeRiderMap: React.FC<{ rider: Coords; destination: Coords }> = ({ ride
       }}
     >
       {mapSize.width > 0 && mapSize.height > 0 && (
-    <MapView
-      ref={ref}
-      style={StyleSheet.absoluteFill}
-      onMapReady={() => setMapReady(true)}
-      provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-      initialRegion={{
-        latitude: (rider.latitude + destination.latitude) / 2,
-        longitude: (rider.longitude + destination.longitude) / 2,
-        latitudeDelta: Math.max(0.01, Math.abs(rider.latitude - destination.latitude) * 2.5),
-        longitudeDelta: Math.max(0.01, Math.abs(rider.longitude - destination.longitude) * 2.5)
-      }}
-      pointerEvents="none"
-      toolbarEnabled={false}
-      showsMyLocationButton={false}
-    >
-      <Marker coordinate={destination} title="Delivery address" pinColor={c.primary[500]} />
-      <Marker coordinate={rider} title="Your rider" pinColor={c.accent[500]} />
-      <Polyline coordinates={[rider, destination]} strokeColor={c.primary[500]} strokeWidth={3} />
-    </MapView>
+      <MapView
+        ref={ref}
+        style={StyleSheet.absoluteFill}
+        onMapReady={() => setMapReady(true)}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        initialRegion={{
+          latitude: (rider.latitude + destination.latitude) / 2,
+          longitude: (rider.longitude + destination.longitude) / 2,
+          latitudeDelta: Math.max(0.01, Math.abs(rider.latitude - destination.latitude) * 2.5),
+          longitudeDelta: Math.max(0.01, Math.abs(rider.longitude - destination.longitude) * 2.5)
+        }}
+        pointerEvents="none"
+        toolbarEnabled={false}
+        showsMyLocationButton={false}
+      >
+        <Marker coordinate={destination} title="Delivery address" pinColor={c.primary[500]} />
+        <Marker coordinate={rider} title="Your rider" pinColor={c.accent[500]} />
+        <Polyline coordinates={[rider, destination]} strokeColor={c.primary[500]} strokeWidth={3} />
+      </MapView>
       )}
     </View>
   );
