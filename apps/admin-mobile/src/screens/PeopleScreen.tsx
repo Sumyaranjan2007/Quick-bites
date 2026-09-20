@@ -369,6 +369,14 @@ const DriversTab: React.FC = () => {
               <MiniStat label="Rating" value={driver.rating ? driver.rating.toFixed(1) : '—'} />
               <MiniStat label="Accepts" value={`${driver.acceptanceRate}%`} />
             </View>
+            {/* Shown only when it has happened. A "No-shows: 0" on every rider
+                is a column of zeroes nobody reads, and the one row that is not
+                zero stops standing out. */}
+            {driver.noShowCount ? (
+              <Text style={s.noShowFlag}>
+                {driver.noShowCount} no-show{driver.noShowCount === 1 ? '' : 's'} — accepted a trip and never collected
+              </Text>
+            ) : null}
             {driver.activeOrderNumber ? (
               <Text style={s.activeTrip}>Currently delivering #{driver.activeOrderNumber}</Text>
             ) : null}
@@ -738,6 +746,12 @@ const s = StyleSheet.create({
   miniStatValue: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
   miniStatLabel: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
   activeTrip: { marginTop: tokens.space[3], fontSize: tokens.font.size.xs, color: c.state.info },
+  noShowFlag: {
+    marginTop: tokens.space[3],
+    fontSize: tokens.font.size.xs,
+    fontWeight: '700',
+    color: c.state.danger
+  },
   cardHeading: {
     fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,

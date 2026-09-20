@@ -217,6 +217,17 @@ peopleRoutes.get('/drivers', requirePermission('users.drivers.view'), async (req
         acceptanceRate: rider.offersReceived
           ? Math.round(((rider.offersAccepted || 0) / rider.offersReceived) * 100)
           : 0,
+        /**
+         * Trips accepted and then never collected.
+         *
+         * Served beside the acceptance rate on purpose: the two together are
+         * the thing worth looking at. A rider at 95% acceptance with six
+         * no-shows is protecting that number by taking trips they then drop,
+         * and each one costs a customer their dinner. Neither figure says that
+         * on its own.
+         */
+        noShowCount: rider.noShowCount || 0,
+        lastNoShowAt: rider.lastNoShowAt || null,
         activeOrderId: active?.id || null,
         activeOrderNumber: active?.orderNumber || null
       };
