@@ -79,6 +79,13 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
     const start = initial || FALLBACK_CENTRE;
     setCentre(start);
     describe(start);
+    // See MapAddressPicker: `initialRegion` is read once at mount, so the
+    // camera is placed explicitly rather than trusting the Modal to have
+    // unmounted its children since last time.
+    mapRef.current?.animateToRegion?.(
+      { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
+      0
+    );
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };

@@ -129,7 +129,15 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
     setCoordinates(picked.coordinates);
     setForm(prev => ({
       ...prev,
-      addressLine: picked.addressLine || prev.addressLine,
+      // Only fills an EMPTY field. `addressLine` is where the flat or house
+      // number is typed, and a geocoded street address would overwrite it —
+      // deleting the one part of the address a rider needs at the door, in
+      // exchange for a street name they can already see on the map.
+      //
+      // Same rule as picking from search, a few lines below. Getting these two
+      // to disagree would mean a customer losing their flat number depending on
+      // which control they happened to use.
+      addressLine: prev.addressLine.trim() ? prev.addressLine : picked.addressLine,
       city: picked.city || prev.city,
       pincode: picked.pincode || prev.pincode
     }));

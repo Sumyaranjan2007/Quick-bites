@@ -130,6 +130,15 @@ export const MapAddressPicker: React.FC<Props> = ({
     setCentre(start);
     setResolved(null);
     lookUp(start);
+    // `initialRegion` is only read when the map mounts. Whether a Modal's
+    // children unmount while hidden is a platform detail, so relying on it
+    // would mean the picker sometimes reopening on the LAST place it was used
+    // rather than the one it was asked for. Moving the camera explicitly is
+    // correct either way, and is a no-op on a map that just mounted there.
+    mapRef.current?.animateToRegion?.(
+      { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
+      0
+    );
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };
