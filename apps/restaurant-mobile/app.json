@@ -105,6 +105,10 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA"
+      ],
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "newArchEnabled": false,
@@ -124,10 +128,17 @@
           }
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Quick Bites Partner uses your location once, to place your kitchen on the map so nearby customers can find you."
+        }
+      ],
       "../../packages/config/expo-plugins/withReleaseSigning",
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",
       "../../packages/config/expo-plugins/withLegacyBackGesture",
+      "../../packages/config/expo-plugins/withGoogleMapsApiKey",
       "../../packages/config/expo-plugins/withExternalAppQueries"
     ]
   }

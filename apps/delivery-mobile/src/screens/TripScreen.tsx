@@ -24,6 +24,7 @@ import { t } from '../theme';
 import { Button, Card, EmptyState, Pill, Row, SectionTitle } from '../components/ui';
 import { clockTime, distance, rupees } from '../lib/format';
 import { callNumber, openDirections } from '../lib/maps';
+import { TripMap } from '../components/TripMap';
 import type { Trip, TripStage } from '../lib/api';
 
 /**
@@ -67,6 +68,8 @@ export const TripScreen: React.FC<{
   onOpenChat: () => void;
   /** Unread messages from the customer, badged on the chat control. */
   unreadMessages?: number;
+  /** The rider's own position, from the watcher that already feeds telemetry. */
+  riderPosition?: { latitude: number; longitude: number } | null;
 }> = ({
   trip,
   offers,
@@ -85,6 +88,7 @@ export const TripScreen: React.FC<{
   onDeclineOffer,
   onOpenChat,
   unreadMessages = 0,
+  riderPosition,
   onGoOnline,
   onCompleteProfile,
   onSos
@@ -203,6 +207,22 @@ export const TripScreen: React.FC<{
       </View>
 
       <Card style={{ marginTop: t.space[4] }}>
+        {/* The leg in progress. Which stop that is follows the same flags the
+            two Navigate buttons already use, so the map can never be pointing
+            at a stop the controls below consider finished. */}
+        <TripMap
+          rider={riderPosition ?? null}
+          destination={
+            outForDelivery || atDoorstep
+              ? trip.dropCoordinates ?? null
+              : trip.pickupCoordinates ?? null
+          }
+          destinationLabel={
+            outForDelivery || atDoorstep ? trip.customerName || 'Customer' : trip.restaurantName
+          }
+          carryingFood={outForDelivery || atDoorstep}
+        />
+
         <View style={s.tripHead}>
           <View>
             <Text style={s.tripOrder}>Order #{trip.orderNumber}</Text>

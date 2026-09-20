@@ -76,7 +76,30 @@ const FORBIDDEN = [
   { label: 'a live Razorpay key', pattern: /rzp_live_[A-Za-z0-9]{6,}/ },
   { label: 'a private key block', pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   { label: 'the seeded development password', pattern: /pass123/ },
-  { label: 'an AWS access key id', pattern: /AKIA[0-9A-Z]{16}/ }
+  { label: 'an AWS access key id', pattern: /AKIA[0-9A-Z]{16}/ },
+  /**
+   * Any Google API key at all, in the JavaScript bundle.
+   *
+   * There are two Google keys in this project and NEITHER belongs here.
+   *
+   * The Android Maps key is written into AndroidManifest.xml by the
+   * `withGoogleMapsApiKey` config plugin, because that is where the native
+   * Maps SDK reads it from. It is restricted by package name and release
+   * SHA-1, so shipping it is Google's intended model — but it still has no
+   * reason to be in the JS bundle, and finding it there means somebody has
+   * added a second copy by hand.
+   *
+   * The SERVER key is the one that matters. It cannot be package-restricted,
+   * it bills per call, and it lives only in Railway behind the `/places` and
+   * routing endpoints. A developer who "just needs the key on the client"
+   * would reach for the same `AIza...` string, and this is the line that stops
+   * that reaching a release.
+   *
+   * Matched by shape rather than by value because the server key is not in any
+   * local `.env` — it is only ever set on the deployment — so the value-based
+   * check above could never see it.
+   */
+  { label: 'a Google API key (neither Google key belongs in the JS bundle)', pattern: /AIza[0-9A-Za-z_-]{35}/ }
 ];
 
 console.log('====================================================');

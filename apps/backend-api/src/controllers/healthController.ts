@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import { config } from '../config/env.ts';
+import { placesStatus } from '../modules/places/placesService.ts';
+import { routingStatus } from '../modules/places/routingService.ts';
 
 export function getHealth(req: Request, res: Response): void {
   const uptimeSeconds = Math.floor(process.uptime());
@@ -27,7 +29,22 @@ export function getHealth(req: Request, res: Response): void {
       search: {
         status: 'UP',
         provider: 'Meilisearch Cloud'
-      }
+      },
+      /**
+       * Whether this deployment can answer questions about places.
+       *
+       * Both of these were written to be reported here and never connected, so
+       * the only way to find out whether GOOGLE_MAPS_SERVER_KEY had actually
+       * reached the deployment was to sign in as a customer and watch an
+       * address search come back empty — which looks identical to a street
+       * that does not exist.
+       *
+       * `configured` is a boolean and the breaker snapshots carry counts and
+       * states. No key material passes through either, which the routing suite
+       * asserts rather than assumes.
+       */
+      addressLookup: placesStatus(),
+      roadDistance: routingStatus()
     },
     system: {
       memoryRssMb: Math.round((memUsage.rss / 1024 / 1024) * 100) / 100,

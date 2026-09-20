@@ -6,6 +6,219 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-20] -- Claude Opus 5 -- Session 27: v2 Stage 2, maps and real distances
+
+**Description:** Stage 2 of `REBUILD_PLAN.md`. Real Google maps in three apps, a
+map you place a pin on instead of typing an address blind, restaurants listed by
+the area each one actually serves, and a delivery fee measured along roads
+rather than across rooftops.
+
+The theme of this stage, like the last one, is that the worst faults were not
+missing features. They were numbers being invented and then used as though they
+had been measured.
+
+---
+
+### The twenty-five minutes on every restaurant card
+
+`GET /restaurants` began with this:
+
+```
+let distanceKm = 2.5; // default estimate
+```
+
+and ended with `estimatedDeliveryMinutes: Math.round(15 + distanceKm * 4)`.
+
+The customer app never sent a position, so that branch always ran, so every
+restaurant on the home screen read **25 mins** — `15 + 2.5 * 4` — for every
+customer, everywhere, every time. It looked like a hardcoded delivery time. It
+was a hardcoded *input*, four lines above, which is harder to see and harder to
+search for.
+
+The same 2.5 propagated into the bill: checkout sent `distanceKm ?? 2.5`, the
+discovery feed carried `r.distanceKm ?? 2.2`, and the pricing engine charged
+distance-based delivery on whichever of those arrived. The fee was
+distance-based and the distance was a constant.
+
+Distance and delivery time are now **absent** when the customer's position is
+unknown, and the app omits the badge rather than filling it in. The "Under 30
+min" chip is hidden in that state too, and filtered out of the query even if it
+was switched on earlier — a control that cannot work should not be on screen,
+and a filter the customer can no longer see should not still be applied.
+
+### Measuring along roads
+
+**New: `modules/places/routingService.ts`** — road distance and duration from
+Google's Distance Matrix, cached, circuit-broken, and chunked at Google's own
+limit of 25 destinations per request.
+
+Three deliberate limits, each because of what it costs:
+
+- **The live rider leg stays straight-line.** `eta.ts` re-measures every few
+  seconds while a rider moves; billing Google per tick per active order is a
+  cost that scales with success.
+- **The restaurant list stays an estimate** — the straight line scaled by a
+  configurable road factor (1.3, the measured circuity of dense Indian grids).
+  Twenty restaurants on the most-visited screen in the product is twenty
+  billable elements per visit.
+- **The order is measured properly**, once, at the moment the bill is computed.
+  Approximate where it only orders a list; exact where it decides a charge.
+
+It never fails. Key absent, quota spent, request timed out, address in the sea —
+every path returns a usable number, marked `source: 'ESTIMATED'` so a caller can
+tell measurement from estimate. A checkout that cannot compute a delivery fee is
+a checkout that cannot take an order.
+
+`eta.ts` now **prefers the distance recorded at checkout** over re-deriving one.
+That figure is a real road measurement; the preference used to run the other way
+and quietly threw the measurement away in favour of the straight line under it.
+
+### Restaurants by the area they actually serve
+
+`Restaurant.serviceRadiusKm` is new, set by the partner at registration and
+bounded 1–25 km. A restaurant is listed when the customer is inside **its own**
+radius, not inside one platform-wide 10 km circle.
+
+Whether a kitchen delivers somewhere is a fact about the kitchen. A single-rider
+place covers two kilometres and a chain covers eight, and one shared circle both
+showed people restaurants that would decline their order and hid ones a street
+away from anybody standing just past the edge.
+
+The region test uses the straight line, because a service area is a circle drawn
+on a map and that is what a circle means. The distance *shown* is the road
+estimate, because that is the journey the food makes.
+
+### Every restaurant was in Cubbon Park
+
+The partner registration endpoint has accepted `latitude` and `longitude` all
+along. **No app has ever sent them.** Every restaurant that has ever signed up
+therefore sits at the server's fallback — the centre of Bengaluru.
+
+That is not cosmetic. Distance, delivery time, the fee, and whether a restaurant
+is offered to a customer at all are computed from that one pair of numbers. A
+kitchen in Harohalli listed at Cubbon Park is ~30 km from itself: invisible to
+its real neighbours, offered to people it could never reach.
+
+The partner app now requires a pin before it will register, on a real map, with
+"use my location" from inside the kitchen. Reverse geocoding there runs **on the
+device**, because registration happens before there is an account and the
+`/places` endpoints require one — an open Google proxy is a free Google proxy
+for whoever finds the URL.
+
+### Maps in the apps
+
+**New: `packages/config/expo-plugins/withGoogleMapsApiKey.js`.** The Android
+Maps key is written into the manifest at build time from a gitignored `.env`,
+because the native SDK reads it as the process starts and there is no runtime
+way to supply one.
+
+Worth being precise about what that protects. An Android Maps key ships inside
+every APK and can be read out of one with `unzip` and `strings` — Google's model
+assumes this. **The protection is the package-name + release-SHA-1 restriction
+in the Cloud console, not secrecy.** Keeping it out of a public repository only
+closes the window between a scrape and a restriction.
+
+The server key is the opposite and is handled as such: it cannot be
+app-restricted, it bills per call, and it exists only on the deployment.
+`check-apk-secrets.mjs` now fails any build whose JavaScript bundle contains a
+key of the shape `AIza…`, matched by shape rather than by value because the
+server key is in no local `.env` and the value-based scan could never see it.
+
+A missing key is **not** a build failure. It is recorded on `extra`, and
+`lib/nativeMap.ts` in each app answers one question — can this build draw a real
+map — by checking both that flag and whether the native module actually loaded.
+A key with no module cannot draw; a module with no key draws a grey square,
+which is worse than the fallback because it looks like the feature is working
+and merely broken. Either way the apps fall back to the drawn map they had
+before.
+
+Where the maps went:
+
+- **Customer** — the location chip at the top of the home screen. It has always
+  had a chevron on it and has never been pressable, which is its own small lie.
+  It now opens a full map: move the map under a fixed centre pin, the address
+  fills in from Google, confirm. The pin does not move and the map does, because
+  a thumb dragging a marker covers the exact point it is placing.
+- **Customer** — the address book, same picker, and then the flat number by
+  hand. No map knows which door is yours.
+- **Customer** — live order tracking, real map with the rider and the
+  destination both kept in frame.
+- **Rider** — the current leg on the trip screen, kitchen before pickup and door
+  after. Deliberately *not* turn-by-turn: riders have a navigation app they know
+  and have it mounted where they can see it. The Navigate buttons still hand off
+  for the riding; the map answers the question the order screen should answer by
+  itself, which is which way the next stop is.
+- **Partner** — kitchen placement at registration, above.
+
+### Smaller things found on the way
+
+- **`LiveRiderMap` had a place name hardcoded into it**: every customer in every
+  city was told "Live position · Harohalli". Now "Approximate position".
+- **`Math.max(1, parseFloat(x))` is not a floor.** `parseFloat` of anything
+  unparseable is `NaN`, and `Math.max(1, NaN)` is `NaN`. One typo in a Railway
+  variable would have reached the pricing engine as `NaN` and turned every
+  delivery fee on the platform into `NaN`. The guard is right there in the line
+  and looks correct, which is why it survived. Replaced with `numberFromEnv`.
+- **Three sort comparators returned `NaN`** once distance could be undefined —
+  which does not mean "wrong order", it means "a different order every time",
+  the kind of thing that never reproduces when somebody goes looking for it.
+  Caught by the typechecker, not by me.
+- `react-native-maps` is pinned exactly rather than with a caret. This repo has
+  a documented native crash from a duplicated native module, and a caret on a
+  native dependency under an SDK-pinned Expo is the same shape of bug.
+
+---
+
+### Testing
+
+**New: `src/test/routing.test.ts`** — 16 checks, Google stubbed at `fetch`
+rather than at our own wrapper, so what is tested is what happens to the
+response Google really sends.
+
+Six mutants were introduced into the routing service to check the tests can
+fail. **The first run caught one of four.** Two were equivalent mutants — the
+code defends the same thing twice — but the third was a real gap: the
+`REQUEST_DENIED` test asserted the fallback, and the fallback happens anyway. A
+200 carrying `REQUEST_DENIED` has no `rows`, so deleting the status check
+changes nothing a caller can see. What it changes is whether anybody ever finds
+out: without it, a key not authorised for Distance Matrix silently degrades
+every fee on the platform to an estimate, forever, with nothing in the logs.
+That check now asserts the log line, names the Google status, and asserts the
+key is *not* in it.
+
+A fourth gap surfaced the same way: the duration fixture was exactly 22 minutes,
+so `ceil` and `floor` agreed and the rounding could not be tested. A 40-second
+hop floored to "0 minutes" — which a customer reads as "it is already here".
+
+Final run: 6 of 6 mutants caught, each by the check that names the behaviour,
+source restored byte-for-byte.
+
+**Gate:** 19 backend suites (up from 18), nine workspaces typechecked, secret,
+URL and translation scans clean.
+
+---
+
+**Known Issues:**
+
+- **Live maps are unverified against Google's servers from this machine.** The
+  key is in the manifest and the plugin is proven end to end, but whether tiles
+  actually draw depends on the package-name + SHA-1 restrictions being right in
+  the Cloud console, which only a real device can tell you.
+- The rider marker on the customer's tracking map jumps between GPS fixes rather
+  than gliding. Interpolation needs `AnimatedRegion` and belongs with the rest
+  of live tracking in Stage 4.
+- Restaurants registered before this stage still sit at the centre of Bengaluru.
+  There is no screen yet that lets an existing partner correct their pin — that
+  is partner-profile work in Stage 5.
+- The back-block during an in-flight order is still unverified on a device,
+  carried over from Stage 1.
+
+**NEXT AI SHOULD:** Stage 3 of `REBUILD_PLAN.md` — payments and membership.
+Razorpay native SDK, real payment options at checkout, refunds to the original
+method, and the paid membership that replaces wallet top-up.
+
+---
+
 ## [2026-09-20] -- Claude Opus 5 -- Session 26: v2 Stage 1, foundations
 
 **Description:** The first of five stages in `REBUILD_PLAN.md`. Three of the four

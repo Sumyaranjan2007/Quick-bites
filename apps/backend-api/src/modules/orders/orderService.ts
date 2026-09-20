@@ -6,6 +6,7 @@ import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { calculateDistanceKm } from '../../db/client.ts';
+import { roadDistance } from '../places/routingService.ts';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
 import { couponRepository } from '../../db/repositories/couponRepository.ts';
@@ -153,16 +154,15 @@ export const orderService = {
       address = await addressRepository.findById(input.deliveryAddressId);
       if (address && address.userId !== input.customerId) address = null;
     }
-    const measuredDistanceKm =
+    // Measured along real roads, not as the crow flies. A straight line between
+    // a kitchen and a door understates the ride by roughly a third in a city
+    // with a river or a railway in it, and the customer was being charged for
+    // the short version of a journey the rider actually rides.
+    const measured =
       restaurant.coordinates && address?.coordinates
-        ? calculateDistanceKm(
-            restaurant.coordinates.latitude,
-            restaurant.coordinates.longitude,
-            address.coordinates.latitude,
-            address.coordinates.longitude
-          )
+        ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
-    const tripDistanceKm = measuredDistanceKm ?? input.distanceKm ?? 3.5;
+    const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
 
     let validatedCoupon = undefined;
     let couponError: string | undefined;
@@ -355,16 +355,11 @@ export const orderService = {
     // Prefer a distance measured between the two real points over whatever the
     // client claimed, falling back to the client's figure (and then to a nominal
     // 3.5 km) only when either end has no coordinates recorded.
-    const measuredDistanceKm =
+    const measured =
       restaurant.coordinates && address.coordinates
-        ? calculateDistanceKm(
-            restaurant.coordinates.latitude,
-            restaurant.coordinates.longitude,
-            address.coordinates.latitude,
-            address.coordinates.longitude
-          )
+        ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
-    const tripDistanceKm = measuredDistanceKm ?? input.distanceKm ?? 3.5;
+    const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
 
     const bill = calculateOrderPricing({
       items: orderItems.map(i => ({

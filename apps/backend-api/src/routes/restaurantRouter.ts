@@ -7,6 +7,8 @@ import { menuRequestRepository } from '../db/repositories/menuRequestRepository.
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { settlementRepository } from '../db/repositories/settlementRepository.ts';
 import { calculateDistanceKm } from '../db/client.ts';
+import { config } from '../config/env.ts';
+import { estimateByRoad } from '../modules/places/routingService.ts';
 import { emitKitchenStatus, emitMenuUpdated, emitMenuRequestSubmitted } from '../sockets/socketServer.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -63,20 +65,53 @@ restaurantRouter.get('/', async (req, res) => {
 
     const list = await restaurantRepository.listActive();
 
+    // Distance and delivery time exist only when the customer has told us where
+    // they are. They used to be manufactured when they had not: `distanceKm`
+    // defaulted to 2.5, which fed `15 + distanceKm * 4` and made EVERY
+    // restaurant on the home screen read "25 mins" — the fixed delivery time
+    // that looked like a hardcoded constant and was in fact a hardcoded input.
+    //
+    // Undefined is now the honest answer, and the app shows "Set your location"
+    // rather than a number nobody computed.
+    const origin = lat !== undefined && lng !== undefined ? { latitude: lat, longitude: lng } : null;
+
     let annotated = list.map((r: Restaurant) => {
-      let distanceKm = 2.5; // default estimate
-      let isWithin10km = true;
-      if (lat !== undefined && lng !== undefined && r.coordinates) {
-        distanceKm = calculateDistanceKm(lat, lng, r.coordinates.latitude, r.coordinates.longitude);
-        isWithin10km = distanceKm <= 10.0;
+      if (!origin || !r.coordinates) {
+        return { ...r, distanceKm: undefined, isWithinServiceArea: true, estimatedDeliveryMinutes: undefined };
       }
+
+      // Whether this kitchen delivers here is a question about a circle on a
+      // map, so it is asked of the straight line. What the customer is TOLD is
+      // the road estimate, because that is the journey their food makes.
+      const straightLine = calculateDistanceKm(
+        lat!,
+        lng!,
+        r.coordinates.latitude,
+        r.coordinates.longitude
+      );
+      const road = estimateByRoad(origin, r.coordinates);
+      const serviceRadius = Number(r.serviceRadiusKm) || config.DEFAULT_SERVICE_RADIUS_KM;
+
       return {
         ...r,
-        distanceKm,
-        isWithin10km,
-        estimatedDeliveryMinutes: Math.round(15 + distanceKm * 4)
+        distanceKm: road.distanceKm,
+        // Each restaurant against its own delivery area, not one platform-wide
+        // 10 km circle: a kitchen with one rider covers two kilometres and a
+        // chain covers eight, and pretending otherwise promised deliveries that
+        // would be declined.
+        isWithinServiceArea: straightLine <= serviceRadius,
+        // Prep plus travel at the configured speed, both settable without a
+        // release, instead of a slope invented in this line.
+        estimatedDeliveryMinutes: Math.round(
+          config.DEFAULT_PREP_MINUTES + (road.distanceKm / config.DELIVERY_SPEED_KMPH) * 60
+        )
       };
     });
+
+    // Out-of-area kitchens are dropped once we know where the customer is.
+    // Keeping them was the old behaviour and it showed people restaurants that
+    // could not deliver to them.
+    if (origin) annotated = annotated.filter(r => r.isWithinServiceArea);
 
     if (isPureVeg) annotated = annotated.filter(r => r.isPureVeg);
     // `isOpen !== false` rather than `isOpen === true`, so a kitchen recorded
@@ -86,7 +121,12 @@ restaurantRouter.get('/', async (req, res) => {
       annotated = annotated.filter(r => (Number(r.ratingAverage) || 0) >= minRating);
     }
     if (maxDeliveryMinutes !== undefined) {
-      annotated = annotated.filter(r => r.estimatedDeliveryMinutes <= maxDeliveryMinutes);
+      // `undefined <= 30` is false, so an unknown delivery time would quietly
+      // empty the list for anyone who has not set a location. A kitchen whose
+      // time we cannot compute is kept rather than judged.
+      annotated = annotated.filter(
+        r => r.estimatedDeliveryMinutes === undefined || r.estimatedDeliveryMinutes <= maxDeliveryMinutes
+      );
     }
     // A kitchen that has not published a cost for two is kept in every price
     // band. Dropping it would hide a real restaurant because of a missing field.
@@ -111,15 +151,28 @@ restaurantRouter.get('/', async (req, res) => {
 
     const byRating = (a: any, b: any) => (Number(b.ratingAverage) || 0) - (Number(a.ratingAverage) || 0);
 
+    /**
+     * Sorts unknown values last rather than first.
+     *
+     * Distance and delivery time are undefined for a customer who has not set a
+     * location. Subtracting undefined gives NaN, and a comparator returning NaN
+     * leaves the array in whatever order the engine happened to be in — so the
+     * bug is not "wrong order" but "different order every time", which is the
+     * kind of thing that never reproduces when someone goes looking for it.
+     */
+    const last = (n: number | undefined) => n ?? Number.MAX_SAFE_INTEGER;
+
     switch (sort) {
       case 'rating':
         annotated.sort(byRating);
         break;
       case 'deliveryTime':
-        annotated.sort((a, b) => a.estimatedDeliveryMinutes - b.estimatedDeliveryMinutes);
+        annotated.sort((a, b) => last(a.estimatedDeliveryMinutes) - last(b.estimatedDeliveryMinutes));
         break;
       case 'distance':
-        annotated.sort((a, b) => a.distanceKm - b.distanceKm);
+        // Unmeasured restaurants sort last rather than to the front, which is
+        // where `undefined - undefined` (NaN) would have left them.
+        annotated.sort((a, b) => last(a.distanceKm) - last(b.distanceKm));
         break;
       case 'costLowToHigh':
         annotated.sort((a, b) => (Number(a.costForTwo) || 0) - (Number(b.costForTwo) || 0));
@@ -134,7 +187,7 @@ restaurantRouter.get('/', async (req, res) => {
         annotated.sort(
           (a, b) =>
             Number(b.isOpen !== false) - Number(a.isOpen !== false) ||
-            a.distanceKm - b.distanceKm ||
+            last(a.distanceKm) - last(b.distanceKm) ||
             byRating(a, b)
         );
     }

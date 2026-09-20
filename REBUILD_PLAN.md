@@ -49,7 +49,12 @@ the same. Real distance fixes this without touching the formula.
 
 ---
 
-## Stage 1 — foundations
+## Stage 1 — foundations — **SHIPPED**
+
+Verified on real APKs except the back-block during an in-flight order, which is
+wired and typechecked but was never caught on a device: against a local backend
+the order completes in milliseconds, and the emulator's network throttle does
+not apply to host loopback. Recorded as unverified rather than claimed.
 
 No API key needed. Everything here is visible on a phone the day it ships.
 
@@ -85,9 +90,16 @@ No API key needed. Everything here is visible on a phone the day it ships.
 
 ---
 
-## Stage 2 — maps and addresses
+## Stage 2 — maps and addresses — **SHIPPED**
 
-**Needs `GOOGLE_MAPS_SERVER_KEY` in Railway and `GOOGLE_MAPS_ANDROID_KEY` at build time.**
+Both keys received. Server key on Railway; Android key baked in at build time by
+the `withGoogleMapsApiKey` plugin from a gitignored `.env`.
+
+Two things went beyond the plan because they turned out to be the same fault:
+the server was inventing `distanceKm = 2.5` for every restaurant, which is where
+the fixed "25 mins" on every card came from, and the partner apps had never sent
+a restaurant's coordinates at all, so every restaurant on the platform sits at
+the centre of Bengaluru until it re-registers.
 
 - `react-native-maps` in the customer and rider apps. Wrapped so that a missing key
   or a failed native module degrades to the existing drawn map instead of crashing.
@@ -192,8 +204,8 @@ delivery is worth testing across three phones.
 
 | When | What | Why |
 | --- | --- | --- |
-| Before Stage 2 | `GOOGLE_MAPS_SERVER_KEY` in Railway | Address search, road distance, routes, ETAs |
-| Before Stage 2 | `GOOGLE_MAPS_ANDROID_KEY` sent to me | Drawing the map. Cannot live in Railway — it is baked into the APK at build time |
+| ~~Before Stage 2~~ | ~~`GOOGLE_MAPS_SERVER_KEY` in Railway~~ | **Done.** |
+| ~~Before Stage 2~~ | ~~`GOOGLE_MAPS_ANDROID_KEY` sent to me~~ | **Done.** Restrict it to the four package names and release SHA-1s — that restriction, not secrecy, is what protects it |
 | Before Stage 3 | Razorpay **test** key id and secret in Railway | Already partly done — I will verify they are the right pair |
 | Before Stage 5 | Google Play developer account, $25 | Takes days to verify identity. Start early |
 | Before Stage 5 | Somewhere to host a privacy policy | I write the text; Play rejects without a public URL |

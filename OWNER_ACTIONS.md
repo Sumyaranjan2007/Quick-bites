@@ -160,72 +160,128 @@ wrong.
 
 ### What it costs
 
-Google gives every project **$200 of Maps usage free every month**, which does
-not expire and renews monthly. At the time of writing, Autocomplete billed per
-session plus one Place Details call runs about **$0.017 per address entered**.
+**Ignore anything that tells you about a "$200 monthly credit".** Google removed
+it in March 2025 and replaced it with a free allowance *per SKU*. Most articles
+online are still out of date on this. The replacement is better for you: 70,000
+free calls per SKU per month on the India price list, rather than one shared
+$200 that everything drew from.
 
-That is roughly **11,000 addresses a month inside the free credit.** Customers
-enter an address once and reuse it, so at your stage this is very likely to cost
-you nothing at all. The server also caches every phrase for an hour, which
-collapses two hundred people typing "koramangala" into one billed call.
+Two facts decide almost the whole bill:
+
+**The map inside the apps is free.** Drawing a Google map in an Android app is
+the *Mobile Native Dynamic Maps* SKU, which has unlimited free usage. No
+per-load charge, no cap. The customer's tracking map, the address picker and the
+rider's trip map cost nothing however often they are opened.
+
+**What is metered is asking questions about places** — searching an address,
+turning a pin into an address, measuring a road distance. All of those are
+70,000 free per month each, and this platform makes roughly four of them per
+order. At 50 orders a day you are not close to any cap; full workings are in
+`QUICK_BITE_COMPLETE_RESEARCH.md` §2.1.
 
 You still have to put a card on file — Google will not enable the APIs without
-one — but you are extremely unlikely to be charged.
+one — but at your stage you are very unlikely to be charged.
 
-### How to get the key (about ten minutes)
+### Two keys, protected in two different ways
 
-1. Go to **console.cloud.google.com** and sign in.
-2. Top bar → project dropdown → **New Project**. Name it `quick-bites`. Create.
-3. Make sure the new project is selected in that dropdown before continuing.
-   Everything below applies to the selected project, and doing it in the wrong
-   one is the most common mistake here.
-4. **Billing** in the left menu → **Link a billing account** → add a card. You
-   are not charged until you exceed the free credit.
-5. Left menu → **APIs & Services** → **Library**. Search for and **Enable** each
-   of these three, one at a time:
-   - **Places API**
-   - **Geocoding API**
-   - **Maps JavaScript API** *(only if you later want maps in the two web
-     portals; skip it for now if you do not)*
-6. Left menu → **APIs & Services** → **Credentials** → **Create credentials** →
-   **API key**. Copy the key it shows you.
-7. **Restrict it before you close that dialog.** Click **Edit API key**:
-   - **Application restrictions** → **IP addresses** → add your Railway
-     deployment's outbound IP. If you do not know it, choose **None** for now and
-     come back — but do not leave it on None permanently.
-   - **API restrictions** → **Restrict key** → tick only **Places API** and
-     **Geocoding API**.
-   - **Save.**
+This is the part worth getting right, because the two keys are not
+interchangeable and mixing them up is the expensive mistake.
 
-An unrestricted key that leaks is somebody else's bill. A key restricted to two
-APIs and one IP is worthless to anyone who finds it.
+| | **Server key** | **Android key** |
+|---|---|---|
+| Used for | Address search, pin→address, road distance | Drawing the map |
+| Lives in | Railway only | Baked into each APK at build time |
+| Restricted by | **IP address** + a list of APIs | **Package name + SHA-1** + Maps SDK only |
+| Secret? | **Yes.** Treat it like a password | No — it ships inside every APK |
 
-### Where to put it
+The Android key being extractable is not a flaw; it is how Google designed it.
+Anyone can pull it out of an APK with `unzip`. What makes it useless to them is
+the package-name and certificate restriction: without your keystore they cannot
+sign an app that key will answer for. **So the restriction is not optional — it
+is the entire protection.**
 
-Railway → your backend service → **Variables**:
+The server key is the opposite. It cannot be app-restricted, it bills per call,
+and an unrestricted one that leaks is somebody else's bill arriving at the end
+of the month. It lives on the server, the apps call the server, and the server
+calls Google — which is also what makes the caching and rate limiting possible.
+
+### Getting the keys (about fifteen minutes)
+
+1. **console.cloud.google.com** → sign in.
+2. Top bar → project dropdown → **New Project**, name it `quick-bites`, create.
+3. Make sure that project is selected before doing anything else. Doing this in
+   the wrong project is the most common mistake here.
+4. **Billing** → **Link a billing account** → add a card.
+5. **APIs & Services** → **Library**, and **Enable** each of these:
+   - **Places API** — address search. If your project only offers "Places API
+     (New)", enable that and tell me, because the code calls the legacy
+     endpoints and I would need to change it.
+   - **Geocoding API** — the address at a dropped pin.
+   - **Distance Matrix API** — road distance for the delivery fee.
+   - **Directions API** — road routes, used from Stage 4.
+   - **Maps SDK for Android** — drawing the map in the apps.
+
+#### The server key
+
+6. **Credentials** → **Create credentials** → **API key**. Copy it.
+7. **Edit API key** before closing:
+   - **Application restrictions** → **IP addresses** → your Railway outbound IP.
+     If you do not know it yet, leave **None** and come back — but do not leave
+     it on None permanently.
+   - **API restrictions** → **Restrict key** → tick **Places**, **Geocoding**,
+     **Distance Matrix** and **Directions**. Do **not** tick Maps SDK for
+     Android; that belongs to the other key.
+   - Name it `quick-bites-server` so you can tell them apart later.
+8. Railway → backend service → **Variables**:
 
 | Variable | Value |
 |---|---|
-| `GOOGLE_MAPS_SERVER_KEY` | the key you just copied |
+| `GOOGLE_MAPS_SERVER_KEY` | the server key |
 | `PLACES_REGION` | `in` |
 
-Redeploy. Then check it took:
+#### The Android key
 
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://quick-bites-production-9f45.up.railway.app/api/v1/places/status
+9. **Credentials** → **Create credentials** → **API key** again. Copy it.
+10. **Edit API key**:
+    - **Application restrictions** → **Android apps** → **Add** an entry for
+      each of the four apps below. All four go on the one key.
+    - **API restrictions** → **Restrict key** → tick **only** **Maps SDK for
+      Android**.
+    - Name it `quick-bites-android`.
+
+| Package name | SHA-1 certificate fingerprint |
+|---|---|
+| `com.quickbite.app` | `27:73:59:D7:0F:68:63:1D:AF:63:FA:6C:EC:DA:CF:0D:14:25:F4:65` |
+| `com.quickbite.rider` | `51:12:84:DC:BD:56:59:24:2C:0D:AF:89:FA:E1:15:3A:72:8F:4E:D4` |
+| `com.quickbite.partner` | `90:CB:40:3A:70:B4:97:0D:3D:A1:32:1D:FB:DB:08:E1:8D:69:6E:89` |
+| `com.quickbite.admin` | `A5:22:F2:4F:2F:1D:A7:EA:D7:26:8D:A6:46:32:C8:99:82:76:5C:FE` |
+
+These fingerprints are from the release keystore this project signs with. If
+you ever publish through Google Play with Play App Signing, Play re-signs your
+app with **its own** key and you must add Play's SHA-1 here too, or the maps go
+grey in the Play build while working perfectly in your sideloaded one.
+
+11. The Android key goes in the **repository-root `.env`**, not in Railway and
+    not in any file git tracks:
+
+```
+GOOGLE_MAPS_ANDROID_KEY=AIza...
 ```
 
-Still 401 (it needs a signed-in user). To see it properly, open the customer
-app → Profile → Saved addresses → Add an address. A **"Search your street,
-building or area"** box appears at the top of the sheet. If the key is missing
-that box is simply not there, and you type the address as before.
+    The build reads it from there. If it is absent the apps still build and run
+    — they fall back to the drawn map they had before — so a missing key costs
+    a feature and never a crash.
 
-### The key never goes in the app
+### How to tell it worked
 
-Deliberately. A key inside an APK is extracted with `unzip` and `grep` in about
-a minute, and then it is billed to you. It lives on the server, the apps call
-the server, and the server calls Google. That is why there is nothing to paste
-into any app config and nothing to rebuild when you rotate the key.
+Address search: customer app → Profile → Saved addresses → Add an address. A
+**"Search your street, building or area"** box appears at the top. No box means
+the server key is not reaching the backend.
+
+The map: same sheet → **Choose on map**. Real streets means the Android key and
+its restrictions are right. A **grey square with a Google logo** means the key
+is present but rejected — almost always the package name or SHA-1 not matching.
+The words *"Map not available in this build"* mean there is no key at all.
 
 ---
 

@@ -37,6 +37,21 @@ function requireSecret(name: string, value: string | undefined): string {
  */
 const DEMO_MODE = IS_PRODUCTION ? false : process.env.DEMO_MODE !== 'false';
 
+/**
+ * A number from the environment, clamped, with a fallback that actually holds.
+ *
+ * `Math.max(1, parseFloat(value))` looks like a floor and is not one: parseFloat
+ * of anything unparseable is NaN, and Math.max(1, NaN) is NaN, not 1. A single
+ * typo in a Railway variable would therefore reach the pricing engine as NaN and
+ * turn every delivery fee on the platform into `NaN` — the kind of fault that
+ * survives review because the guard is right there in the line and looks correct.
+ */
+function numberFromEnv(value: string | undefined, fallback: number, min: number, max: number): number {
+  const parsed = parseFloat(value ?? '');
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 export const config = {
   NODE_ENV,
   IS_PRODUCTION,
@@ -143,7 +158,31 @@ export const config = {
    * city and a small town, and it will be wrong until it is measured against
    * delivered orders. Changing it must not require a release.
    */
-  DELIVERY_SPEED_KMPH: Math.max(1, parseFloat(process.env.DELIVERY_SPEED_KMPH || '18')),
+  DELIVERY_SPEED_KMPH: numberFromEnv(process.env.DELIVERY_SPEED_KMPH, 18, 1, 120),
+
+  /**
+   * How much longer a road is than the straight line under it.
+   *
+   * Used only where a real road measurement is not worth a paid call — the
+   * restaurant list, and any pair Google could not route. A straight line
+   * between two points in a city understates the ride by a fairly consistent
+   * proportion, and 1.3 is the figure measured for dense Indian street grids.
+   *
+   * It is a claim about a particular city, not a constant, so it is settable
+   * without a release. The honest way to tune it is to compare estimates
+   * against the road distances Google returns on real orders.
+   */
+  ROAD_DISTANCE_FACTOR: numberFromEnv(process.env.ROAD_DISTANCE_FACTOR, 1.3, 1, 3),
+
+  /**
+   * The delivery radius assumed for a restaurant that has not set its own.
+   *
+   * Applies to kitchens onboarded before `serviceRadiusKm` existed. Eight
+   * kilometres is a little over half the old platform-wide 15 km ceiling: far
+   * enough that no existing restaurant loses most of its customers overnight,
+   * close enough that the listing stops promising deliveries nobody will ride.
+   */
+  DEFAULT_SERVICE_RADIUS_KM: numberFromEnv(process.env.DEFAULT_SERVICE_RADIUS_KM, 8, 1, 50),
 
   /**
    * Minutes added to every estimate for the parts of a delivery that are not

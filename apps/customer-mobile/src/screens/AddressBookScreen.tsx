@@ -10,12 +10,13 @@ import {
   Modal,
   Alert
 } from 'react-native';
-import { ArrowLeft, MapPin, Plus, Pencil, Trash2, Navigation, Check } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Plus, Pencil, Trash2, Navigation, Check, Map as MapIcon } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card, EmptyState } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { AddressSearchField, type ResolvedPlace } from '../components/AddressSearchField';
+import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 
 const c = tokens.colors;
 
@@ -57,6 +58,7 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
 
   const { detect, detecting, error: locationError, clearError } = useDeviceLocation();
 
@@ -112,6 +114,26 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
       city: place.city || prev.city,
       pincode: place.pincode || prev.pincode
     }));
+  };
+
+  /**
+   * A point chosen on the map.
+   *
+   * Same contract as search and as "use my current location": it sets the
+   * coordinates and offers a street address, and it never touches the flat or
+   * house number. No map knows which door is yours, and overwriting what has
+   * already been typed with a street name would delete the only part of the
+   * address a rider needs when they are standing outside the building.
+   */
+  const useMapPoint = (picked: PickedLocation) => {
+    setCoordinates(picked.coordinates);
+    setForm(prev => ({
+      ...prev,
+      addressLine: picked.addressLine || prev.addressLine,
+      city: picked.city || prev.city,
+      pincode: picked.pincode || prev.pincode
+    }));
+    setMapOpen(false);
   };
 
   /**
@@ -303,6 +325,17 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
               <AddressSearchField apiUrl={apiUrl} token={token} near={coordinates} onPick={usePickedPlace} />
 
               <TouchableOpacity
+                style={styles.mapButton}
+                onPress={() => setMapOpen(true)}
+                activeOpacity={0.85}
+              >
+                <MapIcon size={15} color={c.text.inverse} />
+                <Text style={styles.mapButtonText}>
+                  {coordinates ? 'Adjust the pin on the map' : 'Choose on map'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.locateButton, coordinates && styles.locateButtonDone]}
                 onPress={useCurrentLocation}
                 disabled={detecting}
@@ -397,6 +430,18 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
           </View>
         </View>
       </Modal>
+
+      {/* Mounted after the form sheet, not before it. On Android every Modal is
+          its own window and they stack in mount order, so a picker declared
+          above the sheet opens behind it — visible only as the sheet dimming. */}
+      <MapAddressPicker
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={useMapPoint}
+        initial={coordinates}
+        apiUrl={apiUrl}
+        token={token}
+      />
     </View>
   );
 };
@@ -464,6 +509,16 @@ const styles = StyleSheet.create({
     maxHeight: '88%'
   },
   sheetTitle: { fontSize: 17, fontWeight: '800', color: c.text.primary },
+  mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: c.primary[500],
+    borderRadius: 12,
+    paddingVertical: 13
+  },
+  mapButtonText: { color: c.text.inverse, fontSize: 14, fontWeight: '700' },
   locateButton: {
     flexDirection: 'row',
     alignItems: 'center',

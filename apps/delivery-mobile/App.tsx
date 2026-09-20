@@ -114,6 +114,7 @@ function DeliveryApp() {
   const [chatOpen, setChatOpen] = useState(false);
   const [telemetryCount, setTelemetryCount] = useState(0);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [riderPosition, setRiderPosition] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const ctx: ApiContext = { apiUrl, token: token || undefined };
   const ctxRef = useRef(ctx);
@@ -499,6 +500,13 @@ function DeliveryApp() {
         { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
         location => {
           setTelemetryCount(count => count + 1);
+          // Kept as well as sent. The watcher already had the rider's position
+          // in hand and discarded it the moment it was posted, so the app knew
+          // where every rider was except the one holding it.
+          setRiderPosition({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude
+          });
           api
             .telemetry(ctxRef.current, {
               orderId: activeTrip.id,
@@ -572,6 +580,7 @@ function DeliveryApp() {
             busy={busy}
             locationDenied={locationDenied}
             telemetryCount={telemetryCount}
+            riderPosition={riderPosition}
             onRefresh={refreshAll}
             onAdvanceStage={advanceStage}
             onVerifyPickup={verifyPickup}

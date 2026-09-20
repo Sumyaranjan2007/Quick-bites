@@ -118,6 +118,20 @@ export interface Restaurant {
   bannerUrl?: string;
   costForTwo?: number;
   highlightTag?: string;
+  /**
+   * How far this kitchen will actually deliver, in kilometres.
+   *
+   * The area a restaurant serves is a property of the restaurant — a small
+   * kitchen with one rider covers two kilometres, a chain with a fleet covers
+   * eight — and listing every restaurant inside one platform-wide circle showed
+   * customers kitchens that would never accept their order, and hid kitchens a
+   * street away from a customer just outside the circle's edge.
+   *
+   * Optional because restaurants onboarded before this existed have no value
+   * recorded; those fall back to the platform default rather than vanishing.
+   */
+  serviceRadiusKm?: number;
+
   /** Whether the kitchen is currently accepting orders. Partner-controlled. */
   isOpen: boolean;
   /** When the kitchen was last opened or closed, for the partner's own reference. */

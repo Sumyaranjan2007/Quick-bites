@@ -1,4 +1,6 @@
 import { memoryStore, calculateDistanceKm, triggerAutoSave } from '../client.ts';
+import { config } from '../../config/env.ts';
+import { estimateByRoad } from '../../modules/places/routingService.ts';
 import type { Restaurant } from '@quick-bites/shared-types';
 
 export interface NearbyFilter {
@@ -21,8 +23,30 @@ export const restaurantRepository = {
     return null;
   },
 
+  /**
+   * The restaurants that will actually deliver to where this customer is.
+   *
+   * This used to be one platform-wide 15 km circle drawn around the customer,
+   * which got the question backwards. Whether a kitchen delivers to a doorstep
+   * is a fact about the kitchen: a single-rider place covers a couple of
+   * kilometres, a chain covers eight. Listing on one shared radius showed people
+   * restaurants that would decline their order, and hid ones a street away from
+   * anybody standing just past the edge.
+   *
+   * Each restaurant is now measured against its OWN `serviceRadiusKm`, with the
+   * caller's radius kept as an outer ceiling so a client can still ask for a
+   * narrower list than the restaurants themselves would allow.
+   *
+   * The distance returned is a road ESTIMATE, not a measurement. A real road
+   * distance for every restaurant on the home screen would be a paid Google
+   * element each, on the most-visited screen in the product; the straight line
+   * scaled by the road factor is close enough to sort a list by and costs
+   * nothing. The one restaurant a customer actually orders from is measured
+   * properly at checkout, where the number decides a charge.
+   */
   async findNearby(filter: NearbyFilter): Promise<Array<Restaurant & { distanceKm: number }>> {
-    const radius = filter.radiusKm || 15.0; // 15km delivery ceiling
+    const ceiling = filter.radiusKm || 15.0;
+    const origin = { latitude: filter.latitude, longitude: filter.longitude };
     const results: Array<Restaurant & { distanceKm: number }> = [];
 
     for (const restaurant of memoryStore.restaurants.values()) {
@@ -32,16 +56,24 @@ export const restaurantRepository = {
         continue;
       }
 
-      const distance = calculateDistanceKm(
+      // The region test is on the straight line, because a service area is a
+      // circle drawn on a map and that is what a circle means. The distance
+      // SHOWN is the road estimate, because that is what the customer is being
+      // told about their food.
+      const straightLine = calculateDistanceKm(
         filter.latitude,
         filter.longitude,
         restaurant.coordinates.latitude,
         restaurant.coordinates.longitude
       );
 
-      if (distance <= radius) {
-        results.push({ ...restaurant, distanceKm: distance });
-      }
+      const serviceRadius = Number(restaurant.serviceRadiusKm) || config.DEFAULT_SERVICE_RADIUS_KM;
+      if (straightLine > Math.min(serviceRadius, ceiling)) continue;
+
+      results.push({
+        ...restaurant,
+        distanceKm: estimateByRoad(origin, restaurant.coordinates).distanceKm
+      });
     }
 
     // Sort by proximity ascending

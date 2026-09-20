@@ -318,9 +318,35 @@ async function run() {
   check('A rating floor excludes everything below it',
     (rated.json?.data?.restaurants || []).every((r: any) => Number(r.ratingAverage) >= 4.5));
 
-  const quick = await api('/restaurants?maxDeliveryMinutes=25');
-  check('A delivery-time ceiling excludes everything slower',
+  // A delivery time only exists once the customer has said where they are.
+  // Both halves of that are asserted, because the interesting case is the one
+  // where the filter CANNOT be honoured and the question is what to do instead.
+  //
+  // Bengaluru, so the seeded restaurants are in range.
+  const HERE = 'lat=12.9716&lng=77.5946';
+
+  const quick = await api(`/restaurants?${HERE}&maxDeliveryMinutes=25`);
+  check('With a position, a delivery-time ceiling excludes everything slower',
     (quick.json?.data?.restaurants || []).every((r: any) => r.estimatedDeliveryMinutes <= 25));
+
+  check('With a position, every restaurant carries a real delivery time',
+    (quick.json?.data?.restaurants || []).every(
+      (r: any) => typeof r.estimatedDeliveryMinutes === 'number' && r.estimatedDeliveryMinutes > 0
+    ));
+
+  // Without a position the server has nothing to compute from. It used to
+  // invent 2.5 km, which made every restaurant read "25 mins" and made this
+  // filter look like it worked. Now the figure is absent, and an absent figure
+  // is not judged against the ceiling — the alternative is an empty home screen
+  // for anyone who has not set a location, which is a worse answer than an
+  // unfiltered one.
+  const noPosition = await api('/restaurants?maxDeliveryMinutes=25');
+  check('Without a position, delivery times are absent rather than invented',
+    (noPosition.json?.data?.restaurants || []).every(
+      (r: any) => r.estimatedDeliveryMinutes === undefined
+    ));
+  check('Without a position, the ceiling does not empty the list',
+    (noPosition.json?.data?.restaurants || []).length > 0);
 
   const cheap = await api('/restaurants?maxCostForTwo=400');
   check('A price band excludes what is above it',

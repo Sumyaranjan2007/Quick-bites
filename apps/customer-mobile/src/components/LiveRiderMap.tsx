@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, Linking, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
 import { Bike } from 'lucide-react-native';
+import { Maps, canRenderNativeMap } from '../lib/nativeMap';
 
 const c = tokens.colors;
 
@@ -74,6 +75,80 @@ interface Props {
   riderName?: string | null;
 }
 
+/**
+ * Distance and freshness, under whichever map drew above it.
+ *
+ * Extracted so the real map and the drawn fallback cannot drift apart: the
+ * numbers under the map are the part a customer actually reads, and having two
+ * copies of them would eventually mean two answers.
+ */
+const MapLegend: React.FC<{ metres: number; updatedAt?: string | null; riderName?: string | null }> = ({
+  metres,
+  updatedAt,
+  riderName
+}) => (
+  <View style={styles.legend}>
+    <View style={styles.legendLeft}>
+      <Bike size={15} color={c.accent[600]} />
+      <Text style={styles.distance}>{formatDistance(metres)} away</Text>
+    </View>
+    <Text style={styles.freshness}>
+      {riderName ? `${riderName} · ` : ''}
+      {freshness(updatedAt)}
+    </Text>
+  </View>
+);
+
+/**
+ * The real map, when this build can draw one.
+ *
+ * The camera follows the rider rather than being re-rendered at a new region:
+ * `animateCamera` moves the existing view, where changing `region` as a prop
+ * re-anchors the map and makes it blink through a reload on every position
+ * update — which arrive every few seconds, so the difference is the whole
+ * experience of the screen.
+ *
+ * The marker still jumps between fixes rather than gliding. Interpolating a
+ * marker between two GPS readings needs `AnimatedRegion` and belongs with the
+ * rest of the live-tracking work in Stage 4; the camera easing here is most of
+ * what makes it read as movement in the meantime.
+ */
+const NativeRiderMap: React.FC<{ rider: Coords; destination: Coords }> = ({ rider, destination }) => {
+  const MapView = Maps!.default;
+  const { Marker, Polyline, PROVIDER_GOOGLE } = Maps!;
+  const ref = useRef<any>(null);
+
+  useEffect(() => {
+    // Both points kept in frame: a map centred on the rider alone tells you
+    // where they are and not whether they are getting closer.
+    ref.current?.fitToCoordinates?.([rider, destination], {
+      edgePadding: { top: 48, right: 48, bottom: 48, left: 48 },
+      animated: true
+    });
+  }, [rider.latitude, rider.longitude, destination.latitude, destination.longitude]);
+
+  return (
+    <MapView
+      ref={ref}
+      style={StyleSheet.absoluteFill}
+      provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+      initialRegion={{
+        latitude: (rider.latitude + destination.latitude) / 2,
+        longitude: (rider.longitude + destination.longitude) / 2,
+        latitudeDelta: Math.max(0.01, Math.abs(rider.latitude - destination.latitude) * 2.5),
+        longitudeDelta: Math.max(0.01, Math.abs(rider.longitude - destination.longitude) * 2.5)
+      }}
+      pointerEvents="none"
+      toolbarEnabled={false}
+      showsMyLocationButton={false}
+    >
+      <Marker coordinate={destination} title="Delivery address" pinColor={c.primary[500]} />
+      <Marker coordinate={rider} title="Your rider" pinColor={c.accent[500]} />
+      <Polyline coordinates={[rider, destination]} strokeColor={c.primary[500]} strokeWidth={3} />
+    </MapView>
+  );
+};
+
 export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, riderName }) => {
   const W = 320;
   const H = 190;
@@ -94,6 +169,18 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
   }
 
   const metres = distanceMetres(rider, destination);
+
+  if (canRenderNativeMap && Maps?.default) {
+    return (
+      <View>
+        <View style={[styles.mapFrame, { height: H }]}>
+          <NativeRiderMap rider={rider} destination={destination} />
+        </View>
+        <MapLegend metres={metres} updatedAt={updatedAt} riderName={riderName} />
+      </View>
+    );
+  }
+
   const z = fitZoom(rider, destination, W, H);
 
   const pr = project(rider.latitude, rider.longitude, z);
@@ -179,20 +266,13 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
         </Svg>
 
         <View style={styles.attribution}>
-          <Text style={styles.attributionText}>Live position · Harohalli</Text>
+          {/* Was "Live position · Harohalli" — a place name hardcoded into a
+              component that is shown to every customer in every city. */}
+          <Text style={styles.attributionText}>Approximate position</Text>
         </View>
       </View>
 
-      <View style={styles.legend}>
-        <View style={styles.legendLeft}>
-          <Bike size={15} color={c.accent[600]} />
-          <Text style={styles.distance}>{formatDistance(metres)} away</Text>
-        </View>
-        <Text style={styles.freshness}>
-          {riderName ? `${riderName} · ` : ''}
-          {freshness(updatedAt)}
-        </Text>
-      </View>
+      <MapLegend metres={metres} updatedAt={updatedAt} riderName={riderName} />
     </View>
   );
 };

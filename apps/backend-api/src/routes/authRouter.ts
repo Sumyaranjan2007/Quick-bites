@@ -301,6 +301,14 @@ const PartnerRegistrationSchema = z.object({
     .transform(value => (value ? value : undefined)),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
+  /**
+   * How far this kitchen is willing to deliver.
+   *
+   * Bounded at both ends rather than trusted: under a kilometre is a radius
+   * that reaches nobody and reads as a typo, and beyond 25 km is further than
+   * food survives on a two-wheeler. Absent means the platform default applies.
+   */
+  serviceRadiusKm: z.number().min(1).max(25).optional(),
   isPureVeg: z.boolean().optional()
 });
 
@@ -373,6 +381,9 @@ authRouter.post(
           latitude: req.body.latitude ?? 12.9716,
           longitude: req.body.longitude ?? 77.5946
         },
+        // Absent is meaningful: the listing falls back to the platform default
+        // rather than storing a number nobody chose.
+        ...(req.body.serviceRadiusKm ? { serviceRadiusKm: req.body.serviceRadiusKm } : {}),
         fssaiLicenseNumber: req.body.fssaiLicenseNumber,
         isPureVeg: Boolean(req.body.isPureVeg),
         packagingFee: 0,

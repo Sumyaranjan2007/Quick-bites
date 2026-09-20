@@ -39,6 +39,21 @@ function AppRoot() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string; orderId?: string } | null>(null);
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_API_URL);
+
+  /**
+   * The saved address the customer is currently ordering to.
+   *
+   * Lifted here because two screens have to agree on it. The home screen's
+   * location chip decides which area the listing is built for, and checkout
+   * decides where the food is sent — and until this existed those were two
+   * separate answers. A customer could move the chip to another part of the
+   * city, browse kitchens there, and have the order delivered to the address
+   * checkout had defaulted to on its own, priced for a journey nobody made.
+   *
+   * Null means "no explicit choice yet", and checkout falls back to the
+   * customer's default address exactly as it did before.
+   */
+  const [deliveryAddressId, setDeliveryAddressId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   // Null while the stored session is being read. Rendering the login screen
@@ -145,7 +160,7 @@ function AppRoot() {
             rating: r.ratingAverage ?? 4.5,
             ratingCount: r.ratingCount,
             deliveryTimeMins: r.estimatedDeliveryMinutes ?? 25,
-            distanceKm: r.distanceKm ?? 2.2,
+            distanceKm: r.distanceKm,
             isPureVeg: !!r.isPureVeg,
             priceForTwo: r.costForTwo ?? 400,
             packagingFee: r.packagingFee,
@@ -267,6 +282,8 @@ function AppRoot() {
             onSelectRestaurant={handleSelectRestaurant}
             apiUrl={apiUrl}
             token={authToken}
+            deliveryAddressId={deliveryAddressId}
+            onChooseAddress={setDeliveryAddressId}
           />
         )}
 
@@ -293,6 +310,8 @@ function AppRoot() {
             token={authToken}
             packagingFee={selectedRestaurant?.packagingFee}
             distanceKm={selectedRestaurant?.distanceKm}
+            preferredAddressId={deliveryAddressId}
+            onAddressChosen={setDeliveryAddressId}
           />
         )}
 

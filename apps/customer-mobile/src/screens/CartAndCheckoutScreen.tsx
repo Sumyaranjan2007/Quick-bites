@@ -42,6 +42,14 @@ interface Props {
   token?: string;
   packagingFee?: number;
   distanceKm?: number;
+  /**
+   * The address chosen on the home screen, if the customer chose one there.
+   * Checkout honours it rather than re-deciding, so the area they browsed is
+   * the area the food goes to.
+   */
+  preferredAddressId?: string | null;
+  /** Told back up, so the home screen's chip follows a change made here. */
+  onAddressChosen?: (id: string) => void;
 }
 
 export const CartAndCheckoutScreen: React.FC<Props> = ({
@@ -53,7 +61,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   apiUrl,
   token,
   packagingFee,
-  distanceKm
+  distanceKm,
+  preferredAddressId,
+  onAddressChosen
 }) => {
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
@@ -103,6 +113,19 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   // and the server rejects an address that isn't theirs.
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  /**
+   * Changing the address here changes it everywhere.
+   *
+   * Routed through one function rather than calling both setters at each site:
+   * a path that updated only the local state would leave the home screen's chip
+   * naming a different place than the order is going to, which is the exact
+   * divergence this plumbing exists to remove.
+   */
+  const chooseAddress = (id: string) => {
+    setSelectedAddressId(id);
+    onAddressChosen?.(id);
+  };
   const [showAddressSheet, setShowAddressSheet] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -131,7 +154,14 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       const data = await res.json();
       if (data.success && Array.isArray(data.data?.addresses)) {
         setAddresses(data.data.addresses);
-        const preferred = data.data.addresses.find((a: any) => a.isDefault) ?? data.data.addresses[0];
+        // The home screen's choice wins over the saved default, because it is
+        // the more recent thing the customer actually said. It is only honoured
+        // if that address still exists — one deleted between screens would
+        // otherwise leave checkout pointing at nothing.
+        const fromHome = preferredAddressId
+          ? data.data.addresses.find((a: any) => a.id === preferredAddressId)
+          : null;
+        const preferred = fromHome ?? data.data.addresses.find((a: any) => a.isDefault) ?? data.data.addresses[0];
         setSelectedAddressId(prev => prev ?? preferred?.id ?? null);
       }
     } catch {
@@ -157,7 +187,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       if (!res.ok || !data.success) {
         throw new Error(data?.error?.details?.[0]?.message || data?.error?.message || 'Address could not be saved.');
       }
-      setSelectedAddressId(data.data.address.id);
+      chooseAddress(data.data.address.id);
       setShowAddressSheet(false);
       setForm({ label: 'Home', addressLine: '', landmark: '', city: 'Bengaluru', pincode: '' });
       setFormCoordinates(null);
@@ -188,6 +218,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
     items: pricingItems,
     isGold: false,
     packagingFee: packagingFee ?? 25.0,
+    // A placeholder, and only ever shown behind the "provisional" wording above:
+    // this branch runs when the server's quote has not arrived, so there is no
+    // measured distance to use and something has to stand in until it does.
     distanceKm: distanceKm ?? 2.5
   });
 
@@ -230,7 +263,10 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             })),
             ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
             ...(tipAmount > 0 ? { tipAmount } : {}),
-            distanceKm: distanceKm ?? 2.5
+            // Sent only when it is real. The server measures the road distance
+            // between this kitchen and this address itself; a number invented
+            // here would be a delivery fee invented here.
+            ...(distanceKm ? { distanceKm } : {})
           })
         });
         const data = await res.json();
@@ -320,7 +356,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         couponCode: appliedCoupon || undefined,
         ...(tipAmount > 0 ? { tipAmount } : {}),
         idempotencyKey: generatedUUID,
-        distanceKm: distanceKm ?? 2.5
+        ...(distanceKm ? { distanceKm } : {})
       };
 
       const res = await apiFetch(`${effectiveBase}/orders`, {
@@ -453,7 +489,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                 <TouchableOpacity
                   key={a.id}
                   style={[styles.addressChip, selectedAddressId === a.id && styles.addressChipActive]}
-                  onPress={() => setSelectedAddressId(a.id)}
+                  onPress={() => chooseAddress(a.id)}
                   activeOpacity={0.85}
                 >
                   <Text

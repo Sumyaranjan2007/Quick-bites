@@ -80,13 +80,20 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
   // travel the whole way from the kitchen.
   const riderHasFood = order.status === 'OUT_FOR_DELIVERY' && Boolean(order.riderCoordinates);
 
-  const measured = riderHasFood
+  // Before pickup, the best figure available is the one recorded at checkout:
+  // that is a real road distance from Google, whereas re-deriving it here would
+  // only give the straight line under it. This preference used to run the other
+  // way, which quietly discarded the measurement in favour of the estimate.
+  //
+  // Once the rider has the food it flips back, and deliberately. The rider's
+  // position changes every few seconds, so the only current figure is one
+  // computed here; paying Google per tick per live order is a bill that grows
+  // with success, and a straight line is good enough for a number that refreshes
+  // constantly and is never charged for.
+  const recorded = Number(order.distanceKm) || null;
+  const distanceKm = riderHasFood
     ? distanceBetween(order.riderCoordinates, destination)
-    : distanceBetween(kitchen, destination);
-
-  // `distanceKm` was recorded on the order at checkout and is the same
-  // kitchen-to-door measurement, so it stands in when a coordinate is missing.
-  const distanceKm = measured ?? (riderHasFood ? null : Number(order.distanceKm) || null);
+    : recorded ?? distanceBetween(kitchen, destination);
 
   if (distanceKm === null) {
     return none;

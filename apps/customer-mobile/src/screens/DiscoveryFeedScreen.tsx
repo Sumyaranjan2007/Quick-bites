@@ -7,14 +7,16 @@ import {
   ScrollView,
   StyleSheet,
   Image,
-  RefreshControl
+  RefreshControl,
+  Modal
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
-import { Search, MapPin, ChevronDown, Mic, Heart, Timer, X } from 'lucide-react-native';
+import { Search, MapPin, ChevronDown, Mic, Heart, Timer, X, Map as MapIcon } from 'lucide-react-native';
 import { NotificationBell } from '../components/NotificationBell';
 import { useTranslation } from '../lib/i18n';
 import { VoiceSearchSheet } from '../components/VoiceSearchSheet';
+import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
@@ -25,8 +27,14 @@ export interface RestaurantItem {
   cuisine: string;
   rating: number;
   ratingCount?: number;
-  deliveryTimeMins: number;
-  distanceKm: number;
+  /** Absent until the customer's position is known. See `distanceKm` below. */
+  deliveryTimeMins?: number;
+  /**
+   * Absent until the customer's position is known. Optional rather than
+   * defaulted: a made-up distance travels to checkout and becomes a made-up
+   * delivery fee, and the server can measure the real one.
+   */
+  distanceKm?: number;
   isPureVeg: boolean;
   priceForTwo: number;
   packagingFee?: number;
@@ -39,6 +47,10 @@ interface Props {
   onSelectRestaurant: (restaurant: RestaurantItem) => void;
   apiUrl?: string;
   token?: string;
+  /** The address this order is going to, shared with checkout. */
+  deliveryAddressId?: string | null;
+  /** Announces a change, so checkout sends the food where the customer browsed. */
+  onChooseAddress?: (id: string) => void;
 }
 
 const CATEGORIES = [
@@ -61,9 +73,29 @@ const CATEGORIES = [
  * single choice, so asking for somewhere veg AND quick was impossible — picking
  * the second silently dropped the first.
  */
-const FILTERS: Array<{ key: string; label: string; query: Record<string, string> }> = [
+interface SavedAddress {
+  id: string;
+  label: string;
+  addressLine: string;
+  city: string;
+  isDefault?: boolean;
+  coordinates?: { latitude: number; longitude: number };
+}
+
+const FILTERS: Array<{
+  key: string;
+  label: string;
+  query: Record<string, string>;
+  /**
+   * True for filters that cannot mean anything until we know where the customer
+   * is. A delivery-time ceiling is computed from the distance between them and
+   * each kitchen; with no position there is no distance, so the chip would be a
+   * control that visibly does nothing. It is hidden rather than shown inert.
+   */
+  needsPosition?: boolean;
+}> = [
   { key: 'pureVeg', label: 'Pure Veg', query: { isPureVeg: 'true' } },
-  { key: 'fastDelivery', label: 'Under 30 min', query: { maxDeliveryMinutes: '30' } },
+  { key: 'fastDelivery', label: 'Under 30 min', query: { maxDeliveryMinutes: '30' }, needsPosition: true },
   { key: 'topRated', label: 'Rated 4.0+', query: { minRating: '4' } },
   { key: 'openNow', label: 'Open now', query: { openNow: 'true' } },
   { key: 'budget', label: 'Under ₹400 for two', query: { maxCostForTwo: '400' } }
@@ -77,7 +109,13 @@ const SORTS: Array<{ key: string; label: string }> = [
   { key: 'costHighToLow', label: 'Cost: high to low' }
 ];
 
-export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUrl, token }) => {
+export const DiscoveryFeedScreen: React.FC<Props> = ({
+  onSelectRestaurant,
+  apiUrl,
+  token,
+  deliveryAddressId,
+  onChooseAddress
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState('relevance');
@@ -90,6 +128,25 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
   // Shown in the header. Read from the customer's saved default address rather
   // than hardcoded, so it follows wherever they actually are.
   const [locality, setLocality] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+
+  /**
+   * Where the listing is being browsed from.
+   *
+   * Held in a ref as well as in state because `load()` is called from several
+   * effects and from pull-to-refresh, and reading the position from state there
+   * would capture whichever value the closure was created with — the classic
+   * stale-closure fetch, which shows up as "the list is one location behind".
+   * The ref is always current; the state exists only to re-render the header.
+   */
+  const [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const originRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const setBrowsingFrom = (point: { latitude: number; longitude: number } | null) => {
+    originRef.current = point;
+    setOrigin(point);
+  };
 
   const loadLocality = async () => {
     if (!apiUrl || !token) return;
@@ -97,14 +154,43 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
       const res = await apiFetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success && Array.isArray(data.data?.addresses) && data.data.addresses.length) {
-        const a = data.data.addresses.find((x: any) => x.isDefault) ?? data.data.addresses[0];
-        // "No. 24, Shivanandha Layout, Harohalli" -> "Harohalli"
-        const parts = String(a.addressLine).split(',').map((x: string) => x.trim()).filter(Boolean);
-        setLocality(parts[parts.length - 1] || a.city);
+        const list: SavedAddress[] = data.data.addresses;
+        setSavedAddresses(list);
+        // Whatever the customer last chose, then their default, then the first
+        // one they have. A choice made on the checkout screen has to survive
+        // coming back here, or the chip and the order disagree again.
+        const chosen =
+          (deliveryAddressId ? list.find(a => a.id === deliveryAddressId) : null) ??
+          list.find(a => a.isDefault) ??
+          list[0];
+        applyAddress(chosen, { announce: false });
       }
     } catch {
       // Header falls back to the city label below.
     }
+  };
+
+  /** "No. 24, Shivanandha Layout, Harohalli" -> "Harohalli" */
+  const localityOf = (address: SavedAddress): string => {
+    const parts = String(address.addressLine || '').split(',').map(x => x.trim()).filter(Boolean);
+    return parts[parts.length - 1] || address.city || address.label;
+  };
+
+  /**
+   * Point the whole screen at one saved address.
+   *
+   * `announce` is false while restoring what was already chosen, so opening the
+   * home screen does not report a "change" back up and overwrite a selection
+   * made at checkout with the one it just read from it.
+   */
+  const applyAddress = (address: SavedAddress | undefined, opts: { announce: boolean }) => {
+    if (!address) return;
+    setLocality(localityOf(address));
+    // The address also supplies the position the listing is built from. Without
+    // it the server has no origin, and every restaurant comes back with no
+    // distance and no delivery time.
+    if (address.coordinates) setBrowsingFrom(address.coordinates);
+    if (opts.announce) onChooseAddress?.(address.id);
   };
 
   /**
@@ -117,9 +203,21 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
     const params = new URLSearchParams();
     for (const filter of FILTERS) {
       if (!activeFilters.has(filter.key)) continue;
+      // Hiding the chip is not enough on its own: a filter switched on while a
+      // position was known stays in `activeFilters` afterwards, and would go on
+      // being sent by a control the customer can no longer see to switch off.
+      if (filter.needsPosition && !originRef.current) continue;
       for (const [key, value] of Object.entries(filter.query)) params.set(key, value);
     }
     if (sort !== 'relevance') params.set('sort', sort);
+    // Position last, and only when it is real. The server returns no distance
+    // and no delivery time without it, which is the correct answer to "how far
+    // is this from someone whose location we do not know".
+    const here = originRef.current;
+    if (here) {
+      params.set('lat', String(here.latitude));
+      params.set('lng', String(here.longitude));
+    }
     const qs = params.toString();
     return qs ? `?${qs}` : '';
   };
@@ -137,8 +235,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
             cuisine: Array.isArray(r.cuisineTags) ? r.cuisineTags.join(', ') : 'Indian',
             rating: r.ratingAverage ?? 4.5,
             ratingCount: r.ratingCount,
-            deliveryTimeMins: r.estimatedDeliveryMinutes ?? 25,
-            distanceKm: r.distanceKm ?? 2.2,
+            deliveryTimeMins: r.estimatedDeliveryMinutes,
+            distanceKm: r.distanceKm,
             isPureVeg: !!r.isPureVeg,
             priceForTwo: r.costForTwo ?? 400,
             packagingFee: r.packagingFee,
@@ -157,8 +255,14 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
   };
 
   useEffect(() => {
-    load();
-    loadLocality();
+    // The address is fetched BEFORE the listing, not alongside it. Run in
+    // parallel, the listing would go out with no position, come back with no
+    // distances, and have to be fetched a second time the moment the address
+    // arrived — two full restaurant lists over mobile data to render one screen.
+    (async () => {
+      await loadLocality();
+      load();
+    })();
     loadFavourites();
   }, [apiUrl, token]);
 
@@ -179,6 +283,37 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Array.from(activeFilters).sort().join(','), sort]);
+
+  /**
+   * Browse from somewhere else.
+   *
+   * This moves where the LISTING is computed from; it does not save an address.
+   * A saved address needs a flat or house number, which no map can supply, so
+   * that belongs in the address book and at checkout. Picking here answers a
+   * different and much more common question — "what can I get delivered where I
+   * am standing right now" — and it lasts for the session rather than being
+   * written over the customer's home address behind their back.
+   */
+  const pickSavedAddress = (address: SavedAddress) => {
+    applyAddress(address, { announce: true });
+    setLocationSheetOpen(false);
+    setState('loading');
+    load();
+  };
+
+  const browseFrom = (picked: PickedLocation) => {
+    setBrowsingFrom(picked.coordinates);
+    if (picked.addressLine) {
+      const parts = picked.addressLine.split(',').map(x => x.trim()).filter(Boolean);
+      setLocality(parts[parts.length - 3] || parts[0] || picked.city || null);
+    } else if (picked.city) {
+      setLocality(picked.city);
+    }
+    setMapOpen(false);
+    setLocationSheetOpen(false);
+    setState('loading');
+    load();
+  };
 
   const toggleFilter = (key: string) => {
     setActiveFilters(prev => {
@@ -272,11 +407,20 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
       {/* Location header */}
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
-          <View style={styles.locationRow}>
+          {/* This row has always had a chevron on it and has never been
+              pressable, which is its own small lie: the one affordance on the
+              screen that says "tap me to change where you are" did nothing. */}
+          <TouchableOpacity
+            style={styles.locationRow}
+            onPress={() => setLocationSheetOpen(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Change delivery location"
+          >
             <MapPin size={16} color={c.primary[500]} />
             <Text style={styles.locationName}>{locality ?? 'Set your location'}</Text>
             <ChevronDown size={15} color={c.text.primary} />
-          </View>
+          </TouchableOpacity>
           <Text style={styles.locationSub}>{t('feed.deliveringTo')}</Text>
         </View>
         <NotificationBell />
@@ -360,7 +504,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
 
       {/* Filters — independent, and applied by the server. */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {FILTERS.map(f => (
+        {FILTERS.filter(f => !f.needsPosition || origin).map(f => (
           <Chip
             key={f.key}
             label={f.label}
@@ -440,10 +584,15 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
                 </View>
 
                 <View style={styles.etaBadge}>
-                  <View style={styles.etaRow}>
-                    <Timer size={11} color={c.text.primary} />
-                    <Text style={styles.etaText}>{r.deliveryTimeMins} MINS</Text>
-                  </View>
+                  {/* Omitted rather than guessed. Every card used to read
+                      "25 MINS" because the server had no position to compute
+                      from and filled one in. */}
+                  {r.deliveryTimeMins !== undefined && (
+                    <View style={styles.etaRow}>
+                      <Timer size={11} color={c.text.primary} />
+                      <Text style={styles.etaText}>{r.deliveryTimeMins} MINS</Text>
+                    </View>
+                  )}
                   <Text style={styles.etaFree}>FREE DELIVERY</Text>
                 </View>
               </View>
@@ -480,11 +629,125 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({ onSelectRestaurant, apiUr
         onClose={() => setVoiceOpen(false)}
         onResult={text => setSearchQuery(text)}
       />
+
+      {/* Saved addresses first, a map second.
+          Most orders go somewhere the customer has already saved, and making
+          them re-place a pin on their own front door every time would be a map
+          for the sake of having one. The map is for the case the list cannot
+          answer: somewhere new. */}
+      <Modal
+        visible={locationSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLocationSheetOpen(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.locationSheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Deliver to</Text>
+              <TouchableOpacity
+                onPress={() => setLocationSheetOpen(false)}
+                accessibilityLabel="Close"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color={c.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {savedAddresses.length === 0 ? (
+              <Text style={styles.sheetEmpty}>
+                No saved addresses yet. Choose a point on the map to see what delivers near you.
+              </Text>
+            ) : (
+              savedAddresses.map(a => {
+                const active = a.id === deliveryAddressId || localityOf(a) === locality;
+                return (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={[styles.addressRow, active && styles.addressRowActive]}
+                    onPress={() => pickSavedAddress(a)}
+                    activeOpacity={0.8}
+                  >
+                    <MapPin size={16} color={active ? c.primary[500] : c.text.muted} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.addressLabel}>{a.label}</Text>
+                      <Text style={styles.addressLine} numberOfLines={1}>
+                        {[a.addressLine, a.city].filter(Boolean).join(', ')}
+                      </Text>
+                    </View>
+                    {/* An address with no pin cannot place the customer, so the
+                        listing falls back to showing everything. Said plainly
+                        rather than left to look like a slow screen. */}
+                    {!a.coordinates && <Text style={styles.addressNoPin}>no pin</Text>}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            <TouchableOpacity
+              style={styles.chooseOnMap}
+              onPress={() => {
+                setLocationSheetOpen(false);
+                setMapOpen(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <MapIcon size={16} color={c.text.inverse} />
+              <Text style={styles.chooseOnMapText}>Choose on map</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <MapAddressPicker
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={browseFrom}
+        initial={origin}
+        apiUrl={apiUrl}
+        token={token}
+      />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  locationSheet: {
+    backgroundColor: c.surface.card,
+    borderTopLeftRadius: tokens.radii.xl,
+    borderTopRightRadius: tokens.radii.xl,
+    padding: tokens.spacing[5],
+    gap: tokens.spacing[3]
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sheetTitle: { fontSize: tokens.font.size.md, fontWeight: '700', color: c.text.primary },
+  sheetEmpty: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19 },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing[3],
+    paddingVertical: tokens.spacing[3],
+    paddingHorizontal: tokens.spacing[3],
+    borderRadius: tokens.radii.md,
+    borderWidth: 1,
+    borderColor: c.border.subtle
+  },
+  addressRowActive: { borderColor: c.primary[500], backgroundColor: c.primary[50] },
+  addressLabel: { fontSize: tokens.font.size.sm, fontWeight: '700', color: c.text.primary },
+  addressLine: { fontSize: tokens.font.size.xs, color: c.text.secondary },
+  addressNoPin: { fontSize: tokens.font.size.xs, color: c.text.muted, fontStyle: 'italic' },
+  chooseOnMap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: tokens.spacing[2],
+    backgroundColor: c.primary[500],
+    borderRadius: tokens.radii.md,
+    paddingVertical: tokens.spacing[4],
+    marginTop: tokens.spacing[1]
+  },
+  chooseOnMapText: { color: c.text.inverse, fontSize: tokens.font.size.sm, fontWeight: '700' },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 28 },
 

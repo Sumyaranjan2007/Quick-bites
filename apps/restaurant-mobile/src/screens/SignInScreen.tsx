@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
-import { ChefHat, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { ChefHat, CheckCircle2, ChevronDown, ChevronUp, MapPin } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Button, Field, PasswordField, ErrorNote } from '../components/ui';
+import { KitchenLocationPicker } from '../components/KitchenLocationPicker';
 import {
   login,
   createAccount,
@@ -43,6 +44,11 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
   const [fssai, setFssai] = useState('');
+  const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  // Six kilometres, which is a little under the platform default. A number the
+  // owner can change, rather than a decision made for them.
+  const [serviceRadius, setServiceRadius] = useState('6');
 
   const [busy, setBusy] = useState(false);
 
@@ -86,6 +92,14 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
     // Required by law to sell food in India, and the first thing the approval
     // queue looks for - so it is collected at registration rather than chased.
     if (fssai.trim().length < 6) errs.fssai = 'Enter your FSSAI licence number.';
+    // A kitchen with no pin is placed at the centre of Bengaluru by the server,
+    // which makes it invisible to its real neighbours and offers it to people
+    // thirty kilometres away. Required here rather than chased later.
+    if (!pin) errs.pin = 'Place your kitchen on the map so nearby customers can find you.';
+    const radius = Number(serviceRadius);
+    if (!Number.isFinite(radius) || radius < 1 || radius > 25) {
+      errs.serviceRadius = 'Enter how far you deliver, between 1 and 25 km.';
+    }
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -122,7 +136,9 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
       addressLine,
       city,
       pincode,
-      fssaiLicenseNumber: fssai
+      fssaiLicenseNumber: fssai,
+      ...(pin ? { latitude: pin.latitude, longitude: pin.longitude } : {}),
+      serviceRadiusKm: Number(serviceRadius)
     });
     setBusy(false);
 
@@ -261,6 +277,30 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
               error={fieldErrors.fssai}
               hint="Required by law to sell food in India. Operations check this first."
             />
+
+            <TouchableOpacity
+              style={[styles.pinButton, pin && styles.pinButtonDone]}
+              onPress={() => setMapOpen(true)}
+              activeOpacity={0.85}
+            >
+              <MapPin size={16} color={pin ? c.success : c.brand} />
+              <Text style={[styles.pinButtonText, pin && { color: c.success }]}>
+                {pin
+                  ? `Pinned at ${pin.latitude.toFixed(4)}, ${pin.longitude.toFixed(4)} · tap to adjust`
+                  : 'Place your kitchen on the map'}
+              </Text>
+            </TouchableOpacity>
+            {!!fieldErrors.pin && <Text style={styles.pinError}>{fieldErrors.pin}</Text>}
+
+            <Field
+              label="How far do you deliver?"
+              value={serviceRadius}
+              onChangeText={v => setServiceRadius(v.replace(/[^0-9.]/g, '').slice(0, 4))}
+              placeholder="6"
+              keyboardType="decimal-pad"
+              error={fieldErrors.serviceRadius}
+              hint="Kilometres from your kitchen. Customers outside this will not see you, so set it to what your riders can actually manage."
+            />
           </>
         )}
 
@@ -382,11 +422,35 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           />
         )}
       </ScrollView>
+
+      <KitchenLocationPicker
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={point => {
+          setPin(point);
+          setMapOpen(false);
+        }}
+        initial={pin}
+      />
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  pinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: c.brand,
+    backgroundColor: c.surface
+  },
+  pinButtonDone: { borderColor: c.success, backgroundColor: c.successSoft },
+  pinButtonText: { flex: 1, fontSize: 13, fontWeight: '700', color: c.brand },
+  pinError: { fontSize: 12, color: c.danger, marginTop: -spacing.xs },
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xxl, paddingTop: 64, paddingBottom: 48 },
   header: { alignItems: 'center', marginBottom: spacing.xxl },
