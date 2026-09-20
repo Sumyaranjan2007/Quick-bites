@@ -1,4 +1,6 @@
 import assert from 'node:assert';
+import { searchDishesInMenus } from '../modules/search/menuFallbackSearch.ts';
+import { memoryStore } from '../db/client.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { syncService } from '../modules/search/syncService.ts';
 import { searchService } from '../modules/search/searchService.ts';
@@ -135,6 +137,43 @@ async function runSearchTests() {
   console.log(`[PASS] Step 8: 50 Iterations - Average Latency: ${avgLatency.toFixed(2)}ms, Max: ${maxLatency.toFixed(2)}ms`);
   assert.ok(avgLatency < 15.0, `Average search latency must be < 15ms (Got: ${avgLatency}ms)`);
   assert.ok(maxLatency < 50.0, `Maximum search latency must be < 50ms (Got: ${maxLatency}ms)`);
+
+  // ==================================================================
+  // Finding a DISH when there is no search index.
+  //
+  // `searchCatalog` answers 200 with an empty list when Meilisearch is absent
+  // or unsynced, which is indistinguishable from "nothing matches". Both were
+  // true of this platform: the local config held a placeholder host and the
+  // live deployment returned nothing for dishes that certainly exist on its
+  // menus - so the customer app's dish filter would have done nothing at all.
+  console.log('Step 9: Dish search falls back to the menus when the index is empty...');
+
+  const dishHits = searchDishesInMenus('biryani', 20);
+  assert.ok(dishHits.length > 0, 'Seeded menus contain biryani; the fallback must find it');
+  assert.ok(
+    dishHits.every(d => d.restaurantId && d.restaurantName),
+    'Every hit must name the restaurant that serves it - that is the whole question being asked'
+  );
+  console.log(
+    `[PASS] Step 9: "biryani" -> ${dishHits.length} dishes at ${new Set(dishHits.map(d => d.restaurantId)).size} restaurant(s)`
+  );
+
+  const throughService = await searchService.searchCatalog({ query: 'biryani', type: 'dishes', limit: 20 });
+  assert.ok(
+    throughService.dishes.length > 0,
+    'The fallback must be reached THROUGH searchCatalog, not only callable directly'
+  );
+  console.log(`[PASS] Step 9b: searchCatalog returns ${throughService.dishes.length} dishes without an index`);
+
+  assert.equal(searchDishesInMenus('b', 20).length, 0, 'A one-character query must not scan');
+  console.log('[PASS] Step 9c: A one-character query is refused rather than scanned');
+
+  const activeOnly = searchDishesInMenus('biryani', 50).every(d => {
+    const r = memoryStore.restaurants.get(d.restaurantId);
+    return r && r.status === 'ACTIVE';
+  });
+  assert.ok(activeOnly, 'Only ACTIVE restaurants may appear in dish results');
+  console.log('[PASS] Step 9d: Only approved restaurants appear in dish results');
 
   console.log('\n====================================================');
   console.log('   ALL CHUNK 05 MEILISEARCH SEARCH TESTS PASSED!    ');

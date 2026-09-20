@@ -1,6 +1,7 @@
 import { meiliClient } from './meiliClient.ts';
 import { searchCache } from './searchCache.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
+import { searchDishesInMenus } from './menuFallbackSearch.ts';
 
 export interface SearchCatalogParams {
   query?: string;
@@ -92,6 +93,23 @@ export const searchService = {
         offset
       });
       dishes = res.hits;
+
+      // Nothing from the index is ambiguous: it means either that no dish
+      // matches, or that there is no index. Both were true here — the local
+      // config held a placeholder host and the live deployment answered 200
+      // with an empty list for dishes that certainly exist on its menus — so
+      // the dish filter in the customer app would have done nothing at all.
+      //
+      // Walking the menus is correct at this catalogue's size and wrong at ten
+      // thousand restaurants, which is exactly when configuring Meilisearch
+      // becomes worth it. A working index always wins, so this costs nothing on
+      // a deployment that has one.
+      if (dishes.length === 0 && query) {
+        dishes = searchDishesInMenus(query, limit).filter(d => {
+          if (params.isVeg !== undefined && d.isVeg !== params.isVeg) return false;
+          return true;
+        });
+      }
     }
 
     // Annotate with spatial delivery estimates if coordinates provided
