@@ -38,6 +38,19 @@ export interface ApiClient {
 
 function messageFrom(payload: any, status: number): { message: string; code: string } {
   const error = payload?.error;
+
+  // A validation failure names its field; lead with that rather than with the
+  // wrapper sentence, which tells an operator nothing they can act on.
+  const details = error?.details;
+  if (Array.isArray(details) && details.length) {
+    const issues = details
+      .filter((d: any) => d?.issue)
+      .map((d: any) => (d.field ? `${d.field}: ${d.issue}` : d.issue));
+    if (issues.length) {
+      return { message: issues.join('\n'), code: error?.code || `HTTP_${status}` };
+    }
+  }
+
   if (typeof error === 'string') return { message: error, code: `HTTP_${status}` };
   if (error?.message) return { message: error.message, code: error.code || `HTTP_${status}` };
   if (payload?.message) return { message: payload.message, code: `HTTP_${status}` };

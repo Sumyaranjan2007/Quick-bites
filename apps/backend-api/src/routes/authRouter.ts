@@ -278,7 +278,25 @@ const PartnerRegistrationSchema = z.object({
   addressLine: z.string().trim().min(5, 'Enter the kitchen address.').max(250),
   city: z.string().trim().min(2).max(80),
   pincode: z.string().trim().regex(/^\d{6}$/, 'Enter a 6-digit pincode.'),
-  fssaiLicenseNumber: z.string().trim().min(6, 'Enter your FSSAI licence number.').max(40),
+  /**
+   * Optional at sign-up, deliberately.
+   *
+   * A real kitchen often applies for its FSSAI licence in parallel with joining
+   * a platform, and blocking registration on a number they do not have yet
+   * loses the partner rather than protecting anyone. The licence is a
+   * requirement to TRADE, not to register — it is collected here when known,
+   * and the approval step in the admin console is where it is actually checked
+   * against the public register before the kitchen becomes visible.
+   *
+   * An empty string is normalised away so it is stored as absent rather than
+   * as a blank the approver might mistake for a real value.
+   */
+  fssaiLicenseNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform(value => (value ? value : undefined)),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   isPureVeg: z.boolean().optional()

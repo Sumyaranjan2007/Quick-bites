@@ -37,6 +37,25 @@ function headers(): Record<string, string> {
 
 /** Pulls a usable sentence out of whatever shape the server returned. */
 function messageFrom(payload: any, fallback: string): string {
+  // The field issue FIRST, and this ordering is the whole point.
+  //
+  // The server already says exactly what is wrong and where:
+  //   { error: { message: 'Request payload validation failed.',
+  //              details: [{ field: 'pincode', issue: 'Enter a 6-digit pincode.' }] } }
+  //
+  // Reading only `message` showed a partner "Request payload validation
+  // failed." and nothing else — every field looked equally guilty, and the
+  // only way to find the real one was to read the server's source. The
+  // detail is the useful half.
+  const details = payload?.error?.details;
+  if (Array.isArray(details) && details.length) {
+    // Several fields can fail at once; listing them beats making someone
+    // discover them one resubmission at a time.
+    const issues = details
+      .filter((d: any) => d?.issue)
+      .map((d: any) => (d.field ? `${d.field}: ${d.issue}` : d.issue));
+    if (issues.length) return issues.join('\n');
+  }
   if (typeof payload?.error === 'string') return payload.error;
   if (typeof payload?.error?.message === 'string') return payload.error.message;
   if (typeof payload?.message === 'string') return payload.message;

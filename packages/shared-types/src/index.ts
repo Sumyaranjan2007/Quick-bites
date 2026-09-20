@@ -101,7 +101,12 @@ export interface Restaurant {
   city: string;
   pincode: string;
   coordinates: Coordinates;
-  fssaiLicenseNumber: string;
+  /**
+   * Absent until the partner supplies it. Optional to REGISTER, and checked
+   * against the public register at approval — a kitchen cannot trade without
+   * one, but it can sign up while the application is still in progress.
+   */
+  fssaiLicenseNumber?: string;
   gstin?: string;
   isPureVeg: boolean;
   packagingFee: number;

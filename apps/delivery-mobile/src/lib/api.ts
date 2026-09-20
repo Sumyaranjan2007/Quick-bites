@@ -58,7 +58,20 @@ async function request<T>(
   }
 
   if (!res.ok || body?.success === false) {
+    // Field issues before the generic wrapper. The server names the field and
+    // says what is wrong with it; showing only 'Request payload validation
+    // failed.' hides the one piece of information a rider needs to fix it.
+    const details = body?.error?.details;
+    const fieldIssues =
+      Array.isArray(details) && details.length
+        ? details
+            .filter((d: any) => d?.issue)
+            .map((d: any) => (d.field ? `${d.field}: ${d.issue}` : d.issue))
+            .join('\n')
+        : '';
+
     const message =
+      fieldIssues ||
       body?.error?.message ||
       (typeof body?.error === 'string' ? body.error : null) ||
       body?.message ||
