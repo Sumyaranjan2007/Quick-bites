@@ -74,13 +74,24 @@ instead of the refund evaporating.
 
 **A basket could hold two kitchens.** `CartItem` carried no restaurant at all,
 so dishes from two restaurants sat in one cart and checkout posted the whole
-thing against whichever restaurant happened to be on screen — priced from that
-restaurant's menu, settled to that restaurant's account. The fallback when it
-had none was a **literal restaurant id written into the source**, so a checkout
-that lost track of its kitchen ordered from one specific real restaurant.
+thing against whichever restaurant happened to be on screen.
 
-A comment above `handleReorder` had been describing this rule for some time.
-Nothing enforced it.
+The server is not fooled by this — `POST /orders/quote` refuses a dish that is
+not on the named restaurant's menu, with `INVALID_DISH_ID`. So the consequence
+was not a wrong charge; it was a customer who had built a basket across two
+restaurants reaching checkout and being told *"Dish ID dish_margherita does not
+exist in this restaurant menu"*, which is an error about our data model and
+nothing they can act on. The fix is to refuse it at the moment the second
+kitchen is chosen, and to say why, while the basket is still worth saving.
+
+Checked rather than assumed: the server behaviour above was confirmed by
+ordering a Milano dish from the Biryani House.
+
+The fallback when checkout had no restaurant at all was a **literal restaurant
+id written into the source**, which is a separate fault and is gone.
+
+A comment above `handleReorder` had been describing the one-kitchen rule for
+some time. Nothing enforced it.
 
 **A second order erased the first.** `activeOrder` was a single object: placing
 another order replaced it, and the first — still being cooked, still being
