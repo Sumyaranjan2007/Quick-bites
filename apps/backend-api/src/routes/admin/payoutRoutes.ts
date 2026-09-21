@@ -39,6 +39,7 @@ import { railCatalogue, defaultRail } from '../../modules/payments/rails.ts';
 import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
 import { payableAccountFor, publicView as payeeView } from '../../modules/payments/payeeAccounts.ts';
 import { backfillEarnings } from '../../modules/payments/earnings.ts';
+import { listDeposits, confirmDeposit, cashAgeing } from '../../modules/payments/cashDeposits.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
 import type { PayeeOwnerType, PayoutRailId } from '@quick-bites/shared-types';
@@ -427,6 +428,113 @@ payoutRoutes.post(
           result.posted === 0
             ? `All ${result.scanned} delivered orders already had their earnings posted.`
             : `Posted earnings for ${result.posted} of ${result.scanned} delivered orders.`
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  CASH DEPOSITS                                                      *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/cash/deposits
+ *
+ * Declarations waiting to be counted, and every rider carrying cash.
+ *
+ * The ageing list is the half that matters. A rider quietly accumulating cash
+ * and never coming in is invisible from any single order, and this is where it
+ * becomes obvious before it becomes expensive.
+ */
+payoutRoutes.get(
+  '/cash/deposits',
+  requirePermission('finance.payouts.view', 'finance.payouts.manage'),
+  async (_req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: {
+          awaiting: listDeposits({ status: 'DECLARED' }).map(d => ({
+            ...d,
+            declared: toRupees(d.declaredPaise)
+          })),
+          recent: listDeposits()
+            .filter(d => d.status !== 'DECLARED')
+            .slice(0, 30)
+            .map(d => ({
+              ...d,
+              declared: toRupees(d.declaredPaise),
+              received: d.receivedPaise != null ? toRupees(d.receivedPaise) : null
+            })),
+          ageing: cashAgeing()
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const ConfirmDepositSchema = z.object({
+  /** What was ACTUALLY counted. Never what the rider said. */
+  receivedAmount: z.number().min(0).max(1000000),
+  varianceNote: z.string().trim().max(400).optional()
+});
+
+/**
+ * POST /api/admin/cash/deposits/:id/confirm
+ *
+ * An administrator counts the cash and records what arrived.
+ *
+ * The rider's cash-in-hand comes down by what was RECEIVED, never by what was
+ * declared. That distinction is the entire control: reducing by the declaration
+ * would let a rider write off any amount simply by claiming they had brought
+ * it.
+ */
+payoutRoutes.post(
+  '/cash/deposits/:id/confirm',
+  requirePermission('finance.payouts.manage'),
+  validate({ body: ConfirmDepositSchema }),
+  async (req, res, next) => {
+    try {
+      const { deposit, variancePaise, remainingPaise } = confirmDeposit({
+        depositId: req.params.id,
+        receivedPaise: toPaise(req.body.receivedAmount),
+        actorUserId: req.user!.id,
+        varianceNote: req.body.varianceNote
+      });
+
+      recordAudit(req, {
+        action: variancePaise === 0 ? 'CASH_DEPOSIT_CONFIRMED' : 'CASH_DEPOSIT_VARIANCE',
+        entityType: 'CASH_DEPOSIT',
+        entityId: deposit.id,
+        summary:
+          `${deposit.riderName || deposit.riderId} declared ${formatPaise(deposit.declaredPaise)}, ` +
+          `received ${formatPaise(deposit.receivedPaise || 0)}` +
+          (variancePaise === 0 ? '' : ` — ${formatPaise(Math.abs(variancePaise))} ${variancePaise < 0 ? 'short' : 'over'}: ${req.body.varianceNote}`),
+        after: {
+          declaredPaise: deposit.declaredPaise,
+          receivedPaise: deposit.receivedPaise,
+          variancePaise,
+          remainingPaise
+        }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          deposit,
+          variance: toRupees(variancePaise),
+          remainingCashInHand: toRupees(remainingPaise)
+        },
+        message:
+          variancePaise === 0
+            ? remainingPaise === 0
+              ? `${formatPaise(deposit.receivedPaise || 0)} received. They are carrying nothing and can be paid.`
+              : `${formatPaise(deposit.receivedPaise || 0)} received. ${formatPaise(remainingPaise)} still outstanding.`
+            : `Recorded with a variance of ${formatPaise(Math.abs(variancePaise))}. It stays against the rider.`
       });
     } catch (err) {
       next(err);

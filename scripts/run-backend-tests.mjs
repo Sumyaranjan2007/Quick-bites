@@ -44,6 +44,7 @@ const SUITES = [
   'payees',
   'payouts',
   'refunds',
+  'cash',
   'platformReset',
   'accountBlocking',
   'profileEdits',

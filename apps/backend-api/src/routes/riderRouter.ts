@@ -8,6 +8,7 @@ import {
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { riderEarningsBalance } from '../modules/payments/earnings.ts';
+import { cashStanding } from '../modules/payments/cashDeposits.ts';
 import { payoutRepository } from '../db/repositories/payoutRepository.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
@@ -786,6 +787,30 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
 
     const target = await orderRepository.findById(req.params.id);
     if (!target) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+
+    /*
+     * A rider at the cash ceiling is not offered more cash.
+     *
+     * Enforced HERE for the same reason the one-trip rule above is: the offer
+     * list is a filter and this is the gate. The platform's exposure to any one
+     * rider is bounded by a number an administrator sets, rather than by how
+     * long it has been since anybody checked.
+     *
+     * Only CASH orders are refused. Online-paid trips still come to them, so a
+     * rider carrying cash keeps earning — the ceiling exists to stop cash
+     * accumulating, not to stop somebody working.
+     */
+    if (target.paymentMethod === 'CASH_ON_DELIVERY') {
+      const standing = cashStanding(self.id);
+      if (!standing.canTakeCod) {
+        throw new AppError(
+          standing.message ||
+            'Deposit the cash you are carrying before taking another cash order.',
+          409,
+          'CASH_CEILING_REACHED'
+        );
+      }
+    }
 
     const payout = calculateTripPayout(target);
     const order = await orderRepository.assignRider(

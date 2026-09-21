@@ -172,6 +172,45 @@ paymentRouter.post('/webhook', async (req, res, next) => {
           razorpayPaymentId: entity.id
         }));
       }
+    } else if (eventType === 'qr_code.credited') {
+      /*
+       * Somebody paid a doorstep QR.
+       *
+       * This is the AUTHORITATIVE path for a door payment, and one of exactly
+       * two things on the platform that can mark such an order paid — the other
+       * being a direct query to Razorpay from the rider's polling route. The
+       * rider's app can ask; it cannot assert. A delivery app is an
+       * attacker-controlled environment being handed other people's money, and
+       * "tell the server it was paid" is the one lie that pays.
+       *
+       * The order id travels in the QR's own notes, which we set when we
+       * created it, so a credited code can be matched back to an order without
+       * trusting anything the phone says.
+       */
+      const qrEntity = payload?.payload?.qr_code?.entity;
+      const qrPayment = payload?.payload?.payment?.entity;
+      const doorOrderId = qrEntity?.notes?.orderId;
+
+      if (doorOrderId) {
+        const order = await orderRepository.findById(doorOrderId);
+        if (order && order.paymentStatus !== 'PAID') {
+          order.paymentStatus = 'PAID';
+          (order as any).paymentMethod = 'UPI_AT_DOOR';
+          if (qrPayment?.id) order.razorpayPaymentId = qrPayment.id;
+          order.updatedAt = new Date().toISOString();
+          memoryStore.orders.set(order.id, order);
+          triggerAutoSave();
+
+          console.log(JSON.stringify({
+            level: 'INFO',
+            timestamp: new Date().toISOString(),
+            event: 'DOOR_PAYMENT_CONFIRMED_BY_WEBHOOK',
+            orderId: order.id,
+            qrId: qrEntity?.id,
+            razorpayPaymentId: qrPayment?.id
+          }));
+        }
+      }
     } else if (eventType === 'payment.failed' && quickBitesOrderId) {
       console.log(JSON.stringify({
         level: 'WARN',
