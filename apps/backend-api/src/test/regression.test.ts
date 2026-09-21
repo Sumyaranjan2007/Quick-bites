@@ -105,13 +105,16 @@ async function run() {
       email: `cc_${Date.now()}@example.com`,
       password: 'strong-pass-1',
       fullName: 'Country Code',
-      phone: '+91 98765 43210'
+      // A free number, typed the way a person types one. 9876543210 belongs to
+      // the seeded customer, and this check is about NORMALISATION, not about
+      // whether a number can be reused - which it can no longer be.
+      phone: '+91 98111 00033'
     }
   });
   check('A number typed with +91 and spaces is accepted', withCountryCode.status === 201, String(withCountryCode.status));
   check(
     'and is stored as the bare ten digits',
-    withCountryCode.json?.data?.user?.phone === '9876543210',
+    withCountryCode.json?.data?.user?.phone === '9811100033',
     String(withCountryCode.json?.data?.user?.phone)
   );
 

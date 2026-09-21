@@ -2,12 +2,22 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env.ts';
 import { memoryStore } from '../db/client.ts';
+import { rolesOf } from '../db/repositories/userRepository.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
+  /** The role this account acts as by default. Not the whole answer — see `roles`. */
   role: UserRole;
+  /**
+   * Every role this person holds, resolved from the store on this request.
+   *
+   * Always at least `[role]`. Read this rather than comparing `role` wherever
+   * the question is "may they", because one person can be a customer and a
+   * rider at once and comparing the primary role says no.
+   */
+  roles: UserRole[];
   fullName: string;
   isGold: boolean;
 }
@@ -31,6 +41,7 @@ export function authMiddleware(requiredRole?: string) {
           id: 'usr_demo_customer_01',
           email: 'rahul.demo@quickbite.app',
           role: 'customer',
+          roles: ['customer'],
           fullName: 'Rahul Sharma (Demo)',
           isGold: true
         };
@@ -40,6 +51,7 @@ export function authMiddleware(requiredRole?: string) {
           id: 'usr_demo_partner_01',
           email: 'sunita.demo@quickbite.app',
           role: 'restaurant_owner',
+          roles: ['restaurant_owner'],
           fullName: 'Sunita Deshmukh (Demo)',
           isGold: false
         };
@@ -49,6 +61,7 @@ export function authMiddleware(requiredRole?: string) {
           id: 'usr_demo_admin_01',
           email: 'admin.demo@quickbite.app',
           role: 'admin',
+          roles: ['admin'],
           fullName: 'Ananya Iyer (Admin)',
           isGold: true
         };
@@ -81,6 +94,9 @@ export function authMiddleware(requiredRole?: string) {
         id: payload.sub || 'usr_unknown',
         email: payload.email || '',
         role: payload.role || 'customer',
+        // Replaced below from the stored record. The token's word is never the
+        // final answer about what somebody may do.
+        roles: [payload.role || 'customer'],
         fullName: payload.user_metadata?.name || 'Quick Bites User',
         isGold: !!payload.is_gold
       };
@@ -105,7 +121,7 @@ export function authMiddleware(requiredRole?: string) {
        * Demo-mode tokens return above and never reach here.
        */
       const stored = memoryStore.users.get(req.user.id) as
-        | { isBlocked?: boolean; blockReason?: string; role?: string }
+        | { isBlocked?: boolean; blockReason?: string; role?: string; roles?: string[] }
         | undefined;
 
       if (!stored) {
@@ -143,10 +159,28 @@ export function authMiddleware(requiredRole?: string) {
       // must apply now rather than in a week. The stored record wins.
       if (stored.role) req.user.role = stored.role as UserRole;
       
-      // Enforce role authorization if specified
+      /*
+       * WHAT THIS PERSON MAY DO, WHICH IS NOT THE SAME AS WHAT THEY ARE.
+       *
+       * One phone number is one PERSON, and a person is routinely more than
+       * one thing on a food platform: a rider orders their own dinner, a
+       * restaurant owner orders from somebody else's kitchen. Asking
+       * `role === requiredRole` made those mutually exclusive, so signing up
+       * to deliver with the number already on your customer account was
+       * refused at registration with nothing to do about it.
+       *
+       * Resolved from the STORE, like the block check above, so a role granted
+       * a minute ago works against a token issued last week. Nobody has to
+       * sign out and back in to start delivering.
+       *
+       * `rolesOf` falls back to `[role]`, so every account created before this
+       * existed is judged exactly as it always was.
+       */
+      const held = rolesOf(stored);
+      req.user.roles = held as UserRole[];
       if (requiredRole) {
-        const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
-        const matchesRole = req.user.role === requiredRole;
+        const isAdmin = held.includes('admin') || held.includes('super_admin');
+        const matchesRole = held.includes(requiredRole);
         if (!matchesRole && !isAdmin) {
           res.status(403).json({
             success: false,

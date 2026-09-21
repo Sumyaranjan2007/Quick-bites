@@ -167,3 +167,48 @@ export const userRepository = {
     return user;
   }
 };
+
+/**
+ * Every role this account holds.
+ *
+ * The one place that answers the question, because the answer has two shapes:
+ * accounts created before multi-role have only `role`, and treating an absent
+ * `roles` as "no roles" would lock out every existing customer, partner and
+ * rider on the platform at once.
+ *
+ * `role` is always included even when `roles` is present, so a record that was
+ * migrated badly, or written by an older build, still works.
+ */
+export function rolesOf(user: { role?: string; roles?: string[] } | null | undefined): string[] {
+  if (!user) return [];
+  const all = new Set<string>();
+  if (user.role) all.add(user.role);
+  for (const r of user.roles || []) if (r) all.add(r);
+  return Array.from(all);
+}
+
+export function hasRole(user: { role?: string; roles?: string[] } | null | undefined, role: string): boolean {
+  return rolesOf(user).includes(role);
+}
+
+/**
+ * Grants a role to an existing person.
+ *
+ * `role` — the primary — is deliberately NOT changed. It is what the account
+ * opens as and what every issued token carries, and moving it would change
+ * where an existing app lands on launch. Somebody who signs up to deliver
+ * keeps opening the customer app as a customer; the delivery app asks for the
+ * rider role and now gets it.
+ */
+export async function grantRole(userId: string, role: string): Promise<UserRecord | null> {
+  const user = memoryStore.users.get(userId);
+  if (!user) return null;
+
+  const existing = new Set<string>(rolesOf(user));
+  existing.add(role);
+  user.roles = Array.from(existing);
+
+  memoryStore.users.set(userId, user);
+  triggerAutoSave();
+  return user;
+}

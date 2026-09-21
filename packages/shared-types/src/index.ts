@@ -12,7 +12,35 @@ export interface UserProfile {
   email: string;
   phone?: string;
   fullName: string;
+  /**
+   * The role this account acts as by default.
+   *
+   * Kept as a single value because every token, every screen and every
+   * existing record already reads it. It is the PRIMARY role - what the app
+   * opens as - and it is no longer the whole answer to what somebody may do.
+   * Ask `roles` for that.
+   */
   role: UserRole;
+  /**
+   * Every role this person holds.
+   *
+   * A phone number identifies a PERSON, and one person is routinely more than
+   * one thing: a rider orders their own dinner, a restaurant owner orders from
+   * somebody else's kitchen. Before this, roles were exclusive, so signing up
+   * to deliver with the number already on your customer account was refused
+   * outright - "an account with this mobile number already exists" - with
+   * nothing to do about it but find a second SIM.
+   *
+   * Making the rider registration simply overwrite `role` would have been
+   * worse than refusing: placing an order requires the customer role, so the
+   * moment somebody became a rider they would have lost the ability to order
+   * food, and nothing would have told them why.
+   *
+   * Absent on every account created before this existed, which is why nothing
+   * reads it directly - `rolesOf()` in userRepository falls back to `[role]`,
+   * so an old account behaves exactly as it always did.
+   */
+  roles?: UserRole[];
   /**
    * Whether this customer holds a Gold membership.
    *

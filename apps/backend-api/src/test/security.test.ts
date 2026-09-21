@@ -33,7 +33,12 @@ async function runSecurityTests() {
         email: 'newuser@quickbite.app',
         password: 'securePassword123!',
         fullName: 'New Secure User',
-        phone: '9876543210',
+        // NOT 9876543210. That number belongs to the seeded customer, and a
+        // second account may no longer be created against a number that is
+        // already somebody's - two accounts on one number make the phone
+        // sign-in return whichever was created first. This check is about
+        // bcrypt, so it needs a free number, not that one.
+        phone: '9811100022',
         role: 'customer'
       })
     });
@@ -41,6 +46,32 @@ async function runSecurityTests() {
     if (regRes.status !== 201) {
       throw new Error(`Registration failed with status ${regRes.status}`);
     }
+
+    /*
+     * And the number cannot be taken twice.
+     *
+     * Added when the fixture above had to move off the seeded customer's
+     * number: changing a fixture to make a suite pass is how a real rule
+     * quietly stops being checked, so the rule that forced the change is
+     * asserted here rather than only in identity.test.ts.
+     */
+    const duplicateNumber = await fetch(`${baseUrl}/api/v1/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'someone.else@quickbite.app',
+        password: 'anotherPassword123!',
+        fullName: 'Someone Else',
+        phone: '9811100022',
+        role: 'customer'
+      })
+    });
+    if (duplicateNumber.status !== 409) {
+      throw new Error(
+        `A second account on one phone number should be refused, got ${duplicateNumber.status}`
+      );
+    }
+    console.log('[PASS] One phone number cannot hold two accounts');
     const regData = await regRes.json();
     const storedUser = await userRepository.findByEmail('newuser@quickbite.app');
     if (!storedUser || !storedUser.passwordHash) {
