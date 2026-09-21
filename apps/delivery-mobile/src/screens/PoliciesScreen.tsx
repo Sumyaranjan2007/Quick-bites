@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react-native';
 import { t } from '../theme';
 import { Card, Divider, EmptyState, LoadingBlock } from '../components/ui';
-import { api, type ApiContext, type Policy, type PolicySummary } from '../lib/api';
+import { api, policyApi, type ApiContext, type Policy, type PolicySummary } from '../lib/api';
 import { cacheJson, readCachedJson } from '../lib/session';
 
 /**
@@ -18,30 +18,69 @@ export const PoliciesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const [error, setError] = useState<string | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
 
+  /*
+   * Which ids came from the payments library rather than the rider one.
+   *
+   * They are two different endpoints — one is rider conduct, the other is what
+   * you earn and what happens to cash in your bag — but a rider looking for
+   * "what are the rules" should not have to know that, so they are one list
+   * here and this is how the right endpoint is asked for the body.
+   */
+  const [paymentIds, setPaymentIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     let cancelled = false;
-    api
-      .policies(ctx)
-      .then(result => {
+
+    /*
+     * Both libraries, and one failing does not lose the other.
+     *
+     * `allSettled` rather than `all`: a rider whose earnings policy cannot be
+     * fetched should still be able to read the conduct rules, and vice versa.
+     * The cache then fills whichever gap is left.
+     */
+    Promise.allSettled([api.policies(ctx), policyApi.list(ctx)])
+      .then(async ([conduct, payments]) => {
         if (cancelled) return;
-        setList(result.policies);
-        cacheJson('policies', result.policies);
+
+        const conductList = conduct.status === 'fulfilled' ? conduct.value.policies : [];
+        const paymentList = payments.status === 'fulfilled' ? payments.value.policies : [];
+
+        if (conductList.length === 0 && paymentList.length === 0) {
+          const cached = await readCachedJson<PolicySummary[]>('policies');
+          if (cached) setList(cached);
+          else setError('Could not load your policies. They will appear when you are back online.');
+          return;
+        }
+
+        // Money first. It is what a rider actually comes here to check.
+        const merged = [...paymentList, ...conductList];
+        setPaymentIds(new Set(paymentList.map(p => p.id)));
+        setList(merged);
+        cacheJson('policies', merged);
+        cacheJson('policies.paymentIds', paymentList.map(p => p.id));
       })
-      .catch(async err => {
-        if (cancelled) return;
-        const cached = await readCachedJson<PolicySummary[]>('policies');
-        if (cached) setList(cached);
-        else setError(err.message);
+      .catch(() => {
+        /* allSettled does not reject; this is belt and braces. */
       });
+
     return () => {
       cancelled = true;
     };
   }, [ctx.apiUrl, ctx.token]);
 
+  // Restore which ids are payment ones after an offline load, so the right
+  // endpoint is still asked when a cached list is tapped.
+  useEffect(() => {
+    if (paymentIds.size > 0) return;
+    void readCachedJson<string[]>('policies.paymentIds').then(ids => {
+      if (ids?.length) setPaymentIds(new Set(ids));
+    });
+  }, [paymentIds.size]);
+
   const openPolicy = async (id: string) => {
     setLoadingDocument(true);
     try {
-      const result = await api.policy(ctx, id);
+      const result = paymentIds.has(id) ? await policyApi.one(ctx, id) : await api.policy(ctx, id);
       setOpen(result.policy);
       cacheJson(`policy.${id}`, result.policy);
     } catch {

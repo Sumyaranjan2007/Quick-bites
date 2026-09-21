@@ -657,3 +657,31 @@ export function withdrawPayoutRequest(requestId: string) {
 export function fetchPayoutRequests() {
   return request<{ requests: PayoutRequestView[] }>('/earnings/payout-requests');
 }
+
+// ---------------------------------------------------------------------------
+// Payment policies.
+//
+// Unauthenticated on the server, deliberately: these are the terms a kitchen is
+// deciding whether to accept, and a policy only readable once you have signed
+// is not a published policy. Requested through the same helper as everything
+// else because there is no reason to special-case one call.
+// ---------------------------------------------------------------------------
+
+export interface PolicySummaryView {
+  id: string;
+  title: string;
+  summary: string;
+  updatedAt: string;
+}
+
+export interface PolicyView extends PolicySummaryView {
+  sections: Array<{ heading: string; body: string }>;
+}
+
+export function fetchPaymentPolicies() {
+  return request<{ policies: PolicySummaryView[]; gaps: string[] }>('/policies/payments?audience=partner');
+}
+
+export function fetchPaymentPolicy(id: string) {
+  return request<{ policy: PolicyView }>(`/policies/payments/${id}`);
+}

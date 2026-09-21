@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, Modal } from 'react-native';
 import { c } from '../theme';
 import { Card, SectionHeading, Pill, Button, EmptyState, ErrorNote, Field } from '../components/ui';
 import {
@@ -8,7 +8,11 @@ import {
   withdrawPayoutRequest,
   type StatementView,
   type OrderStatementView,
-  type PayoutRequestView
+  type PayoutRequestView,
+  fetchPaymentPolicies,
+  fetchPaymentPolicy,
+  type PolicySummaryView,
+  type PolicyView
 } from '../lib/partnerApi';
 
 /**
@@ -132,6 +136,10 @@ export const EarningsStatementScreen: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
 
+  const [policies, setPolicies] = useState<PolicySummaryView[]>([]);
+  const [policyGaps, setPolicyGaps] = useState<string[]>([]);
+  const [openPolicyDoc, setOpenPolicyDoc] = useState<PolicyView | null>(null);
+
   const load = useCallback(async (mode: 'initial' | 'refresh') => {
     if (mode === 'refresh') setRefreshing(true);
     const result = await fetchStatement();
@@ -149,6 +157,22 @@ export const EarningsStatementScreen: React.FC = () => {
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  // Fetched rather than bundled, so a revision reaches a kitchen the next time
+  // they open this screen instead of the next time they update the app.
+  useEffect(() => {
+    void fetchPaymentPolicies().then(result => {
+      if (result.ok && result.data) {
+        setPolicies(result.data.policies);
+        setPolicyGaps(result.data.gaps || []);
+      }
+    });
+  }, []);
+
+  const openPolicy = async (id: string) => {
+    const result = await fetchPaymentPolicy(id);
+    if (result.ok && result.data) setOpenPolicyDoc(result.data.policy);
+  };
 
   const ask = async () => {
     setBusy(true);
@@ -319,6 +343,37 @@ export const EarningsStatementScreen: React.FC = () => {
             </>
           )}
 
+          {/* ----------------------------- Policies ----------------------------- */}
+          {/*
+            At the bottom of the statement rather than in a tab of its own.
+            A partner reaches for the settlement terms at exactly one moment —
+            when a figure looks wrong — and that moment is spent looking at this
+            screen. A policy two taps away in a menu is a policy nobody reads.
+          */}
+          <SectionHeading title="The terms these figures follow" />
+          {policies.length === 0 ? (
+            <Card>
+              <Text style={s.policyRowSummary}>
+                Our payment policies could not be loaded just now. Pull down to try again.
+              </Text>
+            </Card>
+          ) : (
+            policies.map(policy => (
+              <TouchableOpacity key={policy.id} onPress={() => void openPolicy(policy.id)} activeOpacity={0.75}>
+                <Card style={s.orderCard}>
+                  <Text style={s.policyRowTitle}>{policy.title}</Text>
+                  <Text style={s.policyRowSummary}>{policy.summary}</Text>
+                </Card>
+              </TouchableOpacity>
+            ))
+          )}
+
+          {policyGaps.length > 0 && (
+            <Text style={s.policyGap}>
+              {policyGaps.join(' ')} We would rather show you that than leave the section looking complete.
+            </Text>
+          )}
+
           <Text style={s.footnote}>
             Every figure here comes from our ledger, which is the same record your payment is drawn from — a
             statement and a payment cannot disagree. Commission is shown at the rate that was on each order,
@@ -326,6 +381,38 @@ export const EarningsStatementScreen: React.FC = () => {
           </Text>
         </>
       )}
+
+      <Modal
+        visible={!!openPolicyDoc}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setOpenPolicyDoc(null)}
+      >
+        <View style={s.policyOverlay}>
+          <View style={s.policySheet}>
+            <View style={s.policyHeader}>
+              <Text style={s.policyTitle} numberOfLines={1}>
+                {openPolicyDoc?.title}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setOpenPolicyDoc(null)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={s.policyClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={s.policyBody}>
+              <Text style={s.policyDate}>Last updated {openPolicyDoc?.updatedAt}</Text>
+              {(openPolicyDoc?.sections || []).map(section => (
+                <View key={section.heading} style={{ marginTop: 18 }}>
+                  <Text style={s.policyHeading}>{section.heading}</Text>
+                  <Text style={s.policyText}>{section.body}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -376,6 +463,34 @@ const s = StyleSheet.create({
   lineTotalValue: { color: c.text, fontSize: 16, fontWeight: '800' },
 
   unexplained: { color: c.danger, fontSize: 11, lineHeight: 16, marginTop: 10 },
+
+  policyRowTitle: { color: c.text, fontSize: 14, fontWeight: '700' },
+  policyRowSummary: { color: c.textMuted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  policyGap: { color: c.warning, fontSize: 11, lineHeight: 16, marginTop: 8 },
+
+  policyOverlay: { flex: 1, backgroundColor: 'rgba(23,19,19,0.55)', justifyContent: 'flex-end' },
+  policySheet: {
+    backgroundColor: c.surface,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    maxHeight: '88%'
+  },
+  policyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: c.border
+  },
+  policyTitle: { color: c.text, fontSize: 17, fontWeight: '800', flex: 1 },
+  policyClose: { color: c.brand, fontSize: 14, fontWeight: '700' },
+  policyBody: { padding: 20, paddingBottom: 36 },
+  policyDate: { color: c.textMuted, fontSize: 12 },
+  policyHeading: { color: c.text, fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  policyText: { color: c.textSoft, fontSize: 14, lineHeight: 21 },
 
   footnote: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: 16, textAlign: 'center' }
 });

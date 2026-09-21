@@ -17,6 +17,7 @@ import {
   MapPin,
   Receipt,
   LifeBuoy,
+  ScrollText,
   Globe,
   Bell,
   ChevronRight,
@@ -30,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card } from '../components/ui';
+import { PaymentPoliciesSheet } from '../components/PaymentPoliciesSheet';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
 import { chooseProfilePhoto } from '../lib/photo';
@@ -121,6 +123,7 @@ export const ProfileScreen: React.FC<Props> = ({
   // Changing a password without losing the session: the current password is
   // required, so an unlocked phone left on a table cannot lock its owner out.
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [policiesOpen, setPoliciesOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -425,6 +428,15 @@ export const ProfileScreen: React.FC<Props> = ({
           title={t('profile.support')}
           sub={t('profile.supportSub')}
           onPress={onOpenSupport}
+        />
+        {/* Beside Help rather than buried in a legal section: the moment
+            somebody wants the refund rules is the moment something has gone
+            wrong, and that is when they open this screen. */}
+        <Row
+          icon={<ScrollText size={18} color={c.primary[500]} />}
+          title="Payments and refunds"
+          sub="What you are charged, and how a refund comes back"
+          onPress={() => setPoliciesOpen(true)}
           last
         />
       </Card>
@@ -567,6 +579,12 @@ export const ProfileScreen: React.FC<Props> = ({
           </View>
         </View>
       </Modal>
+
+      <PaymentPoliciesSheet
+        visible={policiesOpen}
+        onClose={() => setPoliciesOpen(false)}
+        apiUrl={apiUrl}
+      />
     </ScrollView>
   );
 };

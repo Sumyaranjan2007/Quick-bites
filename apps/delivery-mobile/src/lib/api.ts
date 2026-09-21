@@ -812,3 +812,27 @@ export const earningsApi = {
     });
   }
 };
+
+/* -------------------------------------------------------------------------- *
+ *  PAYMENT POLICIES                                                           *
+ *
+ *  Served from a different path to the rider policies and deliberately without
+ *  authentication: these are terms somebody is deciding whether to accept, and
+ *  a policy only readable once you have signed up is not a published policy.
+ *  The rider app still sends its token, because every other call does and there
+ *  is no reason to special-case one.
+ * -------------------------------------------------------------------------- */
+
+export const policyApi = {
+  /** The ones written for riders. Others exist and are readable; these are theirs. */
+  list(ctx: ApiContext) {
+    return request<{ policies: PolicySummary[]; gaps: string[] }>(
+      ctx,
+      '/policies/payments?audience=rider'
+    );
+  },
+
+  one(ctx: ApiContext, id: string) {
+    return request<{ policy: Policy }>(ctx, `/policies/payments/${id}`);
+  }
+};
