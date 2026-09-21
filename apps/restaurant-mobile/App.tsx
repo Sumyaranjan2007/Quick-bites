@@ -10,7 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
-import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote, Landmark, Store } from 'lucide-react-native';
+import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote, Landmark, Store, ReceiptText } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { c, radii, spacing } from './src/theme';
 import {
@@ -35,6 +35,7 @@ import { OrderHistoryScreen } from './src/screens/OrderHistoryScreen';
 import { MenuScreen } from './src/screens/MenuScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
+import { EarningsStatementScreen } from './src/screens/EarningsStatementScreen';
 import { ProfileEditScreen } from './src/screens/ProfileEditScreen';
 import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
 import { ErrorNote } from './src/components/ui';
@@ -53,6 +54,7 @@ type Tab =
   | 'help'
   | 'settlements'
   | 'bank'
+  | 'statement'
   | 'profile';
 
 const TABS: Array<{ key: Tab; label: string; icon: any }> = [
@@ -64,6 +66,11 @@ const TABS: Array<{ key: Tab; label: string; icon: any }> = [
   // what the partner is OWED; this one is the account it gets paid into. Two
   // tabs with one name is worse than either name on its own.
   { key: 'bank', label: 'Bank', icon: Landmark },
+  // The order-by-order breakdown: what the food came to, what we took, at the
+  // rate frozen on that order. Beside the two tabs above because a partner
+  // looking at a settlement figure is one tap from asking why it is that much,
+  // and the answer being a tab away is the whole point of having it.
+  { key: 'statement', label: 'Statement', icon: ReceiptText },
   { key: 'menu', label: 'Menu', icon: Layers },
   // Next to Menu, because the two together are everything a customer sees.
   { key: 'profile', label: 'Profile', icon: Store },
@@ -408,6 +415,7 @@ function PartnerApp() {
           <SettlementsScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />
         )}
         {tab === 'bank' && <PayoutAccountScreen />}
+        {tab === 'statement' && <EarningsStatementScreen />}
         {tab === 'menu' && <MenuScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
         {tab === 'profile' && <ProfileEditScreen restaurantId={restaurant.id} />}
         {tab === 'documents' && <DocumentsScreen restaurantId={restaurant.id} />}

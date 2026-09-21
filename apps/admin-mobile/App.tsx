@@ -14,6 +14,7 @@ import {
   Megaphone,
   LifeBuoy,
   FileCheck2,
+  FileText,
   Store,
   ShieldCheck,
   SlidersHorizontal,
@@ -36,6 +37,7 @@ import { FinanceScreen } from './src/screens/FinanceScreen';
 import { RatesScreen } from './src/screens/RatesScreen';
 import { PayeeAccountsScreen } from './src/screens/PayeeAccountsScreen';
 import { PayoutsScreen } from './src/screens/PayoutsScreen';
+import { TaxScreen } from './src/screens/TaxScreen';
 import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
@@ -160,6 +162,15 @@ const SECTIONS: Array<{
     permissions: ['finance.payouts.manage', 'finance.settlements.manage', 'finance.payouts.view'],
     icon: active => <Landmark size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     render: () => <PayeeAccountsScreen />
+  },
+  {
+    key: 'tax',
+    label: 'Tax',
+    title: 'Tax & invoices',
+    subtitle: 'What is owed to the government, and what a return is filed from',
+    permissions: ['finance.config.edit', 'finance.ledger.view'],
+    icon: active => <FileText size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <TaxScreen />
   },
   {
     key: 'marketing',

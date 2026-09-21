@@ -15,6 +15,7 @@ import { ArrowLeft, Star, Receipt, Eye, EyeOff, X } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
+import { InvoiceSheet } from '../components/InvoiceSheet';
 import { useTranslation } from '../lib/i18n';
 
 const c = tokens.colors;
@@ -72,6 +73,11 @@ const REFUND_REASONS = [
 ];
 
 export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReorder, apiUrl, token }) => {
+  // The bill for a delivered order: a tax invoice where one can be issued,
+  // and an honest receipt where it cannot. Which of the two it is comes from
+  // the server, not from this screen.
+  const [invoiceOrderId, setInvoiceOrderId] = useState<string | null>(null);
+
   const [reorderBasket, setReorderBasket] = useState<any | null>(null);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
 
@@ -286,6 +292,17 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
                       <Text style={styles.problemBtnText}>Report a problem</Text>
                     </TouchableOpacity>
                   ) : null}
+                  {/* Somebody ordering lunch on expenses needs this, and hunting
+                      for it through support is how a claim gets abandoned. */}
+                  {order.status === 'DELIVERED' ? (
+                    <TouchableOpacity
+                      style={styles.reorderBtn}
+                      onPress={() => setInvoiceOrderId(order.id)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.reorderBtnText}>Bill</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   {order.rating ? (
                     <View style={styles.ratedChip}>
                       <Star size={13} color={c.accent[500]} fill={c.accent[500]} />
@@ -483,6 +500,14 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
           </View>
         </View>
       </Modal>
+
+      <InvoiceSheet
+        visible={!!invoiceOrderId}
+        onClose={() => setInvoiceOrderId(null)}
+        orderId={invoiceOrderId}
+        apiUrl={apiUrl}
+        token={token}
+      />
     </ScrollView>
   );
 };

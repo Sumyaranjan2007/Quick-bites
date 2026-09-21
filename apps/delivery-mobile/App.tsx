@@ -4,6 +4,7 @@ import { TripChat } from './src/components/TripChat';
 import { SettlementScreen } from './src/screens/SettlementScreen';
 import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
 import { CashScreen } from './src/screens/CashScreen';
+import { EarningsStatementScreen } from './src/screens/EarningsStatementScreen';
 import {
   ActivityIndicator,
   Alert,
@@ -75,7 +76,8 @@ type SubScreen =
   | 'policies'
   | 'settlement'
   | 'payoutAccount'
-  | 'cash';
+  | 'cash'
+  | 'statement';
 
 const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   documents: 'Documents & verification',
@@ -90,7 +92,8 @@ const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   // tab for it would sit next to Home and Trips forever, competing with the
   // three things they use on every shift.
   payoutAccount: 'Bank account',
-  cash: 'Cash in your bag'
+  cash: 'Cash in your bag',
+  statement: 'Your statement'
 };
 
 /** How often the app asks for work when websockets are not getting through. */
@@ -697,6 +700,7 @@ function DeliveryApp() {
             onOpenSettlement={() => setSubScreen('settlement')}
             onOpenPayoutAccount={() => setSubScreen('payoutAccount')}
             onOpenCash={() => setSubScreen('cash')}
+            onOpenStatement={() => setSubScreen('statement')}
           />
         );
       case 'profile':
@@ -737,6 +741,8 @@ function DeliveryApp() {
         return <PayoutAccountScreen ctx={ctx} />;
       case 'cash':
         return <CashScreen ctx={ctx} />;
+      case 'statement':
+        return <EarningsStatementScreen ctx={ctx} />;
       default:
         return null;
     }

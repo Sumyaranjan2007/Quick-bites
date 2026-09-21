@@ -560,3 +560,100 @@ export function setHoursOverride(restaurantId: string, minutes: number) {
     'Could not change your opening override.'
   );
 }
+
+// ---------------------------------------------------------------------------
+// Earnings statements, and asking to be paid.
+//
+// The statement is the answer to "why is my settlement this much" — per order,
+// with every deduction named at the rate that was frozen onto that order.
+//
+// The request carries NO amount. What is owed comes from the ledger when an
+// administrator acts. A request that named a figure would be a partner-supplied
+// number travelling towards a bank.
+// ---------------------------------------------------------------------------
+
+export interface StatementLineView {
+  label: string;
+  amountPaise: number;
+  amount: number;
+  detail?: string;
+}
+
+export interface OrderStatementView {
+  orderId: string;
+  orderNumber: string;
+  occurredAt: string;
+  lines: StatementLineView[];
+  netPaise: number;
+  net: number;
+  /** Non-zero only when the lines cannot account for the ledger figure. */
+  unexplainedPaise: number;
+  settledByPayoutId?: string;
+  released: boolean;
+}
+
+export interface StatementView {
+  ownerName: string;
+  period: { from: string; to: string };
+  summary: {
+    ordersCount: number;
+    earned: number;
+    deductions: number;
+    adjustments: number;
+    paid: number;
+    payable: number;
+    held: number;
+    outstanding: number;
+  };
+  orders: OrderStatementView[];
+  adjustments: Array<{ id: string; occurredAt: string; event: string; narration: string; amount: number }>;
+  payouts: Array<{
+    id: string;
+    amount: number;
+    state: string;
+    rail: string;
+    reference?: string;
+    executedAt?: string;
+  }>;
+  holdDays: number;
+}
+
+export interface PayoutRequestView {
+  id: string;
+  status: 'OPEN' | 'SEEN' | 'SETTLED' | 'DECLINED' | 'WITHDRAWN';
+  raisedAt: string;
+  payableAtRequest: number;
+  note?: string;
+  declineReason?: string;
+  settledAt?: string;
+}
+
+export function fetchStatement(range?: { from?: string; to?: string }) {
+  const params = new URLSearchParams();
+  if (range?.from) params.set('from', range.from);
+  if (range?.to) params.set('to', range.to);
+  const query = params.toString();
+  return request<{ statement: StatementView; openRequest: PayoutRequestView | null }>(
+    `/earnings/statement${query ? `?${query}` : ''}`
+  );
+}
+
+export function raisePayoutRequest(note?: string) {
+  return request<{ request: PayoutRequestView }>(
+    '/earnings/payout-requests',
+    { method: 'POST', body: JSON.stringify(note ? { note } : {}) },
+    'Could not raise that request.'
+  );
+}
+
+export function withdrawPayoutRequest(requestId: string) {
+  return request<{ request: PayoutRequestView }>(
+    `/earnings/payout-requests/${requestId}`,
+    { method: 'DELETE' },
+    'Could not withdraw that request.'
+  );
+}
+
+export function fetchPayoutRequests() {
+  return request<{ requests: PayoutRequestView[] }>('/earnings/payout-requests');
+}

@@ -727,3 +727,88 @@ export const cashApi = {
     return request<{ deposit: CashDepositView }>(ctx, `/cash/deposits/${depositId}`, { method: 'DELETE' });
   }
 };
+
+/* -------------------------------------------------------------------------- *
+ *  EARNINGS STATEMENTS, AND ASKING TO BE PAID                                 *
+ *
+ *  The statement answers "why is my payout this much", trip by trip. The
+ *  request carries NO amount — what is owed comes from the ledger when an
+ *  administrator acts, so there is nothing here a rider could inflate.
+ * -------------------------------------------------------------------------- */
+
+export interface StatementLineView {
+  label: string;
+  amountPaise: number;
+  amount: number;
+  detail?: string;
+}
+
+export interface OrderStatementView {
+  orderId: string;
+  orderNumber: string;
+  occurredAt: string;
+  lines: StatementLineView[];
+  netPaise: number;
+  net: number;
+  unexplainedPaise: number;
+  settledByPayoutId?: string;
+  released: boolean;
+}
+
+export interface RiderStatementView {
+  ownerName: string;
+  period: { from: string; to: string };
+  summary: {
+    ordersCount: number;
+    earned: number;
+    deductions: number;
+    adjustments: number;
+    paid: number;
+    payable: number;
+    held: number;
+    outstanding: number;
+  };
+  orders: OrderStatementView[];
+  adjustments: Array<{ id: string; occurredAt: string; event: string; narration: string; amount: number }>;
+  payouts: Array<{
+    id: string;
+    amount: number;
+    state: string;
+    rail: string;
+    reference?: string;
+    executedAt?: string;
+  }>;
+  holdDays: number;
+}
+
+export interface RiderPayoutRequestView {
+  id: string;
+  status: 'OPEN' | 'SEEN' | 'SETTLED' | 'DECLINED' | 'WITHDRAWN';
+  raisedAt: string;
+  payableAtRequest: number;
+  note?: string;
+  declineReason?: string;
+}
+
+export const earningsApi = {
+  statement(ctx: ApiContext) {
+    return request<{ statement: RiderStatementView; openRequest: RiderPayoutRequestView | null }>(
+      ctx,
+      '/earnings/statement'
+    );
+  },
+
+  /** Raises a request. Deliberately takes no amount. */
+  raiseRequest(ctx: ApiContext, note?: string) {
+    return request<{ request: RiderPayoutRequestView }>(ctx, '/earnings/payout-requests', {
+      method: 'POST',
+      body: JSON.stringify(note ? { note } : {})
+    });
+  },
+
+  withdrawRequest(ctx: ApiContext, requestId: string) {
+    return request<{ request: RiderPayoutRequestView }>(ctx, `/earnings/payout-requests/${requestId}`, {
+      method: 'DELETE'
+    });
+  }
+};

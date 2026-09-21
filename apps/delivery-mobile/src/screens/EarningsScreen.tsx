@@ -23,6 +23,8 @@ export const EarningsScreen: React.FC<{
   onOpenPayoutAccount: () => void;
   /** Cash-on-delivery money the rider is carrying, and declaring a deposit. */
   onOpenCash: () => void;
+  /** Trip-by-trip breakdown, and asking to be paid. */
+  onOpenStatement: () => void;
 }> = ({
   data,
   refreshing,
@@ -32,7 +34,8 @@ export const EarningsScreen: React.FC<{
   onOpenRatings,
   onOpenSettlement,
   onOpenPayoutAccount,
-  onOpenCash
+  onOpenCash,
+  onOpenStatement
 }) => {
   if (!data) return <LoadingBlock label="Loading your earnings…" />;
   const { metrics, incentives } = data;
@@ -81,6 +84,15 @@ export const EarningsScreen: React.FC<{
           label="Bank account"
           variant="secondary"
           onPress={onOpenPayoutAccount}
+          style={{ marginTop: t.space[3] }}
+        />
+        {/* Directly under the balance, because a rider looking at a figure is
+            one tap from asking why it is that much — and the answer should not
+            be a phone call to somebody who cannot see the arithmetic either. */}
+        <Button
+          label="Statement — trip by trip"
+          variant="secondary"
+          onPress={onOpenStatement}
           style={{ marginTop: t.space[3] }}
         />
         {/* Cash sits between a rider and their own money: carry too much and
