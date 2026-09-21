@@ -177,6 +177,69 @@ export async function pickDocumentPhoto(source: PhotoSource): Promise<string | n
 }
 
 /**
+ * A photograph of the place, for the customer feed.
+ *
+ * Cropped to 16:9 ON THE DEVICE, which is the part that matters. Every card in
+ * the customer feed is the same shape, and an uncropped portrait photo dropped
+ * into a landscape slot is what makes a feed look broken - the restaurant that
+ * supplied it looks worse than the one that supplied nothing. Cropping on the
+ * server would mean guessing which part of the picture the partner cared
+ * about; cropping here lets them choose it.
+ *
+ * The ceiling is lower than a document's because a restaurant can have five of
+ * these - a cover and four gallery photos - and they are read together on
+ * every feed request.
+ */
+const PROFILE_MAX_WIDTH = 1280;
+const PROFILE_QUALITY = 0.6;
+const PROFILE_MAX_CHARS = 400_000;
+
+export async function pickProfilePhoto(source: PhotoSource): Promise<string | null> {
+  if (!(await ensurePermission(source, 'document'))) return null;
+
+  const options: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [16, 9],
+    quality: 1
+  };
+
+  const result =
+    source === 'camera'
+      ? await ImagePicker.launchCameraAsync(options)
+      : await ImagePicker.launchImageLibraryAsync(options);
+
+  if (result.canceled || !result.assets?.length) return null;
+
+  const manipulated = await ImageManipulator.manipulateAsync(
+    result.assets[0].uri,
+    [{ resize: { width: PROFILE_MAX_WIDTH } }],
+    { compress: PROFILE_QUALITY, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+
+  if (!manipulated.base64) {
+    throw new Error('That photo could not be read. Try another one.');
+  }
+
+  const dataUri = `data:image/jpeg;base64,${manipulated.base64}`;
+  if (dataUri.length > PROFILE_MAX_CHARS) {
+    throw new Error('That photo is too detailed to upload. Try a simpler shot or a plainer background.');
+  }
+  return dataUri;
+}
+
+/** Same two-source prompt as a document, for a cover or a gallery photo. */
+export function chooseProfilePhoto(label: string): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    Alert.alert(label, 'Where should the photo come from?', [
+      { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+      { text: 'Take a photo', onPress: () => pickProfilePhoto('camera').then(resolve, reject) },
+      { text: 'Choose from gallery', onPress: () => pickProfilePhoto('library').then(resolve, reject) }
+    ]);
+  });
+}
+
+/**
  * Asks where the photo should come from, then returns it.
  *
  * Both sources are offered for a reason: a partner has often already

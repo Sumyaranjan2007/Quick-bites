@@ -453,3 +453,110 @@ export function removePayeeAccount(accountId: string) {
     'Could not remove that account.'
   );
 }
+
+// ---------------------------------------------------------------------------
+// The restaurant's own profile
+//
+// Two versions of one restaurant: what customers see, and what the partner has
+// asked to change. The server never writes an edit to the live record until a
+// reviewer approves it, so these calls submit intentions rather than values.
+// ---------------------------------------------------------------------------
+
+export interface OpeningHoursView {
+  week: Record<string, Array<{ opensAt: number; closesAt: number }>>;
+  timezone: string;
+}
+
+export interface EditableProfileView {
+  name?: string;
+  description?: string;
+  phone?: string;
+  addressLine?: string;
+  city?: string;
+  pincode?: string;
+  coordinates?: { latitude: number; longitude: number };
+  cuisineTags?: string[];
+  costForTwo?: number;
+  bannerUrl?: string;
+  galleryUrls?: string[];
+  openingHours?: OpeningHoursView;
+}
+
+export interface ProfileRules {
+  editableFields: string[];
+  maxNameChars: number;
+  maxDescriptionChars: number;
+  maxCuisineTags: number;
+  maxGalleryImages: number;
+  maxImageChars: number;
+  daysOfWeek: string[];
+  maxWindowsPerDay: number;
+  reviewNotice: string;
+}
+
+export interface ProfileResponse {
+  published: EditableProfileView;
+  pending: {
+    id: string;
+    submittedAt: string;
+    changes: EditableProfileView;
+    previous: EditableProfileView;
+    fields: string[];
+  } | null;
+  kitchen: {
+    status: string;
+    isOpen: boolean;
+    withinDeclaredHours: boolean | null;
+    forceOpenUntil: string | null;
+    canGoOnline: boolean;
+  };
+  rules: ProfileRules;
+}
+
+/**
+ * The limits and the field list come from here, not from constants in this app.
+ *
+ * A rule changed on the server would otherwise stay stale in every APK already
+ * installed, and the partner would be refused by a limit their own screen told
+ * them they were within.
+ */
+export function fetchProfile(restaurantId: string) {
+  return request<ProfileResponse>(`/restaurants/${restaurantId}/profile`);
+}
+
+export function submitProfileChanges(restaurantId: string, changes: EditableProfileView) {
+  return request<{
+    submitted: boolean;
+    edit: { id: string; status: string; fields: string[] } | null;
+    message: string;
+  }>(
+    `/restaurants/${restaurantId}/profile`,
+    { method: 'PUT', body: JSON.stringify(changes) },
+    'Could not send those changes for review.'
+  );
+}
+
+export function fetchProfileEdits(restaurantId: string) {
+  return request<{
+    edits: Array<{
+      id: string;
+      submittedAt: string;
+      status: string;
+      fields: string[];
+      changes: EditableProfileView;
+      previous: EditableProfileView;
+      approvedFields: string[];
+      rejections: Array<{ field: string; reason: string }>;
+      reviewedAt: string | null;
+    }>;
+  }>(`/restaurants/${restaurantId}/profile/edits`);
+}
+
+/** Minutes from now; 0 cancels. Capped server-side at twelve hours. */
+export function setHoursOverride(restaurantId: string, minutes: number) {
+  return request<{ forceOpenUntil: string | null; message: string }>(
+    `/restaurants/${restaurantId}/hours-override`,
+    { method: 'POST', body: JSON.stringify({ minutes }) },
+    'Could not change your opening override.'
+  );
+}
