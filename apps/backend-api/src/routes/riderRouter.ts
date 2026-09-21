@@ -7,6 +7,7 @@ import {
 } from '../db/repositories/riderRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
+import { riderEarningsBalance } from '../modules/payments/earnings.ts';
 import { payoutRepository } from '../db/repositories/payoutRepository.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
@@ -239,7 +240,9 @@ riderRouter.get('/me', async (req, res, next) => {
       success: true,
       data: {
         rider: { ...rider, email: user?.email },
-        wallet,
+        // The balance a rider sees is what the ledger says they are owed, which
+        // is the figure their payout will be drafted from.
+        wallet: { ...wallet, balance: riderEarningsBalance(rider.id) },
         profile: completion,
         documents: documents.sort((a, b) => a.documentType.localeCompare(b.documentType))
       }
@@ -551,7 +554,7 @@ riderRouter.get('/dashboard', async (req, res, next) => {
         rider,
         wallet,
         profile: completion,
-        metrics: { ...metrics, walletBalance: wallet.balance, codCashInHand: rider.codCashInHand || 0 },
+        metrics: { ...metrics, walletBalance: riderEarningsBalance(rider.id), codCashInHand: rider.codCashInHand || 0 },
         incentives,
         activeOrder: activeOrder ? await shapeTripForRider(activeOrder) : null,
         recentTrips,
@@ -952,19 +955,22 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
     // request body along with the destination wallet, so a rider could credit any
     // account any amount simply by asking.
     const payout = result.order!.riderPayout ?? calculateTripPayout(result.order!);
-    // A zero payout must not stop a completed delivery. The wallet refuses a
-    // non-positive movement now, and throwing here would leave the rider unable
-    // to close a trip they have already finished — the food is delivered either
-    // way, so the handover completes and only the credit is skipped.
-    const wallet =
-      payout > 0
-        ? await walletRepository.credit(
-            req.user!.id,
-            payout,
-            `Trip Payout for Order #${result.order!.orderNumber}`,
-            result.order!.id
-          )
-        : await walletRepository.getByUserId(req.user!.id);
+
+    /*
+     * The wallet credit that used to be here is gone.
+     *
+     * Completing a trip credited the rider's WALLET, and the ledger now records
+     * the same trip as `RIDER_PAYABLE` when the order reaches DELIVERED. Two
+     * systems holding the same money is not redundancy, it is a disagreement
+     * waiting to be found by the person least able to afford it: payouts are
+     * computed from the ledger, so a rider watching a wallet balance climb was
+     * watching a number with no relationship to what they were about to be paid.
+     *
+     * The balance reported below is derived from the ledger instead — the same
+     * entries the payout is derived from, so what a rider is told and what a
+     * rider receives cannot drift apart.
+     */
+    const wallet = await walletRepository.getByUserId(req.user!.id);
 
     // Cash the rider is now holding is tracked on the server, so it survives the
     // app being closed and can be offset against the next payout.
@@ -994,7 +1000,7 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
       data: {
         order: result.order,
         payout,
-        walletBalance: finalWallet?.balance ?? wallet?.balance ?? null,
+        walletBalance: riderEarningsBalance(self.id),
         cashCollected,
         codCashInHand: refreshed.codCashInHand || 0,
         metrics,

@@ -622,10 +622,21 @@ async function run() {
   check('for the full amount that was charged',
     cases[0]?.requestedAmount === paid.bill.totalAmount,
     `${cases[0]?.requestedAmount} vs ${paid.bill.totalAmount}`);
-  check('A wallet payment is refunded to the wallet immediately',
-    cases[0]?.status === 'REFUNDED', String(cases[0]?.status));
-  check('and the order is marked refunded, not merely cancelled',
-    refunded.paymentStatus === 'REFUNDED', String(refunded.paymentStatus));
+  /*
+   * These two assertions used to read "a wallet payment is refunded to the
+   * wallet immediately" and "the order is marked refunded". Both are now
+   * false, deliberately: the customer wallet has been removed, so there is no
+   * balance to credit and no way to settle this automatically.
+   *
+   * What replaces them is the more important property. Money that has NOT
+   * moved must never be displayed as refunded. The case stays open where an
+   * administrator will see it and settle it to a real destination, rather than
+   * being closed with a green tick that stops anybody looking.
+   */
+  check('A wallet-paid order cannot be auto-refunded now the wallet is gone',
+    cases[0]?.status === 'PROCESSING', String(cases[0]?.status));
+  check('and the order is NOT marked refunded, because no money has moved',
+    refunded.paymentStatus === 'PAID', String(refunded.paymentStatus));
 
   check('The free-text note is kept when the catch-all reason allows it',
     (refunded.cancellationReason || '').includes('Wrong flat number'),

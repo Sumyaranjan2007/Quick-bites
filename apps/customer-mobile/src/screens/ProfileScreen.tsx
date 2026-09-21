@@ -19,7 +19,6 @@ import {
   LifeBuoy,
   Globe,
   Bell,
-  Wallet,
   ChevronRight,
   Lock,
   LogOut,
@@ -42,7 +41,6 @@ interface Props {
   onBack: () => void;
   onOpenOrders: () => void;
   onOpenSupport: () => void;
-  onOpenWallet: () => void;
   onOpenMembership: () => void;
   onOpenAddresses: () => void;
   apiUrl?: string;
@@ -61,13 +59,12 @@ interface Props {
  * their preferences, then help - rather than as one flat list of switches. There
  * is deliberately no delete-account control: deletion is handled through customer
  * care, which keeps a route to deletion available without putting an irreversible
- * action one tap from a wallet balance.
+ * action one tap away.
  */
 export const ProfileScreen: React.FC<Props> = ({
   onBack,
   onOpenOrders,
   onOpenSupport,
-  onOpenWallet,
   onOpenMembership,
   onOpenAddresses,
   apiUrl,
@@ -81,7 +78,6 @@ export const ProfileScreen: React.FC<Props> = ({
   const { t, language, setLanguage } = useTranslation();
 
   const [addresses, setAddresses] = useState<any[] | null>(null);
-  const [wallet, setWallet] = useState<number | null>(null);
 
   // The profile showed initials and offered no way to change them. A photo is
   // held on the account as a data URI and sent through the customer router.
@@ -183,14 +179,6 @@ export const ProfileScreen: React.FC<Props> = ({
         if (!cancelled) setAddresses([]);
       }
 
-      try {
-        const res = await apiFetch(`${apiUrl}/wallets/me`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        const balance = data?.data?.wallet?.balance ?? data?.data?.balance;
-        if (!cancelled && typeof balance === 'number') setWallet(balance);
-      } catch {
-        /* The wallet row simply omits the balance if it cannot be read. */
-      }
     })();
 
     return () => {
@@ -355,12 +343,6 @@ export const ProfileScreen: React.FC<Props> = ({
           title={t('profile.orders')}
           sub={t('profile.ordersSub')}
           onPress={onOpenOrders}
-        />
-        <Row
-          icon={<Wallet size={18} color={c.dietary.gold} />}
-          title={t('profile.wallet')}
-          sub={wallet !== null ? `₹${wallet.toFixed(2)} available` : 'Balance and refunds'}
-          onPress={onOpenWallet}
         />
         <Row
           icon={<Crown size={18} color={c.dietary.gold} />}

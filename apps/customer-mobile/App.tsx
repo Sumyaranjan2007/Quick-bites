@@ -18,7 +18,6 @@ import { DiscoveryFeedScreen, RestaurantItem } from './src/screens/DiscoveryFeed
 import { RestaurantDetailScreen, CartItem } from './src/screens/RestaurantDetailScreen';
 import { CartAndCheckoutScreen } from './src/screens/CartAndCheckoutScreen';
 import { OrderTrackingScreen } from './src/screens/OrderTrackingScreen';
-import { WalletScreen } from './src/screens/WalletScreen';
 import { MembershipScreen } from './src/screens/MembershipScreen';
 import { ActiveOrderBar } from './src/components/ActiveOrderBar';
 import { useActiveOrders, type ActiveOrder } from './src/lib/useActiveOrders';
@@ -44,7 +43,6 @@ function AppRoot() {
     | 'profile'
     | 'orders'
     | 'support'
-    | 'wallet'
     | 'membership'
     | 'addresses'
   >('feed');
@@ -315,7 +313,7 @@ function AppRoot() {
    *
    * The two tabs are the top of the stack: backing out of them leaves the app,
    * which is what closing an app should feel like. Everything else returns to
-   * whatever opened it, so a customer who opens their wallet from the profile
+   * whatever opened it, so a customer who opens their orders from the profile
    * lands back on the profile rather than on their home screen.
    */
   const goBack = useCallback(() => {
@@ -328,7 +326,6 @@ function AppRoot() {
         return true;
       case 'orders':
       case 'support':
-      case 'wallet':
       case 'addresses':
         setCurrentScreen('profile');
         return true;
@@ -432,7 +429,6 @@ function AppRoot() {
             onBack={() => setCurrentScreen('feed')}
             onOpenOrders={() => setCurrentScreen('orders')}
             onOpenSupport={() => setCurrentScreen('support')}
-            onOpenWallet={() => setCurrentScreen('wallet')}
             onOpenMembership={() => setCurrentScreen('membership')}
             onOpenAddresses={() => setCurrentScreen('addresses')}
             apiUrl={apiUrl}
@@ -476,10 +472,6 @@ function AppRoot() {
             apiUrl={apiUrl}
             token={authToken}
           />
-        )}
-
-        {currentScreen === 'wallet' && (
-          <WalletScreen onBack={() => setCurrentScreen('profile')} apiUrl={apiUrl} token={authToken} />
         )}
 
         {currentScreen === 'addresses' && (

@@ -19,6 +19,8 @@ import { recordAudit } from '../../modules/admin/audit.ts';
 import { economicsOf, revenueSeries, revenueForPeriod, istDayStart } from '../../modules/admin/analytics.ts';
 import { matchesQuery, paginate, shapeOrderDetail } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
+import { sendRefund } from '../../modules/payments/refunds.ts';
+import { toPaise } from '../../modules/payments/money.ts';
 import type { Order, RefundRequest } from '@quick-bites/shared-types';
 
 export const financeRoutes = Router();
@@ -173,7 +175,16 @@ financeRoutes.get(
 const RefundDecisionSchema = z.object({
   action: z.enum(['PROCESSING', 'APPROVE', 'REJECT', 'REFUND']),
   amount: z.number().positive().max(1000000).optional(),
-  note: z.string().trim().max(500).optional()
+  note: z.string().trim().max(500).optional(),
+  /**
+   * Set when the administrator has already refunded this by hand — a bank
+   * transfer, or cash over the counter — and is recording it.
+   *
+   * The only way to settle a cash-order refund on a deployment that cannot
+   * create a payout link, which would otherwise leave the customer owed money
+   * indefinitely while a case sat in a queue nobody could clear.
+   */
+  manualReference: z.string().trim().min(4).max(120).optional()
 });
 
 /**
@@ -241,16 +252,56 @@ financeRoutes.post(
         );
       }
 
-      const walletBefore = await walletRepository.getByUserId(order.customerId);
-      await walletRepository.credit(
-        order.customerId,
-        payable,
-        `Refund for order #${order.orderNumber}: ${note || request.description}`,
-        order.id
-      );
-      const transaction = Array.from(memoryStore.walletTransactions.values())
-        .filter((tx: any) => tx.orderId === order.id && tx.type === 'CREDIT')
-        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      /*
+       * Money goes back the way it came.
+       *
+       * This used to call `walletRepository.credit` unconditionally, without
+       * ever looking at how the order was paid. A customer who paid by UPI and
+       * complained was given Quick Bites credit, and the response said so. The
+       * cancellation path a few files away did it correctly all along, so the
+       * route a machine took was right and the route a person took was wrong.
+       *
+       * `sendRefund` decides the route from the ORDER — reversed at the gateway
+       * where there is a payment to reverse, and by a payout link the customer
+       * claims with their own UPI where there is not. It never throws on a
+       * gateway failure, because losing the decision to refund would be worse
+       * than a case left open.
+       */
+      const outcome = await sendRefund({
+        order,
+        amountPaise: toPaise(payable),
+        reason: note || request.description || 'Refund approved',
+        actorUserId: req.user!.id,
+        caseId: request.id,
+        customerPhone: order.customerPhone,
+        manualReference: req.body.manualReference
+      });
+
+      if (!outcome.settled) {
+        // Deliberately NOT marked refunded. The customer's money has not moved,
+        // and a green tick here would stop anybody looking for it.
+        const stalled = await refundRepository.transition(
+          request.id,
+          'PROCESSING',
+          actor,
+          { note: `Could not be settled: ${outcome.failureReason || 'unknown reason'}`, approvedAmount: payable }
+        );
+        recordAudit(req, {
+          action: 'REFUND_FAILED',
+          entityType: 'REFUND_REQUEST',
+          entityId: request.id,
+          summary: `Refund of Rs ${payable} on #${order.orderNumber} could not be settled: ${outcome.failureReason}`,
+          after: { route: outcome.route, settled: false }
+        });
+        return res.status(502).json({
+          success: false,
+          error: {
+            code: 'REFUND_NOT_SETTLED',
+            message: outcome.message
+          },
+          data: { request: stalled }
+        });
+      }
 
       // A partial refund leaves the order delivered — the customer kept the food.
       // Only a full refund reverses the order itself.
@@ -269,24 +320,37 @@ financeRoutes.post(
       }
 
       const updated = await refundRepository.transition(request.id, 'REFUNDED', actor, {
-        note: note || `Rs ${payable} credited to the customer's wallet.`,
+        note: note || outcome.message,
         approvedAmount: payable,
-        refundTransactionId: transaction?.id
+        // The gateway's own refund id, or the payout link id. What proves it.
+        refundTransactionId: outcome.reference
       });
 
       recordAudit(req, {
         action: 'REFUND_PAID',
         entityType: 'REFUND_REQUEST',
         entityId: request.id,
-        summary: `Refunded Rs ${payable} to ${request.customerName || order.customerId} for order #${order.orderNumber}`,
-        before: { walletBalance: walletBefore.balance },
-        after: { amount: payable, full: isFullRefund }
+        summary:
+          `Refunded Rs ${payable} to ${request.customerName || order.customerId} for order ` +
+          `#${order.orderNumber} via ${outcome.route}${outcome.reference ? ` (${outcome.reference})` : ''}`,
+        before: { status: request.status },
+        after: { amount: payable, full: isFullRefund, route: outcome.route }
       });
 
       res.json({
         success: true,
-        data: { request: updated, refundedAmount: payable, fullRefund: isFullRefund },
-        message: `Rs ${payable} credited to the customer's Quick Bites wallet.`
+        data: {
+          request: updated,
+          refundedAmount: payable,
+          fullRefund: isFullRefund,
+          route: outcome.route,
+          reference: outcome.reference,
+          // Where the customer goes to claim a cash-order refund. Handed back
+          // so an administrator can pass it on — SMS needs TRAI DLT
+          // registration, which is not done, so nothing is sent automatically.
+          claimUrl: outcome.claimUrl
+        },
+        message: outcome.message
       });
     } catch (err) {
       next(err);
@@ -346,12 +410,29 @@ financeRoutes.post(
         orderTotal: total
       });
 
-      await walletRepository.credit(
-        order.customerId,
-        amount,
-        `Refund for order #${order.orderNumber}: ${reason}`,
-        order.id
-      );
+      // The same defect as the queue route had, in the second place it lived.
+      // A goodwill refund is still a refund, and it goes back the way the
+      // money came rather than becoming store credit.
+      const outcome = await sendRefund({
+        order,
+        amountPaise: toPaise(amount),
+        reason,
+        actorUserId: req.user!.id,
+        caseId: request.id,
+        customerPhone: order.customerPhone
+      });
+
+      if (!outcome.settled) {
+        await refundRepository.transition(request.id, 'PROCESSING', actor, {
+          note: `Could not be settled: ${outcome.failureReason || 'unknown reason'}`,
+          approvedAmount: amount
+        });
+        return res.status(502).json({
+          success: false,
+          error: { code: 'REFUND_NOT_SETTLED', message: outcome.message },
+          data: { orderId: order.id, request }
+        });
+      }
 
       const isFullRefund = amount >= total - 0.01;
       if (isFullRefund) {
@@ -369,21 +450,32 @@ financeRoutes.post(
 
       const resolved = await refundRepository.transition(request.id, 'REFUNDED', actor, {
         note: reason,
-        approvedAmount: amount
+        approvedAmount: amount,
+        refundTransactionId: outcome.reference
       });
 
       recordAudit(req, {
         action: 'REFUND_DIRECT',
         entityType: 'ORDER',
         entityId: order.id,
-        summary: `Issued a direct refund of Rs ${amount} on order #${order.orderNumber}: ${reason}`,
-        after: { amount, full: isFullRefund }
+        summary:
+          `Issued a direct refund of Rs ${amount} on order #${order.orderNumber} via ${outcome.route}` +
+          `${outcome.reference ? ` (${outcome.reference})` : ''}: ${reason}`,
+        after: { amount, full: isFullRefund, route: outcome.route }
       });
 
       res.json({
         success: true,
-        data: { orderId: order.id, refundAmount: amount, request: resolved, reason },
-        message: `Rs ${amount} credited to the customer's wallet.`
+        data: {
+          orderId: order.id,
+          refundAmount: amount,
+          request: resolved,
+          reason,
+          route: outcome.route,
+          reference: outcome.reference,
+          claimUrl: outcome.claimUrl
+        },
+        message: outcome.message
       });
     } catch (err) {
       next(err);

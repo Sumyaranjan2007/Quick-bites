@@ -690,13 +690,20 @@ export const orderService = {
           settled = true;
         }
       } else if (updated.paymentMethod === 'WALLET') {
-        await walletRepository.credit(
-          updated.customerId,
-          refundable,
-          `Refund for cancelled order #${updated.orderNumber}`,
-          updated.id
-        );
-        settled = true;
+        /*
+         * An order paid from the customer wallet, which no longer exists.
+         *
+         * The wallet is gone: refunds return down the rail the money arrived
+         * on, and there is nothing to credit. Orders placed from a wallet
+         * balance before it was removed can still reach here, so rather than
+         * crediting a balance nobody can spend, this leaves the case OPEN for
+         * an administrator to settle by payout link.
+         *
+         * Deliberately not marked settled. Money that has not moved must never
+         * be displayed as refunded — that is the one lie that stops anybody
+         * looking for it.
+         */
+        settled = false;
       }
 
       if (settled) {

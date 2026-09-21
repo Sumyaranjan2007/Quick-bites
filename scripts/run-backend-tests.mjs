@@ -43,6 +43,7 @@ const SUITES = [
   'ledger',
   'payees',
   'payouts',
+  'refunds',
   'platformReset',
   'accountBlocking',
   'profileEdits',

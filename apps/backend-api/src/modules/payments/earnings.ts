@@ -25,7 +25,7 @@
  */
 import { memoryStore } from '../../db/client.ts';
 import { ledger, accountFor } from './ledger.ts';
-import { toPaise, percentOf } from './money.ts';
+import { toPaise, toRupees, percentOf } from './money.ts';
 import { getActiveRates, commissionPercentFor } from './pricingConfig.ts';
 import type { Order, PricingRates } from '@quick-bites/shared-types';
 
@@ -221,4 +221,30 @@ export function backfillEarnings(): { scanned: number; posted: number } {
   }
 
   return { scanned, posted };
+}
+
+/**
+ * What a rider has earned and not yet been paid, in rupees.
+ *
+ * -------------------------------------------------------------------------
+ * WHY THIS REPLACES THE RIDER WALLET BALANCE
+ * -------------------------------------------------------------------------
+ * The delivery route credited a rider's WALLET on every completed trip, and
+ * the ledger now records the same trip as `RIDER_PAYABLE`. Two systems holding
+ * the same money is not redundancy, it is a disagreement waiting to be noticed
+ * by the person least able to afford it: payouts are computed from the ledger,
+ * so a rider watching a wallet balance would have been watching a number that
+ * had nothing to do with what they were about to be paid.
+ *
+ * The wallet credit is gone and this is what the apps show instead. One number,
+ * derived from the same entries the payout is derived from, so what a rider is
+ * told and what a rider receives cannot drift apart.
+ */
+export function riderEarningsBalance(riderId: string): number {
+  return toRupees(ledger.balanceOf(accountFor('RIDER_PAYABLE', riderId)));
+}
+
+/** The same for a restaurant, for the partner app's own earnings screen. */
+export function partnerEarningsBalance(restaurantId: string): number {
+  return toRupees(ledger.balanceOf(accountFor('PARTNER_PAYABLE', restaurantId)));
 }

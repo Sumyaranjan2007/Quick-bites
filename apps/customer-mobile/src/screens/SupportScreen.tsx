@@ -282,7 +282,7 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
                 <Text style={styles.ticketMeta}>
                   Asked for ₹{Math.round(request.requestedAmount)}
                   {request.status === 'REFUNDED' && request.approvedAmount
-                    ? ` · ₹${Math.round(request.approvedAmount)} credited to your wallet`
+                    ? ` · ₹${Math.round(request.approvedAmount)} refunded to the way you paid`
                     : ''}
                 </Text>
               </View>
@@ -300,13 +300,15 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
         <View style={styles.faqDivider} />
         <Text style={styles.faqQ}>Something was missing or wrong</Text>
         <Text style={styles.faqA}>
-          Call customer care with your order number. Refunds go back to your Quick Bites wallet the same day.
+          Call customer care with your order number. An approved refund goes back the way you paid: to your
+          card or UPI app, which your bank takes 3 to 7 working days to show, or by a link you claim with any
+          UPI id if you paid cash.
         </Text>
         <View style={styles.faqDivider} />
         <Text style={styles.faqQ}>I want my account deleted</Text>
         <Text style={styles.faqA}>
           Email {SUPPORT_EMAIL} from {customerEmail ? customerEmail : 'your registered address'} with the subject
-          “Delete my account”. We remove your addresses and wallet, and detach your name from past orders, within 7 days.
+          “Delete my account”. We remove your addresses and detach your name from past orders, within 7 days.
         </Text>
       </Card>
 

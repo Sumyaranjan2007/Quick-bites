@@ -461,7 +461,8 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
                 placeholderTextColor={c.text.muted}
               />
               <Text style={styles.helper}>
-                This opens a request — our team reviews it and credits your Quick Bites wallet if it is approved.
+                This opens a request. Our team reviews it, and if it is approved the money goes back the way
+                you paid — to your card, your UPI app, or by a link you claim if you paid cash.
               </Text>
 
               {!!problemError && <Text style={styles.error}>{problemError}</Text>}

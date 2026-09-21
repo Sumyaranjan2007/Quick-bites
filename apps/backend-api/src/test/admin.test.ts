@@ -210,19 +210,56 @@ async function run() {
   );
   check('The case can be approved', approved.json?.data?.request?.status === 'APPROVED');
 
-  const paid = await api(
+  /*
+   * A refund with nowhere to send it is REFUSED, not quietly booked.
+   *
+   * This deployment has no payment gateway configured, so there is nothing to
+   * reverse a payment through and no payout link can be created. The old code
+   * credited a wallet here regardless of how the customer paid, which is the
+   * defect this replaces — a customer who paid by UPI received store credit.
+   *
+   * The refusal is the correct behaviour and is asserted first, because it is
+   * the property that matters: money that cannot move must not be recorded as
+   * having moved.
+   */
+  const unsettleable = await api(
     `/admin/refund-requests/${caseId}/decision`,
     { method: 'POST', body: { action: 'REFUND', amount: 150 } },
     finance.token
   );
-  check('Finance can execute the refund', paid.status === 200 && paid.json?.data?.request?.status === 'REFUNDED',
+  check('A refund that cannot be settled is refused, not booked',
+    unsettleable.status === 502 && unsettleable.json?.error?.code === 'REFUND_NOT_SETTLED',
+    JSON.stringify(unsettleable.json).slice(0, 200));
+
+  const stillOpen = await api(`/admin/refund-requests/${caseId}`, {}, finance.token);
+  check('and the case stays open where somebody will see it',
+    stillOpen.json?.data?.request?.status === 'PROCESSING',
+    String(stillOpen.json?.data?.request?.status));
+
+  /*
+   * An administrator who has refunded it by hand records that, and it settles.
+   *
+   * Without this a cash-order refund could never be completed on a deployment
+   * with no gateway, and the customer would be owed money indefinitely while a
+   * case sat in a queue nobody could clear.
+   */
+  const paid = await api(
+    `/admin/refund-requests/${caseId}/decision`,
+    { method: 'POST', body: { action: 'REFUND', amount: 150, manualReference: 'UTR55512345678' } },
+    finance.token
+  );
+  check('Finance can settle it by recording the transfer they made',
+    paid.status === 200 && paid.json?.data?.request?.status === 'REFUNDED',
     JSON.stringify(paid.json).slice(0, 200));
 
-  const walletAfter = await api(`/wallets/${customer.user.id}`, {}, customer.token);
-  const endingBalance = walletAfter.json?.data?.wallet?.balance ?? walletAfter.json?.data?.balance ?? 0;
-  check('The money actually reached the customer wallet',
-    Math.round((endingBalance - startingBalance) * 100) / 100 === 150,
-    `${startingBalance} -> ${endingBalance}`);
+  check('and the reference is kept, so the payment can be pointed at',
+    paid.json?.data?.reference === 'UTR55512345678',
+    String(paid.json?.data?.reference));
+
+  check('No wallet was credited by any of that',
+    Math.round(((await api(`/wallets/${customer.user.id}`, {}, customer.token)).json?.data?.wallet?.balance ?? 0) * 100) / 100 ===
+      Math.round(startingBalance * 100) / 100,
+    'a refund still credited a wallet');
 
   const doubleRefund = await api(`/admin/refund-requests/${caseId}/decision`, { method: 'POST', body: { action: 'REFUND', amount: 150 } }, finance.token);
   check('The same case cannot be refunded twice', doubleRefund.status === 409, String(doubleRefund.status));
