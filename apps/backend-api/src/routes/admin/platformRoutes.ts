@@ -75,7 +75,19 @@ const WIPED = [
   'sosAlerts',
   'riderIncentives',
   'refundRequests',
-  'supportTickets'
+  'supportTickets',
+  /**
+   * The ledger goes with the orders it describes. Every entry references an
+   * order, a rider or a restaurant that this reset is deleting, and books whose
+   * every counterparty has ceased to exist are not a record of anything — they
+   * are a balance nobody can explain, against a party nobody can find.
+   *
+   * `pricingConfigs` is deliberately NOT here. Rates are platform configuration,
+   * like the admin roles that also survive: an owner clearing out test data
+   * should not silently find themselves back on 15% commission because the
+   * button that emptied the orders also emptied the decisions.
+   */
+  'ledgerEntries'
 ] as const;
 
 /*

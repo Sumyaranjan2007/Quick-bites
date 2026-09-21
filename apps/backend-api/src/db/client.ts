@@ -58,6 +58,18 @@ export interface DbStore {
   categories: Map<string, any>;
   /** Key-value platform settings an administrator can change at runtime. */
   settings: Map<string, any>;
+  /**
+   * Every version of the platform's rates. Append-only: an administrator
+   * changing a rate writes a new version rather than editing the live one, so
+   * an order priced last month can still be explained.
+   */
+  pricingConfigs: Map<string, any>;
+  /**
+   * Double-entry money movements. Append-only, and the authority on every
+   * balance the platform reports — balances are derived from this, never
+   * stored alongside it.
+   */
+  ledgerEntries: Map<string, any>;
   /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
   meta: Map<string, any>;
 }
@@ -86,6 +98,8 @@ export const memoryStore: DbStore = {
   supportTickets: new Map(),
   categories: new Map(),
   settings: new Map(),
+  pricingConfigs: new Map(),
+  ledgerEntries: new Map(),
   meta: new Map()
 };
 

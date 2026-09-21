@@ -1,8 +1,29 @@
 /**
  * Quick Bites - Core Pricing & Tax Calculation Engine
- * Version 1.0.0
+ * Version 2.0.0
  * Strictly enforces Indian GST, packaging, delivery, and commission rules.
+ *
+ * -------------------------------------------------------------------------
+ * RATES COME FROM OUTSIDE NOW
+ * -------------------------------------------------------------------------
+ * Every rate this file applies used to be a literal in the arithmetic below:
+ * 5% GST, Rs 20 packaging, Rs 30 delivery, Rs 5.90 platform fee, 15%
+ * commission, 1% TDS. Changing any of them meant a deploy, and the commission
+ * rate in particular was ALSO written out in modules/admin/analytics.ts, where
+ * it could drift apart from this one with nothing to notice.
+ *
+ * They now arrive as `input.rates`, from the versioned configuration an
+ * administrator controls. `DEFAULT_PRICING_RATES` is the fallback and holds
+ * exactly the numbers that used to be here, so a caller that passes no rates
+ * gets the identical bill it got before — which is what makes it safe to have
+ * moved them at all.
+ *
+ * This file stays a pure function of its inputs. That is what lets a bill be
+ * reproduced from a stored order months later: the order carries the rates it
+ * was priced under, and feeding them back in gives the same answer.
  */
+import { DEFAULT_PRICING_RATES } from '@quick-bites/shared-types';
+import type { PricingRates } from '@quick-bites/shared-types';
 
 export interface PricingInput {
   items: Array<{
@@ -46,6 +67,28 @@ export interface PricingInput {
    * forever.
    */
   membershipDiscountPercent?: number;
+
+  /**
+   * The rates in force, from the versioned pricing configuration.
+   *
+   * Optional, and falling back to `DEFAULT_PRICING_RATES` — the numbers that
+   * were hardcoded here before. That fallback is not laziness: it keeps every
+   * existing caller, every existing test and every stored order behaving
+   * exactly as before, so moving the rates out cannot be the cause of a
+   * difference in anybody's bill.
+   */
+  rates?: PricingRates;
+
+  /**
+   * The commission this particular restaurant is on, overriding the platform
+   * default. Set by an administrator at approval.
+   *
+   * Passed in rather than read from the restaurant, for the same reason
+   * `membershipDiscountPercent` is: which rate a kitchen negotiated is a
+   * question about an account, and this file answers only questions about its
+   * arguments.
+   */
+  commissionPercent?: number;
 }
 
 export interface CalculatedBill {
@@ -68,9 +111,23 @@ export interface CalculatedBill {
   tipAmount: number;
   totalAmount: number;
   restaurantNetPayout: number;
+  /**
+   * The commission rate actually applied, and what it came to.
+   *
+   * Returned so the order can freeze it. A settlement drafted weeks later must
+   * be able to say why a kitchen was charged what it was charged, and a rate
+   * that has since been renegotiated cannot answer that question. Optional
+   * because orders placed before this existed do not carry it.
+   */
+  commissionPercent?: number;
+  commissionAmount?: number;
+  /** TDS withheld, as its own line, for the same reason. */
+  tdsAmount?: number;
 }
 
 export function calculateOrderPricing(input: PricingInput): CalculatedBill {
+  const rates = input.rates || DEFAULT_PRICING_RATES;
+
   // 1. Calculate Items Total
   let itemsTotal = 0;
   for (const item of input.items) {
@@ -79,24 +136,26 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   }
   itemsTotal = Math.round(itemsTotal * 100) / 100;
 
-  // 2. GST on Food (5% for standard restaurant services without ITC)
-  const gstAmount = Math.round(itemsTotal * 0.05 * 100) / 100;
+  // 2. GST on food. 5% by default, for restaurant service without ITC.
+  const gstAmount = Math.round(itemsTotal * (rates.gstFoodPercent / 100) * 100) / 100;
 
-  // 3. Packaging Fee
-  const packagingFee = input.packagingFee !== undefined ? input.packagingFee : 20.00;
+  // 3. Packaging Fee — the restaurant's own, or the platform default.
+  const packagingFee = input.packagingFee !== undefined ? input.packagingFee : rates.packagingFeeDefault;
 
-  // 4. Delivery Fee: Base Rs 30 for <=3km, +Rs 10/km beyond. Free if Gold & itemsTotal >= 199
-  let deliveryFee = 30.00;
-  if (input.distanceKm && input.distanceKm > 3) {
-    const extraKm = Math.ceil(input.distanceKm - 3);
-    deliveryFee += extraKm * 10.00;
+  // 4. Delivery Fee: base up to the base distance, then per whole km beyond.
+  //    Free for a member whose food total clears the threshold.
+  let deliveryFee = rates.deliveryBaseFee;
+  if (input.distanceKm && input.distanceKm > rates.deliveryBaseKm) {
+    const extraKm = Math.ceil(input.distanceKm - rates.deliveryBaseKm);
+    deliveryFee += extraKm * rates.deliveryPerKmBeyond;
   }
-  if (input.isGold && itemsTotal >= 199.00) {
+  if (input.isGold && itemsTotal >= rates.memberFreeDeliveryMinOrder) {
     deliveryFee = 0.00;
   }
 
-  // 5. Platform Fee: Fixed Rs 5.00 (+ 18% GST = Rs 5.90)
-  const platformFee = 5.90;
+  // 5. Platform Fee: the flat fee plus GST on it. Rs 5.00 + 18% = Rs 5.90.
+  const platformFee =
+    Math.round(rates.platformFeeBase * (1 + rates.platformFeeGstPercent / 100) * 100) / 100;
 
   // 6. Coupon Discount Calculation
   let couponDiscount = 0.00;
@@ -138,10 +197,19 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     Math.round((preDiscount - couponDiscount - membershipDiscount) * 100) / 100 + tipAmount
   );
 
-  // 9. Restaurant Net Payout: Food Total - 15% Commission - 1% TDS + Packaging
+  // 9. Restaurant Net Payout: Food Total - Commission - TDS + Packaging
   //    The tip is deliberately absent: it belongs to the rider, not the kitchen.
-  const commission = Math.round(itemsTotal * 0.15 * 100) / 100;
-  const tds = Math.round(itemsTotal * 0.01 * 100) / 100;
+  //
+  //    The commission is this restaurant's own negotiated rate where it has
+  //    one, and the platform default otherwise. Bounded at 0-50% here as well
+  //    as at the configuration screen, because a bad number reaching this line
+  //    produces a payout rather than an error message.
+  const commissionPercent =
+    typeof input.commissionPercent === 'number' && Number.isFinite(input.commissionPercent)
+      ? Math.min(50, Math.max(0, input.commissionPercent))
+      : rates.defaultCommissionPercent;
+  const commission = Math.round(itemsTotal * (commissionPercent / 100) * 100) / 100;
+  const tds = Math.round(itemsTotal * (rates.tdsPercent / 100) * 100) / 100;
   const restaurantNetPayout = Math.round((itemsTotal - commission - tds + packagingFee) * 100) / 100;
 
   return {
@@ -154,6 +222,9 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     membershipDiscount,
     tipAmount,
     totalAmount,
-    restaurantNetPayout
+    restaurantNetPayout,
+    commissionPercent,
+    commissionAmount: commission,
+    tdsAmount: tds
   };
 }

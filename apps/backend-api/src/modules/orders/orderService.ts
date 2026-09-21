@@ -5,6 +5,7 @@ import { menuRepository } from '../../db/repositories/menuRepository.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
+import { getActiveRates, commissionPercentFor } from '../payments/pricingConfig.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
 import { isGoldActive, goldDiscountPercent } from '../membership/membershipService.ts';
@@ -201,7 +202,14 @@ export const orderService = {
       isGold: isGoldActive(customer),
       membershipDiscountPercent: goldDiscountPercent(customer),
       coupon: validatedCoupon,
-      tipAmount: clampTip(input.tipAmount)
+      tipAmount: clampTip(input.tipAmount),
+      // The rates an administrator has set, and this kitchen's own commission
+      // where it has negotiated one. Passed in rather than left to the engine's
+      // defaults so a rate change takes effect on the next order priced without
+      // a deploy — and so the figure frozen onto the order is the one its
+      // settlement will later be defended with.
+      rates: getActiveRates(),
+      commissionPercent: commissionPercentFor(restaurant)
     });
 
     return {
@@ -380,7 +388,14 @@ export const orderService = {
       isGold: isGoldActive(customer),
       membershipDiscountPercent: goldDiscountPercent(customer),
       coupon: validatedCoupon,
-      tipAmount: clampTip(input.tipAmount)
+      tipAmount: clampTip(input.tipAmount),
+      // The rates an administrator has set, and this kitchen's own commission
+      // where it has negotiated one. Passed in rather than left to the engine's
+      // defaults so a rate change takes effect on the next order priced without
+      // a deploy — and so the figure frozen onto the order is the one its
+      // settlement will later be defended with.
+      rates: getActiveRates(),
+      commissionPercent: commissionPercentFor(restaurant)
     });
 
     // 7. Generate Delivery OTP (Rule 40)

@@ -142,6 +142,16 @@ export interface Restaurant {
    */
   serviceRadiusKm?: number;
 
+  /**
+   * The commission rate this kitchen negotiated, as a percentage.
+   *
+   * Absent on almost every restaurant, and absent means the platform default
+   * from the pricing configuration. Set by an administrator — never by the
+   * partner, who would otherwise be naming the platform's own margin — and a
+   * change never reaches an order that has already been priced.
+   */
+  commissionPercent?: number;
+
   /** Whether the kitchen is currently accepting orders. Partner-controlled. */
   isOpen: boolean;
   /** When the kitchen was last opened or closed, for the partner's own reference. */
@@ -227,6 +237,20 @@ export interface OrderBillBreakdown {
   totalAmount: number;
   walletAmountUsed?: number;
   restaurantNetPayout: number;
+  /**
+   * The commission rate this order was actually charged at, and what it came
+   * to, frozen at the moment of pricing.
+   *
+   * A settlement drafted weeks later has to be able to say why a kitchen was
+   * charged what it was charged, and a rate that has since been renegotiated
+   * cannot answer that. Absent on every order placed before rates were
+   * configurable; those fall back to the platform default, which is the closest
+   * honest answer available for an order that never recorded one.
+   */
+  commissionPercent?: number;
+  commissionAmount?: number;
+  /** TDS withheld from the partner's share, as its own line. */
+  tdsAmount?: number;
 }
 
 export interface Order {
@@ -553,6 +577,8 @@ export type AdminPermission =
   | 'finance.settlements.view'
   | 'finance.settlements.manage'
   | 'finance.reports.view'
+  | 'finance.config.edit'
+  | 'finance.ledger.view'
   // Marketing
   | 'marketing.coupons.manage'
   | 'marketing.promotions.manage'
@@ -627,7 +653,9 @@ export const ADMIN_PERMISSION_GROUPS: Array<{
       { id: 'finance.payouts.manage', label: 'Process driver payouts', description: 'Mark a payout as paid.' },
       { id: 'finance.settlements.view', label: 'View restaurant settlements', description: 'See what each restaurant is owed.' },
       { id: 'finance.settlements.manage', label: 'Process restaurant settlements', description: 'Draft and pay a restaurant settlement.' },
-      { id: 'finance.reports.view', label: 'View financial reports', description: 'Period summaries and exports.' }
+      { id: 'finance.reports.view', label: 'View financial reports', description: 'Period summaries and exports.' },
+      { id: 'finance.config.edit', label: 'Edit rates and fees', description: 'Commission, GST, delivery, platform fee and every payout threshold.' },
+      { id: 'finance.ledger.view', label: 'View the ledger', description: 'Every money movement, and the audit that proves the books balance.' }
     ]
   },
   {
@@ -938,3 +966,261 @@ export interface RiderPayout {
   reference?: string;
   note?: string;
 }
+
+/* ------------------------------------------------------------------------- *
+ * PRICING CONFIGURATION
+ *
+ * Every rate the platform charges or withholds, in one versioned record.
+ *
+ * Before this existed the numbers lived in source: 15% commission in the
+ * pricing engine and again in the analytics module, 5% GST, a Rs 5.90 platform
+ * fee, a Rs 30 delivery base. Changing any of them meant a deploy, and the two
+ * copies of the commission rate could drift apart without anything noticing —
+ * the revenue screen and the settlements would simply stop agreeing.
+ *
+ * A configuration is NEVER edited in place. An administrator changing a rate
+ * creates a new version, and every order records the version it was priced
+ * under. That is what makes a settlement defensible months later: "why was this
+ * order commissioned at 18%" is answered by the order itself, not by whatever
+ * the configuration happens to say today.
+ * ------------------------------------------------------------------------- */
+
+export interface PricingRates {
+  /** GST on food. 5% for restaurant service without input tax credit. */
+  gstFoodPercent: number;
+  /** Charged per order unless the restaurant sets its own. */
+  packagingFeeDefault: number;
+  /** Delivery fee up to `deliveryBaseKm`. */
+  deliveryBaseFee: number;
+  deliveryBaseKm: number;
+  /** Added per whole kilometre beyond the base distance. */
+  deliveryPerKmBeyond: number;
+  /** A member pays no delivery fee on a food total at or above this. */
+  memberFreeDeliveryMinOrder: number;
+  /** The flat fee, before GST is added to it. */
+  platformFeeBase: number;
+  /** GST on the platform fee. 18%, giving the familiar Rs 5.90 on Rs 5.00. */
+  platformFeeGstPercent: number;
+  /**
+   * Commission taken from a restaurant, when that restaurant has no rate of its
+   * own. A per-restaurant rate overrides this and is set by an administrator at
+   * approval.
+   */
+  defaultCommissionPercent: number;
+  /** GST the platform owes on its own commission. */
+  commissionGstPercent: number;
+  /** Income tax withheld from a partner's payout under section 194-O. */
+  tdsPercent: number;
+  /** Tax collected at source under GST section 52. */
+  tcsPercent: number;
+  /** What a rider earns for a trip before distance is counted. */
+  riderBaseFeePerTrip: number;
+  riderBaseKm: number;
+  riderPerKmFee: number;
+  /** No trip pays a rider less than this, whatever the distance. */
+  riderMinEarningPerTrip: number;
+  /** Cash a rider may hold before the platform stops offering them COD orders. */
+  codCashCeiling: number;
+  /** Percentage of the ceiling at which the rider is warned to deposit. */
+  codCashWarnPercent: number;
+  /** Days after delivery before a restaurant's money becomes payable. */
+  partnerHoldDays: number;
+  riderHoldDays: number;
+  /** A payout below this carries to the next run rather than being sent. */
+  minPayoutAmount: number;
+  /** Payouts above this need a second administrator to approve them. */
+  makerCheckerThreshold: number;
+  /** Ceiling on everything the platform pays out in any 24 hours. */
+  dailyPayoutCap: number;
+  /** How long a refund payout link stays claimable. */
+  payoutLinkExpiryHours: number;
+  /** How long a door-collection QR code stays payable. Razorpay caps this at 120. */
+  doorQrExpiryMinutes: number;
+}
+
+export interface PricingConfig {
+  id: string;
+  /** Monotonic. Version 1 is the built-in defaults, written at first boot. */
+  version: number;
+  rates: PricingRates;
+  /** When this version started being used to price orders. */
+  effectiveFrom: string;
+  createdAt: string;
+  createdByUserId: string;
+  /** Why the rate was changed. Required of an administrator, for the audit. */
+  note?: string;
+}
+
+/* ------------------------------------------------------------------------- *
+ * THE LEDGER
+ *
+ * Double-entry bookkeeping for every rupee the platform touches.
+ *
+ * Balances are NOT stored. They are derived by replaying the entries, which is
+ * the only arrangement in which "the books are right" is a statement somebody
+ * has checked rather than assumed. The wallet audit already worked this way and
+ * this generalises it to every account on the platform.
+ *
+ * Amounts are integer paise. The pricing engine rounds floats at every step,
+ * which is survivable for displaying a bill and is not survivable for books
+ * that must sum to zero.
+ * ------------------------------------------------------------------------- */
+
+export type LedgerDirection = 'DEBIT' | 'CREDIT';
+
+/**
+ * What kind of account an entry touches. The full account id is this kind,
+ * optionally followed by a colon and the id of the party it belongs to — so
+ * `PARTNER_PAYABLE:rst_12` and `RIDER_CASH:rdr_4` are distinct accounts that
+ * share a kind.
+ */
+export type LedgerAccountKind =
+  /** The platform's own bank. Money genuinely in our possession. */
+  | 'PLATFORM_BANK'
+  /** Taken by the gateway and not yet settled to us. */
+  | 'GATEWAY_RECEIVABLE'
+  /** Owed to a restaurant for trading it has completed. */
+  | 'PARTNER_PAYABLE'
+  /** Owed to a rider for trips completed. */
+  | 'RIDER_PAYABLE'
+  /** Platform money a rider is physically holding after a cash delivery. */
+  | 'RIDER_CASH'
+  /** Owed to a customer where the money cannot go back the way it came. */
+  | 'CUSTOMER_REFUND_PAYABLE'
+  | 'TAX_GST_PAYABLE'
+  | 'TAX_TCS_PAYABLE'
+  | 'TDS_WITHHELD'
+  | 'REVENUE_COMMISSION'
+  | 'REVENUE_FEES'
+  | 'REFUNDS_PAID';
+
+export type LedgerEvent =
+  | 'ORDER_PAID_ONLINE'
+  | 'ORDER_PAID_AT_DOOR'
+  | 'COD_COLLECTED'
+  | 'CASH_DEPOSIT_CONFIRMED'
+  | 'CASH_RETURNED_AT_DOOR'
+  | 'PARTNER_EARNED'
+  | 'RIDER_EARNED'
+  | 'COMMISSION_TAKEN'
+  | 'TAX_ACCRUED'
+  | 'TDS_WITHHELD'
+  | 'PAYOUT_SENT'
+  | 'PAYOUT_FAILED'
+  | 'PAYOUT_REVERSED'
+  | 'REFUND_TO_SOURCE'
+  | 'REFUND_BY_LINK'
+  | 'SETTLEMENT_ADJUSTMENT'
+  | 'MEMBERSHIP_PURCHASED'
+  | 'CORRECTION';
+
+export interface LedgerEntry {
+  id: string;
+  /**
+   * Groups the postings that balance against each other.
+   *
+   * One transaction is one movement of money and always writes at least two
+   * rows. A report that sums one side without the other is wrong, and this is
+   * what lets the audit check them as a set rather than as loose rows.
+   */
+  transactionId: string;
+  /** When the money moved, which is not always when the row was written. */
+  occurredAt: string;
+  event: LedgerEvent;
+  /** `KIND` or `KIND:partyId`. See LedgerAccountKind. */
+  account: string;
+  direction: LedgerDirection;
+  /** Integer paise. Never a float, never negative. */
+  amountPaise: number;
+  orderId?: string;
+  payoutId?: string;
+  refundCaseId?: string;
+  cashDepositId?: string;
+  /**
+   * What makes this movement unique.
+   *
+   * Shared by every posting in one transaction, and no two TRANSACTIONS may
+   * carry the same one. That is what stops a retried request, a replayed
+   * webhook or a double-tapped button posting the same money twice.
+   */
+  idempotencyKey: string;
+  /** The administrator who caused it, or 'system' for anything automatic. */
+  actorUserId: string;
+  /** Human-readable, and read by humans — it appears on statements. */
+  narration: string;
+  createdAt: string;
+}
+
+/** One side of a balanced pair, before it is written. */
+export interface LedgerPosting {
+  account: string;
+  direction: LedgerDirection;
+  amountPaise: number;
+}
+
+/** What `ledger.post` takes: an event, and the postings it balances across. */
+export interface LedgerTransaction {
+  event: LedgerEvent;
+  occurredAt?: string;
+  postings: LedgerPosting[];
+  idempotencyKey: string;
+  actorUserId: string;
+  narration: string;
+  orderId?: string;
+  payoutId?: string;
+  refundCaseId?: string;
+  cashDepositId?: string;
+}
+
+/**
+ * What the platform charged before any of this was configurable.
+ *
+ * Lives here, in the package both the pricing engine and the backend depend on,
+ * because the previous arrangement had the commission rate written out twice —
+ * once in the pricing engine and once in the analytics module — and nothing
+ * would have noticed the two drifting apart. One copy, imported by both.
+ *
+ * Each line records where the number used to live, so "installing the
+ * configuration system changed no bill" is checkable rather than asserted.
+ */
+export const DEFAULT_PRICING_RATES: PricingRates = {
+  // pricing-engine: "GST on Food (5% for standard restaurant services without ITC)"
+  gstFoodPercent: 5,
+  // pricing-engine: `input.packagingFee !== undefined ? input.packagingFee : 20.00`
+  packagingFeeDefault: 20,
+  // pricing-engine: "Base Rs 30 for <=3km, +Rs 10/km beyond"
+  deliveryBaseFee: 30,
+  deliveryBaseKm: 3,
+  deliveryPerKmBeyond: 10,
+  // pricing-engine: `if (input.isGold && itemsTotal >= 199.00) deliveryFee = 0`
+  memberFreeDeliveryMinOrder: 199,
+  // pricing-engine: "Platform Fee: Fixed Rs 5.00 (+ 18% GST = Rs 5.90)"
+  platformFeeBase: 5,
+  platformFeeGstPercent: 18,
+  // pricing-engine `itemsTotal * 0.15`, and analytics.ts `COMMISSION_RATE = 0.15`
+  defaultCommissionPercent: 15,
+  commissionGstPercent: 18,
+  // pricing-engine: `const tds = itemsTotal * 0.01`
+  tdsPercent: 1,
+  // New: accrued by law, and previously recorded nowhere.
+  tcsPercent: 1,
+
+  // Rider earnings. Defaults agreed for the payouts rebuild.
+  riderBaseFeePerTrip: 25,
+  riderBaseKm: 2,
+  riderPerKmFee: 6,
+  riderMinEarningPerTrip: 30,
+
+  // New controls. Nothing enforced any of these before, because until the
+  // payouts rebuild nothing on this platform could pay anybody.
+  codCashCeiling: 3000,
+  codCashWarnPercent: 80,
+  partnerHoldDays: 1,
+  riderHoldDays: 0,
+  minPayoutAmount: 100,
+  makerCheckerThreshold: 10000,
+  dailyPayoutCap: 200000,
+  payoutLinkExpiryHours: 72,
+  // Razorpay closes a single-use QR at two hours whatever we ask for.
+  doorQrExpiryMinutes: 15
+};

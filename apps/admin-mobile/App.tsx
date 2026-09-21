@@ -8,6 +8,7 @@ import {
   Undo2,
   UtensilsCrossed,
   IndianRupee,
+  Percent,
   Megaphone,
   LifeBuoy,
   FileCheck2,
@@ -29,6 +30,7 @@ import { PeopleScreen } from './src/screens/PeopleScreen';
 import { RefundsScreen } from './src/screens/RefundsScreen';
 import { CatalogScreen } from './src/screens/CatalogScreen';
 import { FinanceScreen } from './src/screens/FinanceScreen';
+import { RatesScreen } from './src/screens/RatesScreen';
 import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
@@ -125,6 +127,15 @@ const SECTIONS: Array<{
     permissions: ['finance.revenue.view', 'finance.payments.view', 'finance.payouts.view'],
     icon: active => <IndianRupee size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     render: () => <FinanceScreen />
+  },
+  {
+    key: 'rates',
+    label: 'Rates',
+    title: 'Rates & fees',
+    subtitle: 'What the platform charges, keeps and pays out',
+    permissions: ['finance.config.edit'],
+    icon: active => <Percent size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <RatesScreen />
   },
   {
     key: 'marketing',

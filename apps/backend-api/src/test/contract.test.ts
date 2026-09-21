@@ -304,6 +304,116 @@ function concretise(template: string): string {
  */
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
+/* ------------------------------------------------------------------ *
+ *  THE ROUTE TABLE
+ *
+ *  Probing over HTTP is not enough on its own, and for most of this
+ *  platform it was proving nothing at all.
+ *
+ *  `apiRouter.use('/admin', authMiddleware('admin'), adminRouter)` puts the
+ *  authentication middleware AHEAD of the routing. An unauthenticated probe
+ *  to any admin path is answered 401 by that middleware before Express ever
+ *  looks for a handler — and this suite counts "not 404" as "the route
+ *  exists". So every admin path passed whether or not anything was behind
+ *  it, and the same is true of `/riders`, `/wallets`, `/addresses` and every
+ *  other mounted-behind-auth router. That is most of what this file checks.
+ *
+ *  Demonstrated rather than assumed: with `adminRouter.use(pricingRoutes)`
+ *  commented out, every check still passed.
+ *
+ *  Probing with a real token is not the answer either. A token that gets past
+ *  the middleware also EXECUTES whatever it reaches, and this suite walks
+ *  every path the four apps call — including the ones that cancel orders and
+ *  empty the platform.
+ *
+ *  So existence is settled by reading the server's own route table. It runs
+ *  nothing, it cannot be fooled by a middleware answering early, and it is the
+ *  same structure Express itself dispatches on. The HTTP probe stays, as
+ *  corroboration on the paths where it can still say something.
+ * ------------------------------------------------------------------ */
+
+interface TableRoute {
+  /** `/api/admin/orders/:id` */
+  path: string;
+  methods: Set<string>;
+  /** The path split into segments, with `:param` marked, for matching. */
+  segments: Array<{ literal?: string; param: boolean; wildcard: boolean }>;
+}
+
+/**
+ * An Express mount regexp back into the prefix it was built from.
+ *
+ * `/^\/admin\/?(?=\/|$)/i` is what `use('/admin', ...)` compiles to, and the
+ * prefix has to be recovered to know what the routes under it are actually
+ * reachable at.
+ */
+function mountPrefix(layer: any): string {
+  if (!layer.regexp || layer.regexp.fast_slash) return '';
+  const source: string = layer.regexp.source;
+  const trimmed = source
+    .replace(/^\^/, '')
+    .replace(/\\\/\?\(\?=\\\/\|\$\)$/, '')
+    .replace(/\$$/, '');
+  // Express escapes the slashes; nothing else in a static mount needs undoing.
+  const literal = trimmed.replace(/\\\//g, '/');
+  // A parameterised mount (`use('/:id', ...)`) is not a static prefix and this
+  // codebase has none. Reported rather than guessed at, so one added later is
+  // noticed instead of silently mismatching.
+  if (/[()[\]?+*]/.test(literal)) return `__UNPARSEABLE__${literal}`;
+  return literal;
+}
+
+function toSegments(routePath: string): TableRoute['segments'] {
+  return routePath
+    .split('/')
+    .filter(Boolean)
+    .map(part => {
+      if (part === '*') return { param: false, wildcard: true };
+      if (part.startsWith(':')) return { param: true, wildcard: false };
+      return { literal: part, param: false, wildcard: false };
+    });
+}
+
+function collectRoutes(stack: any[], prefix: string, out: TableRoute[] = []): TableRoute[] {
+  for (const layer of stack) {
+    if (layer.route) {
+      const full = `${prefix}${layer.route.path}`.replace(/\/{2,}/g, '/');
+      out.push({
+        path: full,
+        methods: new Set(Object.keys(layer.route.methods).map(m => m.toUpperCase())),
+        segments: toSegments(full)
+      });
+    } else if (layer.handle && typeof layer.handle === 'function' && Array.isArray(layer.handle.stack)) {
+      collectRoutes(layer.handle.stack, `${prefix}${mountPrefix(layer)}`, out);
+    }
+  }
+  return out;
+}
+
+let ROUTE_TABLE: TableRoute[] = [];
+
+/** Does the server have a handler for this path under this verb? */
+function inRouteTable(urlPath: string, method: string): boolean {
+  const wanted = urlPath.split('/').filter(Boolean);
+  return ROUTE_TABLE.some(route => {
+    if (!route.methods.has(method.toUpperCase())) return false;
+    if (route.segments.some(s => s.wildcard)) {
+      // A wildcard mount matches anything at or below its literal prefix.
+      const upto = route.segments.findIndex(s => s.wildcard);
+      return route.segments
+        .slice(0, upto)
+        .every((s, i) => (s.param ? wanted[i] !== undefined : s.literal === wanted[i]));
+    }
+    if (route.segments.length !== wanted.length) return false;
+    return route.segments.every((s, i) => (s.param ? true : s.literal === wanted[i]));
+  });
+}
+
+/** Existence under any verb, for a call whose verb the extractor could not read. */
+function inRouteTableAnyVerb(urlPath: string, methods: string[]): boolean {
+  return (methods.length ? methods : METHODS).some(m => inRouteTable(urlPath, m));
+}
+
 async function routeExists(
   urlPath: string,
   onlyMethods?: string[]
@@ -364,6 +474,15 @@ async function run() {
   const server = app.listen(PORT, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
 
+  ROUTE_TABLE = collectRoutes((app as any)._router?.stack || [], '');
+  console.log(`--- the server exposes ${ROUTE_TABLE.length} routes ---`);
+  const unparseable = ROUTE_TABLE.filter(r => r.path.includes('__UNPARSEABLE__'));
+  check(
+    'Every mount prefix in the server could be read',
+    unparseable.length === 0,
+    unparseable.map(r => r.path).join(', ')
+  );
+
   resetAuthRateLimit();
   resetRequestRateLimit();
 
@@ -387,14 +506,22 @@ async function run() {
       const verbs = Array.from(call.methods);
       if (verbs.length) verbChecked++;
 
+      // The route table is the authority. The HTTP probe is corroboration,
+      // and on anything mounted behind authentication it cannot corroborate
+      // anything — the middleware answers first. See the note above the table.
+      const structural = inRouteTableAnyVerb(`/api${probe}`, verbs);
       const result = await routeExists(probe, verbs);
-      if (result.exists) {
+
+      if (structural) {
         passed++;
       } else {
         failed++;
         missing.push({ app: appInfo.name, route: template, where: call.where });
         const how = verbs.length ? verbs.join('/') : 'any verb';
-        console.log(`[FAIL] ${appInfo.name}: ${how} ${template} — the server does not handle it (${result.evidence})`);
+        console.log(
+          `[FAIL] ${appInfo.name}: ${how} ${template} — the server has no handler for it ` +
+            `(route table: absent; over HTTP: ${result.evidence || 'reached, but behind auth'})`
+        );
         console.log(`       called from: ${call.where.join(', ')}`);
       }
     }
@@ -412,6 +539,39 @@ async function run() {
 
   const fake = await routeExists('/definitely/not/a/route');
   check('A path the server does not have is reported missing', !fake.exists, fake.evidence);
+
+  check(
+    'The route table reports a path the server does not have as missing',
+    !inRouteTable('/api/definitely/not/a/route', 'GET')
+  );
+
+  check(
+    'The route table finds a route mounted behind authentication',
+    inRouteTable('/api/admin/pricing/config', 'GET'),
+    'a route the admin app calls, which no unauthenticated probe can ever see'
+  );
+
+  check(
+    'A missing route BEHIND authentication is caught — the whole point',
+    !inRouteTable('/api/admin/pricing/not-a-real-endpoint', 'GET'),
+    'an unauthenticated probe answers 401 here and calls it present'
+  );
+
+  check(
+    'The route table distinguishes verbs',
+    inRouteTable('/api/admin/pricing/config', 'PUT') && !inRouteTable('/api/admin/pricing/config', 'DELETE')
+  );
+
+  check(
+    'A path parameter matches any value',
+    inRouteTable('/api/admin/pricing/config/7', 'GET') && inRouteTable('/api/admin/pricing/config/99', 'GET')
+  );
+
+  check(
+    'An HTTP probe behind authentication cannot tell the difference',
+    (await routeExists('/admin/pricing/definitely-not-real', ['GET'])).exists,
+    'this is the blind spot the route table closes: a nonexistent admin path answers 401, not 404'
+  );
 
   const real = await routeExists('/health');
   check('A path the server does have is reported present', real.exists, real.evidence);

@@ -14,8 +14,8 @@
  */
 import type { Order, Restaurant, DeliveryRider } from '@quick-bites/shared-types';
 import { memoryStore } from '../../db/client.ts';
+import { getActiveRates } from '../payments/pricingConfig.ts';
 
-const COMMISSION_RATE = 0.15;
 const IST_OFFSET_MINUTES = 330;
 
 export function istDayStart(at: Date = new Date()): Date {
@@ -54,10 +54,27 @@ export interface OrderEconomics {
   netRevenue: number;
 }
 
+/**
+ * What the platform took from one order.
+ *
+ * This used to be `itemsTotal * 0.15` against a `COMMISSION_RATE` declared in
+ * this file — a second copy of a number that also lived in the pricing engine.
+ * Two copies of one business rule is how a revenue report and a settlement stop
+ * describing the same business without anybody noticing.
+ *
+ * The order's own frozen figure is the authority now. It is what the kitchen
+ * was actually charged, at whatever rate that kitchen was on at the time, and
+ * no later rate change can rewrite it. Orders placed before the field existed
+ * fall back to the rate in force — the closest honest answer available for an
+ * order that never recorded one.
+ */
 export function economicsOf(order: Order): OrderEconomics {
   const bill = order.bill || ({} as any);
   const itemsTotal = Number(bill.itemsTotal) || 0;
-  const commission = Math.round(itemsTotal * COMMISSION_RATE * 100) / 100;
+  const frozen = Number((bill as any).commissionAmount);
+  const commission = Number.isFinite(frozen) && frozen >= 0
+    ? frozen
+    : Math.round(itemsTotal * (getActiveRates().defaultCommissionPercent / 100) * 100) / 100;
   const platformFee = Number(bill.platformFee) || 0;
   const deliveryFee = Number(bill.deliveryFee) || 0;
   const riderPayout = Number(order.riderPayout) || 0;

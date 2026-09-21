@@ -6,6 +6,175 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-21] -- Claude Opus 5 -- Session 31: P1 — the rates leave the source code, and a ledger that balances
+
+**Description:** First chunk of `PAYMENTS_PLAN.md`, agreed with the owner after a
+three-batch interrogation. The plan covers the whole of money — collection,
+settlement, payouts, refunds, cash — and this session builds the layer everything
+else in it rests on: rates an administrator controls, and double-entry books that
+can prove why anybody was paid what they were paid.
+
+It also found and closed a hole in the verification itself, which is the more
+serious item and is last.
+
+---
+
+### Every rate is now an administrator's decision, not a literal
+
+Twenty-four numbers moved out of source code into a versioned configuration with
+an admin screen. GST, packaging, delivery, the platform fee, commission, TDS,
+TCS, rider earnings, payout thresholds, the cash ceiling.
+
+**The commission rate was written out twice** — `itemsTotal * 0.15` in
+`packages/pricing-engine`, and `const COMMISSION_RATE = 0.15` in
+`modules/admin/analytics.ts`, each computing it independently for a different
+screen. Two copies of one business rule, and nothing that would notice them
+drifting apart: change one and the revenue report quietly stops describing the
+same business as the settlements. Analytics now reads the frozen figure off the
+order itself.
+
+**A configuration is never edited.** A change writes a new version, and an order
+records the rates it was priced under. That is what makes a settlement defensible
+months later: "why was this kitchen commissioned at 18%?" is answered by the
+order, not by whatever the screen says today. A rate change cannot reach
+backwards into money somebody has already earned, and the check that version 1
+still reads back correctly is in the suite.
+
+**Per-restaurant commission** is now possible: a kitchen may carry its own
+negotiated rate, set by an administrator, falling back to the platform default.
+`commissionPercentFor` refuses a rate that is null, NaN, negative, above 50, or a
+string that came back from JSON — every one of those shapes reaches production
+eventually, and a bad rate here does not produce an error message, it produces a
+payout.
+
+**Nothing changed price.** The defaults are the literals that were there before,
+annotated with where each one came from, and the suite asserts them as written-out
+numbers rather than by reading the new constant — which would be checking the new
+code against itself. All 22 existing suites passed unchanged.
+
+### The ledger
+
+Double-entry, append-only, integer paise. `modules/payments/ledger.ts`.
+
+**Balances are not stored.** There is no balance column; a balance is derived by
+replaying the entries that produced it, every time. A stored balance and its
+journal can disagree — the wallet audit exists because they did — and when they
+disagree there is no way to know which lied.
+
+**Money cannot appear or vanish.** A transaction is refused unless its debits
+equal its credits to the paisa. A caller who cannot say where money came from
+does not yet understand the movement well enough to record it.
+
+**Nothing posts twice.** Every transaction carries a key naming the real-world
+event. A repeat is a no-op returning the original entries rather than an error,
+because the caller retrying is usually Razorpay redelivering a webhook and it is
+not wrong to do so.
+
+**Nothing is edited.** No update, no delete. A mistake is corrected by posting
+its reverse, leaving both on the record.
+
+**Money is integer paise.** The pricing engine rounds floats at every step —
+`Math.round(x * 100) / 100` appears eighteen times in it — which is survivable
+for showing a bill and not for books that must sum to zero.
+
+The rounding needed two attempts and the first one is worth recording. `2.675 *
+100` is 267.49999999999997 and `1.005 * 100` is 100.49999999999999; both sit a
+hair below a boundary they belong on. Adding a flat `Number.EPSILON` fixed the
+first and not the second, because EPSILON is the gap between 1 and the next
+representable number and is nothing at the scale of a few hundred. The correction
+has to be relative — `scaled * (1 + Number.EPSILON)` — and the sign has to be
+taken off first, because `Math.round(-100.5)` is -100 and a correction would
+otherwise differ from the entry it reverses by a paisa.
+
+Every two-decimal amount up to Rs 10,000 is asserted to survive the round trip:
+142,858 conversions.
+
+### The verification was not verifying most of the platform
+
+`contract.test.ts` is the one suite that checks the apps and the server agree
+about what exists. It reads all four apps' source, extracts every URL they build,
+and asks a running server whether a handler is behind each. It exists because
+four signed, launch-verified APKs once pointed at a deployment answering 404 to
+the sign-in endpoint with every check in the repository green.
+
+**It was passing 30 admin checks that proved nothing.**
+
+`apiRouter.use('/admin', authMiddleware('admin'), adminRouter)` puts
+authentication ahead of routing. An unauthenticated probe to any admin path is
+answered 401 by that middleware before Express looks for a handler — and this
+suite counts "not 404" as "the route exists". So every admin path passed whether
+or not anything was behind it.
+
+Demonstrated rather than argued: `adminRouter.use(pricingRoutes)` was commented
+out and all 121 checks still passed, including the two for endpoints that had just
+ceased to exist.
+
+**And it is not only admin.** `/riders`, `/wallets`, `/addresses` and every other
+router mounted behind `authMiddleware` had the same blind spot — which is most of
+the 112 paths the four apps call. The suite genuinely verified only the
+unauthenticated ones.
+
+Probing with a real token is not the fix: a token that gets past the middleware
+also executes whatever it reaches, and this suite walks every path the apps call,
+including the ones that cancel orders and empty the platform.
+
+Existence is now settled by reading the server's own route table — the same
+structure Express dispatches on. It runs nothing and cannot be fooled by a
+middleware answering early. The HTTP probe stays as corroboration where it can
+still say something, and the failure message prints both, which is how the
+evidence line now reads `route table: absent; over HTTP: GET 401`.
+
+One of the new self-checks asserts the blind spot itself: that an HTTP probe of a
+deliberately nonexistent admin path still reports it as present. A suite that
+cannot demonstrate its own limitation will grow another one.
+
+---
+
+### Verified
+
+| Claim | Evidence |
+| --- | --- |
+| No bill moved | All 22 pre-existing suites pass unchanged; a bill priced with no rates equals one priced with the defaults |
+| The platform fee is still exactly Rs 5.90 | Computed now from Rs 5.00 + 18%, asserted to the paisa |
+| The defaults are the old literals | Asserted as written-out numbers, not by reading the new constant |
+| A rate change reaches the next bill | GST, packaging, delivery, platform fee, commission and TDS each asserted to follow the rate given |
+| and not the last one | Version 1 reads back at 15% after version 2 sets 18% |
+| The books balance | 300 randomised orders, cash collections, deposits and refunds; debits equal credits, no unbalanced transaction, no duplicate key, no fractional paisa |
+| A payment posted six times moves money once | The shape of the existing Place Order concurrency check |
+| Rounding is correct at the boundaries | 142,858 round trips, and the -1.005 case that `Math.round` gets wrong |
+| A bad commission rate cannot reach a payout | Refused at the screen, at the route, and clamped in the engine |
+| A missing admin endpoint is now caught | `adminRouter.use(pricingRoutes)` commented out → 5 checks fail. Before this session: 0 |
+
+**Gate:** 23 backend suites (22 + `ledger`), nine workspaces typechecked, secret,
+hardcoded-URL and translation scans clean. Contract checks 121 → 128.
+
+**Mutation tested, 14 of 14 caught.** One survived the first run and it was the
+worst possible one: an engine that accepted `rates` and quietly used its own
+defaults passed every other check in the file. An administrator would change
+commission, the screen would confirm it, a new version would be written, and not
+one bill would move. Covered now.
+
+**Known Issues:**
+
+- Everything carried from Session 30 is unchanged: the partner KYC path is not
+  driven on hardware, the Razorpay sheet is unverified on a device, no full rider
+  trip on hardware, the back-block during an in-flight order is unverified,
+  Google Cloud billing is off, and the dish-photo strip is not built.
+- The rates screen has not been opened on a phone. It typechecks and its two
+  endpoints are now genuinely verified to exist, which is not the same thing.
+- P1 writes no ledger entries from real order flow yet. The ledger is built and
+  tested; wiring order payment, COD collection and settlement into it is P3, so
+  today the books are correct and empty.
+
+**NEXT AI SHOULD:** Start P2 — payee accounts and penny-drop verification
+(`PAYMENTS_PLAN.md` §4.4). It is marked READY in `build/MANIFEST.md`. Before
+writing the RazorpayX calls, confirm with the owner which Razorpay products are
+actually activated on their account, and raise IP allowlisting early: RazorpayX
+requires it, Railway's egress IP is not static, and that is the likeliest thing to
+block P3.
+
+---
+
 ## [2026-09-21] -- Claude Opus 5 -- Session 30: verification that verifies, and a block that blocks
 
 **Description:** Reported from the partner app: there is no way to upload an

@@ -40,13 +40,39 @@ interrogation.
 | **3** | Partner and rider self-registration, bootstrap administrator | DONE |
 | **4** | Production starts empty | DONE |
 | **5** | Real Razorpay integration, webhooks, idempotency | DONE (server) |
-| **6** | Feature pass | NOT STARTED |
+| **6** | Feature pass | DONE (19 September 2026 — see `MASTER_FIX_PLAN.md` §Phase 6) |
 | **7** | Nothing hardcoded: one config per app, scanner | DONE |
 | **8** | Languages EN/HI/KN | VERIFIED (existing strings at parity; new sign-in strings are English-only) |
 | **9** | Legal and compliance | DONE (documented; the human steps are listed) |
 | **10** | App identity and the APK build | IN PROGRESS |
 | **11** | Documentation | IN PROGRESS |
 | **12** | Final verification | PENDING |
+
+---
+
+## 1c. Payments rebuild (Session 31 onwards)
+
+Tracked by `PAYMENTS_PLAN.md`, agreed with the owner after a three-batch
+interrogation. Every rate on the platform becomes admin-controlled, the platform
+gains the ability to actually send money, and refunds go back down the rail they
+arrived on.
+
+**Another session is working on unrelated features in parallel.** File ownership
+is in `PAYMENTS_PLAN.md` §10 and is binding: shared files take additive changes
+only — new fields and new functions, no renames, no signature changes.
+
+| Chunk | Name | Depends | Status | Locked By |
+|-------|------|---------|--------|-----------|
+| **P1** | Pricing config (versioned) + integer-paise ledger + admin rates UI | — | DONE (21 Sep 2026) | — |
+| **P2** | Payee accounts + penny-drop verification | P1 | READY | — |
+| **P3** | Payout rails + dues queue + maker-checker | P1, P2 | BLOCKED | — |
+| **P4** | Refunds rebuilt, customer wallet removed | P1, P3 | BLOCKED | — |
+| **P5** | Door UPI QR + cash ceiling + deposits | P1, P3 | BLOCKED | — |
+| **P6** | Partner and rider payout requests | P3 | BLOCKED | — |
+| **P7** | Tax lines, invoices, filing exports | P1, P3 | BLOCKED | — |
+| **P8** | Reconciliation, ageing, alerts, policies | all | BLOCKED | — |
+
+---
 
 **Not done, and deliberately so:** the customer app does not yet present the
 Razorpay checkout. Doing so needs a native module (a WebView or the Razorpay

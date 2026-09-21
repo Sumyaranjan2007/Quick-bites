@@ -187,12 +187,21 @@ These cannot be done from the codebase.
 
 Not Play blockers, but they affect real users:
 
-- **Data durability.** The backend keeps state in memory with a JSON snapshot
-  (`apps/backend-api/src/db/client.ts`). A restart or redeploy can lose recent
-  orders. A managed Postgres (the Prisma schema and docker-compose Postgres
-  already exist) should be wired before taking real orders.
-- **No online payment.** Checkout is cash on delivery; there is no Razorpay SDK
-  integration, so no card or UPI payment path exists.
+This list was stale as of 21 September 2026 and has been corrected. Two entries
+claimed gaps that had already been closed — a stale gap list is how a real gap
+hides among fake ones.
+
+- ~~**Data durability.**~~ **Closed.** `db/postgresStore.ts` persists to a
+  managed Postgres when `DATABASE_URL` is set, and production refuses to start
+  without it.
+- ~~**No online payment.**~~ **Closed.** The Razorpay native SDK is integrated in
+  the customer app (`lib/nativePayments.ts`), with real signature and webhook
+  verification on the server.
+- **The platform cannot send money.** Payouts and settlements are records of a
+  decision, not transfers: an administrator marks one paid and types a UTR by
+  hand. No bank account exists in the data model for any partner or rider. This
+  is what `PAYMENTS_PLAN.md` P2 and P3 build, and it is the real blocker for
+  trading at scale.
 - **Catalogue size.** Four seeded restaurants.
 - **Logo wordmark** reads "Quickbits" while the apps are named "Quick Bites".
 
