@@ -143,3 +143,53 @@ export async function fetchSystemHealth() {
   const res = await apiFetch(`${base}/health`);
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// The payments rebuild: rates, the ledger-backed dues queue, payee accounts,
+// cash in from riders, and tax.
+//
+// These are the SAME endpoints the operations app uses. Not a parallel set —
+// two implementations of "what is owed" is the one thing this whole plan exists
+// to avoid, and a console that showed a different figure to the app would be
+// worse than a console with no payments screen at all.
+// ---------------------------------------------------------------------------
+
+export const fetchPricingConfig = () => adminGet<any>('/admin/pricing/config');
+export const updatePricingConfig = (body: { changes: Record<string, number>; note: string }) =>
+  adminSend<any>('/admin/pricing/config', 'PUT', body);
+export const fetchPricingHistory = () => adminGet<any>('/admin/pricing/config/history');
+
+export const fetchDues = () => adminGet<any>('/admin/payouts/dues');
+export const fetchPayoutList = () => adminGet<any>('/admin/payouts/list');
+export const fetchPayoutStatement = (ownerType: string, ownerId: string) =>
+  adminGet<any>(`/admin/payouts/statement/${ownerType}/${ownerId}`);
+export const draftPayout = (body: { ownerType: string; ownerId: string; rail: string }) =>
+  adminSend<any>('/admin/payouts', 'POST', body);
+export const approvePayout = (id: string) => adminSend<any>(`/admin/payouts/${id}/approve`, 'POST', {});
+export const sendPayout = (id: string, body: { manualReference?: string }) =>
+  adminSend<any>(`/admin/payouts/${id}/send`, 'POST', body);
+export const cancelPayout = (id: string, body: { reason: string }) =>
+  adminSend<any>(`/admin/payouts/${id}/cancel`, 'POST', body);
+
+export const fetchPayoutRequests = () => adminGet<any>('/admin/payouts/requests');
+export const declinePayoutRequest = (id: string, body: { reason: string }) =>
+  adminSend<any>(`/admin/payouts/requests/${id}/decline`, 'POST', body);
+
+export const fetchPayeeReviewQueue = () => adminGet<any>('/admin/payee-accounts/review');
+export const fetchPayeeCoverage = () => adminGet<any>('/admin/payee-accounts/coverage');
+export const reviewPayeeAccount = (id: string, body: { decision: string; note?: string }) =>
+  adminSend<any>(`/admin/payee-accounts/${id}/review`, 'POST', body);
+
+export const fetchCashDeposits = () => adminGet<any>('/admin/cash/deposits');
+export const confirmCashDeposit = (id: string, body: { receivedAmount: number; varianceNote?: string }) =>
+  adminSend<any>(`/admin/cash/deposits/${id}/confirm`, 'POST', body);
+
+export const fetchTaxIdentity = () => adminGet<any>('/admin/tax/identity');
+export const updateTaxIdentity = (body: Record<string, unknown>) =>
+  adminSend<any>('/admin/tax/identity', 'PUT', body);
+export const fetchTaxSummary = (month: string) => adminGet<any>(`/admin/tax/summary?month=${month}`);
+export const fetchGrievanceContact = () => adminGet<any>('/admin/policies/grievance');
+export const updateGrievanceContact = (body: Record<string, unknown>) =>
+  adminSend<any>('/admin/policies/grievance', 'PUT', body);
+
+export const runPaymentsHealthCheck = () => adminSend<any>('/admin/payments/health-check', 'POST', {});

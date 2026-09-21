@@ -22,7 +22,8 @@ import { LoginGate } from './components/LoginGate';
 import { Overview } from './components/console/Overview';
 import { AllOrders, LiveDeliveries } from './components/console/OrdersSection';
 import { MenuApprovals, DocumentReview, ProfileApprovals } from './components/console/Approvals';
-import { RevenueSection, PaymentsSection, PayoutsSection } from './components/console/Finance';
+import { RevenueSection, PaymentsSection as GatewayPaymentsSection, PayoutsSection } from './components/console/Finance';
+import { PaymentsSection } from './components/console/Payments';
 import { SupportSection, AccessSection } from './components/console/AccessAndSupport';
 import { ProfileSection } from './components/console/Profile';
 import { RefundsSection } from './components/console/Refunds';
@@ -37,6 +38,7 @@ type SectionKey =
   | 'deliveries'
   | 'revenue'
   | 'payments'
+  | 'settlements'
   | 'payouts'
   | 'refunds'
   | 'menus'
@@ -76,7 +78,12 @@ const SECTIONS: SectionDef[] = [
   { key: 'orders', label: 'All orders', icon: ShoppingBag, permissions: ['orders.view'], render: () => <AllOrders /> },
   { key: 'deliveries', label: 'Live deliveries', icon: Truck, permissions: ['orders.deliveries.manage'], render: () => <LiveDeliveries /> },
   { key: 'revenue', label: 'Revenue', icon: IndianRupee, permissions: ['finance.revenue.view'], render: () => <RevenueSection /> },
-  { key: 'payments', label: 'Payments', icon: CreditCard, permissions: ['finance.payments.view'], render: () => <PaymentsSection /> },
+  { key: 'payments', label: 'Gateway payments', icon: CreditCard, permissions: ['finance.payments.view'], render: () => <GatewayPaymentsSection /> },
+  // The ledger-backed side: who is owed what, the rates behind it, payout
+  // accounts, cash coming in and tax. The two above it are the gateway's own
+  // view of money coming IN and the legacy per-trip settlement record; this is
+  // money going OUT and everything that decides it.
+  { key: 'settlements', label: 'Payments & settlements', icon: Wallet, permissions: ['finance.payouts.view', 'finance.settlements.view', 'finance.config.edit'], render: () => <PaymentsSection /> },
   { key: 'payouts', label: 'Driver payouts', icon: Wallet, permissions: ['finance.payouts.view'], render: () => <PayoutsSection /> },
   { key: 'refunds', label: 'Returns & refunds', icon: RotateCcw, permissions: ['orders.refunds.handle', 'finance.refunds.manage', 'support.tickets.view'], render: () => <RefundsSection /> },
   { key: 'menus', label: 'Menu approvals', icon: UtensilsCrossed, permissions: ['catalog.menus.view', 'catalog.menus.review'], render: () => <MenuApprovals /> },
