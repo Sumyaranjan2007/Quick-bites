@@ -30,6 +30,7 @@ import { authMiddleware } from '../middlewares/auth.ts';
 import { AppError } from '../utils/AppError.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { invoiceFor, taxIdentityGaps } from '../modules/payments/tax.ts';
+import { refundForOrder } from '../modules/payments/refunds.ts';
 import { toPaise, toRupees } from '../modules/payments/money.ts';
 
 export const invoiceRouter = Router();
@@ -110,6 +111,34 @@ invoiceRouter.get('/orders/:orderId', authMiddleware('customer'), async (req, re
           'This is a payment receipt, not a tax invoice. A tax invoice will be available once Quick Bites has completed its GST registration details.'
       }
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/invoices/orders/:orderId/refund
+ *
+ * What happened to a refund on this order, in the customer's own terms: how
+ * much, by which route, and how long their bank will take.
+ *
+ * Read from the ledger rather than from a status field on the order. A status
+ * column has to be kept in step by whoever moved the money, and the one time
+ * somebody forgets is the time a customer is refreshing the screen. The ledger
+ * already records every refund that was actually paid.
+ *
+ * It returns `null` rather than an error when there is no refund. A customer
+ * checking an order that was fine is asking a reasonable question and should
+ * not be shown a failure for it.
+ */
+invoiceRouter.get('/orders/:orderId/refund', authMiddleware('customer'), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.orderId);
+    if (!order || order.customerId !== req.user!.id) {
+      throw new AppError('No such order.', 404, 'ORDER_NOT_FOUND');
+    }
+
+    res.json({ success: true, data: { refund: refundForOrder(order) } });
   } catch (err) {
     next(err);
   }

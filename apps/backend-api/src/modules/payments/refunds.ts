@@ -358,3 +358,75 @@ export function refundStatusView(outcome: {
     timing: timingFor(outcome.route)
   };
 }
+
+/**
+ * Everything a customer's order screen can honestly say about a refund.
+ *
+ * -------------------------------------------------------------------------
+ * READ FROM THE LEDGER, NOT FROM A STATUS FIELD
+ * -------------------------------------------------------------------------
+ * A status column would have to be kept in step by whoever moved the money,
+ * and the one time nobody remembers is the one time a customer is refreshing
+ * the screen. The ledger already records every refund that was actually paid,
+ * with its route and its reference, so the screen is derived from the money
+ * rather than from a note somebody left about the money.
+ *
+ * -------------------------------------------------------------------------
+ * AND IT NEVER SAYS "DONE" FOR SOMETHING THE CUSTOMER STILL HAS TO DO
+ * -------------------------------------------------------------------------
+ * A payout link is sent, not settled. Telling somebody their refund has been
+ * paid when it is sitting behind a link they have not opened is how a refund
+ * goes unclaimed and the platform believes it paid it. The link route says the
+ * link is waiting and repeats where it went.
+ */
+export function refundForOrder(order: Order): {
+  refunded: boolean;
+  amount: number;
+  route: RefundRoute | null;
+  /** True only when the money has actually landed or been handed over. */
+  settled: boolean;
+  timing: string;
+  reference?: string;
+  claimUrl?: string;
+  paidAt?: string;
+} | null {
+  // Every posting this platform makes for a refund carries the order id.
+  const entries = ledger
+    .query({ orderId: order.id })
+    .filter(
+      e =>
+        e.event === 'REFUND_TO_SOURCE' ||
+        e.event === 'REFUND_BY_LINK' ||
+        e.event === 'CASH_RETURNED_AT_DOOR'
+    );
+
+  if (entries.length === 0) return null;
+
+  // Newest first from `query`, and the refund a customer is asking about is
+  // the most recent one.
+  const entry = entries[0];
+  const route: RefundRoute =
+    entry.event === 'REFUND_TO_SOURCE'
+      ? 'SOURCE'
+      : entry.event === 'REFUND_BY_LINK'
+      ? 'LINK'
+      : 'CASH_AT_DOOR';
+
+  const amountPaise = entries
+    .filter(e => e.event === entry.event)
+    .reduce((total, e) => Math.max(total, e.amountPaise), 0);
+
+  const claimUrl = (order as any).refundClaimUrl as string | undefined;
+
+  return {
+    refunded: true,
+    amount: toRupees(amountPaise),
+    route,
+    // A link that has been sent is not a refund that has been received.
+    settled: route !== 'LINK' || Boolean((order as any).refundLinkClaimedAt),
+    timing: timingFor(route),
+    reference: (order as any).refundReference,
+    ...(route === 'LINK' && claimUrl ? { claimUrl } : {}),
+    paidAt: entry.occurredAt
+  };
+}

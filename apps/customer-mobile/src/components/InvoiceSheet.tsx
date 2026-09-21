@@ -60,6 +60,17 @@ interface Invoice {
   notes: string[];
 }
 
+interface RefundStatus {
+  refunded: boolean;
+  amount: number;
+  route: string | null;
+  settled: boolean;
+  timing: string;
+  reference?: string;
+  claimUrl?: string;
+  paidAt?: string;
+}
+
 interface Receipt {
   orderNumber: string;
   date: string;
@@ -96,6 +107,7 @@ export const InvoiceSheet: React.FC<{
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [refund, setRefund] = useState<RefundStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -104,6 +116,7 @@ export const InvoiceSheet: React.FC<{
     setError(null);
     setInvoice(null);
     setReceipt(null);
+    setRefund(null);
     try {
       const res = await apiFetch(`${apiUrl}/invoices/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -118,6 +131,24 @@ export const InvoiceSheet: React.FC<{
       } else {
         setReceipt(payload.data?.receipt || null);
         setNote(payload.data?.message || null);
+      }
+
+      /*
+       * And whether any of it came back.
+       *
+       * A separate request rather than a field on the bill, because a refund
+       * and a bill answer different questions and the bill must still render
+       * if this one fails. A customer waiting on money is the last person who
+       * should be shown a blank screen because a second call timed out.
+       */
+      try {
+        const r = await apiFetch(`${apiUrl}/invoices/orders/${orderId}/refund`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const rp = await r.json().catch(() => ({}));
+        if (r.ok) setRefund(rp?.data?.refund || null);
+      } catch {
+        /* The bill is still worth showing. */
       }
     } catch {
       setError('We could not reach Quick Bites. Check your connection.');
@@ -182,6 +213,36 @@ export const InvoiceSheet: React.FC<{
           </View>
 
           <ScrollView contentContainerStyle={s.body}>
+            {/*
+              The refund first, above the bill.
+
+              Somebody opening this screen after something went wrong is not
+              looking for a tax invoice — they are looking for their money, and
+              making them scroll past a breakdown of what they were charged to
+              find out whether they got it back is the wrong way round.
+            */}
+            {refund?.refunded && (
+              <View style={[s.refundBox, refund.settled ? s.refundBoxDone : s.refundBoxWaiting]}>
+                <Text style={s.refundAmount}>{rupees(refund.amount)} refunded</Text>
+                <Text style={s.refundTiming}>{refund.timing}</Text>
+                {!refund.settled && refund.route === 'LINK' && (
+                  /*
+                   * A link that has been sent is not a refund that has been
+                   * received. Saying "paid" here is how a refund goes
+                   * unclaimed while the platform believes it paid it.
+                   */
+                  <Text style={s.refundAction}>
+                    We have sent you a link. Open it and enter any UPI id — the money arrives within minutes.
+                  </Text>
+                )}
+                {!!refund.reference && (
+                  <Text style={s.refundReference}>
+                    Reference {refund.reference} — quote this if you call your bank.
+                  </Text>
+                )}
+              </View>
+            )}
+
             {loading ? (
               <View style={s.centre}>
                 <ActivityIndicator color={c.primary[500]} />
@@ -358,7 +419,15 @@ const s = StyleSheet.create({
   totalLabel: { color: c.text.primary, fontSize: 16, fontWeight: '800' },
   totalValue: { color: c.text.primary, fontSize: 20, fontWeight: '800' },
 
-  note: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 12 }
+  note: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 12 },
+
+  refundBox: { borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1 },
+  refundBoxDone: { backgroundColor: c.dietary.vegBg, borderColor: c.dietary.veg },
+  refundBoxWaiting: { backgroundColor: c.surface.sunken, borderColor: c.border.medium },
+  refundAmount: { color: c.text.primary, fontSize: 20, fontWeight: '800' },
+  refundTiming: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  refundAction: { color: c.text.primary, fontSize: 13, lineHeight: 19, marginTop: 10, fontWeight: '600' },
+  refundReference: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 8 }
 });
 
 export default InvoiceSheet;
