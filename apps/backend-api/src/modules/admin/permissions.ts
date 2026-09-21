@@ -82,6 +82,26 @@ export const SYSTEM_ROLE_DEFINITIONS: Array<
       'finance.settlements.view',
       'finance.settlements.manage',
       'finance.reports.view',
+      /*
+       * Added after the payments rebuild, and missing until now.
+       *
+       * `finance.config.edit` and `finance.ledger.view` were introduced with the
+       * pricing config and the ledger, and were granted to `super_admin` because
+       * it holds everything automatically. Nobody remembered to give them to the
+       * one role whose entire job they are.
+       *
+       * The effect was invisible in testing, because a super admin can reach
+       * every screen: a Finance Admin signing in got a console with no Rates
+       * tab, no Tax tab, no ledger and no way to publish the grievance officer —
+       * for a role described as owning payments and settlements. The screens
+       * existed and were unreachable by the person they were built for.
+       *
+       * `ensureSystemRoles` re-syncs shipped roles on every boot, so existing
+       * deployments pick this up on the next redeploy without anybody editing a
+       * role by hand.
+       */
+      'finance.config.edit',
+      'finance.ledger.view',
       'orders.refunds.handle',
       'users.customers.view',
       'users.drivers.view',

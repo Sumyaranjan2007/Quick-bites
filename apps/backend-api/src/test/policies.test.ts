@@ -30,6 +30,7 @@ import {
   setGrievanceContact
 } from '../modules/payments/paymentPolicies.ts';
 import { runPaymentsHealthCheck } from '../modules/payments/paymentsHealth.ts';
+import { SYSTEM_ROLE_DEFINITIONS } from '../modules/admin/permissions.ts';
 
 console.log('====================================================');
 console.log('  PAYMENT POLICIES AND THE HEALTH SWEEP             ');
@@ -264,6 +265,56 @@ async function run() {
       email: 'grievance@quickbites.app',
       address: '4th Floor, 12 Residency Road, Bengaluru 560025'
     });
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  AND SOMEBODY OTHER THAN A SUPER ADMIN CAN REACH THEM             *
+   * ---------------------------------------------------------------- */
+
+  await check('The Finance Admin role can reach every payments screen', () => {
+    /*
+     * A defect found by reading, not by a failing test, and it was invisible
+     * for the worst possible reason: a super admin holds every permission
+     * automatically, so every screen worked for the account they were built
+     * with.
+     *
+     * `finance.config.edit` and `finance.ledger.view` arrived with the pricing
+     * config and the ledger and were never granted to the one role whose whole
+     * job they are. A Finance Admin signing in got a console with no Rates tab,
+     * no Tax tab, no ledger and no way to publish the grievance officer.
+     *
+     * Asserted against the SHIPPED definition rather than against a seeded
+     * store, because the definition is what `ensureSystemRoles` re-syncs onto
+     * every deployment on boot.
+     */
+    const finance = SYSTEM_ROLE_DEFINITIONS.find(r => r.key === 'finance_admin');
+    assert.ok(finance, 'there is no Finance Admin role');
+
+    const needed = [
+      'finance.config.edit',
+      'finance.ledger.view',
+      'finance.payouts.view',
+      'finance.payouts.manage',
+      'finance.refunds.manage'
+    ];
+    for (const permission of needed) {
+      assert.ok(
+        finance!.permissions.includes(permission as any),
+        `a Finance Admin cannot ${permission} — the screen exists and they cannot open it`
+      );
+    }
+  });
+
+  await check('And a support admin still cannot change the rates', () => {
+    // The other half. A permission granted to everybody is not a permission,
+    // and this is the one that decides what every customer is charged.
+    const support = SYSTEM_ROLE_DEFINITIONS.find(r => r.key === 'support_admin');
+    assert.ok(support, 'there is no Support Admin role');
+    assert.equal(
+      support!.permissions.includes('finance.config.edit' as any),
+      false,
+      'a support admin can change what the platform charges'
+    );
   });
 
   /* ---------------------------------------------------------------- *
