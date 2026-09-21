@@ -2,7 +2,11 @@ import { memoryStore, calculateDistanceKm, triggerAutoSave } from '../client.ts'
 import { config } from '../../config/env.ts';
 import { estimateByRoad } from '../../modules/places/routingService.ts';
 import { hasRealLocation } from '../../modules/restaurants/restaurantLocation.ts';
-import type { Restaurant } from '@quick-bites/shared-types';
+import {
+  EDITABLE_PROFILE_FIELDS,
+  type EditableProfile,
+  type Restaurant
+} from '@quick-bites/shared-types';
 
 export interface NearbyFilter {
   latitude: number;
@@ -126,6 +130,53 @@ export const restaurantRepository = {
     if (!existing) return null;
     existing.isOpen = isOpen;
     existing.kitchenStatusChangedAt = new Date().toISOString();
+    memoryStore.restaurants.set(id, existing);
+    triggerAutoSave();
+    return existing;
+  },
+
+  /**
+   * Writes approved profile fields onto the live record.
+   *
+   * Takes only the fields a reviewer accepted, never a whole record. That is
+   * the difference between approving a name change and silently reverting
+   * everything else about the restaurant to whatever the partner's app had
+   * cached when they opened the form.
+   *
+   * Nothing here validates: by the time a field reaches this method it has
+   * passed the partner-side schema AND a human. The one thing it refuses is a
+   * field outside the editable list, because a bug that let `commissionPercent`
+   * through this door would let a partner set the platform's own margin.
+   */
+  async applyProfile(
+    id: string,
+    fields: Partial<EditableProfile>
+  ): Promise<Restaurant | null> {
+    const existing = memoryStore.restaurants.get(id);
+    if (!existing) return null;
+
+    for (const [key, value] of Object.entries(fields)) {
+      if (!(EDITABLE_PROFILE_FIELDS as readonly string[]).includes(key)) continue;
+      if (value === undefined) continue;
+      (existing as Record<string, unknown>)[key] = value;
+    }
+
+    memoryStore.restaurants.set(id, existing);
+    triggerAutoSave();
+    return existing;
+  },
+
+  /**
+   * The partner's manual override of their own declared hours.
+   *
+   * Stored as an expiry rather than a flag so it cannot quietly become
+   * permanent — which is the exact failure declared hours exist to fix.
+   */
+  async setForceOpenUntil(id: string, until: string | undefined): Promise<Restaurant | null> {
+    const existing = memoryStore.restaurants.get(id);
+    if (!existing) return null;
+    if (until) existing.forceOpenUntil = until;
+    else delete existing.forceOpenUntil;
     memoryStore.restaurants.set(id, existing);
     triggerAutoSave();
     return existing;

@@ -15,6 +15,13 @@ import { emitMenuUpdated, emitMenuRequestReviewed } from '../../sockets/socketSe
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { memoryStore } from '../../db/client.ts';
 import { matchesQuery } from './shared.ts';
+import { profileEditRepository } from '../../db/repositories/profileEditRepository.ts';
+import {
+  EDITABLE_PROFILE_FIELDS,
+  requiresRelisting,
+  reviewProfileEdit,
+  type EditableProfileField
+} from '../../modules/restaurants/profileEdits.ts';
 
 export const catalogRoutes = Router();
 
@@ -613,3 +620,189 @@ catalogRoutes.delete('/categories/:id', requirePermission('catalog.categories.ma
     next(err);
   }
 });
+
+/* ------------------------- Partner profile changes ------------------------ */
+
+/**
+ * The queue of partner-submitted profile changes.
+ *
+ * Oldest first, because whoever has waited longest is reviewed first. A
+ * newest-first queue is the tempting one - every other feed reads that way -
+ * and it is how a submission at the bottom of a busy week waits a fortnight
+ * while newer ones are cleared above it.
+ *
+ * Each row carries the restaurant it belongs to and the before/after of every
+ * changed field, so the reviewer never has to open another screen to judge it.
+ * "Sunrise Kitchen -> Sunrise Kitchen & Grill" is reviewable; "name changed"
+ * is not.
+ */
+catalogRoutes.get(
+  '/profile-edits',
+  requirePermission('catalog.restaurants.approve'),
+  async (req, res, next) => {
+    try {
+      const status = String(req.query.status || 'PENDING').toUpperCase();
+      const all = status === 'PENDING'
+        ? await profileEditRepository.listPending()
+        : (await Promise.all(
+            (await restaurantRepository.listAll()).map(r =>
+              profileEditRepository.listByRestaurant(r.id)
+            )
+          )).flat();
+
+      const rows = [];
+      for (const edit of all) {
+        if (status !== 'PENDING' && status !== 'ALL' && edit.status !== status) continue;
+        const restaurant = await restaurantRepository.findById(edit.restaurantId);
+        const fields = Object.keys(edit.changes) as EditableProfileField[];
+
+        rows.push({
+          id: edit.id,
+          restaurantId: edit.restaurantId,
+          restaurantName: restaurant?.name ?? edit.restaurantId,
+          city: restaurant?.city,
+          // Said plainly, because it changes the decision: a kitchen that is
+          // not trading yet is usually completing its first profile, and a
+          // kitchen that IS trading has customers looking at the old values
+          // right now.
+          restaurantStatus: restaurant?.status,
+          submittedAt: edit.submittedAt,
+          submittedByUserId: edit.submittedByUserId,
+          status: edit.status,
+          fields,
+          changes: edit.changes,
+          previous: edit.previous,
+          approvedFields: edit.approvedFields ?? [],
+          rejections: edit.rejections ?? [],
+          reviewedAt: edit.reviewedAt ?? null,
+          reviewedByUserId: edit.reviewedByUserId ?? null,
+          /** True when approving this will change which customers can see them. */
+          affectsListing: requiresRelisting(fields)
+        });
+      }
+
+      rows.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+
+      res.json({
+        success: true,
+        data: {
+          edits: rows,
+          pendingCount: rows.filter(r => r.status === 'PENDING').length,
+          /** The app renders its field labels against this, never a hardcoded list. */
+          editableFields: EDITABLE_PROFILE_FIELDS
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const ProfileReviewSchema = z.object({
+  approve: z.array(z.string()).optional().default([]),
+  reject: z
+    .array(
+      z.object({
+        field: z.string(),
+        reason: z.string().min(1, 'Say why the change was refused.').max(300)
+      })
+    )
+    .optional()
+    .default([])
+});
+
+/**
+ * Settles one submission, field by field.
+ *
+ * A reviewer can accept the opening hours and refuse the photograph in one
+ * pass, with a reason on the refused part only. That is how the work is
+ * actually done, and forcing an all-or-nothing decision means a partner whose
+ * photograph is wrong also loses the hours they corrected, and has to submit
+ * both again.
+ *
+ * Every changed field must be decided. A review that silently left one
+ * undecided would close the submission with that change neither live nor
+ * refused, and nothing would ever surface it again - the partner would wait
+ * for a decision that had already been made without it.
+ */
+catalogRoutes.post(
+  '/profile-edits/:id/review',
+  requirePermission('catalog.restaurants.approve'),
+  validate({ body: ProfileReviewSchema }),
+  async (req, res, next) => {
+    try {
+      const edit = await profileEditRepository.findById(req.params.id);
+      if (!edit) throw new AppError('Submission not found.', 404, 'PROFILE_EDIT_NOT_FOUND');
+
+      if (edit.status !== 'PENDING') {
+        throw new AppError(
+          edit.status === 'SUPERSEDED'
+            ? 'The partner has since submitted a newer version of this change. Review that one instead.'
+            : 'This submission has already been reviewed.',
+          409,
+          'PROFILE_EDIT_NOT_PENDING'
+        );
+      }
+
+      const restaurant = await restaurantRepository.findById(edit.restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+
+      const outcome = reviewProfileEdit(edit, {
+        approve: req.body.approve as EditableProfileField[],
+        reject: req.body.reject as { field: EditableProfileField; reason: string }[]
+      });
+
+      if (outcome.errors.length > 0) {
+        throw new AppError(outcome.errors.join(' '), 400, 'INCOMPLETE_PROFILE_REVIEW');
+      }
+
+      // The live record is written FIRST, then the submission is closed. The
+      // other order would leave a submission marked approved whose changes
+      // never reached the restaurant, and nothing afterwards would retry it.
+      if (outcome.approvedFields.length > 0) {
+        await restaurantRepository.applyProfile(restaurant.id, outcome.apply);
+      }
+
+      const reviewed = await profileEditRepository.recordReview(edit.id, {
+        status: outcome.status,
+        approvedFields: outcome.approvedFields,
+        rejections: outcome.rejections,
+        reviewedByUserId: req.user!.id
+      });
+
+      recordAudit(req, {
+        action: 'RESTAURANT_PROFILE_REVIEWED',
+        entityType: 'RESTAURANT',
+        entityId: restaurant.id,
+        summary:
+          outcome.approvedFields.length > 0 && outcome.rejections.length > 0
+            ? 'Approved ' +
+              outcome.approvedFields.join(', ') +
+              ' and refused ' +
+              outcome.rejections.map(r => r.field).join(', ') +
+              ' on ' +
+              restaurant.name
+            : outcome.rejections.length > 0
+              ? 'Refused ' + outcome.rejections.map(r => r.field).join(', ') + ' on ' + restaurant.name
+              : 'Approved ' + outcome.approvedFields.join(', ') + ' on ' + restaurant.name,
+        before: edit.previous,
+        after: outcome.apply
+      });
+
+      res.json({
+        success: true,
+        data: {
+          edit: reviewed,
+          outcome: {
+            status: outcome.status,
+            approvedFields: outcome.approvedFields,
+            rejections: outcome.rejections,
+            applied: outcome.apply
+          }
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

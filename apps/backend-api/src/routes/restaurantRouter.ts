@@ -22,6 +22,26 @@ import {
   MAX_UPLOAD_MB
 } from '../modules/restaurants/restaurantDocuments.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
+import { profileEditRepository } from '../db/repositories/profileEditRepository.ts';
+import { couponRepository } from '../db/repositories/couponRepository.ts';
+import { bestOfferFor, platformPromotion } from '../modules/restaurants/restaurantOffers.ts';
+import {
+  EDITABLE_PROFILE_FIELDS,
+  MAX_CUISINE_TAGS,
+  MAX_DESCRIPTION_CHARS,
+  MAX_GALLERY_IMAGES,
+  MAX_IMAGE_CHARS,
+  MAX_NAME_CHARS,
+  diffProfile,
+  readEditableProfile,
+  validateProfileChanges
+} from '../modules/restaurants/profileEdits.ts';
+import {
+  DAYS_OF_WEEK,
+  MAX_WINDOWS_PER_DAY,
+  formatTimeOfDay,
+  isWithinOpeningHours
+} from '../modules/restaurants/openingHours.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
 
 export const restaurantRouter = Router();
@@ -66,6 +86,21 @@ restaurantRouter.get('/', async (req, res) => {
 
     const list = await restaurantRepository.listActive();
 
+    /*
+     * Offers are read once for the whole feed, not per restaurant.
+     *
+     * The badge on each card used to be the string "50% OFF", typed into the
+     * app and rendered on every kitchen whether or not any such coupon existed.
+     * It is now derived from a coupon that is live and would actually apply -
+     * and where there is none, the card carries no badge at all.
+     *
+     * Omitted rather than guessed, the same rule the delivery estimate above
+     * already follows. A discount advertised on the card and refused at
+     * checkout is a false price claim, which is worse than a wrong estimate:
+     * the customer chose that restaurant because of it.
+     */
+    const coupons = await couponRepository.list();
+
     // Distance and delivery time exist only when the customer has told us where
     // they are. They used to be manufactured when they had not: `distanceKm`
     // defaulted to 2.5, which fed `15 + distanceKm * 4` and made EVERY
@@ -87,7 +122,8 @@ restaurantRouter.get('/', async (req, res) => {
           distanceKm: undefined,
           isWithinServiceArea: true,
           locationPending: !hasRealLocation(r),
-          estimatedDeliveryMinutes: undefined
+          estimatedDeliveryMinutes: undefined,
+          offer: bestOfferFor(r, coupons)
         };
       }
 
@@ -116,7 +152,8 @@ restaurantRouter.get('/', async (req, res) => {
         // release, instead of a slope invented in this line.
         estimatedDeliveryMinutes: Math.round(
           config.DEFAULT_PREP_MINUTES + (road.distanceKm / config.DELIVERY_SPEED_KMPH) * 60
-        )
+        ),
+        offer: bestOfferFor(r, coupons)
       };
     });
 
@@ -208,6 +245,20 @@ restaurantRouter.get('/', async (req, res) => {
       success: true,
       data: {
         restaurants: annotated,
+        /*
+         * The home screen's hero banner, or null.
+         *
+         * It used to be three lines of text in the app - "HOT DEALS / UP TO 50%
+         * OFF / Use WELCOME50" - shown to every customer on every launch,
+         * regardless of whether WELCOME50 existed, had expired, or had ever
+         * been created. It is now the best live platform-wide coupon, and null
+         * when there is none, in which case the app shows no banner at all.
+         *
+         * Platform-wide specifically: the banner sits above the whole feed, and
+         * a restaurant-specific coupon promised there would be refused at
+         * almost every kitchen underneath it.
+         */
+        promotion: platformPromotion(coupons),
         // Echoed back so the app can show which filters produced this result,
         // and so a filter the server ignored is visibly absent rather than
         // appearing to have been applied.
@@ -822,3 +873,219 @@ restaurantRouter.get('/:id/settlements', authMiddleware('restaurant_owner'), asy
     next(err);
   }
 });
+
+/* =====================================================================
+ * The restaurant's own profile - what a customer sees, and what the
+ * partner has asked to change about it.
+ *
+ * Two versions of one restaurant, never one. Approval is the only thing
+ * that writes to the live record, so there is no window in which an
+ * unreviewed name or an unreviewed photograph is on the home screen.
+ * ===================================================================== */
+
+/**
+ * Everything the partner app needs to draw the edit form, from the server.
+ *
+ * The limits, the day names and the editable field list are sent rather than
+ * hardcoded in the app, so a rule can never be changed on the server and left
+ * stale in four APKs that are already on people's phones. The app that shipped
+ * last month gets today's rules the moment it opens this screen.
+ */
+restaurantRouter.get('/:id/profile', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    const restaurant = await assertOwnsRestaurant(req, req.params.id);
+    const pending = await profileEditRepository.findPendingByRestaurant(restaurant.id);
+    const openNow = isWithinOpeningHours(restaurant.openingHours, new Date());
+
+    res.json({
+      success: true,
+      data: {
+        // What customers see right now.
+        published: readEditableProfile(restaurant),
+        // What is waiting on a reviewer, or null. The app marks exactly these
+        // fields "in review", so a partner never re-submits a change they have
+        // already made and wonders why nothing happened.
+        pending: pending
+          ? {
+              id: pending.id,
+              submittedAt: pending.submittedAt,
+              changes: pending.changes,
+              previous: pending.previous,
+              fields: Object.keys(pending.changes)
+            }
+          : null,
+        kitchen: {
+          status: restaurant.status,
+          isOpen: restaurant.isOpen,
+          /** null = hours were never declared, which is not the same as closed. */
+          withinDeclaredHours: openNow,
+          forceOpenUntil: restaurant.forceOpenUntil ?? null,
+          /** A partner may only go online once the platform has approved them. */
+          canGoOnline: restaurant.status === 'ACTIVE'
+        },
+        rules: {
+          editableFields: EDITABLE_PROFILE_FIELDS,
+          maxNameChars: MAX_NAME_CHARS,
+          maxDescriptionChars: MAX_DESCRIPTION_CHARS,
+          maxCuisineTags: MAX_CUISINE_TAGS,
+          maxGalleryImages: MAX_GALLERY_IMAGES,
+          maxImageChars: MAX_IMAGE_CHARS,
+          daysOfWeek: DAYS_OF_WEEK,
+          maxWindowsPerDay: MAX_WINDOWS_PER_DAY,
+          /** Said plainly, because the partner app shows this sentence. */
+          reviewNotice:
+            'Changes to your profile are checked by our team before customers see them. Your restaurant keeps trading in the meantime.'
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Submits changes for review.
+ *
+ * Deliberately NOT a PATCH of the restaurant. Nothing here touches the live
+ * record: it records an intention, and a reviewer decides. The response says
+ * whether anything was actually submitted, because a partner who taps Save and
+ * is told "sent for review" with an empty queue behind it has been told a lie
+ * about work they believe is under way.
+ */
+restaurantRouter.put('/:id/profile', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    const restaurant = await assertOwnsRestaurant(req, req.params.id);
+
+    const validated = validateProfileChanges(req.body);
+    if (!validated.ok) {
+      throw new AppError(validated.errors.join(' '), 400, 'INVALID_PROFILE_CHANGES');
+    }
+
+    const current = readEditableProfile(restaurant);
+    const { changes, previous, changedFields } = diffProfile(current, validated.value!);
+
+    if (changedFields.length === 0) {
+      // Not an error. The partner app posts the whole form on save, so a Save
+      // with nothing touched is normal and must not look like a failure - nor
+      // like a submission.
+      res.json({
+        success: true,
+        data: {
+          submitted: false,
+          edit: null,
+          message: 'Nothing has changed, so there is nothing to review.'
+        }
+      });
+      return;
+    }
+
+    const edit = await profileEditRepository.create({
+      restaurantId: restaurant.id,
+      submittedByUserId: req.user!.id,
+      changes,
+      previous
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        submitted: true,
+        edit: {
+          id: edit.id,
+          submittedAt: edit.submittedAt,
+          status: edit.status,
+          fields: changedFields,
+          changes: edit.changes,
+          previous: edit.previous
+        },
+        message:
+          'Sent for review. Customers keep seeing your current details until our team approves the change.'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Everything this partner has ever submitted, newest first, with the outcome. */
+restaurantRouter.get('/:id/profile/edits', authMiddleware('restaurant_owner'), async (req, res, next) => {
+  try {
+    const restaurant = await assertOwnsRestaurant(req, req.params.id);
+    const history = await profileEditRepository.listByRestaurant(restaurant.id);
+
+    res.json({
+      success: true,
+      data: {
+        edits: history.map(edit => ({
+          id: edit.id,
+          submittedAt: edit.submittedAt,
+          status: edit.status,
+          fields: Object.keys(edit.changes),
+          changes: edit.changes,
+          previous: edit.previous,
+          approvedFields: edit.approvedFields ?? [],
+          // The reason lives on the field, not the submission, so a partner is
+          // told what to fix rather than that "something" was refused.
+          rejections: edit.rejections ?? [],
+          reviewedAt: edit.reviewedAt ?? null
+        }))
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const HoursOverrideSchema = z.object({
+  /** Minutes from now. Zero cancels an override already in force. */
+  minutes: z.number().int().min(0).max(12 * 60)
+});
+
+/**
+ * "I know we are outside our hours. We are serving anyway."
+ *
+ * Declared hours close a kitchen the partner forgot to close. This is the other
+ * direction, and it expires by itself - capped at twelve hours - so an override
+ * can never quietly become permanent, which is the exact failure declared hours
+ * were introduced to fix.
+ *
+ * Gated on approval for the same reason going online is: this is a switch that
+ * decides whether a kitchen takes orders.
+ */
+restaurantRouter.post(
+  '/:id/hours-override',
+  authMiddleware('restaurant_owner'),
+  validate({ body: HoursOverrideSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await assertOwnsRestaurant(req, req.params.id);
+      const minutes = Number(req.body.minutes);
+
+      if (minutes > 0 && restaurant.status !== 'ACTIVE') {
+        throw new AppError(
+          'Your restaurant is still being verified, so it cannot take orders yet.',
+          409,
+          restaurant.status === 'PENDING_APPROVAL' ? 'RESTAURANT_NOT_APPROVED' : 'RESTAURANT_NOT_ACTIVE'
+        );
+      }
+
+      const until = minutes > 0 ? new Date(Date.now() + minutes * 60_000).toISOString() : undefined;
+      const updated = await restaurantRepository.setForceOpenUntil(restaurant.id, until);
+      const endsAt = updated?.forceOpenUntil ? new Date(updated.forceOpenUntil) : null;
+
+      res.json({
+        success: true,
+        data: {
+          forceOpenUntil: updated?.forceOpenUntil ?? null,
+          message: endsAt
+            ? 'Staying open until ' +
+              formatTimeOfDay(endsAt.getHours() * 60 + endsAt.getMinutes()) +
+              '. After that your normal hours apply again.'
+            : 'Your normal opening hours apply again.'
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

@@ -45,6 +45,8 @@ const SUITES = [
   'payouts',
   'platformReset',
   'accountBlocking',
+  'profileEdits',
+  'offers',
   'sockets',
   'sockets.security',
   'otp',
