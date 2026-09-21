@@ -9,10 +9,12 @@ import { payeeAccountRouter } from './payeeAccountRouter.ts';
 import { cashRouter } from './cashRouter.ts';
 import { earningsRouter } from './earningsRouter.ts';
 import { invoiceRouter } from './invoiceRouter.ts';
+import { policyRouter } from './policyRouter.ts';
 import { addressRouter } from './addressRouter.ts';
 import { riderRouter } from './riderRouter.ts';
 import { walletRouter } from './walletRouter.ts';
 import { restaurantRouter } from './restaurantRouter.ts';
+import { deviceRouter } from './deviceRouter.ts';
 import { supportRouter } from './supportRouter.ts';
 import { customerRouter } from './customerRouter.ts';
 import { placesRouter } from './placesRouter.ts';
@@ -71,6 +73,8 @@ apiRouter.use('/kyc', authMiddleware(), kycRouter);
 apiRouter.use('/admin', authMiddleware('admin'), adminRouter);
 apiRouter.use('/riders', authMiddleware('rider'), riderRouter);
 apiRouter.use('/wallets', authMiddleware(), walletRouter);
+// Every app registers its push token here, on launch and after sign-in.
+apiRouter.use('/devices', deviceRouter);
 // Where a partner's or a rider's settlements are paid. Authentication is
 // applied per route inside, because the router serves two different roles and
 // resolves which payee you are from your token rather than from the path.
@@ -82,6 +86,10 @@ apiRouter.use('/cash', cashRouter);
 apiRouter.use('/earnings', earningsRouter);
 // A customer's tax invoice, or an honest receipt when no GSTIN is configured.
 apiRouter.use('/invoices', invoiceRouter);
+// Payment policies. Deliberately unauthenticated: these are the terms somebody
+// is deciding whether to accept, and a policy only readable after you have
+// signed up is not a published policy.
+apiRouter.use('/policies', policyRouter);
 // Complaints and refund requests raised from the customer, partner and rider
 // apps. Authentication is applied inside the router, which also decides who may
 // see which case.

@@ -1,4 +1,6 @@
 import { config } from '../config/env.ts';
+import { deviceTokenRepository } from '../db/repositories/deviceTokenRepository.ts';
+import { sendToTokens, pushIsConfigured } from './fcmTransport.ts';
 
 export interface PushNotificationPayload {
   userId: string;
@@ -21,7 +23,24 @@ class FcmNotificationDispatcher {
 
     this.dispatchHistory.push(record);
 
-    // In demo mode or offline, structured JSON logging is used
+    /*
+     * THIS USED TO BE THE WHOLE NOTIFICATION SYSTEM.
+     *
+     * Nine call sites, a payload with a title and a body, and a line written
+     * to standard output. Every notification this platform has ever "sent"
+     * went to the log. Nothing reached a phone, and nothing ever could,
+     * because there was no device token anywhere in the system.
+     *
+     * The delivery is deliberately not awaited by the caller's caller: an
+     * order must not fail to be placed because a push service is slow, and it
+     * must certainly not fail because a customer uninstalled the app. Errors
+     * are caught and logged, never thrown.
+     */
+    void this.deliver(record);
+
+    // The log line is kept, and kept unconditional. It is the only record of
+    // what was sent on a deployment with no credential, and it is what makes
+    // "did the customer get told" answerable at all.
     console.log(JSON.stringify({
       level: 'INFO',
       timestamp: record.sentAt,
@@ -30,10 +49,47 @@ class FcmNotificationDispatcher {
       orderNumber: record.orderNumber,
       title: record.title,
       body: record.body,
+      delivery: pushIsConfigured() ? 'FCM' : 'LOG_ONLY',
       demoMode: config.DEMO_MODE
     }));
 
     return record;
+  }
+
+  /**
+   * Delivers to every device this person has installed.
+   *
+   * A partner with a phone by the pass and a tablet in the office is reached
+   * on both; a rider who changed handset is not reached on the old one,
+   * because tokens the service rejects as dead are marked so and skipped next
+   * time. Without that pruning a notification is "sent" successfully forever
+   * to a phone that uninstalled the app months ago.
+   */
+  private async deliver(record: PushNotificationPayload): Promise<void> {
+    try {
+      const devices = await deviceTokenRepository.listForUser(record.userId);
+      if (devices.length === 0) return;
+
+      const outcome = await sendToTokens(
+        devices.map(d => d.token),
+        {
+          title: record.title,
+          body: record.body,
+          data: { ...(record.data || {}), orderId: record.orderId, orderNumber: record.orderNumber },
+          // The partner and rider apps create their own channels so a new
+          // order can have its own sound. A message with no channel is
+          // delivered silently, which for a kitchen alert is the same as not
+          // delivering it.
+          androidChannelId: record.data?.type === 'ORDER_PLACED' ? 'new_orders' : 'default'
+        }
+      );
+
+      for (const dead of outcome.invalid) await deviceTokenRepository.invalidate(dead);
+    } catch (err: any) {
+      console.error(
+        JSON.stringify({ level: 'ERROR', event: 'FCM_DELIVERY_FAILED', message: err?.message })
+      );
+    }
   }
 
   async notifyOrderPlaced(userId: string, orderId: string, orderNumber: string) {

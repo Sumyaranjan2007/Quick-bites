@@ -3,6 +3,7 @@ import { SafeScreen } from './src/components/SafeScreen';
 import { TripChat } from './src/components/TripChat';
 import { SettlementScreen } from './src/screens/SettlementScreen';
 import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
+import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 import { CashScreen } from './src/screens/CashScreen';
 import { EarningsStatementScreen } from './src/screens/EarningsStatementScreen';
 import {
@@ -173,6 +174,9 @@ function DeliveryApp() {
         setApiUrl(session.apiUrl);
         setToken(session.token);
         setUserId(session.userId);
+        // Not awaited: the app must reach its home screen whether or not a
+        // push service answers.
+        void registerForPush(session.apiUrl, session.token);
       }
       setBooting(false);
     })();
@@ -186,6 +190,7 @@ function DeliveryApp() {
       setToken(result.token);
       setUserId(result.user.id);
       await saveSession({ token: result.token, userId: result.user.id, email: result.user.email, apiUrl });
+      void registerForPush(apiUrl, result.token);
     } catch (err: any) {
       setLoginError(err.message);
     } finally {
@@ -212,6 +217,10 @@ function DeliveryApp() {
     } catch {
       /* signing out locally still matters if the call fails */
     }
+    // Unregistered before the token is cleared, because the request needs it.
+    // A rider who has signed out has finished for the day; offers arriving
+    // after that are useless to them and lost to whoever would have taken them.
+    if (token) await unregisterForPush(apiUrl, token);
     await releaseOrderAlerts();
     await stopShiftService();
     await clearSession();

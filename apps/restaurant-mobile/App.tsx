@@ -37,6 +37,7 @@ import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
 import { EarningsStatementScreen } from './src/screens/EarningsStatementScreen';
 import { ProfileEditScreen } from './src/screens/ProfileEditScreen';
+import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
 import { ErrorNote } from './src/components/ui';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
@@ -155,6 +156,9 @@ function PartnerApp() {
         setToken(stored.token);
         setUser(stored.user);
         await prepareOrderAlerts();
+        // Not awaited: a kitchen phone must reach its dashboard whether or not
+        // a push service answers.
+        void registerForPush(stored.token);
         if (stored.user?.id) await loadProfile(stored.user.id);
       }
       if (!cancelled) setRestoringSession(false);
@@ -174,10 +178,16 @@ function PartnerApp() {
     setUser(nextUser);
     void saveStoredSession({ token: nextToken, user: nextUser, apiUrl: currentApiUrl() });
     await prepareOrderAlerts();
+    void registerForPush(nextToken);
     if (nextUser?.id) await loadProfile(nextUser.id);
   };
 
   const signOut = async () => {
+    // Unregistered BEFORE the token is cleared, because the request needs it.
+    // A kitchen phone changes hands between shifts and the partner going home
+    // must stop receiving that restaurant's orders now, not whenever the push
+    // token happens to fail on its own.
+    await unregisterForPush(token);
     // Cleared first: a sign-out that leaves the token on the device is not one.
     await clearStoredSession();
     await releaseOrderAlerts();

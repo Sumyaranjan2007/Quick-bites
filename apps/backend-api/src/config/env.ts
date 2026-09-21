@@ -333,6 +333,22 @@ export const config = {
    */
   PLACES_REGION: process.env.PLACES_REGION || 'in',
 
+  /*
+   * Firebase Cloud Messaging, for notifications that reach a phone that is not
+   * currently looking at the app.
+   *
+   * Supplied as the service-account JSON Firebase hands you, as one
+   * environment variable. Absent, every notification is logged exactly as it
+   * was before and nothing crashes - so the platform runs locally, and in
+   * every deployment that has not been given a project, with no code path of
+   * its own to maintain.
+   *
+   * The moment this is set, the same notifications start being delivered. No
+   * release, no code change, no flag: it is the same rule the owner asked for
+   * over Maps billing, applied here.
+   */
+  FCM_SERVICE_ACCOUNT_JSON: process.env.FCM_SERVICE_ACCOUNT_JSON || '',
+
   /** How often the sweeper looks. Short enough to be timely, long enough to be cheap. */
   ORDER_SWEEP_INTERVAL_SECONDS: Math.max(5, parseInt(process.env.ORDER_SWEEP_INTERVAL_SECONDS || '30', 10)),
 
