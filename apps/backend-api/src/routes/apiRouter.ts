@@ -7,6 +7,7 @@ import { kycRouter } from './kycRouter.ts';
 import { adminRouter } from './adminRouter.ts';
 import { payeeAccountRouter } from './payeeAccountRouter.ts';
 import { cashRouter } from './cashRouter.ts';
+import { earningsRouter } from './earningsRouter.ts';
 import { addressRouter } from './addressRouter.ts';
 import { riderRouter } from './riderRouter.ts';
 import { walletRouter } from './walletRouter.ts';
@@ -75,6 +76,9 @@ apiRouter.use('/wallets', authMiddleware(), walletRouter);
 apiRouter.use('/payee-accounts', payeeAccountRouter);
 // Collecting online at the door, and the cash a rider is carrying.
 apiRouter.use('/cash', cashRouter);
+// A partner's or a rider's own statement, and asking to be paid. Same shape as
+// the two above: no id in any path, the payee comes from the token.
+apiRouter.use('/earnings', earningsRouter);
 // Complaints and refund requests raised from the customer, partner and rider
 // apps. Authentication is applied inside the router, which also decides who may
 // see which case.

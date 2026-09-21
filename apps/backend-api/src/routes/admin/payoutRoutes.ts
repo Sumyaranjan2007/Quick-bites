@@ -41,6 +41,15 @@ import { payableAccountFor, publicView as payeeView } from '../../modules/paymen
 import { backfillEarnings } from '../../modules/payments/earnings.ts';
 import { listDeposits, confirmDeposit, cashAgeing } from '../../modules/payments/cashDeposits.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
+import {
+  listRequests,
+  openRequestFor,
+  markSeen,
+  declineRequest,
+  settleRequestsFor,
+  requestView
+} from '../../modules/payments/payoutRequests.ts';
+import { statementFor, statementView } from '../../modules/payments/statements.ts';
 import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
 import type { PayeeOwnerType, PayoutRailId } from '@quick-bites/shared-types';
 
@@ -94,13 +103,22 @@ payoutRoutes.get(
       res.json({
         success: true,
         data: {
-          dues: dues.map(d => ({
-            ...d,
-            payable: toRupees(d.payablePaise),
-            held: toRupees(d.heldPaise),
-            outstanding: toRupees(d.outstandingPaise),
-            cashInHand: toRupees(d.cashInHandPaise)
-          })),
+          dues: dues.map(d => {
+            // Whether this payee has actually asked. It changes nothing about
+            // what they are owed — it changes the order somebody works the
+            // queue in, which is the only thing a request was ever for.
+            const asked = openRequestFor(d.ownerType, d.ownerId);
+            return {
+              ...d,
+              payable: toRupees(d.payablePaise),
+              held: toRupees(d.heldPaise),
+              outstanding: toRupees(d.outstandingPaise),
+              cashInHand: toRupees(d.cashInHandPaise),
+              requestedAt: asked?.raisedAt || null,
+              requestId: asked?.id || null,
+              requestNote: asked?.note || null
+            };
+          }),
           summary: {
             payableCount: payable.length,
             payableTotal: toRupees(payable.reduce((t, d) => t + d.payablePaise, 0)),
@@ -275,6 +293,20 @@ payoutRoutes.post(
         payeePhone
       });
 
+      /*
+       * Close whatever this payee was waiting on.
+       *
+       * Done here rather than inside `executePayout` so the payments module
+       * does not import the requests module, which imports it. Done at all
+       * because a request left open after the money has landed is a request
+       * somebody works a second time.
+       *
+       * Only on PAID: a FAILED or UNCERTAIN payout has not answered anybody.
+       */
+      if (payout.state === 'PAID') {
+        settleRequestsFor(payout.ownerType, payout.ownerId, payout.id);
+      }
+
       recordAudit(req, {
         action: payout.state === 'PAID' ? 'PAYOUT_SENT' : `PAYOUT_${payout.state}`,
         entityType: 'PAYOUT',
@@ -390,7 +422,21 @@ payoutRoutes.get(
           account: account ? payeeView(account) : null,
           payouts: listPayouts({ ownerId: req.params.ownerId }).map(payoutView),
           entries,
-          ledgerKind: kind
+          ledgerKind: kind,
+          /*
+           * The same figures the payee sees in their own app.
+           *
+           * Deliberately the same function, not a second implementation. Two
+           * statements of one settlement that disagree is the single worst
+           * outcome available here: it destroys the trust the ledger was built
+           * to create, and whichever one is wrong, the argument is now about
+           * our competence rather than about the order.
+           */
+          statement: statementView(statementFor(ownerType, req.params.ownerId, ownerName)),
+          openRequest: (() => {
+            const open = openRequestFor(ownerType, req.params.ownerId);
+            return open ? requestView(open) : null;
+          })()
         }
       });
     } catch (err) {
@@ -428,6 +474,108 @@ payoutRoutes.post(
           result.posted === 0
             ? `All ${result.scanned} delivered orders already had their earnings posted.`
             : `Posted earnings for ${result.posted} of ${result.scanned} delivered orders.`
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  PAYOUT REQUESTS                                                    *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/payouts/requests
+ *
+ * Who has asked to be paid.
+ *
+ * This list is a courtesy to whoever works the queue, not a work list. Every
+ * payee who is owed money is already in `/payouts/dues` whether or not they
+ * asked, and the daily run clears all of them. A platform that pays the people
+ * who complain is a platform that does not pay the quiet ones, and the owner
+ * asked for the opposite of that.
+ */
+payoutRoutes.get(
+  '/payouts/requests',
+  requirePermission('finance.payouts.view', 'finance.settlements.view'),
+  async (req, res, next) => {
+    try {
+      const openOnly = req.query.all !== 'true';
+      const requests = listRequests(openOnly ? { open: true } : {});
+
+      res.json({
+        success: true,
+        data: {
+          requests: requests.map(request => {
+            // What they are owed NOW, not what they were owed when they asked.
+            // A refund may have landed since, and the difference between the
+            // two figures is exactly what a partner will ring up about.
+            const due = duesFor(request.ownerType, request.ownerId, request.ownerName);
+            return {
+              ...requestView(request),
+              payableNow: toRupees(due.payablePaise),
+              payableNowPaise: due.payablePaise,
+              movedSinceRequest: due.payablePaise !== request.payableAtRequestPaise,
+              blockedReason: due.blockedReason
+            };
+          })
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** POST /api/admin/payouts/requests/:id/seen — somebody has opened it. */
+payoutRoutes.post(
+  '/payouts/requests/:id/seen',
+  requirePermission('finance.payouts.view', 'finance.settlements.view'),
+  async (req, res, next) => {
+    try {
+      const request = markSeen(req.params.id, req.user!.id);
+      res.json({ success: true, data: { request: requestView(request) } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const DeclineSchema = z.object({
+  /** Shown to the payee verbatim, which is why it cannot be blank. */
+  reason: z.string().trim().min(4).max(400)
+});
+
+/**
+ * POST /api/admin/payouts/requests/:id/decline
+ *
+ * Closes the conversation. It does NOT close the debt: what they are owed
+ * stays owed, stays in the dues queue, and will be paid on the ordinary run.
+ * Declining says "not now, and here is why" — and the why is compulsory,
+ * because a request that vanishes without explanation is how a partner
+ * concludes the platform is not paying them.
+ */
+payoutRoutes.post(
+  '/payouts/requests/:id/decline',
+  requirePermission('finance.payouts.manage', 'finance.settlements.manage'),
+  validate({ body: DeclineSchema }),
+  async (req, res, next) => {
+    try {
+      const request = declineRequest(req.params.id, req.user!.id, req.body.reason);
+
+      recordAudit(req, {
+        action: 'PAYOUT_REQUEST_DECLINED',
+        entityType: 'PAYOUT_REQUEST',
+        entityId: request.id,
+        summary: `${request.ownerName}'s payout request declined: ${request.declineReason}`,
+        after: { status: request.status, reason: request.declineReason }
+      });
+
+      res.json({
+        success: true,
+        data: { request: requestView(request) },
+        message: 'Declined, with your reason shown to them. What they are owed is unchanged.'
       });
     } catch (err) {
       next(err);

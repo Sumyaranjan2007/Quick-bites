@@ -79,6 +79,14 @@ export interface DbStore {
   /** Cash a rider collected on COD and is bringing in to the office. */
   cashDeposits: Map<string, any>;
   /**
+   * A partner or rider saying they would like to be paid.
+   *
+   * Carries no amount by design. What they are owed is derived from the ledger
+   * when an administrator acts, so there is nothing stored here for a payee to
+   * inflate and nothing that travels towards a bank.
+   */
+  payoutRequests: Map<string, any>;
+  /**
    * Changes a partner has asked to make to how their restaurant appears.
    *
    * Held apart from the restaurant itself on purpose. Everything a customer
@@ -121,6 +129,7 @@ export const memoryStore: DbStore = {
   ledgerEntries: new Map(),
   payeeAccounts: new Map(),
   cashDeposits: new Map(),
+  payoutRequests: new Map(),
   profileEdits: new Map(),
   deviceTokens: new Map(),
   meta: new Map()

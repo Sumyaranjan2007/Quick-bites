@@ -24,9 +24,6 @@ import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
-import { riderRepository } from '../db/repositories/riderRepository.ts';
-import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
-import { userRepository } from '../db/repositories/userRepository.ts';
 import {
   addAccount,
   listFor,
@@ -35,61 +32,9 @@ import {
   publicView
 } from '../modules/payments/payeeAccounts.ts';
 import { isRazorpayXConfigured } from '../modules/payments/razorpayXAdapter.ts';
-import type { PayeeOwnerType } from '@quick-bites/shared-types';
+import { resolvePayee, parsePreference } from '../modules/payments/payeeIdentity.ts';
 
 export const payeeAccountRouter = Router();
-
-/**
- * Which payee the signed-in user is.
- *
- * A restaurant owner is identified by the restaurant they own; a rider by their
- * rider record. Both are looked up from the token's user id. Anyone else has no
- * payout account and is refused here rather than deeper in, where the refusal
- * would be about a missing record instead of about not being a payee.
- */
-async function resolveOwner(userId: string, role: string): Promise<{
-  ownerType: PayeeOwnerType;
-  ownerId: string;
-  ownerUserId: string;
-  kycName: string;
-  contactPhone?: string;
-}> {
-  if (role === 'rider') {
-    const rider = await riderRepository.findByUserId(userId);
-    if (!rider) throw new AppError('No rider profile for this account.', 404, 'RIDER_NOT_FOUND');
-    return {
-      ownerType: 'RIDER',
-      ownerId: rider.id,
-      ownerUserId: userId,
-      kycName: rider.fullName || '',
-      contactPhone: (rider as any).phone
-    };
-  }
-
-  if (role === 'restaurant_owner') {
-    const all = await restaurantRepository.listAll();
-    const restaurant = all.find(r => r.ownerId === userId);
-    if (!restaurant) throw new AppError('No restaurant for this account.', 404, 'RESTAURANT_NOT_FOUND');
-    const owner = await userRepository.findById(userId);
-    return {
-      ownerType: 'RESTAURANT',
-      ownerId: restaurant.id,
-      ownerUserId: userId,
-      // The bank is asked to confirm the name the account is in. For a kitchen
-      // that is the registered business name, not the owner's personal one —
-      // comparing against the person would fail every properly-held business
-      // account, which is most of them.
-      kycName: restaurant.name || owner?.fullName || '',
-      contactPhone: restaurant.phone
-    };
-  }
-
-  throw new AppError(
-    'Only partners and riders are paid by Quick Bites.',
-    403,
-    'NOT_A_PAYEE'
-  );
-}
 
 /**
  * GET /api/payee-accounts/me
@@ -100,7 +45,7 @@ async function resolveOwner(userId: string, role: string): Promise<{
  */
 payeeAccountRouter.get('/me', authMiddleware(), async (req, res, next) => {
   try {
-    const owner = await resolveOwner(req.user!.id, req.user!.role);
+    const owner = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as ?? req.body?.as));
     const accounts = listFor(owner.ownerType, owner.ownerId);
     res.json({
       success: true,
@@ -164,7 +109,7 @@ const AddAccountSchema = z
  */
 payeeAccountRouter.post('/me', authMiddleware(), validate({ body: AddAccountSchema }), async (req, res, next) => {
   try {
-    const owner = await resolveOwner(req.user!.id, req.user!.role);
+    const owner = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as ?? req.body?.as));
 
     if (!owner.kycName || owner.kycName.trim().length < 3) {
       throw new AppError(
@@ -206,7 +151,7 @@ payeeAccountRouter.post('/me', authMiddleware(), validate({ body: AddAccountSche
  */
 payeeAccountRouter.delete('/me/:id', authMiddleware(), async (req, res, next) => {
   try {
-    const owner = await resolveOwner(req.user!.id, req.user!.role);
+    const owner = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as ?? req.body?.as));
     const account = findById(req.params.id);
 
     // Checked rather than assumed. The id is in the path, and a route that
