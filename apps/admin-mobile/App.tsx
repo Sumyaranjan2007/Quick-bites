@@ -14,6 +14,7 @@ import {
   Megaphone,
   LifeBuoy,
   FileCheck2,
+  Store,
   ShieldCheck,
   SlidersHorizontal,
   UserCog
@@ -38,6 +39,7 @@ import { PayoutsScreen } from './src/screens/PayoutsScreen';
 import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
+import { ProfileApprovalsScreen } from './src/screens/ProfileApprovalsScreen';
 import { RolesScreen } from './src/screens/RolesScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
@@ -187,6 +189,18 @@ const SECTIONS: Array<{
     icon: active => <FileCheck2 size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     badge: counts => counts?.pendingKyc,
     render: () => <DocumentsScreen />
+  },
+  {
+    // Beside KYC rather than under the catalogue: documents and profile
+    // changes are one job done by one person, and a review queue nobody can
+    // find is a review queue nobody empties.
+    key: 'profileChanges',
+    label: 'Profiles',
+    title: 'Profile changes',
+    subtitle: 'What partners have asked to change about how they appear',
+    permissions: ['catalog.restaurants.approve'],
+    icon: active => <Store size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <ProfileApprovalsScreen />
   },
   {
     key: 'access',
