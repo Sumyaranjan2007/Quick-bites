@@ -2,9 +2,15 @@
 
 **Version:** 1.0.0
 **Date:** 21 September 2026
-**Status:** APPROVED 21 September 2026. **P1 is built and verified** (Session 31);
-P2 is next. Chunk status is tracked in `build/MANIFEST.md` §1c.
-**Author:** Claude Opus 5, Session 31
+**Status:** **COMPLETE.** P1 built and verified 21 September 2026 (Session 31);
+P2 through P8 built and verified 22 September 2026 (Session 33). Every chunk has
+shipped, each with its own suite and each mutation tested. Three things in it
+are built and cannot be proved without a credential only the owner has — the
+RazorpayX keys, the GST registration and the named grievance officer — and each
+is switched on by supplying the thing, with no code change and no rebuild. They
+are listed in `OWNER_SETUP.md` §3, §4 and §5. Chunk status is tracked in
+`build/MANIFEST.md` §1c.
+**Author:** Claude Opus 5, Sessions 31 and 33
 **Supersedes:** the payment sections of `REBUILD_PLAN.md` Stage 3
 
 ---
@@ -505,16 +511,16 @@ card ending 4412"); payout-link claim flow for cash refunds; GST invoice downloa
 
 Each chunk ends with the full gate and is independently shippable.
 
-| # | Chunk | Depends | Ships |
-| --- | --- | --- | --- |
-| **P1** | Pricing config (versioned) + integer-paise ledger + admin rates UI | — | You control every rate. Everything after rests on this |
-| **P2** | Payee accounts + penny-drop verification + UI in partner and rider apps | P1 | Partners and riders can connect a verified bank account |
-| **P3** | Payout rails + daily dues queue + maker-checker + admin execution | P1, P2 | **The platform can pay people.** The core of this plan |
-| **P4** | Refunds rebuilt: source-rail always, payout links, all 13 cases, customer wallet removed | P1, P3 | Refunds are correct. Defect 2.1 closed |
-| **P5** | Door UPI QR + cash ceiling + deposit declare/confirm + payout gating | P1, P3 | COD stops being a cash problem |
-| **P6** | Partner and rider payout requests with statements | P3 | They can raise; you see proof |
-| **P7** | Tax lines, customer invoices, filing exports | P1, P3 | Compliance |
-| **P8** | Reconciliation, ageing, alerts, ledger audit, payment policy documents | all | Hardening |
+| # | Chunk | Depends | Ships | Landed |
+| --- | --- | --- | --- | --- |
+| **P1** | Pricing config (versioned) + integer-paise ledger + admin rates UI | — | You control every rate. Everything after rests on this | **DONE — `955d79d`** |
+| **P2** | Payee accounts + penny-drop verification + UI in partner and rider apps | P1 | Partners and riders can connect a verified bank account | **DONE — `5c63eef`** |
+| **P3** | Payout rails + daily dues queue + maker-checker + admin execution | P1, P2 | **The platform can pay people.** The core of this plan | **DONE — `c0114f6`** |
+| **P4** | Refunds rebuilt: source-rail always, payout links, all 13 cases, customer wallet removed | P1, P3 | Refunds are correct. Defect 2.1 closed | **DONE — `03a8452`** |
+| **P5** | Door UPI QR + cash ceiling + deposit declare/confirm + payout gating | P1, P3 | COD stops being a cash problem | **DONE — `1cd33a8 + 7ce8911`** |
+| **P6** | Partner and rider payout requests with statements | P3 | They can raise; you see proof | **DONE — `239d1aa`** |
+| **P7** | Tax lines, customer invoices, filing exports | P1, P3 | Compliance | **DONE — `5872b2f + cb077ac`** |
+| **P8** | Reconciliation, ageing, alerts, ledger audit, payment policy documents | all | Hardening | **DONE — `74dff4b + 75dedfc`** |
 
 ---
 

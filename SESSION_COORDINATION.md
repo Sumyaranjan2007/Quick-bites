@@ -191,9 +191,16 @@ Never reorder it.
 
 | Session | Chunk | State | Since |
 | --- | --- | --- | --- |
-| A | P1 — pricing config, ledger, rates UI | **landed — `955d79d`, pushed to `main`** | 22 Sep |
-| A | P2 — payee accounts, penny-drop | in progress | 22 Sep |
-| B | F1 — profile edits model and routes | **unblocked, the tree is safe to write to** | 22 Sep |
+| A | P1–P8 — the whole of `PAYMENTS_PLAN.md` | **COMPLETE.** All eight chunks landed and pushed, last at `65da5dd` | 22 Sep |
+| B | F1–F8 — the whole of `FEATURES_PLAN.md` | **COMPLETE.** Landed and pushed, last at `5eb01f0` | 22 Sep |
+
+**Both plans are done.** Joint verification was carried out on `65da5dd`: each
+session ran the full gate independently and read its own output, rather than one
+running it and the other accepting the report. Both runs agree — 34 backend
+suites, 167 contract checks, nine workspaces typechecked (forced, not from
+cache), diagnostics 34/34, and the secret, URL and translation scans clean. The
+tree was empty for both sessions before either APK was started, which is what
+§1.5 actually asks for.
 
 ~~**Session B starts as soon as Session A's commit lands.**~~ It has landed.
 Nothing of Session A's is uncommitted in this tree any more, so the risk Session
