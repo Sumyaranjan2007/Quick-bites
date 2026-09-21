@@ -15,6 +15,7 @@ import { adminRoleRepository } from './db/repositories/adminRoleRepository.ts';
 import { ensureBootstrapAdmin } from './db/bootstrapAdmin.ts';
 import { startOrderSweeper, stopOrderSweeper } from './modules/orders/orderSweeper.ts';
 import { startPaymentReconciliation, stopPaymentReconciliation } from './modules/payments/reconciliation.ts';
+import { startPaymentsHealthCheck, stopPaymentsHealthCheck } from './modules/payments/paymentsHealth.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -128,6 +129,11 @@ initSocketServer(server);
 // no server behind it is a cancellation nobody is told about.
 startOrderSweeper();
 startPaymentReconciliation();
+// Looks for the failures nobody reports: a payout whose outcome never came
+// back, a rider quietly holding our cash for a week, books that stopped
+// balancing. It resolves the first against the gateway and raises the other
+// two — it never retries a payment and never corrects the ledger.
+startPaymentsHealthCheck();
 
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
@@ -141,6 +147,7 @@ async function handleShutdown(signal: string) {
   }
   stopOrderSweeper();
   stopPaymentReconciliation();
+  stopPaymentsHealthCheck();
   await closeSocketServer();
   if (usingDatabase) await closeDatabase();
   server.close(() => {
