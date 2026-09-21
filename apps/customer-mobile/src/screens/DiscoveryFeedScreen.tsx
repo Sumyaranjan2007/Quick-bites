@@ -14,6 +14,7 @@ import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
 import { Search, MapPin, ChevronDown, Mic, Heart, Timer, X, Map as MapIcon } from 'lucide-react-native';
 import { NotificationBell } from '../components/NotificationBell';
+import { RestaurantPhoto } from '../components/RestaurantPhoto';
 import { useTranslation } from '../lib/i18n';
 import { VoiceSearchSheet } from '../components/VoiceSearchSheet';
 import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
@@ -39,6 +40,11 @@ export interface RestaurantItem {
   priceForTwo: number;
   packagingFee?: number;
   bannerUrl?: string;
+  /** Cover, gallery, then photographs of this kitchen's own food. */
+  photos?: string[];
+  placeholder?: { initials: string; colour: string };
+  /** A real live coupon, or absent. Never a string typed into this app. */
+  offer?: { label: string; code: string; description: string } | null;
   highlightTag?: string;
   locality?: string;
 }
@@ -120,6 +126,21 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState('relevance');
   const [restaurants, setRestaurants] = useState<RestaurantItem[]>([]);
+  /*
+   * The home-screen promotion, or null.
+   *
+   * Null is the ordinary case on a platform running no campaign, and the
+   * banner is removed entirely for it. What was here before was three lines of
+   * text - "HOT DEALS / UP TO 50% OFF / Use WELCOME50" - shown to every
+   * customer on every launch, whether or not WELCOME50 existed, had expired,
+   * or had ever been created.
+   */
+  const [promotion, setPromotion] = useState<{
+    kicker: string;
+    title: string;
+    subtitle: string;
+    code: string;
+  } | null>(null);
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [refreshing, setRefreshing] = useState(false);
@@ -252,10 +273,14 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             priceForTwo: r.costForTwo ?? 400,
             packagingFee: r.packagingFee,
             bannerUrl: r.bannerUrl,
+            photos: Array.isArray(r.photos) ? r.photos : undefined,
+            placeholder: r.placeholder,
+            offer: r.offer ?? null,
             highlightTag: r.highlightTag,
             locality: r.addressLine
           }))
         );
+        setPromotion(data.data?.promotion ?? null);
         setState('success');
       } else {
         setState('error');
@@ -547,21 +572,31 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         ))}
       </ScrollView>
 
-      {/* Offer banner */}
-      <View style={styles.banner}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bannerKicker}>HOT DEALS</Text>
-          <Text style={styles.bannerTitle}>UP TO{'\n'}50% OFF</Text>
-          <Text style={styles.bannerSub}>On your first three orders</Text>
-          <View style={styles.bannerCta}>
-            <Text style={styles.bannerCtaText}>Use WELCOME50 →</Text>
+      {/*
+        The promotion, when there is one.
+
+        Every line here used to be typed into this file: "HOT DEALS", "UP TO 50%
+        OFF", "Use WELCOME50", and a stock photograph of somebody else's food
+        from an image host. It was shown on every launch to every customer,
+        regardless of whether that coupon existed or had expired - a price claim
+        the checkout would then refuse.
+
+        It now comes from the best live platform-wide coupon, and when there is
+        none the banner is not rendered at all. A hero that is sometimes absent
+        is correct; one that always promises 50% is not.
+      */}
+      {!!promotion && (
+        <View style={styles.banner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerKicker}>{promotion.kicker}</Text>
+            <Text style={styles.bannerTitle}>{promotion.title}</Text>
+            <Text style={styles.bannerSub}>{promotion.subtitle}</Text>
+            <View style={styles.bannerCta}>
+              <Text style={styles.bannerCtaText}>Use {promotion.code} →</Text>
+            </View>
           </View>
         </View>
-        <Image
-          source={{ uri: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&auto=format&fit=crop&q=75' }}
-          style={styles.bannerImage}
-        />
-      </View>
+      )}
 
       {/* Filters — independent, and applied by the server. */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -638,11 +673,23 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
           <TouchableOpacity key={r.id} activeOpacity={0.92} onPress={() => onSelectRestaurant(r)}>
             <Card style={styles.restaurantCard} padded={false}>
               <View>
-                {r.bannerUrl ? (
-                  <Image source={{ uri: r.bannerUrl }} style={styles.banner1} />
-                ) : (
-                  <View style={[styles.banner1, { backgroundColor: c.surface.sunken }]} />
-                )}
+                {/*
+                  This was a grey rectangle on almost every card. `bannerUrl`
+                  was display-only and no screen in the partner app could set
+                  one, so the else branch was what a customer normally saw.
+
+                  Now: the partner's own photographs, then photographs of their
+                  own food from their own menu, then their initials on a colour
+                  the server derives from their id - so one restaurant looks the
+                  same on every phone and on every screen.
+                */}
+                <RestaurantPhoto
+                  photos={r.photos}
+                  placeholder={r.placeholder}
+                  bannerUrl={r.bannerUrl}
+                  name={r.name}
+                  style={styles.banner1}
+                />
 
                 <TouchableOpacity
                   style={styles.heartButton}
@@ -656,9 +703,19 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                   />
                 </TouchableOpacity>
 
-                <View style={styles.offerBadge}>
-                  <Text style={styles.offerBadgeText}>50% OFF</Text>
-                </View>
+                {/*
+                  Omitted rather than guessed, the rule the delivery estimate
+                  below already follows. This read "50% OFF" on every card, on
+                  every phone, whether or not any such coupon existed - and a
+                  discount advertised here and refused at checkout is a false
+                  price claim, which is worse than a wrong estimate because the
+                  customer chose this restaurant because of it.
+                */}
+                {!!r.offer && (
+                  <View style={styles.offerBadge}>
+                    <Text style={styles.offerBadgeText}>{r.offer.label}</Text>
+                  </View>
+                )}
 
                 <View style={styles.etaBadge}>
                   {/* Omitted rather than guessed. Every card used to read

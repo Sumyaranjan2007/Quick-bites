@@ -6,7 +6,7 @@ import { menuRepository } from '../db/repositories/menuRepository.ts';
 import { menuRequestRepository } from '../db/repositories/menuRequestRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { settlementRepository } from '../db/repositories/settlementRepository.ts';
-import { calculateDistanceKm } from '../db/client.ts';
+import { calculateDistanceKm, memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { estimateByRoad } from '../modules/places/routingService.ts';
 import { hasRealLocation } from '../modules/restaurants/restaurantLocation.ts';
@@ -25,6 +25,11 @@ import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { profileEditRepository } from '../db/repositories/profileEditRepository.ts';
 import { couponRepository } from '../db/repositories/couponRepository.ts';
 import { bestOfferFor, platformPromotion } from '../modules/restaurants/restaurantOffers.ts';
+import {
+  buildImagery,
+  placeholderColour,
+  placeholderInitials
+} from '../modules/restaurants/restaurantImagery.ts';
 import {
   EDITABLE_PROFILE_FIELDS,
   MAX_CUISINE_TAGS,
@@ -101,6 +106,21 @@ restaurantRouter.get('/', async (req, res) => {
      */
     const coupons = await couponRepository.list();
 
+    /*
+     * Menus, for the photographs in them.
+     *
+     * Almost every card in this feed was a grey rectangle: `bannerUrl` was
+     * display-only, no screen in the partner app could set it, so almost no
+     * restaurant had one. A feed of grey rectangles looks broken beside every
+     * other food app on the phone.
+     *
+     * A restaurant that has not photographed its premises has almost always
+     * photographed its FOOD, for its own menu. That is shown instead - its own
+     * food, not a stock photo of somebody else's, which would be a small lie
+     * told exactly when a customer is deciding where to spend money.
+     */
+    const menus = memoryStore.menus;
+
     // Distance and delivery time exist only when the customer has told us where
     // they are. They used to be manufactured when they had not: `distanceKm`
     // defaulted to 2.5, which fed `15 + distanceKm * 4` and made EVERY
@@ -110,6 +130,27 @@ restaurantRouter.get('/', async (req, res) => {
     // Undefined is now the honest answer, and the app shows "Set your location"
     // rather than a number nobody computed.
     const origin = lat !== undefined && lng !== undefined ? { latitude: lat, longitude: lng } : null;
+
+    /*
+     * Photographs, and what to draw when there are none.
+     *
+     * The placeholder's colour and initials come from the SERVER so that one
+     * restaurant looks the same on every phone and on every screen. A
+     * placeholder that differs between the feed and the restaurant's own page
+     * reads as a loading bug, and four apps each inventing a palette is how
+     * that happens.
+     */
+    const imageryFor = (r: Restaurant) => {
+      const imagery = buildImagery(r as any, menus.get(r.id));
+      return {
+        photos: imagery.photos,
+        photoSource: imagery.source,
+        placeholder: {
+          initials: placeholderInitials(r.name),
+          colour: placeholderColour(r.id)
+        }
+      };
+    };
 
     let annotated = list.map((r: Restaurant) => {
       // A restaurant whose position was never set is not measured and not
@@ -123,7 +164,8 @@ restaurantRouter.get('/', async (req, res) => {
           isWithinServiceArea: true,
           locationPending: !hasRealLocation(r),
           estimatedDeliveryMinutes: undefined,
-          offer: bestOfferFor(r, coupons)
+          offer: bestOfferFor(r, coupons),
+          ...imageryFor(r)
         };
       }
 
@@ -153,7 +195,8 @@ restaurantRouter.get('/', async (req, res) => {
         estimatedDeliveryMinutes: Math.round(
           config.DEFAULT_PREP_MINUTES + (road.distanceKm / config.DELIVERY_SPEED_KMPH) * 60
         ),
-        offer: bestOfferFor(r, coupons)
+        offer: bestOfferFor(r, coupons),
+        ...imageryFor(r)
       };
     });
 

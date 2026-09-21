@@ -59,6 +59,8 @@ interface Dish {
   imageUrl?: string;
 }
 
+import { RestaurantPhoto } from '../components/RestaurantPhoto';
+
 interface Props {
   restaurant: RestaurantItem;
   cart: CartItem[];
@@ -69,11 +71,18 @@ interface Props {
   token?: string;
 }
 
-const OFFERS = [
-  { title: '50% OFF', sub: 'Use WELCOME50' },
-  { title: 'FREE DELIVERY', sub: 'Use FREEDEL' },
-  { title: 'Gold benefits', sub: 'On orders above ₹199' }
-];
+/*
+ * The three offers that used to live here were typed into this file:
+ * "50% OFF / Use WELCOME50", "FREE DELIVERY / Use FREEDEL", and a Gold line.
+ * They were shown on every restaurant, to every customer, whether or not any
+ * of those coupons existed or had expired.
+ *
+ * A discount advertised on the page a customer is reading and then refused at
+ * checkout is a false price claim - they chose this kitchen because of it, and
+ * they find out at the payment screen. What is shown now is the one live
+ * coupon that would actually apply here, and nothing at all when there is
+ * none. The server decides; this file no longer has an opinion.
+ */
 
 export const RestaurantDetailScreen: React.FC<Props> = ({
   restaurant,
@@ -215,11 +224,20 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={styles.hero}>
-          {restaurant.bannerUrl ? (
-            <Image source={{ uri: restaurant.bannerUrl }} style={styles.heroImage} />
-          ) : (
-            <View style={[styles.heroImage, { backgroundColor: c.surface.sunken }]} />
-          )}
+          {/*
+            Cross-fades here and not in the feed. This is the one restaurant the
+            customer is actually reading, so a slow slideshow of the kitchen's
+            own food is worth their attention; twenty of them scrolling past
+            would not be.
+          */}
+          <RestaurantPhoto
+            photos={(restaurant as any).photos}
+            placeholder={(restaurant as any).placeholder}
+            bannerUrl={restaurant.bannerUrl}
+            name={restaurant.name}
+            style={styles.heroImage}
+            animate
+          />
           <View style={styles.heroScrim} />
 
           <View style={styles.heroTop}>
@@ -259,18 +277,18 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
           </View>
         </Card>
 
-        {/* Offers */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
-          {OFFERS.map(o => (
-            <View key={o.title} style={styles.offerCard}>
+        {/* The offer that actually applies here, or nothing. */}
+        {!!(restaurant as any).offer && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.offerRow}>
+            <View style={styles.offerCard}>
               <Tag size={14} color={c.accent[600]} />
               <View style={{ marginLeft: 8 }}>
-                <Text style={styles.offerTitle}>{o.title}</Text>
-                <Text style={styles.offerSub}>{o.sub}</Text>
+                <Text style={styles.offerTitle}>{(restaurant as any).offer.label}</Text>
+                <Text style={styles.offerSub}>{(restaurant as any).offer.description}</Text>
               </View>
             </View>
-          ))}
-        </ScrollView>
+          </ScrollView>
+        )}
 
         {/* Categories jump to their heading. They no longer hide the rest. */}
         {categories.length > 1 && (

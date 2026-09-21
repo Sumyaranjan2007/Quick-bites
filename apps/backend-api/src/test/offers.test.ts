@@ -313,6 +313,126 @@ async function run() {
    * exit code is 127 rather than 0 - a suite that fails for a reason that has
    * nothing to do with what it tests. Same fix as contract.test.ts.
    */
+  // ---------------------------------------------------------------------
+  console.log('\n-- What a customer is shown of a restaurant');
+
+  /*
+   * Almost every card in this feed was a grey rectangle. `bannerUrl` was
+   * display-only, no screen in the partner app could set one, so the empty
+   * branch was what a customer normally saw.
+   *
+   * The checks below are mostly about ORDER and about the fallback, because
+   * the failure mode is not "no photo" - it is showing the wrong one, or
+   * showing a stock photograph of somebody else's food on a kitchen that does
+   * not serve it.
+   */
+  clearCoupons();
+
+  const withMenu = Array.from(memoryStore.restaurants.values()).find((r: any) => {
+    if (r.status !== 'ACTIVE') return false;
+    const menu = memoryStore.menus.get(r.id) as any;
+    return (menu?.categories || []).some((cat: any) =>
+      (cat.items || []).some((i: any) => typeof i.imageUrl === 'string' && /^https?:\/\//.test(i.imageUrl))
+    );
+  }) as any;
+
+  f = await feed();
+  const anyRow = f.restaurants[0];
+  check('Every restaurant carries a photo list', Array.isArray(anyRow?.photos), JSON.stringify(anyRow?.photos?.length));
+  check(
+    'and a placeholder to draw when it is empty',
+    typeof anyRow?.placeholder?.initials === 'string' && /^#[0-9A-Fa-f]{6}$/.test(String(anyRow?.placeholder?.colour)),
+    JSON.stringify(anyRow?.placeholder)
+  );
+
+  /*
+   * Deterministic, because the same kitchen must look the same on every phone
+   * and on every screen. A placeholder that differs between the feed and the
+   * restaurant's own page reads as a loading bug.
+   */
+  const again = await feed();
+  check(
+    'The placeholder colour is stable across requests',
+    again.restaurants[0]?.placeholder?.colour === anyRow?.placeholder?.colour,
+    `${again.restaurants[0]?.placeholder?.colour} vs ${anyRow?.placeholder?.colour}`
+  );
+
+  if (withMenu) {
+    const before = withMenu.bannerUrl;
+    delete withMenu.bannerUrl;
+    withMenu.galleryUrls = [];
+    memoryStore.restaurants.set(withMenu.id, withMenu);
+
+    f = await feed();
+    const row = f.restaurants.find(r => r.id === withMenu.id);
+    check(
+      'A kitchen with no photos of its own falls back to photos of its FOOD',
+      Array.isArray(row?.photos) && row.photos.length > 0,
+      JSON.stringify(row?.photos?.length)
+    );
+    check(
+      'and says so, so the app never implies it is a picture of the premises',
+      row?.photoSource === 'DISHES',
+      row?.photoSource
+    );
+
+    /*
+     * A dish that cannot be ordered is the one photograph worth withholding:
+     * the customer taps the card for the dish in the picture and it is the one
+     * thing they cannot have.
+     *
+     * The sold-out dish is CREATED here rather than looked for. An earlier
+     * version of this check scanned the seeded menu for an out-of-stock dish
+     * with a photograph, found none, and passed against a build that showed
+     * them - `[].every(...)` is true. A mutation run caught it; nothing else
+     * would have.
+     */
+    const menu = memoryStore.menus.get(withMenu.id) as any;
+    let soldOutImage: string | null = null;
+    for (const cat of menu?.categories || []) {
+      for (const item of cat.items || []) {
+        if (soldOutImage) break;
+        if (typeof item.imageUrl === 'string' && /^https?:\/\//.test(item.imageUrl)) {
+          item.isAvailable = false;
+          soldOutImage = item.imageUrl;
+        }
+      }
+    }
+    check('A photographed dish was taken off the menu for this check', Boolean(soldOutImage));
+    memoryStore.menus.set(withMenu.id, menu);
+
+    const afterSoldOut = await feed();
+    const soldOutRow = afterSoldOut.restaurants.find(r => r.id === withMenu.id);
+    check(
+      'and its photograph is not shown to customers',
+      !(soldOutRow?.photos || []).includes(soldOutImage as string),
+      JSON.stringify(soldOutRow?.photos)
+    );
+
+    if (before) withMenu.bannerUrl = before;
+    memoryStore.restaurants.set(withMenu.id, withMenu);
+  }
+
+  // A cover the partner chose always wins over anything derived.
+  const covered = Array.from(memoryStore.restaurants.values()).find(
+    (r: any) => r.status === 'ACTIVE'
+  ) as any;
+  covered.bannerUrl = 'https://example.test/cover.jpg';
+  memoryStore.restaurants.set(covered.id, covered);
+
+  f = await feed();
+  const coveredRow = f.restaurants.find(r => r.id === covered.id);
+  check(
+    'The partner\u2019s own cover is always first',
+    coveredRow?.photos?.[0] === 'https://example.test/cover.jpg',
+    coveredRow?.photos?.[0]
+  );
+  check('and is reported as a cover', coveredRow?.photoSource === 'COVER', coveredRow?.photoSource);
+
+  delete covered.bannerUrl;
+  covered.galleryUrls = [];
+  memoryStore.restaurants.set(covered.id, covered);
+
   server.close();
 
   console.log('\n====================================================');
