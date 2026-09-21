@@ -16,8 +16,8 @@ and this is the second one.
 | --- | --- | --- | --- |
 | 1 | Turn on Google Maps billing + 2 APIs | 10 min | Delivery times are estimates, not measured |
 | 2 | Create a Firebase project, add 4 files + 1 key | 20 min | No notifications reach any phone |
-| 3 | Give us your Razorpay keys | 5 min | Payouts are recorded by hand, not sent |
-| 4 | Give us your GSTIN and business details | 5 min | Customers get receipts, not tax invoices |
+| 3 | Give us your RazorpayX keys | 5 min | Payouts are recorded by hand, not sent |
+| 4 | Give us your GST registration | 5 min | Customers get receipts, not tax invoices |
 | 5 | Name a grievance officer | 5 min | The legal escalation route is incomplete |
 | 6 | Remove `ALLOW_PLATFORM_RESET` from Railway | 1 min | The "wipe everything" button stays armed |
 
@@ -98,21 +98,131 @@ redeploy.
 
 ---
 
-## 3, 4 and 5 — the payments session's list
+## 3. Give us your RazorpayX keys — 5 minutes
 
-These three are theirs, and they will describe them properly. In short:
+**What works without it:** everything. Orders are paid for, refunds go back the
+way the money came, what every partner and rider is owed is worked out to the
+paise, and a payout is recorded with the reference you type in after making the
+transfer in your own banking app.
 
-- **Razorpay keys** — payouts currently record that money *should* move. With
-  the keys, money actually moves. The bookkeeping is identical either way, so
-  nothing has to be reconciled afterwards.
-- **GSTIN, legal name, registered address** — until these exist, customers get
-  a *payment receipt*, not a *tax invoice*. That is deliberate: an invoice with
-  a placeholder GSTIN is not a draft, it is a false legal document that a
-  customer might claim tax credit against. This gap grows with every order, so
-  it is worth doing early.
-- **A grievance officer** — a named person, an email and a postal address. The
-  e-commerce rules require it, and until it exists every payment policy says
-  out loud that the formal escalation route is incomplete.
+**What it changes:** the transfer stops being something you do by hand. You
+press Send, the money goes, and the reference comes back by itself.
+
+The bookkeeping is **identical either way**. Both paths write exactly the same
+ledger entries, so nothing has to be reconciled or corrected when you switch —
+the day you add the keys, the only thing that changes is who makes the transfer.
+
+**Where to get them:** RazorpayX dashboard → Account & Settings → API keys. You
+need the key id, the key secret, and your **RazorpayX account number** — that is
+the virtual account the money is sent FROM, not your ordinary current account
+number. It is shown on the RazorpayX home page.
+
+**Where they go** (Railway → Variables):
+
+```
+RAZORPAYX_KEY_ID
+RAZORPAYX_KEY_SECRET
+RAZORPAYX_ACCOUNT_NUMBER
+RAZORPAYX_WEBHOOK_SECRET
+```
+
+The last one is optional but worth doing: it lets RazorpayX tell us when a
+payout lands or bounces, instead of us finding out on the next sweep.
+
+**How you know it worked:** open the admin app → **Pay** → draft a payment for
+anybody who is owed something. The "How to pay" list will now offer RazorpayX as
+the default instead of only manual transfer.
+
+**One thing to know before you switch it on.** Verifying a partner's or rider's
+bank account works by sending them one rupee and reading back the name the bank
+holds. That costs a rupee per account and it is the only thing standing between
+a typo and a week's earnings going to a stranger. Until the keys exist, accounts
+are added but cannot be verified, and an unverified account cannot be paid.
+
+---
+
+## 4. Give us your GST registration — 5 minutes, and do this early
+
+**What happens without it:** every customer who asks for their bill gets a
+**payment receipt**. It says what they paid and it makes no tax claim.
+
+That is deliberate and it is the right behaviour — but it is also a gap that
+grows with every order you take, and it is the one item on this list I would do
+first.
+
+**Why we will not just print your GSTIN field blank.** A tax invoice is a legal
+document. Somebody expensing their lunch hands it to their accounts department,
+who claim input credit against it. An invoice carrying a made-up or empty GSTIN
+is not a rough draft — it is a false document, and the person who relied on it
+finds out in March. So the platform refuses to issue one until the registration
+is real, and tells the customer plainly that they are holding a receipt.
+
+**What we need**, exactly as it appears on your registration certificate:
+
+- GSTIN (15 characters, e.g. 29AABCU9603R1ZM)
+- Legal name — the name on the registration, which is often not your brand
+- Trading name, if different
+- Registered address, city, state and pincode
+- PAN, and TAN if you have one
+- An invoice prefix, if you want one other than `INV`
+
+**Where it goes:** admin app → **Tax** → "Enter your GST details". Not an
+environment variable — this is a business fact, not a secret, and it is edited
+in the app so you can correct it without a redeploy.
+
+You do not type your state code. It is taken from the first two characters of
+the GSTIN, because a typed one that disagrees with the registration splits the
+tax against a state you are not registered in, and that mistake is invisible on
+screen until a return is rejected months later.
+
+**How you know it worked:** the Tax screen turns from red to green and stops
+saying invoices are not being issued. Open any delivered order in the customer
+app and tap **Bill** — it now says "Tax invoice" and carries your GSTIN.
+
+**What you get afterwards:** admin app → Tax → pick a month. It shows what you
+supplied and the tax on it, the section 52 collection, and section 194-O per
+partner. There is a CSV of the per-partner deduction list your accountant can
+open directly.
+
+**One thing to have your accountant confirm.** We invoice for the restaurant's
+food under your GSTIN, not the kitchen's, because section 9(5) of the CGST Act
+makes the platform liable for tax on restaurant service supplied through it.
+That is the standard treatment for food delivery in India and it is what the
+whole tax module assumes. It is also the kind of rule that moves by
+notification, so have them confirm it before your first return. Nothing in this
+software is a substitute for that.
+
+---
+
+## 5. Name a grievance officer — 5 minutes
+
+**What we need:** a real person's name, a working email address, and a postal
+address. A phone number and working hours are optional and both help.
+
+**Why it cannot be skipped and why we have not invented one.** The Consumer
+Protection (E-Commerce) Rules require a named grievance officer with a
+contactable address. We could have typed "The Grievance Officer,
+grievance@quickbites.app" into the policies and they would look finished.
+
+That is worse than the gap. A customer with a genuine complaint writes to an
+address nobody reads and concludes, entirely reasonably, that their complaint
+has been received and is being dealt with. The gap is honest; the placeholder is
+not.
+
+So until you name somebody, **every payment policy says out loud in its closing
+section that the formal escalation route has not been published yet** — and
+still gives the in-app route, which genuinely works and reaches a person. Every
+customer, partner and rider reading a policy sees that sentence.
+
+**Where it goes:** admin app → **Tax** → the grievance officer section.
+
+**How you know it worked:** open the customer app → Profile → "Payments and
+refunds" → any policy → scroll to the bottom. Where it said the route was not
+published, it now names your officer with their email and address.
+
+**It does not need to be a lawyer or a separate hire.** For a firm this size it
+is normally a director or the operations lead. It has to be somebody who will
+actually read the email.
 
 ---
 

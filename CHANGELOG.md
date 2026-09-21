@@ -6,6 +6,243 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-22] -- Claude Opus 5 -- Session 33: PAYMENTS_PLAN P2-P8 — the platform can pay people, and say why
+
+**Description:** The rest of `PAYMENTS_PLAN.md`, built alongside the features
+session in one working tree. P1 put the rates in a config and built a ledger.
+P2 through P8 are everything that rests on it: the platform can now take money,
+give it back the way it came, pay partners and riders into verified bank
+accounts, account for every rupee of cash a rider is carrying, file a return,
+and show each of those four parties the arithmetic behind their own money.
+
+The theme across all seven chunks is the same. **Nothing on this platform can
+assert that money moved.** Not the customer's phone, not the rider's, not the
+admin console, and not a screen. Money moved because a gateway said so, or
+because a named administrator authorised it and the ledger recorded both sides.
+
+---
+
+### The three defects that started it
+
+A payments audit found three things the owner had not reported.
+
+**Refunds were credited to a wallet, in two separate places.** A customer who
+paid by card and was refunded got platform credit. That is not a refund — it is
+a voucher — and the owner had said plainly that money must go back where it came
+from. Both the refund queue and the goodwill-refund route did it.
+
+**Rider earnings were counted twice.** Delivery credited a wallet AND the ledger
+posted `RIDER_PAYABLE`. Two systems holding the same truth, which is one system
+holding a lie the moment they disagree.
+
+**Nothing could actually pay anybody.** There was no bank account anywhere in
+the platform. The only banking detail it held was a PHOTOGRAPH of a bank proof
+in the KYC queue, read by a human with their eyes. A payout was a record of a
+decision: an administrator marked one paid and typed a UTR by hand.
+
+---
+
+### P2 — a partner and a rider can be paid into a verified account
+
+An account is added in the app and verified by a penny drop, which returns a
+fund account id and the name the bank holds. The **account number is then
+discarded** — only the last four digits are kept, so a human can recognise the
+row. There is no code path in this platform that can read a stored account
+number, because there is nothing stored to read.
+
+The name match is scored and lands in one of three bands, not two: at or above
+90 it is verified, below 70 it is refused, and **the middle band goes to a human
+queue** rather than being guessed at in either direction. A Rahul Sharma whose
+bank holds "SHARMA RAHUL KUMAR" is not a fraudster, and neither is he
+automatically himself.
+
+The number is typed twice on the form. A penny drop catches an account that does
+not exist; it cannot catch an account that exists and belongs to somebody else,
+and typing it twice is the only thing that does.
+
+### P3 — the platform can pay people
+
+Multi-rail, because the owner asked to be able to pay in any situation: an
+automated gateway payout, a payout link, a manual bank transfer with a recorded
+UTR, a manual UPI transfer. **Every rail writes identical ledger entries.** That
+is what makes four rails safe rather than four ways to lose track of money.
+
+There is no amount field on the payouts screen. What is owed comes from the
+ledger and is frozen onto the draft. A payouts screen where an administrator
+types a figure is one where an administrator can type ANY figure.
+
+Above a threshold a second administrator must approve, and the drafter is
+refused explicitly and by name — without that check the threshold is decoration,
+and one person pressing two buttons satisfies a control meant to require two
+people. A daily ceiling caps the total that can leave. Both are enforced at
+execution, not at draft, and by the server rather than by the screen.
+
+**A payout whose outcome is unknown is never retried.** It is marked UNCERTAIN
+before the call goes out, so a request that times out leaves a record that
+something may have happened. Resending it is how somebody is paid twice, and the
+second payment is far harder to recover than the first was to send.
+
+### P4 — refunds go back the way the money came, and the wallet is gone
+
+Thirteen cases, one rule: card to card, UPI to UPI, net banking to the account
+it came from. **The customer wallet is removed entirely** — the screen, the entry
+points, the strings in all three languages. A cash order has nothing to refund
+to, so the customer gets a payout link and chooses where the money goes;
+occasionally a rider returns cash at the door instead, and that is recorded
+against the order so nobody is refunded twice.
+
+Updating the two existing suites to assert the new contract surfaced a genuine
+gap: on a deployment with no gateway, a cash refund could not be completed at
+all. There is now a manual-reference escape hatch, which would not exist if the
+suites had been made to pass rather than made to say the right thing.
+
+### P5 — COD stops being a cash problem
+
+The rider shows a UPI code at the door for the exact amount of the order, from
+the server's copy of the bill. Every order paid that way is one with no notes to
+guard, no trip to the office and no shortfall to explain.
+
+**There is deliberately no "mark as paid" control.** The screen turns green when
+the gateway says money arrived and at no other time. A delivery app is an
+attacker-controlled environment being handed other people's money, and "tell the
+server it was paid" is the one lie that pays.
+
+It also never says "not paid" when it means "I could not check". A rider told the
+former takes cash — and if our network merely blinked on an order the customer
+has already paid, they are now carrying money nobody expects and the customer has
+paid twice.
+
+Cash in hand is shown against a ceiling from the first rupee, not at the moment
+an order is refused. Declaring a deposit moves nothing: its whole value is that
+it exists BEFORE the counting, and one made afterwards just agrees with whatever
+was found. An administrator records what they COUNTED, not what was declared, and
+the note is compulsory the instant the two differ. Reducing the balance by the
+declaration would let anyone clear any amount by claiming they had brought it.
+
+**A rider holding our cash is not paid.** Not netted — not paid. A rider holding
+Rs 2,000 of platform cash is not paid Rs 1,800 of earnings, because that is a net
+position rather than a payment, and settling it by transfer means the platform
+sending out money it is owed.
+
+### P6 — they can ask, and we can see why
+
+A per-order statement for partners and riders: the food total, the packaging, the
+commission at the rate FROZEN onto that order, the tax withheld, any refund that
+came off it afterwards. For a rider, the trip earning and the tip in full.
+
+A partner shown "settlement: Rs 4,182" has two options when it looks wrong —
+accept it, or accuse us — and the second is what actually happens, by phone, to
+somebody who cannot see the arithmetic either.
+
+**A payout request carries no amount.** What is owed is derived from the ledger
+when an administrator acts. A request naming a figure would be a payee-supplied
+number travelling towards a bank, with somebody noticing as the only control. And
+not asking is never a reason not to be paid: the daily run clears everybody. A
+platform that pays the people who complain does not pay the quiet ones.
+
+**Identity stopped being a role check.** The other session made roles
+non-exclusive, and two routers here resolved the payee with
+`if (role === 'rider')`. Under the new rule that failed in the worst direction
+available: a rider whose primary role is still `customer` was told they were not
+a payee — unable to see earnings, add a bank account, or ask to be paid. Money
+earned, invisible to the person who earned it. Identity now resolves from the
+rider record and the restaurant's owner id, which cannot drift out of step with a
+token. Somebody who is both holds two balances and is asked which they mean,
+because guessing there pays the wrong balance to the right person: it reconciles
+perfectly and is still wrong.
+
+### P7 — tax invoices that refuse to be invented
+
+GST on commission, TDS under section 194-O, TCS under section 52, customer
+invoices, and the figures a month's returns are filed from.
+
+**Nothing is issued until a real GSTIN is configured.** A tax invoice is a legal
+document; one carrying a placeholder is not a draft but a false document, handed
+to a customer who may give it to their accountant and claim credit against it. A
+customer asking what they paid is not blocked by our paperwork — they get a
+payment receipt, described as a receipt, claiming no tax.
+
+Things that are easy to get wrong and are not: the platform fee is stored
+GST-inclusive and is unwound, because showing Rs 5.90 as the taxable value
+implies a rate we did not charge. Food, packaging and delivery are ONE composite
+supply at 5%, not three lines at different rates. A tip carries no tax. CGST and
+SGST are halved so the halves sum back to the whole. The state code comes from
+the GSTIN and a typed one is ignored, because a disagreement splits tax against a
+state the business is not registered in and is invisible until a return is
+rejected.
+
+Invoice numbers are allocated once from a per-financial-year series and stored.
+Opening one from the admin console deliberately does NOT allocate: a gap in a GST
+series is a question somebody answers at an audit.
+
+### P8 — the policies, and a sweep for money gone quiet
+
+Six payment policies — charges, refunds, partner settlements, rider earnings,
+security, disputes — served unauthenticated, because a refund policy readable
+only after you have signed up and paid is not a published policy. Every figure in
+the prose is interpolated from the live config, so an administrator who changes
+the hold period cannot leave a published policy contradicting it.
+
+**No grievance officer is invented.** A named person with a working email and a
+postal address is required by the e-commerce rules. Until the owner publishes
+one, every policy says so in its own text and still gives the in-app route, which
+works. The gap is returned to every reader, not only to administrators.
+
+A sweep runs every fifteen minutes looking for the three failures that never
+announce themselves: a payout whose outcome never came back, a rider quietly
+holding cash for a week, books that stopped balancing on Thursday. It resolves
+the first by ASKING the gateway. It raises the other two and **fixes neither** —
+an imbalance means an assumption somewhere is wrong, and a job that quietly
+rebalanced the books would destroy the only evidence of which one.
+
+---
+
+### What the owner still has to supply
+
+Three things are built and cannot be proved by us, and each is switched on by
+supplying the thing — no code change, no rebuild:
+
+- **RazorpayX keys.** Payouts and penny-drop verification run against the real
+  gateway the moment they exist. Everything works today on the manual-bank rail,
+  which writes identical ledger entries.
+- **GST registration details.** Until they are entered, every customer gets a
+  payment receipt rather than a tax invoice. That is correct behaviour and it is
+  also a compliance gap growing with every order.
+- **A grievance officer** — a name, an email and a postal address.
+
+---
+
+### Verification
+
+34 backend suites, nine workspaces typechecked, secret, hardcoded-value and
+translation scans clean. Seven new suites: `payees`, `payouts`, `refunds`,
+`cash`, `statements`, `tax`, `policies`.
+
+**Mutation tested throughout**, which is where the real defects were found. Five
+survivors across the seven chunks, every one of them a test that asserted
+something without checking it:
+
+- The pricing engine accepted a rates object and used its own defaults. Every
+  test passed. An administrator changing commission would have moved nothing.
+- A tax test asserted that peeking at an invoice RETURNED "not yet issued", which
+  passed against a version that returned the string and allocated a number
+  anyway. It now watches the series itself.
+- Every branch of the payout-gateway lookup was unreachable in a test: without
+  credentials the function returned UNKNOWN on its first line, so a version that
+  read "no record found" as PAID passed clean. That is the single most dangerous
+  mutation available in the file. The lookup is now injectable — a seam is the
+  difference between those branches being asserted and merely being written.
+- The rider policy promised no netting in one sentence and would have described
+  netting in the next. Asserting a promise exists is not the same as asserting it
+  is kept.
+- A name-match rule was symmetric and only one direction was exercised.
+
+The lesson, hit three times independently here and once more by the features
+session: **a test that only ever asserts a refusal cannot tell "refused for the
+right reason" from "refused because everything is refused."**
+
+---
+
 ## [2026-09-22] -- Claude Opus 5 -- Session 32: FEATURES_PLAN F1-F8 — a restaurant gets a face, and a person gets to be more than one thing
 
 **Description:** The whole of `FEATURES_PLAN.md`, built alongside the payments
