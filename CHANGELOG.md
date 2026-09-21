@@ -6,6 +6,270 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-22] -- Claude Opus 5 -- Session 32: FEATURES_PLAN F1-F8 — a restaurant gets a face, and a person gets to be more than one thing
+
+**Description:** The whole of `FEATURES_PLAN.md`, built alongside the payments
+session in one working tree. The plan came out of an audit of five defects the
+owner had not reported but would have hit, plus two they did. The theme is the
+same throughout: features that looked finished from every call site and did
+nothing at any of them.
+
+---
+
+### A restaurant could not give itself a face
+
+The reported problem. A partner could not change anything a customer sees.
+`bannerUrl` existed in the data model and was display-only — no screen could
+set it — so almost no restaurant had a photo and almost every card in the
+customer feed rendered a grey rectangle. There was no description, no opening
+hours, no gallery, and no way to change a name, an address or a phone number
+without an administrator editing the record by hand.
+
+**A restaurant now holds two versions of itself at once.** The owner's rule is
+that everything a customer sees passes a human first, and that has one hard
+consequence: the live record and what the partner has asked it to become must
+exist at the same time. Writing an edit straight onto the restaurant and
+reviewing it afterwards would put an unreviewed name, or an unreviewed
+photograph, on the home screen for however long the queue is.
+
+Only changed fields are stored. The partner app posts the whole form on save,
+as every partner app does, so without a diff a phone-number change would send
+the name and the photographs back for review too — and a reviewer shown twelve
+unchanged fields stops reading any of them.
+
+A second submission SUPERSEDES the first rather than queueing behind it. A
+partner who fixes a typo has expressed one intention, not two; the alternative
+has a reviewer approve the typo, then the correction, and in between the typo
+is live and customers are turned away.
+
+Review is field by field, because a partner who corrected their hours and also
+uploaded a bad photograph should keep the correction. Every changed field must
+be decided — a review that left one undecided would close the submission with
+that change neither live nor refused, and the partner would wait for a decision
+already made without them. A mixed outcome is recorded as PARTIALLY_APPROVED,
+which is a real state: calling it APPROVED or REJECTED makes the partner's own
+history lie to them about what is live.
+
+**What a partner may NOT edit matters more than what they may.** `packagingFee`
+and `commissionPercent` are money. `status` and `kycStatus` are the
+verification gate. `serviceRadiusKm`, `isPureVeg`, `fssaiLicenseNumber` and
+`gstin` are claims an administrator checked against a document — a partner who
+could edit those could undo their own KYC behind an already-approved licence
+photograph, with nothing re-reviewed.
+
+---
+
+### The grey rectangle, and what replaced it
+
+Not a stock photo. A picture of somebody else's biryani on a kitchen that does
+not serve it is a small lie told at the exact moment a customer is deciding
+where to spend money.
+
+What a restaurant that has never photographed its premises almost always HAS is
+photographs of its own food, taken for its own menu. So, in order: the cover the
+partner chose, then their other photographs, then their own food, then a
+placeholder drawn from the restaurant's initials on a colour derived from its
+id — computed on the server, so one kitchen is the same colour on every phone
+and on every screen. A placeholder that changes between the feed and the
+restaurant's page reads as a loading bug.
+
+Out-of-stock dishes are excluded. A photograph of a dish that cannot be ordered
+is the one thing worse than no photograph: the customer taps the card for the
+dish in the picture and it is the one thing they cannot have.
+
+---
+
+### Every card said "50% OFF"
+
+The hero said "HOT DEALS / UP TO 50% OFF / Use WELCOME50" over a stock
+photograph from an image host. The detail page carried three more. All of it
+was text typed into the app, shown to every customer on every launch, whether
+or not any of those coupons existed, had expired, or had ever been created.
+
+That is worse than the "25 MINS" this codebase already fixed. A wrong delivery
+estimate is an inconvenience; a discount advertised on the card and refused at
+checkout is a false price claim — the customer chose that restaurant because of
+it and finds out at the payment screen.
+
+Badges now come from a coupon that is live and would actually apply, ranked by
+what it is worth on a typical basket rather than by the headline number, so
+"Rs 500 off" beats "10% off" instead of losing to it. Where there is none there
+is no badge, no strip and no hero. A hero that is sometimes absent is correct.
+
+---
+
+### A kitchen that was shut still took orders
+
+The most common complaint a food platform gets is not a bad dish. It is an
+order accepted by a restaurant that was closed, because somebody forgot to
+press Offline — the customer pays, waits, and is refunded a meal they wanted.
+
+Declared hours now close the kitchen. `isKitchenServing()` resolves three
+inputs in a deliberate order: the manual switch wins when it is OFF, because a
+partner who went offline has said something about right now that no schedule
+can overrule; then an unexpired override, which is the partner saying "I know
+we are past our hours, we are serving anyway"; then the declared hours. A
+restaurant that has never declared hours behaves exactly as it always did —
+reading "no hours" as "closed" would have shut every restaurant onboarded
+before today, which is all of them.
+
+The override expires by itself, capped at twelve hours, so it cannot quietly
+become permanent — which is the exact failure declared hours exist to fix. A
+refused customer is told when the kitchen opens again, because "Closed" invites
+them to try again in five minutes and "Opens again at 18:00" does not.
+
+---
+
+### Every notification this platform had ever sent went to a log file
+
+`fcmDispatcher` was called from nine places. Every one of them appended to an
+array and wrote a line to standard output. There was no device token anywhere
+in the system, no transport, and no way for any of it to reach a phone.
+
+There are device tokens now — one row per installed app, not per user, because
+a partner with a phone by the pass and a tablet in the office must be reached
+on both. Keyed on the token, so registering on every launch refreshes one row
+instead of adding another; without that, one phone collects a row per launch
+and every notification arrives a dozen times. A phone that changes hands
+follows its new owner. A token the service rejects is marked dead rather than
+deleted, and only a 404 or 400 counts — a 500 or a timeout is the service
+having a bad moment and must not cost somebody their notifications forever.
+
+**It is switched on by a credential, not by a release.** With no
+`FCM_SERVICE_ACCOUNT_JSON` everything is logged exactly as before and nothing
+crashes; the moment it is set, the same notifications are delivered. No flag,
+no second code path. A system that behaves differently in development from
+production is one whose production behaviour nobody has run.
+
+---
+
+### One phone number could not be two things
+
+Reported by the owner: an account created in the customer app could not then
+apply to deliver. The rider registration answered "An account with this mobile
+number already exists" and stopped, with nothing to do about it but find a
+second SIM.
+
+A phone number identifies a PERSON, and on a food platform one person is
+routinely more than one thing — a rider orders their own dinner, a restaurant
+owner orders from somebody else's kitchen.
+
+**The obvious fix would have been worse than the bug.** Letting it through and
+overwriting `role` with 'rider' fixes the error message and breaks something
+quieter: placing an order requires the customer role, so the moment somebody
+signed up to deliver they would have lost the ability to order food, with
+nothing to tell them why. Roles are no longer exclusive, and the primary role
+is left where it is.
+
+An existing account is no longer a dead end, and must not become a way to
+attach yourself to somebody else's. Four refusals: a wrong password; a blocked
+account, refused even WITH the right password, because otherwise somebody
+blocked for refund fraud signs up to deliver the same afternoon holding food
+and cash; half a match, because the number and the email must belong to the
+same account; and a role already held, so there is never a second rider record
+against one person.
+
+**It surfaced a worse mirror bug.** Customer registration checked the EMAIL and
+not the phone, so a rider could register again with the same number and a
+different address and get a SECOND account on it. Phone is the sign-in identity
+— there is an OTP route keyed on it — so two accounts on one number make the
+lookup return whichever was created first, and the person signs in to an
+account that is genuinely theirs and is not the one holding their orders. The
+reported bug refused a real person; this one silently gave them a duplicate.
+
+---
+
+### What mutation testing caught that nothing else would have
+
+Twenty-seven mutants across this work, all killed. Six of them survived first,
+and they are the reason these features work:
+
+**`rolesOf` could drop its legacy fallback with the entire suite green.** The
+only check on pre-existing accounts asserted a REFUSAL — and an account with no
+roles at all is refused too. That build would have locked out every existing
+rider, partner and customer on the platform, and the tests would have passed
+it. There is now a positive check: the seeded rider, which genuinely has no
+`roles` array, must still reach the rider app.
+
+**"Out-of-stock dishes are never shown" passed against a build that showed
+them.** The check scanned the seeded menu for a dish that was both photographed
+and unavailable, found none, and `[].every(...)` is true. The suite now creates
+that condition instead of hoping for it.
+
+**Two mirrored clauses of the review rule could each be deleted separately**
+with everything still passing, because the surviving half covered the case the
+test exercised. The payments session reported that exact shape from their own
+work an hour earlier; it was worth stealing.
+
+**An empty-reason check was being satisfied by zod, not by the rule it tested.**
+A reason of "   " passes `min(1)` and would have reached the partner as a
+refusal with a blank explanation.
+
+The common thread, and the payments session hit it three times independently on
+their own plan: **a test that only ever asserts a refusal cannot distinguish
+"refused for the right reason" from "refused because everything is refused".**
+Every refusal added since is paired with a positive assertion.
+
+---
+
+### Two things fixed that the tests themselves were hiding
+
+`security.test.ts` and `regression.test.ts` both registered a new account
+against `9876543210` — the seeded customer's number — which is exactly what may
+no longer happen. Both moved to a free number. Because changing a fixture to
+make a suite pass is how a real rule quietly stops being checked,
+`security.test.ts` now also asserts directly that one number cannot hold two
+accounts.
+
+Both new suites had a Windows-only exit fault: `server.close()` is
+asynchronous, and calling `process.exit()` while a libuv handle is mid-close
+aborts with `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`. Every
+check passed and the runner still reported failure, because the exit code was
+127. Diagnosed by the payments session from the shared gate.
+
+---
+
+### Working in one tree with another session
+
+Two Claude sessions, one working directory, one checked-out branch,
+`SESSION_COORDINATION.md` as the only thing both could read.
+
+**One rule in it was wrong and cost a broken `main`.** §1.1 said "stage by
+explicit path" and was wrong about why that works: `git commit` commits THE
+INDEX, not the paths you just added. A deletion the payments session had
+already staged rode along in this session's commit, leaving `main` with
+`WalletScreen.tsx` deleted and the customer app still importing it. Restored
+within minutes, and §1.1a now records the two habits that prevent it — read the
+index column of `git status --short` BEFORE adding, and prefer
+`git commit -o <paths>`, which ignores the rest of the index. The exposure is
+symmetric: anything you leave staged, the other session's next commit takes.
+
+**Prettier was run once on `authRouter.ts` and reverted.** It reformatted 98
+hunks of a file that had never been prettier-formatted, turning a 199-line
+change into an 800-line one. This repository is not prettier-clean; the change
+was re-applied by hand.
+
+---
+
+### Verified against the running system
+
+| Claim | Evidence |
+| --- | --- |
+| An unreviewed change is not live | Submitted 4 fields; `GET /restaurants/:id` unchanged |
+| Approval is the only thing that writes | Mixed review: name live, photograph refused and absent |
+| A reviewer cannot leave a field undecided | 400, naming each one |
+| Declared hours close a kitchen | Real order over HTTP: 201 inside, 409 outside, "opens again at" |
+| An expired override is ignored | 409 with `forceOpenUntil` in the past |
+| The manual switch still wins | 409 with hours wide open and `isOpen` false |
+| A customer can become a rider | 201, same account id, both roles, dashboard reachable |
+| ...and still order food | Refused on the order body, never on the role |
+| ...on the token they already had | No sign-out; stored role set, not the token's |
+| A stranger cannot claim your number | 409, no role granted, no rider record |
+| A blocked account cannot collect a role | 403 with the correct password |
+| One number cannot hold two accounts | 409 on the second registration |
+| Badges come from real coupons | Expired, unstarted, exhausted, switched off, another restaurant's — no badge in every case |
+| The admin console can settle a review | Driven in a browser: queue, before/after, refusal reason, live record moved |
+
 ## [2026-09-21] -- Claude Opus 5 -- Session 31: P1 — the rates leave the source code, and a ledger that balances
 
 **Description:** First chunk of `PAYMENTS_PLAN.md`, agreed with the owner after a
