@@ -134,6 +134,12 @@
           "locationWhenInUsePermission": "Quick Bites uses your location to set your delivery address and show how far your food is."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#E23744"
+        }
+      ],
       "expo-image-picker",
       [
         "expo-speech-recognition",

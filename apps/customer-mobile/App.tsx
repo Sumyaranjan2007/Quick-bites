@@ -32,6 +32,7 @@ import { NotificationBell } from './src/components/NotificationBell';
 import { useOrderSocket } from './src/lib/useOrderSocket';
 import { apiFetch, setSessionEndedHandler } from './src/lib/apiFetch';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -270,6 +271,9 @@ function AppRoot() {
         setCurrentUser(stored.user);
         setApiUrl(stored.apiUrl);
         setIsAuthenticated(true);
+        // Not awaited: the feed must load whether or not a push service
+        // answers, and on a cold start that is the screen they came for.
+        void registerForPush(stored.apiUrl, stored.token);
       }
       if (!cancelled) setRestoringSession(false);
     })();
@@ -279,6 +283,10 @@ function AppRoot() {
   }, []);
 
   const handleLogout = () => {
+    // Unregistered before the token is cleared, because the request needs it.
+    // Somebody who signs out should stop being told about orders on an account
+    // they are no longer using — a shared phone, a borrowed one.
+    void unregisterForPush(apiUrl, authToken);
     // Cleared first: a sign-out that leaves the token on the device is not a
     // sign-out, and this runs even if the network call behind it fails.
     void clearStoredSession();
@@ -355,6 +363,7 @@ function AppRoot() {
           initialApiUrl={apiUrl}
           onLoginSuccess={(token, user, url) => {
             setAuthToken(token);
+            void registerForPush(url, token);
             setCurrentUser(user);
             setApiUrl(url);
             setIsAuthenticated(true);

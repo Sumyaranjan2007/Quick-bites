@@ -124,6 +124,12 @@
           }
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F5A623"
+        }
+      ],
       "../../packages/config/expo-plugins/withReleaseSigning",
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",

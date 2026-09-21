@@ -48,6 +48,7 @@ import { ProfileScreen } from './src/screens/ProfileScreen';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 import { createClient } from './src/lib/api';
+import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const c = tokens.colors;
@@ -340,6 +341,9 @@ function AdminApp() {
               permissions: access.permissions || [],
               permissionCatalogue: access.permissionCatalogue || []
             });
+            // Not awaited: the console must open whether or not a push
+            // service answers.
+            void registerForPush(stored.apiUrl, stored.token);
           }
         } catch {
           // Expired, revoked, or the server is unreachable: ask for a password.
@@ -362,6 +366,10 @@ function AdminApp() {
           onSignedIn={next => {
             setSession(next);
             void saveStoredSession({ token: next.token, user: next.user, apiUrl: next.apiUrl });
+            // Registered on a fresh sign-in as well as on restore. Only doing
+            // it on restore means an operator is unreachable for their whole
+            // first session, which is the one where they are setting things up.
+            void registerForPush(next.apiUrl, next.token);
           }}
         />
       </SessionProvider>
@@ -372,6 +380,8 @@ function AdminApp() {
     <SessionProvider
       key={session.token}
       onSignOut={() => {
+        // Before the session is dropped, because the request needs its token.
+        void unregisterForPush(session.apiUrl, session.token);
         void clearStoredSession();
         setSession(null);
       }}
