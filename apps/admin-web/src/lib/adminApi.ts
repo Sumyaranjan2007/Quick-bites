@@ -109,6 +109,23 @@ export const reviewMenuRequest = (
 
 export const fetchDocuments = (status = 'PENDING') => adminGet<any>(`/admin/documents?status=${status}`);
 
+/** Partner-submitted changes to how a restaurant appears to customers. */
+export const fetchProfileEdits = (status = 'PENDING') =>
+  adminGet<any>(`/admin/profile-edits?status=${status}`);
+
+/**
+ * Settles one submission FIELD BY FIELD.
+ *
+ * Every changed field must appear in `approve` or in `reject`. The server
+ * refuses a review that leaves one undecided, because a submission closed with
+ * a change neither live nor refused leaves the partner waiting on a decision
+ * that was already made without it.
+ */
+export const reviewProfileEdit = (
+  id: string,
+  body: { approve: string[]; reject: Array<{ field: string; reason: string }> }
+) => adminSend<any>(`/admin/profile-edits/${id}/review`, 'POST', body);
+
 export const fetchSupportTickets = (query = '') => adminGet<any>(`/admin/support/tickets${query}`);
 export const fetchSupportTicket = (id: string) => adminGet<any>(`/admin/support/tickets/${id}`);
 

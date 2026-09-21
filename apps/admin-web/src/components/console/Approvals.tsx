@@ -1,5 +1,12 @@
 import React from 'react';
-import { fetchMenuRequests, reviewMenuRequest, fetchDocuments, adminSend } from '../../lib/adminApi';
+import {
+  fetchMenuRequests,
+  reviewMenuRequest,
+  fetchDocuments,
+  fetchProfileEdits,
+  reviewProfileEdit,
+  adminSend
+} from '../../lib/adminApi';
 import { Loading, Failed, Empty, NoPermission, PageHeading, StatusTag, Money, useRemote } from './primitives';
 
 const when = (iso?: string) =>
@@ -348,6 +355,295 @@ export const DocumentReview: React.FC = () => {
               )}
             </article>
           ))}
+        </div>
+      )}
+    </>
+  );
+};
+
+
+/* ===================================================================
+ * Partner profile changes
+ * =================================================================== */
+
+/** Server field names, in the words a reviewer reads. */
+const PROFILE_FIELD_WORD: Record<string, string> = {
+  name: 'Restaurant name',
+  description: 'About',
+  phone: 'Phone number',
+  addressLine: 'Address',
+  city: 'City',
+  pincode: 'Pincode',
+  coordinates: 'Map pin',
+  cuisineTags: 'Cuisines',
+  costForTwo: 'Cost for two',
+  bannerUrl: 'Cover photo',
+  galleryUrls: 'Photos',
+  openingHours: 'Opening hours'
+};
+
+const isImageField = (field: string) => field === 'bannerUrl' || field === 'galleryUrls';
+
+/** Renders a value the way a person can judge it, not the way it is stored. */
+const ProfileValue: React.FC<{ field: string; value: any }> = ({ field, value }) => {
+  if (value === undefined || value === null || value === '') {
+    return <span className="muted">not set</span>;
+  }
+
+  if (field === 'bannerUrl') {
+    return <img src={String(value)} alt="" className="review-image" />;
+  }
+
+  if (field === 'galleryUrls') {
+    const list = Array.isArray(value) ? value : [];
+    if (!list.length) return <span className="muted">none</span>;
+    return (
+      <div className="review-image-row">
+        {list.map((uri: string, i: number) => (
+          <img key={i} src={uri} alt="" className="review-image review-image-small" />
+        ))}
+      </div>
+    );
+  }
+
+  if (field === 'openingHours') {
+    const week = (value?.week || {}) as Record<string, Array<{ opensAt: number; closesAt: number }>>;
+    const clock = (m: number) =>
+      `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const days = Object.keys(week);
+    if (!days.length) return <span className="muted">not declared</span>;
+    return (
+      <ul className="plain-list">
+        {days.map(d => (
+          <li key={d}>
+            <strong>{d[0] + d.slice(1).toLowerCase()}</strong>:{' '}
+            {week[d].length
+              ? week[d].map(w => `${clock(w.opensAt)}–${clock(w.closesAt)}`).join(', ')
+              : 'closed'}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (field === 'coordinates') {
+    return (
+      <span className="mono">
+        {Number(value.latitude).toFixed(5)}, {Number(value.longitude).toFixed(5)}
+      </span>
+    );
+  }
+
+  if (Array.isArray(value)) return <span>{value.join(', ')}</span>;
+  return <span>{String(value)}</span>;
+};
+
+/**
+ * Partner-submitted changes to how a restaurant appears to customers.
+ *
+ * Everything a customer sees passes a human, and this is that human. The live
+ * restaurant has not moved: what is here is what the partner has ASKED it to
+ * become, and approving is the only thing that writes it.
+ *
+ * Reviewed field by field on purpose. A partner who corrected their opening
+ * hours and also uploaded a bad photograph should keep the hours — forcing an
+ * all-or-nothing decision means they lose the correction and have to send both
+ * again, and the reviewer sees the same submission twice.
+ *
+ * The server refuses a review that leaves any changed field undecided, so this
+ * screen will not let one be submitted either: the button stays disabled and
+ * says how many are left. Being refused by the server after clicking Approve is
+ * a worse version of the same rule.
+ */
+export const ProfileApprovals: React.FC = () => {
+  const [status, setStatus] = React.useState('PENDING');
+  const { data, error, denied, loading, reload } = useRemote<any>(() => fetchProfileEdits(status), [status]);
+
+  // field -> 'APPROVE' | 'REJECT', per submission.
+  const [decisions, setDecisions] = React.useState<Record<string, Record<string, string>>>({});
+  const [reasons, setReasons] = React.useState<Record<string, Record<string, string>>>({});
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+
+  const decide = (editId: string, field: string, verdict: string) =>
+    setDecisions(d => ({ ...d, [editId]: { ...(d[editId] || {}), [field]: verdict } }));
+
+  const setReason = (editId: string, field: string, reason: string) =>
+    setReasons(r => ({ ...r, [editId]: { ...(r[editId] || {}), [field]: reason } }));
+
+  const submit = async (edit: any) => {
+    const chosen = decisions[edit.id] || {};
+    const approve = edit.fields.filter((f: string) => chosen[f] === 'APPROVE');
+    const reject = edit.fields
+      .filter((f: string) => chosen[f] === 'REJECT')
+      .map((f: string) => ({ field: f, reason: (reasons[edit.id]?.[f] || '').trim() }));
+
+    const missingReason = reject.find((r: any) => r.reason.length < 4);
+    if (missingReason) {
+      setActionError(
+        `Say why "${PROFILE_FIELD_WORD[missingReason.field] ?? missingReason.field}" was refused — the partner has to know what to fix.`
+      );
+      return;
+    }
+
+    setBusyId(edit.id);
+    setActionError(null);
+    try {
+      await reviewProfileEdit(edit.id, { approve, reject });
+      setDecisions(d => ({ ...d, [edit.id]: {} }));
+      setReasons(r => ({ ...r, [edit.id]: {} }));
+      reload();
+    } catch (err: any) {
+      setActionError(err?.message || 'Could not record that decision.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (denied) return <NoPermission section="restaurant approvals" />;
+
+  const edits = data?.edits || [];
+
+  return (
+    <>
+      <PageHeading
+        title="Profile changes"
+        sub="What partners have asked to change about how they appear"
+        actions={
+          <select className="input" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="PENDING">Awaiting review</option>
+            <option value="APPROVED">Approved</option>
+            <option value="PARTIALLY_APPROVED">Partly approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="ALL">All</option>
+          </select>
+        }
+      />
+
+      {!!actionError && <div className="inline-error">{actionError}</div>}
+
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <Failed message={error} onRetry={reload} />
+      ) : !edits.length ? (
+        <Empty
+          title="Nothing waiting"
+          body="When a partner changes their photos, name, hours or address, it appears here before any customer sees it."
+        />
+      ) : (
+        <div className="card-list">
+          {edits.map((edit: any) => {
+            const chosen = decisions[edit.id] || {};
+            const undecided = edit.fields.filter((f: string) => !chosen[f]);
+            const settled = edit.status !== 'PENDING';
+
+            return (
+              <article className="review-card" key={edit.id}>
+                <header>
+                  <div>
+                    <h3>{edit.restaurantName}</h3>
+                    <p className="muted">
+                      {edit.city ? `${edit.city} · ` : ''}
+                      {edit.fields.length} change{edit.fields.length === 1 ? '' : 's'} · {when(edit.submittedAt)}
+                    </p>
+                  </div>
+                  <StatusTag status={edit.status} />
+                </header>
+
+                {/* A kitchen that is already trading has customers looking at
+                    the old values right now; one that is not is usually
+                    completing its first profile. It changes the decision. */}
+                {edit.restaurantStatus !== 'ACTIVE' && (
+                  <p className="warn-text">
+                    This restaurant is {String(edit.restaurantStatus).replace(/_/g, ' ').toLowerCase()} and is
+                    not trading yet.
+                  </p>
+                )}
+                {edit.affectsListing && (
+                  <p className="warn-text">
+                    This changes where the restaurant is, so it changes which customers can order from it.
+                  </p>
+                )}
+
+                {edit.fields.map((field: string) => (
+                  <section className="field-review" key={field}>
+                    <h4>{PROFILE_FIELD_WORD[field] ?? field}</h4>
+
+                    <div className={isImageField(field) ? 'before-after stacked' : 'before-after'}>
+                      <div>
+                        <span className="muted">Now</span>
+                        <ProfileValue field={field} value={edit.previous?.[field]} />
+                      </div>
+                      <div>
+                        <span className="muted">Asked for</span>
+                        <ProfileValue field={field} value={edit.changes?.[field]} />
+                      </div>
+                    </div>
+
+                    {settled ? (
+                      <p className="muted">
+                        {(edit.approvedFields || []).includes(field)
+                          ? 'Approved'
+                          : (edit.rejections || []).find((r: any) => r.field === field)?.reason ||
+                            'Not approved'}
+                      </p>
+                    ) : (
+                      <div className="field-actions">
+                        <button
+                          className={`btn ${chosen[field] === 'APPROVE' ? 'btn-primary' : 'btn-ghost'}`}
+                          onClick={() => decide(edit.id, field, 'APPROVE')}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className={`btn ${chosen[field] === 'REJECT' ? 'btn-danger' : 'btn-ghost'}`}
+                          onClick={() => decide(edit.id, field, 'REJECT')}
+                        >
+                          Refuse
+                        </button>
+                        {chosen[field] === 'REJECT' && (
+                          <input
+                            className="input"
+                            placeholder="Why? The partner sees this."
+                            value={reasons[edit.id]?.[field] || ''}
+                            onChange={e => setReason(edit.id, field, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </section>
+                ))}
+
+                {!settled && (
+                  <footer className="review-actions">
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() =>
+                        setDecisions(d => ({
+                          ...d,
+                          [edit.id]: Object.fromEntries(edit.fields.map((f: string) => [f, 'APPROVE']))
+                        }))
+                      }
+                    >
+                      Approve all
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      disabled={busyId === edit.id || undecided.length > 0}
+                      onClick={() => submit(edit)}
+                    >
+                      {busyId === edit.id
+                        ? 'Saving…'
+                        : undecided.length > 0
+                          ? `${undecided.length} still to decide`
+                          : 'Record decision'}
+                    </button>
+                  </footer>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </>

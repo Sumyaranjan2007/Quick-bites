@@ -9,6 +9,7 @@ import {
   Wallet,
   UtensilsCrossed,
   FileCheck,
+  Store,
   LifeBuoy,
   ShieldCheck,
   Moon,
@@ -20,7 +21,7 @@ import {
 import { LoginGate } from './components/LoginGate';
 import { Overview } from './components/console/Overview';
 import { AllOrders, LiveDeliveries } from './components/console/OrdersSection';
-import { MenuApprovals, DocumentReview } from './components/console/Approvals';
+import { MenuApprovals, DocumentReview, ProfileApprovals } from './components/console/Approvals';
 import { RevenueSection, PaymentsSection, PayoutsSection } from './components/console/Finance';
 import { SupportSection, AccessSection } from './components/console/AccessAndSupport';
 import { ProfileSection } from './components/console/Profile';
@@ -42,6 +43,10 @@ type SectionKey =
   | 'documents'
   | 'support'
   | 'access'
+  // 'profile' below is the OPERATOR's own account. This is a restaurant's
+  // profile, and naming it 'profiles' one line away from it reads as a typo
+  // rather than a different thing.
+  | 'restaurantProfiles'
   | 'profile';
 
 interface SectionDef {
@@ -76,6 +81,10 @@ const SECTIONS: SectionDef[] = [
   { key: 'refunds', label: 'Returns & refunds', icon: RotateCcw, permissions: ['orders.refunds.handle', 'finance.refunds.manage', 'support.tickets.view'], render: () => <RefundsSection /> },
   { key: 'menus', label: 'Menu approvals', icon: UtensilsCrossed, permissions: ['catalog.menus.view', 'catalog.menus.review'], render: () => <MenuApprovals /> },
   { key: 'documents', label: 'Documents', icon: FileCheck, permissions: ['documents.view'], render: () => <DocumentReview /> },
+  // Beside the other two review queues rather than buried under restaurants:
+  // menus, documents and profiles are one job done by one person, and an
+  // approval queue nobody can find is an approval queue nobody empties.
+  { key: 'restaurantProfiles', label: 'Profile changes', icon: Store, permissions: ['catalog.restaurants.approve'], render: () => <ProfileApprovals /> },
   { key: 'support', label: 'Support', icon: LifeBuoy, permissions: ['support.tickets.view'], render: () => <SupportSection /> },
   { key: 'access', label: 'Roles & access', icon: ShieldCheck, permissions: ['admin.roles.manage', 'admin.accounts.manage'], render: access => <AccessSection access={access} /> },
   // No permission: every operator has an account of their own to manage.

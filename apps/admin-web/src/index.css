@@ -468,3 +468,34 @@ a {
    size the phone photographed it, and clickable to open full size — a
    fourteen-digit licence number has to be legible before anyone approves it. */
 .doc-scan { display: block; max-width: 100%; max-height: 320px; border-radius: var(--radius-md); border: 1px solid var(--border, rgba(255,255,255,0.12)); background: #FFFFFF; object-fit: contain; }
+
+/* ---------------------------------------------------------------------------
+   Partner profile review
+
+   A reviewer's whole job on this screen is comparing two values, so the layout
+   puts them side by side and labels which is which. Images stack instead,
+   because a cover photo shown at half a column's width is a photo nobody can
+   actually judge — and judging it is the entire point of the queue.
+   --------------------------------------------------------------------------- */
+
+.field-review { border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); margin-top: var(--space-3); }
+.field-review h4 { font-size: var(--font-size-sm); font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-2); }
+
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.before-after.stacked { grid-template-columns: 1fr; }
+.before-after > div { display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-sm); color: var(--text-primary); min-width: 0; }
+.before-after .muted { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Bounded so one tall photograph cannot push the decision buttons off screen. */
+.review-image { max-width: 100%; max-height: 220px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); object-fit: cover; }
+.review-image-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.review-image-small { max-height: 90px; }
+
+.field-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; align-items: center; }
+.field-actions .input { flex: 1; min-width: 220px; }
+
+.review-actions { display: flex; gap: var(--space-2); margin-top: var(--space-4); justify-content: flex-end; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+  .before-after { grid-template-columns: 1fr; }
+}
