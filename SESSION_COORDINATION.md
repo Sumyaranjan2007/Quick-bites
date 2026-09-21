@@ -41,6 +41,34 @@ git commit -m "..."
 Before committing, run `git status --short` and confirm every staged path is
 yours by §2. If one is not, unstage it.
 
+### 1.1a Staging by path is NOT enough on its own
+
+This was learnt the hard way on 22 Sep, and the rule above is wrong about why
+it works.
+
+**`git commit` commits THE INDEX, not the paths you just added.** Session B
+staged three of its own files by explicit path and committed. The commit also
+carried Session A's deletion of `apps/customer-mobile/src/screens/WalletScreen.tsx`,
+which was already sitting staged in the shared index from Session A's
+in-progress P4 work. `main` was left with the screen deleted and the customer
+app still importing it — a tree that does not build, from a commit whose author
+never touched that file.
+
+Two habits, either of which prevents it:
+
+1. **Read `git status --short` for an already-staged column BEFORE you add**,
+   not only after. The first column is the index. Anything showing `A`, `M` or
+   `D` there that is not yours will be in your commit.
+2. **Better: commit with explicit pathspecs**, which ignores whatever else is
+   in the index entirely:
+
+```
+git commit -o path/one.ts path/two.ts -m "..."
+```
+
+The exposure is symmetric. Anything you leave staged, the other session's next
+commit takes.
+
 ### 1.2 Never `git stash`, `git checkout -- .`, `git reset --hard`, or `git clean`
 
 Each of these silently deletes the other session's uncommitted work. There is no
