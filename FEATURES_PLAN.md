@@ -506,6 +506,38 @@ interface.
 
 ## 7. Build order
 
+**STATUS, 22 Sep — F1 to F7 are landed and pushed. F8 is verified as far as
+it can be without billing.**
+
+| | State | Commit |
+| --- | --- | --- |
+| F1 | landed | `f9edaa4` |
+| F2 | landed | `519e9a5` |
+| F3 | landed | `4386a94` (web), `39a44d1` (mobile) |
+| F4 | landed | `a605de4` |
+| F5 | landed | `6d5402e` |
+| F6 | landed | `f9edaa4` (server), `a605de4` (apps) |
+| F7 | landed | `5bd30d2` — **needs the owner's Firebase credential to deliver** |
+| F8 | verified | no commit needed; see below |
+
+**F8 needed no code.** The claim was that turning Maps billing on must change
+nothing in the source. `routing.test.ts` already proves it, and proves it
+properly: unconfigured returns an ESTIMATE rather than throwing, a configured
+key returns a measured GOOGLE distance, an HTTP 200 carrying `REQUEST_DENIED`
+falls back and says so, a thrown fetch and a 500 both fall back rather than
+propagating into checkout, and an estimate is never cached so a blip does not
+outlive itself. Every Google call site in `placesService.ts` and
+`routingService.ts` is guarded by `isPlacesConfigured()` and returns a fallback
+rather than failing. Nothing to change when the key arrives.
+
+**Also fixed, outside this plan, because the owner reported it:** one phone
+number could not be used for both a customer account and a rider application.
+Roles are no longer exclusive — `6d879f9`. It surfaced a worse mirror bug:
+customer registration checked the email and not the phone, so the same number
+could end up on two accounts while OTP sign-in resolves to whichever was
+created first.
+
+
 Each chunk ends with the full gate and is independently shippable.
 
 | # | Chunk | Depends | Ships |
