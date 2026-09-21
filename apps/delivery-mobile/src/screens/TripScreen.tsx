@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   RefreshControl,
@@ -25,7 +25,8 @@ import { Button, Card, EmptyState, Pill, Row, SectionTitle } from '../components
 import { clockTime, distance, rupees } from '../lib/format';
 import { callNumber, openDirections } from '../lib/maps';
 import { TripMap } from '../components/TripMap';
-import type { Trip, TripStage } from '../lib/api';
+import { CollectOnlineSheet } from '../components/CollectOnlineSheet';
+import type { ApiContext, Trip, TripStage } from '../lib/api';
 
 /**
  * Where the rider actually works.
@@ -46,6 +47,8 @@ const STAGE_LABEL: Record<TripStage, string> = {
 };
 
 export const TripScreen: React.FC<{
+  /** Needed to create and poll the doorstep UPI code. */
+  ctx: ApiContext;
   trip: Trip | null;
   offers: Trip[];
   isOnline: boolean;
@@ -71,6 +74,7 @@ export const TripScreen: React.FC<{
   /** The rider's own position, from the watcher that already feeds telemetry. */
   riderPosition?: { latitude: number; longitude: number } | null;
 }> = ({
+  ctx,
   trip,
   offers,
   isOnline,
@@ -95,6 +99,25 @@ export const TripScreen: React.FC<{
 }) => {
   const [pickupCode, setPickupCode] = useState('');
   const [otp, setOtp] = useState('');
+
+  /*
+   * Taking the money online at the door.
+   *
+   * `paidOnline` is set only by the sheet, and the sheet sets it only when the
+   * GATEWAY confirms. Nothing on this screen can assert a payment, which is the
+   * whole point: the rider is the party with something to gain from lying about
+   * it.
+   */
+  const [collecting, setCollecting] = useState(false);
+  const [paidOnline, setPaidOnline] = useState(false);
+
+  // Reset when the trip changes, or the next cash order inherits the last
+  // one's green tick and the rider walks away without collecting.
+  const tripId = trip?.id;
+  useEffect(() => {
+    setPaidOnline(false);
+    setCollecting(false);
+  }, [tripId]);
 
   const confirmCancel = () => {
     Alert.alert(
@@ -389,10 +412,31 @@ export const TripScreen: React.FC<{
           </Text>
 
           {trip.paymentMode === 'COD' ? (
-            <View style={s.codBox}>
-              <IndianRupee size={18} color={t.color.money} />
-              <Text style={s.codText}>Collect {rupees(trip.cashToCollect)} in cash before entering the code.</Text>
-            </View>
+            paidOnline ? (
+              <View style={[s.codBox, s.codBoxPaid]}>
+                <CheckCircle2 size={18} color={t.color.go} />
+                <Text style={[s.codText, { color: t.color.goText }]}>
+                  Paid online. Do not take cash for this order.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.codBox}>
+                  <IndianRupee size={18} color={t.color.money} />
+                  <Text style={s.codText}>
+                    {rupees(trip.cashToCollect)} to collect. Take it online if you can — cash you carry counts
+                    against your limit and has to be deposited at the office.
+                  </Text>
+                </View>
+                <Button
+                  label="Show UPI code"
+                  variant="money"
+                  icon={<IndianRupee size={16} color="#FFF7E8" />}
+                  onPress={() => setCollecting(true)}
+                  style={{ marginBottom: t.space[3] }}
+                />
+              </>
+            )
           ) : null}
 
           <TextInput
@@ -427,6 +471,14 @@ export const TripScreen: React.FC<{
           <Text style={[s.escapeText, { color: t.color.danger, marginLeft: 6 }]}>SOS</Text>
         </TouchableOpacity>
       </View>
+
+      <CollectOnlineSheet
+        visible={collecting}
+        onClose={() => setCollecting(false)}
+        ctx={ctx}
+        orderId={trip.id}
+        onPaid={() => setPaidOnline(true)}
+      />
     </ScrollView>
   );
 };
@@ -528,6 +580,7 @@ const s = StyleSheet.create({
     padding: t.space[3],
     marginTop: t.space[3]
   },
+  codBoxPaid: { backgroundColor: t.color.goSoft, marginBottom: t.space[3] },
   codText: { color: t.color.money, fontSize: t.font.size.sm, marginLeft: t.space[2], flex: 1, fontWeight: t.font.weight.semibold },
   offerHead: { flexDirection: 'row', alignItems: 'flex-start' },
   offerRestaurant: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },

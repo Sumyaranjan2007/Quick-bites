@@ -3,6 +3,7 @@ import { SafeScreen } from './src/components/SafeScreen';
 import { TripChat } from './src/components/TripChat';
 import { SettlementScreen } from './src/screens/SettlementScreen';
 import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
+import { CashScreen } from './src/screens/CashScreen';
 import {
   ActivityIndicator,
   Alert,
@@ -73,7 +74,8 @@ type SubScreen =
   | 'safety'
   | 'policies'
   | 'settlement'
-  | 'payoutAccount';
+  | 'payoutAccount'
+  | 'cash';
 
 const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   documents: 'Documents & verification',
@@ -87,7 +89,8 @@ const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   // once, when they join, and then only when their bank changes. A permanent
   // tab for it would sit next to Home and Trips forever, competing with the
   // three things they use on every shift.
-  payoutAccount: 'Bank account'
+  payoutAccount: 'Bank account',
+  cash: 'Cash in your bag'
 };
 
 /** How often the app asks for work when websockets are not getting through. */
@@ -518,10 +521,13 @@ function DeliveryApp() {
       const bonusLine = result.incentivesAwarded.length
         ? `\n\nBonus unlocked: ${result.incentivesAwarded.map(i => `${i.title} (Rs ${i.reward})`).join(', ')}`
         : '';
-      const cashLine = result.cashCollected > 0 ? `\nCash collected: Rs ${result.cashCollected.toFixed(2)}` : '';
+      const cashLine =
+        result.cashCollected > 0
+          ? `\nCash collected: Rs ${result.cashCollected.toFixed(2)} — this is in your bag until you deposit it.`
+          : '';
       Alert.alert(
         'Delivery complete',
-        `Rs ${result.payout.toFixed(2)} added to your wallet.${cashLine}${bonusLine}`
+        `Rs ${result.payout.toFixed(2)} earned. It is paid out to your bank account, not held here.${cashLine}${bonusLine}`
       );
       return true;
     } catch (err: any) {
@@ -656,6 +662,7 @@ function DeliveryApp() {
       case 'trips':
         return (
           <TripScreen
+            ctx={ctx}
             trip={activeTrip}
             offers={offers}
             isOnline={isOnline}
@@ -689,6 +696,7 @@ function DeliveryApp() {
             onOpenRatings={() => setSubScreen('ratings')}
             onOpenSettlement={() => setSubScreen('settlement')}
             onOpenPayoutAccount={() => setSubScreen('payoutAccount')}
+            onOpenCash={() => setSubScreen('cash')}
           />
         );
       case 'profile':
@@ -727,6 +735,8 @@ function DeliveryApp() {
         return <SettlementScreen ctx={ctx} />;
       case 'payoutAccount':
         return <PayoutAccountScreen ctx={ctx} />;
+      case 'cash':
+        return <CashScreen ctx={ctx} />;
       default:
         return null;
     }

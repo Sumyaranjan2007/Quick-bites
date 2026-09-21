@@ -652,3 +652,78 @@ export interface SettlementsResponse {
     cashCollected: number;
   }>;
 }
+
+/* --------------------------- Cash and the door ---------------------------- *
+ * No rider id in any path: the server resolves who is asking from the token,
+ * so there is nothing to change in a request to collect against somebody
+ * else's order or deposit against somebody else's cash.
+ * -------------------------------------------------------------------------- */
+
+export interface DoorQrView {
+  qrId: string;
+  imageUrl: string;
+  amount: number;
+  amountLabel: string;
+  expiresAt: string;
+  orderNumber: string;
+}
+
+export interface CashStandingView {
+  cashInHand: number;
+  ceiling: number;
+  canTakeCod: boolean;
+  shouldWarn: boolean;
+  message: string | null;
+  pendingDeposit: CashDepositView | null;
+  history: CashDepositView[];
+}
+
+export interface CashDepositView {
+  id: string;
+  declaredPaise: number;
+  receivedPaise?: number;
+  status: 'DECLARED' | 'CONFIRMED' | 'VARIANCE' | 'CANCELLED';
+  declaredAt: string;
+  confirmedAt?: string;
+  varianceNote?: string;
+}
+
+export const cashApi = {
+  /** Creates the QR the rider shows at the door. */
+  collectOnline(ctx: ApiContext, orderId: string) {
+    return request<{ qr: DoorQrView }>(ctx, `/cash/orders/${orderId}/collect-online`, { method: 'POST' });
+  },
+
+  /**
+   * Has it been paid?
+   *
+   * Asked of the GATEWAY, not of this app. The rider's phone can ask; it can
+   * never assert that an order was paid.
+   */
+  doorPaymentStatus(ctx: ApiContext, orderId: string) {
+    return request<{ paid: boolean; status?: string; alreadySettled?: boolean; message: string }>(
+      ctx,
+      `/cash/orders/${orderId}/door-payment`
+    );
+  },
+
+  /** Customer would rather pay cash after all. */
+  cancelOnline(ctx: ApiContext, orderId: string) {
+    return request<Record<string, never>>(ctx, `/cash/orders/${orderId}/cancel-online`, { method: 'POST' });
+  },
+
+  standing(ctx: ApiContext) {
+    return request<CashStandingView>(ctx, '/cash/me');
+  },
+
+  declareDeposit(ctx: ApiContext, amount: number) {
+    return request<{ deposit: CashDepositView }>(ctx, '/cash/deposits', {
+      method: 'POST',
+      body: JSON.stringify({ amount })
+    });
+  },
+
+  cancelDeposit(ctx: ApiContext, depositId: string) {
+    return request<{ deposit: CashDepositView }>(ctx, `/cash/deposits/${depositId}`, { method: 'DELETE' });
+  }
+};

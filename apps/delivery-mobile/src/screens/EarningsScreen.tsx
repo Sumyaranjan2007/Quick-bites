@@ -21,6 +21,8 @@ export const EarningsScreen: React.FC<{
   /** The settlement ledger: what has been paid across, and when. */
   onOpenSettlement: () => void;
   onOpenPayoutAccount: () => void;
+  /** Cash-on-delivery money the rider is carrying, and declaring a deposit. */
+  onOpenCash: () => void;
 }> = ({
   data,
   refreshing,
@@ -29,7 +31,8 @@ export const EarningsScreen: React.FC<{
   onOpenIncentives,
   onOpenRatings,
   onOpenSettlement,
-  onOpenPayoutAccount
+  onOpenPayoutAccount,
+  onOpenCash
 }) => {
   if (!data) return <LoadingBlock label="Loading your earnings…" />;
   const { metrics, incentives } = data;
@@ -44,14 +47,18 @@ export const EarningsScreen: React.FC<{
       <Card tone="raised" style={s.walletCard}>
         <View style={s.walletHead}>
           <Wallet size={18} color={t.color.money} />
-          <Text style={s.walletLabel}>Withdrawable wallet balance</Text>
+          <Text style={s.walletLabel}>Earned and waiting to be paid out</Text>
         </View>
         <View style={s.walletValueRow}>
           <IndianRupee size={28} color={t.color.money} strokeWidth={2.5} />
           <Text style={s.walletValue}>{metrics.walletBalance.toFixed(2)}</Text>
         </View>
+        {/* Not a wallet, and deliberately no longer called one. Nothing is held
+            on the rider's behalf inside the app: this is what the ledger says
+            has been earned, and it is sent to their bank. */}
         <Text style={s.walletSub}>
-          Paid to your registered bank account every Tuesday, less any cash you are holding.
+          Sent to your registered bank account. A day's earnings become payable the day after delivery, and
+          nothing is paid out while you are still holding our cash.
         </Text>
         {metrics.codCashInHand > 0 ? (
           <View style={s.cashNote}>
@@ -74,6 +81,15 @@ export const EarningsScreen: React.FC<{
           label="Bank account"
           variant="secondary"
           onPress={onOpenPayoutAccount}
+          style={{ marginTop: t.space[3] }}
+        />
+        {/* Cash sits between a rider and their own money: carry too much and
+            both cash orders and payouts stop. It belongs on the same card as
+            the balance, not buried in a menu. */}
+        <Button
+          label="Cash in your bag"
+          variant="secondary"
+          onPress={onOpenCash}
           style={{ marginTop: t.space[3] }}
         />
       </Card>

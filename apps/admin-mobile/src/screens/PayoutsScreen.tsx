@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { Banknote, ShieldAlert, Clock, CircleSlash, Send, Info } from 'lucide-react-native';
+import { Banknote, ShieldAlert, Clock, CircleSlash, Send, Info, Wallet, TriangleAlert } from 'lucide-react-native';
 import {
   Card,
   Badge,
@@ -79,6 +79,37 @@ interface PayoutRow {
   approvedByUserId?: string;
 }
 
+interface DepositRow {
+  id: string;
+  riderId: string;
+  riderName?: string;
+  declaredPaise: number;
+  receivedPaise?: number;
+  declared: number;
+  received?: number | null;
+  status: 'DECLARED' | 'CONFIRMED' | 'VARIANCE' | 'CANCELLED';
+  declaredAt: string;
+  confirmedAt?: string;
+  varianceNote?: string;
+  proofUrl?: string;
+  cashInHandAtDeclarationPaise: number;
+}
+
+interface AgeingRow {
+  riderId: string;
+  riderName: string;
+  cashInHand: number;
+  overCeiling: boolean;
+  lastDepositAt: string | null;
+  pendingDeclarationPaise: number | null;
+}
+
+interface CashPayload {
+  awaiting: DepositRow[];
+  recent: DepositRow[];
+  ageing: AgeingRow[];
+}
+
 const rupees = (n: number) =>
   `Rs ${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -125,6 +156,10 @@ export const PayoutsScreen: React.FC = () => {
     { enabled: canView }
   );
 
+  const cash = useResource<CashPayload>(() => api.get('/admin/cash/deposits').then(r => r.data), [], {
+    enabled: canView
+  });
+
   const [tab, setTab] = useState('due');
   const [drafting, setDrafting] = useState<DueRow | null>(null);
   const [rail, setRail] = useState<string>('');
@@ -132,6 +167,11 @@ export const PayoutsScreen: React.FC = () => {
   const [manualReference, setManualReference] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  /* Counting cash in. */
+  const [counting, setCounting] = useState<DepositRow | null>(null);
+  const [countedAmount, setCountedAmount] = useState('');
+  const [varianceNote, setVarianceNote] = useState('');
 
   if (!canView) return <NoAccess permission="finance.payouts.view" />;
   if (dues.loading && !dues.data) return <Loading label="Working out who is owed what…" />;
@@ -143,6 +183,7 @@ export const PayoutsScreen: React.FC = () => {
   const reloadAll = async () => {
     await dues.reload();
     void history.silentReload();
+    void cash.silentReload();
   };
 
   const draft = async () => {
@@ -191,6 +232,42 @@ export const PayoutsScreen: React.FC = () => {
       await reloadAll();
     } catch (err: any) {
       setActionError(err?.message || 'That payout could not be sent.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /*
+   * Counting a deposit in.
+   *
+   * The field starts at what the rider DECLARED, because that is the number
+   * being checked and starting anywhere else invites a distracted clerk to
+   * confirm a blank. But the server reduces the rider's balance by what is
+   * typed here, never by the declaration — so the note is compulsory the moment
+   * the two differ, and the sheet says so before the difference is typed.
+   */
+  const counted = Number(countedAmount.replace(/[^0-9.]/g, ''));
+  const countedValid = Number.isFinite(counted) && counted >= 0 && counted <= 1000000;
+  const declaredRupees = counting ? counting.declaredPaise / 100 : 0;
+  const countVariance = countedValid ? Math.round((counted - declaredRupees) * 100) / 100 : 0;
+  const needsNote = countedValid && countVariance !== 0;
+
+  const confirmDeposit = async () => {
+    if (!counting || !countedValid) return;
+    if (needsNote && varianceNote.trim().length < 4) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await api.post(`/admin/cash/deposits/${counting.id}/confirm`, {
+        receivedAmount: Number(counted.toFixed(2)),
+        ...(needsNote ? { varianceNote: varianceNote.trim() } : {})
+      });
+      setCounting(null);
+      setCountedAmount('');
+      setVarianceNote('');
+      await reloadAll();
+    } catch (err: any) {
+      setActionError(err?.message || 'That deposit could not be recorded.');
     } finally {
       setBusy(false);
     }
@@ -245,7 +322,11 @@ export const PayoutsScreen: React.FC = () => {
               key: 'sending',
               label: `To send${pendingApproval.length + readyToSend.length ? ` (${pendingApproval.length + readyToSend.length})` : ''}`
             },
-            { key: 'history', label: 'Sent' }
+            { key: 'history', label: 'Sent' },
+            {
+              key: 'cash',
+              label: `Cash in${cash.data?.awaiting.length ? ` (${cash.data.awaiting.length})` : ''}`
+            }
           ]}
           value={tab}
           onChange={setTab}
@@ -420,6 +501,162 @@ export const PayoutsScreen: React.FC = () => {
               </Card>
             ))
           ))}
+
+        {/* ----------------------------- Cash in ----------------------------- */}
+        {tab === 'cash' && (
+          <>
+            {!!cash.error && (
+              <Card style={s.errorCard}>
+                <Text style={s.errorText}>{cash.error}</Text>
+              </Card>
+            )}
+
+            <SectionTitle
+              title="Riders coming in"
+              subtitle="What they said they are bringing. Count it, then record what you actually counted."
+            />
+            {(cash.data?.awaiting.length || 0) === 0 ? (
+              <EmptyState
+                title="Nobody has declared a deposit"
+                message="A rider declares before they set off, so this list is what to expect at the counter today."
+                icon={<Wallet size={28} color={c.text.muted} />}
+              />
+            ) : (
+              cash.data!.awaiting.map(deposit => (
+                <Card key={deposit.id} style={s.dueCard}>
+                  <View style={s.dueHead}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.dueName}>{deposit.riderName || deposit.riderId}</Text>
+                      <Text style={s.dueType}>Declared {timeAgo(deposit.declaredAt)}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={s.dueAmount}>{rupees(deposit.declared)}</Text>
+                      <Text style={s.dueHeld}>
+                        carrying {rupees(deposit.cashInHandAtDeclarationPaise / 100)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {deposit.cashInHandAtDeclarationPaise > deposit.declaredPaise && (
+                    <View style={s.blockRow}>
+                      <Info size={14} color={c.text.muted} />
+                      <Text style={s.blockTextMuted}>
+                        This is a part deposit.{' '}
+                        {rupees((deposit.cashInHandAtDeclarationPaise - deposit.declaredPaise) / 100)} stays
+                        against them afterwards.
+                      </Text>
+                    </View>
+                  )}
+
+                  {canPay && (
+                    <Button
+                      label="Count it in"
+                      onPress={() => {
+                        setCounting(deposit);
+                        setCountedAmount(String(deposit.declaredPaise / 100));
+                        setVarianceNote('');
+                        setActionError(null);
+                      }}
+                      disabled={busy}
+                      style={{ marginTop: 10 }}
+                    />
+                  )}
+                </Card>
+              ))
+            )}
+
+            <SectionTitle
+              title="Cash still out there"
+              subtitle="Every rider holding platform money right now, largest first."
+            />
+            {(cash.data?.ageing.length || 0) === 0 ? (
+              <EmptyState
+                title="No cash is outstanding"
+                message="Nobody is carrying platform money."
+                icon={<Banknote size={28} color={c.text.muted} />}
+              />
+            ) : (
+              cash.data!.ageing.map(row => (
+                <Card key={row.riderId} style={s.dueCard}>
+                  <View style={s.dueHead}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.dueName}>{row.riderName}</Text>
+                      <Text style={s.dueType}>
+                        {row.lastDepositAt
+                          ? `Last deposit ${timeAgo(row.lastDepositAt)}`
+                          : 'Has never deposited'}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[s.dueAmount, row.overCeiling && { color: c.state.danger }]}>
+                        {rupees(row.cashInHand)}
+                      </Text>
+                      {row.pendingDeclarationPaise != null && (
+                        <Text style={s.dueHeld}>
+                          declared {rupees(row.pendingDeclarationPaise / 100)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {row.overCeiling && (
+                    <View style={s.blockRow}>
+                      <TriangleAlert size={14} color={c.state.danger} />
+                      <Text style={s.blockText}>
+                        Over the cash limit. They cannot take cash orders, and they cannot be paid, until this
+                        is counted in.
+                      </Text>
+                    </View>
+                  )}
+                </Card>
+              ))
+            )}
+
+            {(cash.data?.recent.length || 0) > 0 && (
+              <>
+                <SectionTitle title="Recently counted" subtitle="What was declared against what arrived." />
+                {cash.data!.recent.map(deposit => {
+                  const differs =
+                    deposit.receivedPaise != null && deposit.receivedPaise !== deposit.declaredPaise;
+                  return (
+                    <Card key={deposit.id} style={s.payoutCard}>
+                      <View style={s.payoutHead}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.dueName}>{deposit.riderName || deposit.riderId}</Text>
+                          <Text style={s.dueType}>
+                            {timeAgo(deposit.confirmedAt || deposit.declaredAt)}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={s.dueAmount}>
+                            {rupees((deposit.receivedPaise ?? deposit.declaredPaise) / 100)}
+                          </Text>
+                          <Badge
+                            label={deposit.status}
+                            tone={
+                              deposit.status === 'CONFIRMED'
+                                ? 'success'
+                                : deposit.status === 'VARIANCE'
+                                ? 'danger'
+                                : 'neutral'
+                            }
+                          />
+                        </View>
+                      </View>
+                      {differs && (
+                        <Text style={s.reference}>
+                          Declared {rupees(deposit.declaredPaise / 100)}, counted{' '}
+                          {rupees((deposit.receivedPaise || 0) / 100)}
+                          {deposit.varianceNote ? ` — ${deposit.varianceNote}` : ''}
+                        </Text>
+                      )}
+                    </Card>
+                  );
+                })}
+              </>
+            )}
+          </>
+        )}
       </ScrollView>
 
       {/* Drafting */}
@@ -533,6 +770,71 @@ export const PayoutsScreen: React.FC = () => {
             busy ||
             (railFor(sending?.rail || '')?.needsManualReference === true && manualReference.trim().length < 4)
           }
+        />
+      </Sheet>
+
+      {/* Counting cash in */}
+      <Sheet
+        visible={!!counting}
+        onClose={() => setCounting(null)}
+        title="Count this deposit in"
+        subtitle={counting?.riderName || counting?.riderId}
+      >
+        <View style={s.confirmBox}>
+          <View style={s.confirmRow}>
+            <Text style={s.confirmLabel}>They declared</Text>
+            <Text style={s.confirmValue}>{rupees(declaredRupees)}</Text>
+          </View>
+          <View style={s.confirmRow}>
+            <Text style={s.confirmLabel}>They are carrying</Text>
+            <Text style={s.confirmValue}>
+              {rupees((counting?.cashInHandAtDeclarationPaise || 0) / 100)}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={s.confirmNote}>
+          Type what you counted, not what they said. Their balance comes down by this figure — confirming the
+          declaration without counting is how money quietly goes missing.
+        </Text>
+
+        <Field
+          label="Amount counted"
+          value={countedAmount}
+          onChangeText={text => setCountedAmount(text.replace(/[^0-9.]/g, ''))}
+          keyboardType="numeric"
+          placeholder="0.00"
+          error={countedAmount && !countedValid ? 'Enter an amount.' : undefined}
+        />
+
+        {needsNote && (
+          <>
+            <View style={s.warnBox}>
+              <TriangleAlert size={16} color={c.state.warning} />
+              <Text style={s.warnText}>
+                {countVariance < 0
+                  ? `${rupees(Math.abs(countVariance))} short of what was declared. The shortfall stays against the rider — it is not written off.`
+                  : `${rupees(countVariance)} more than was declared.`}{' '}
+                Say what happened.
+              </Text>
+            </View>
+            <Field
+              label="What happened"
+              value={varianceNote}
+              onChangeText={setVarianceNote}
+              multiline
+              placeholder="e.g. two 500 notes short, rider says one customer underpaid"
+              hint="This is the record anyone reviewing the difference later will read."
+            />
+          </>
+        )}
+
+        {!!actionError && <Text style={s.errorText}>{actionError}</Text>}
+
+        <Button
+          label={busy ? 'Recording…' : `Record ${countedValid ? rupees(counted) : 'deposit'}`}
+          onPress={confirmDeposit}
+          disabled={busy || !countedValid || (needsNote && varianceNote.trim().length < 4)}
         />
       </Sheet>
     </>
