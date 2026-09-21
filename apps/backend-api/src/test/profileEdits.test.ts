@@ -790,6 +790,90 @@ async function run() {
     `status ${noHours.status}`
   );
 
+  // ---------------------------------------------------------------------
+  console.log('\n-- Which administrator can actually do this');
+
+  /*
+   * ASKED OF THE RUNNING SERVER, NOT OF THE ROLE TABLE.
+   *
+   * Every check above signs in as the super admin, and a super admin holds
+   * every permission by virtue of the role itself. That cannot distinguish
+   * "allowed because this role is right" from "allowed because this account is
+   * always allowed" — so it cannot tell whether the permission gate works at
+   * all.
+   *
+   * The payments session found exactly this in their own work: the Finance
+   * Admin role did not hold the two permissions that are its entire job, and
+   * eight chunks of screens were unreachable by the only person they were
+   * built for. It survived because everything was demonstrated as super admin.
+   *
+   * So this signs in as the scoped accounts the seed creates for the purpose,
+   * and asserts both directions. A permission granted to everybody is not a
+   * permission.
+   */
+  const ops = await login('ops@quickbite.app');
+  const support = await login('support@quickbite.app');
+  const finance = await login('finance@quickbite.app');
+
+  const opsQueue = await api('/admin/profile-edits?status=PENDING', {}, ops.token);
+  check(
+    'An Operations Admin — whose job this is — can open the review queue',
+    opsQueue.status === 200,
+    `status ${opsQueue.status}`
+  );
+
+  for (const [who, session] of [
+    ['A Support Admin', support],
+    ['A Finance Admin', finance]
+  ] as const) {
+    const refused = await api('/admin/profile-edits?status=PENDING', {}, session.token);
+    check(
+      `${who} cannot`,
+      refused.status === 403,
+      `status ${refused.status}`
+    );
+  }
+
+  /*
+   * And reaching the queue is not the same as being able to settle one.
+   * Read and write are separate questions, and a role that can see the work
+   * but not do it is its own kind of broken.
+   */
+  const opsSubmission = await api(
+    `/restaurants/${RESTAURANT}/profile`,
+    { method: 'PUT', body: { description: 'Reviewed by operations.' } },
+    partner.token
+  );
+  const opsEditId = opsSubmission.json?.data?.edit?.id;
+  check('A partner submits something for them to settle', Boolean(opsEditId));
+
+  const supportAttempt = await api(
+    `/admin/profile-edits/${opsEditId}/review`,
+    { method: 'POST', body: { approve: ['description'], reject: [] } },
+    support.token
+  );
+  check(
+    'A Support Admin cannot settle it either',
+    supportAttempt.status === 403,
+    `status ${supportAttempt.status}`
+  );
+
+  const opsSettles = await api(
+    `/admin/profile-edits/${opsEditId}/review`,
+    { method: 'POST', body: { approve: ['description'], reject: [] } },
+    ops.token
+  );
+  check(
+    'and an Operations Admin can',
+    opsSettles.status === 200,
+    `status ${opsSettles.status}`
+  );
+  check(
+    'and it actually reached the live restaurant',
+    (memoryStore.restaurants.get(RESTAURANT) as any)?.description === 'Reviewed by operations.',
+    (memoryStore.restaurants.get(RESTAURANT) as any)?.description
+  );
+
   server.close();
 
   console.log('\n====================================================');
