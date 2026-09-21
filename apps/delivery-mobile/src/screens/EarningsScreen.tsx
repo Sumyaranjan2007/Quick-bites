@@ -20,7 +20,17 @@ export const EarningsScreen: React.FC<{
   onOpenRatings: () => void;
   /** The settlement ledger: what has been paid across, and when. */
   onOpenSettlement: () => void;
-}> = ({ data, refreshing, onRefresh, onOpenWeekly, onOpenIncentives, onOpenRatings, onOpenSettlement }) => {
+  onOpenPayoutAccount: () => void;
+}> = ({
+  data,
+  refreshing,
+  onRefresh,
+  onOpenWeekly,
+  onOpenIncentives,
+  onOpenRatings,
+  onOpenSettlement,
+  onOpenPayoutAccount
+}) => {
   if (!data) return <LoadingBlock label="Loading your earnings…" />;
   const { metrics, incentives } = data;
   const paidIncentives = incentives.filter(i => i.paid);
@@ -57,6 +67,14 @@ export const EarningsScreen: React.FC<{
           variant="secondary"
           onPress={onOpenSettlement}
           style={{ marginTop: t.space[4] }}
+        />
+        {/* Directly under the balance, because a rider who has never added an
+            account is looking at money that has nowhere to go. */}
+        <Button
+          label="Bank account"
+          variant="secondary"
+          onPress={onOpenPayoutAccount}
+          style={{ marginTop: t.space[3] }}
         />
       </Card>
 

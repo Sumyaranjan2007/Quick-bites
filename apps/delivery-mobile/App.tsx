@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeScreen } from './src/components/SafeScreen';
 import { TripChat } from './src/components/TripChat';
 import { SettlementScreen } from './src/screens/SettlementScreen';
+import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
 import {
   ActivityIndicator,
   Alert,
@@ -64,7 +65,15 @@ import { DEFAULT_API_URL } from './src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 type Tab = 'home' | 'trips' | 'earnings' | 'profile';
-type SubScreen = 'documents' | 'ratings' | 'incentives' | 'weekly' | 'safety' | 'policies' | 'settlement';
+type SubScreen =
+  | 'documents'
+  | 'ratings'
+  | 'incentives'
+  | 'weekly'
+  | 'safety'
+  | 'policies'
+  | 'settlement'
+  | 'payoutAccount';
 
 const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   documents: 'Documents & verification',
@@ -73,7 +82,12 @@ const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   weekly: 'Trips',
   safety: 'Safety & SOS',
   policies: 'App policies',
-  settlement: 'Settlement & payments'
+  settlement: 'Settlement & payments',
+  // A sub-screen off Earnings rather than a fifth tab: a rider opens this
+  // once, when they join, and then only when their bank changes. A permanent
+  // tab for it would sit next to Home and Trips forever, competing with the
+  // three things they use on every shift.
+  payoutAccount: 'Bank account'
 };
 
 /** How often the app asks for work when websockets are not getting through. */
@@ -674,6 +688,7 @@ function DeliveryApp() {
             onOpenIncentives={() => setSubScreen('incentives')}
             onOpenRatings={() => setSubScreen('ratings')}
             onOpenSettlement={() => setSubScreen('settlement')}
+            onOpenPayoutAccount={() => setSubScreen('payoutAccount')}
           />
         );
       case 'profile':
@@ -710,6 +725,8 @@ function DeliveryApp() {
         return <PoliciesScreen ctx={ctx} />;
       case 'settlement':
         return <SettlementScreen ctx={ctx} />;
+      case 'payoutAccount':
+        return <PayoutAccountScreen ctx={ctx} />;
       default:
         return null;
     }

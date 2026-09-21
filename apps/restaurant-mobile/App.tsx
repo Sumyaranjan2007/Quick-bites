@@ -10,7 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
-import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote } from 'lucide-react-native';
+import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote, Landmark } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { c, radii, spacing } from './src/theme';
 import {
@@ -34,6 +34,7 @@ import { LiveOrdersScreen } from './src/screens/LiveOrdersScreen';
 import { OrderHistoryScreen } from './src/screens/OrderHistoryScreen';
 import { MenuScreen } from './src/screens/MenuScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
+import { PayoutAccountScreen } from './src/screens/PayoutAccountScreen';
 import { HelpCentreScreen } from './src/screens/HelpCentreScreen';
 import { ErrorNote } from './src/components/ui';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
@@ -42,13 +43,17 @@ import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/
 import { DEFAULT_API_URL } from './src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help' | 'settlements';
+type Tab = 'dashboard' | 'orders' | 'history' | 'menu' | 'documents' | 'help' | 'settlements' | 'bank';
 
 const TABS: Array<{ key: Tab; label: string; icon: any }> = [
   { key: 'dashboard', label: 'Home', icon: LayoutDashboard },
   { key: 'orders', label: 'Orders', icon: Bell },
   { key: 'history', label: 'History', icon: History },
   { key: 'settlements', label: 'Payouts', icon: Banknote },
+  // "Bank", not "Payouts". The tab above is already called Payouts and shows
+  // what the partner is OWED; this one is the account it gets paid into. Two
+  // tabs with one name is worse than either name on its own.
+  { key: 'bank', label: 'Bank', icon: Landmark },
   { key: 'menu', label: 'Menu', icon: Layers },
   { key: 'documents', label: 'Docs', icon: ShieldCheck },
   { key: 'help', label: 'Help', icon: LifeBuoy }
@@ -390,6 +395,7 @@ function PartnerApp() {
         {tab === 'settlements' && (
           <SettlementsScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />
         )}
+        {tab === 'bank' && <PayoutAccountScreen />}
         {tab === 'menu' && <MenuScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
         {tab === 'documents' && <DocumentsScreen restaurantId={restaurant.id} />}
         {tab === 'help' && (
