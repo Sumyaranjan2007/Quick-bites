@@ -6,6 +6,7 @@ import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates, commissionPercentFor } from '../payments/pricingConfig.ts';
+import { recordOrderEarnings } from '../payments/earnings.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
 import { isGoldActive, goldDiscountPercent } from '../membership/membershipService.ts';
@@ -919,6 +920,36 @@ export const orderService = {
       await fcmDispatcher.notifyOutForDelivery(updated.customerId, updated.id, updated.orderNumber);
     } else if (nextStatus === 'DELIVERED') {
       await fcmDispatcher.notifyDelivered(updated.customerId, updated.id, updated.orderNumber);
+
+      /*
+       * The order is complete, so the money it earned is now owed.
+       *
+       * Posted here rather than computed later by whoever opens a settlement
+       * screen. A figure re-derived from an order changes when that order is
+       * refunded, re-rated or archived — underneath a settlement that has
+       * already been paid — and then nobody can say what the number was when
+       * the decision was taken.
+       *
+       * Keyed on the order id, so the sweeper, a retried request and this call
+       * all produce one posting between them.
+       *
+       * Deliberately not awaited into the transition's own failure path: a
+       * ledger problem must not un-deliver a delivered order. It is logged, and
+       * `backfillEarnings` finds anything this misses.
+       */
+      try {
+        recordOrderEarnings(updated);
+      } catch (error) {
+        console.log(
+          JSON.stringify({
+            level: 'ERROR',
+            timestamp: new Date().toISOString(),
+            event: 'ORDER_EARNINGS_POST_FAILED',
+            orderId: updated.id,
+            reason: error instanceof Error ? error.message : String(error)
+          })
+        );
+      }
     }
 
     return updated;

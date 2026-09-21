@@ -42,6 +42,7 @@ const SUITES = [
   'membership',
   'ledger',
   'payees',
+  'payouts',
   'platformReset',
   'accountBlocking',
   'sockets',

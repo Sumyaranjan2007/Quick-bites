@@ -10,6 +10,7 @@ import {
   IndianRupee,
   Percent,
   Landmark,
+  Banknote,
   Megaphone,
   LifeBuoy,
   FileCheck2,
@@ -33,6 +34,7 @@ import { CatalogScreen } from './src/screens/CatalogScreen';
 import { FinanceScreen } from './src/screens/FinanceScreen';
 import { RatesScreen } from './src/screens/RatesScreen';
 import { PayeeAccountsScreen } from './src/screens/PayeeAccountsScreen';
+import { PayoutsScreen } from './src/screens/PayoutsScreen';
 import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
@@ -138,6 +140,15 @@ const SECTIONS: Array<{
     permissions: ['finance.config.edit'],
     icon: active => <Percent size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     render: () => <RatesScreen />
+  },
+  {
+    key: 'payouts',
+    label: 'Pay',
+    title: 'Payouts',
+    subtitle: 'Who is owed what, and sending it',
+    permissions: ['finance.payouts.view', 'finance.settlements.view', 'finance.payouts.manage'],
+    icon: active => <Banknote size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <PayoutsScreen />
   },
   {
     key: 'payees',
