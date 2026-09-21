@@ -8,6 +8,7 @@ import { adminRouter } from './adminRouter.ts';
 import { payeeAccountRouter } from './payeeAccountRouter.ts';
 import { cashRouter } from './cashRouter.ts';
 import { earningsRouter } from './earningsRouter.ts';
+import { invoiceRouter } from './invoiceRouter.ts';
 import { addressRouter } from './addressRouter.ts';
 import { riderRouter } from './riderRouter.ts';
 import { walletRouter } from './walletRouter.ts';
@@ -79,6 +80,8 @@ apiRouter.use('/cash', cashRouter);
 // A partner's or a rider's own statement, and asking to be paid. Same shape as
 // the two above: no id in any path, the payee comes from the token.
 apiRouter.use('/earnings', earningsRouter);
+// A customer's tax invoice, or an honest receipt when no GSTIN is configured.
+apiRouter.use('/invoices', invoiceRouter);
 // Complaints and refund requests raised from the customer, partner and rider
 // apps. Authentication is applied inside the router, which also decides who may
 // see which case.
