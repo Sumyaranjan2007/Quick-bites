@@ -28,6 +28,7 @@ import { findCancellationReason, actorForRole } from './cancellationReasons.ts';
 import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
+import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 
 export interface CreateOrderInput {
   customerId: string;
@@ -223,7 +224,7 @@ export const orderService = {
       isGold: isGoldActive(customer),
       appliedCouponCode: appliedCode,
       couponError,
-      restaurantIsOpen: restaurant.isOpen !== false && restaurant.status === 'ACTIVE',
+      restaurantIsOpen: isKitchenServing(restaurant) && restaurant.status === 'ACTIVE',
       unavailableItems: pricedItems.filter(i => !i.isAvailable).map(i => i.name)
     };
   },
@@ -254,9 +255,28 @@ export const orderService = {
     // The comment above claimed "Exists & Open" but only status was checked, so a
     // kitchen that had switched itself offline still took orders — food ordered
     // from a closed kitchen, with nobody there to cook it.
-    if (restaurant.isOpen === false) {
+    /*
+     * Closed means closed, whether the partner pressed the button or their own
+     * opening hours say so.
+     *
+     * This asked only about the manual switch, which is fine until somebody
+     * forgets to press it - and then a kitchen that shut at eleven is still
+     * accepting orders at two in the morning. The customer pays, waits, and is
+     * refunded a meal they wanted. It is the most common complaint a food
+     * platform gets, and it is not a bad dish.
+     *
+     * `isKitchenServing` is the one place that resolves the switch, the
+     * partner's own late-night override and the declared hours against each
+     * other. A restaurant that has never declared hours is unaffected.
+     */
+    if (!isKitchenServing(restaurant)) {
+      const opensAt = nextOpensAt(restaurant.openingHours);
       throw new AppError(
-        `${restaurant.name} is closed right now and is not taking orders.`,
+        // "Closed" invites a customer to try again in five minutes. "Opens at
+        // 18:00" does not, so it is said whenever it can be.
+        opensAt
+          ? `${restaurant.name} is closed right now. They open again at ${opensAt}.`
+          : `${restaurant.name} is closed right now and is not taking orders.`,
         409,
         'RESTAURANT_CLOSED'
       );
@@ -505,7 +525,7 @@ export const orderService = {
     const menu = await menuRepository.findByRestaurantId(previous.restaurantId);
 
     const restaurantAvailable =
-      Boolean(restaurant) && restaurant!.status === 'ACTIVE' && restaurant!.isOpen !== false;
+      Boolean(restaurant) && restaurant!.status === 'ACTIVE' && isKitchenServing(restaurant!);
 
     // Reported rather than thrown: a customer looking at their history should be
     // told the kitchen is shut, not handed an error. The basket is still built,
@@ -516,8 +536,11 @@ export const orderService = {
       restaurantMessage = 'This restaurant is no longer on Quick Bites.';
     } else if (restaurant.status !== 'ACTIVE') {
       restaurantMessage = `${restaurant.name} is not currently accepting orders.`;
-    } else if (restaurant.isOpen === false) {
-      restaurantMessage = `${restaurant.name} is closed right now.`;
+    } else if (!isKitchenServing(restaurant)) {
+      const opensAt = nextOpensAt(restaurant.openingHours);
+      restaurantMessage = opensAt
+        ? `${restaurant.name} is closed right now. They open again at ${opensAt}.`
+        : `${restaurant.name} is closed right now.`;
     }
 
     const liveDishes = new Map<string, any>();

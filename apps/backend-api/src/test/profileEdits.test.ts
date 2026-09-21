@@ -641,6 +641,155 @@ async function run() {
    * exit code is 127 rather than 0 - a suite that fails for a reason that has
    * nothing to do with what it tests. Same fix as contract.test.ts.
    */
+  // ---------------------------------------------------------------------
+  console.log('\n-- Declared hours close the kitchen');
+
+  /*
+   * THE REASON OPENING HOURS EXIST.
+   *
+   * The most common complaint a food platform gets is not a bad dish. It is an
+   * order accepted by a restaurant that was shut, because somebody forgot to
+   * press Offline — the customer pays, waits, and is refunded a meal they
+   * wanted.
+   *
+   * These checks place REAL orders over HTTP rather than asking the helper
+   * function what it thinks, because the helper being right is worth nothing
+   * if the order path never calls it. That was the actual state of this
+   * feature an hour ago: the model, the validation and the evaluation all
+   * existed and nothing anywhere used them.
+   */
+  const buyer = await login('customer@quickbite.app');
+  const addresses = await api('/addresses', {}, buyer.token);
+  const address = (addresses.json?.data?.addresses || [])[0];
+  check('The customer has an address to order to', Boolean(address?.id));
+
+  const menu = await api(`/restaurants/${RESTAURANT}/menu`);
+  const dish = (menu.json?.data?.menu?.categories || [])
+    .flatMap((c: any) => c.items || [])
+    .find((i: any) => i.isAvailable !== false);
+  check('and the kitchen has something to sell', Boolean(dish?.id));
+
+  const placeOrder = async () =>
+    api(
+      '/orders',
+      {
+        method: 'POST',
+        body: {
+          restaurantId: RESTAURANT,
+          deliveryAddressId: address?.id,
+          items: [{ dishId: dish?.id, quantity: 1 }],
+          paymentMethod: 'CASH_ON_DELIVERY',
+          idempotencyKey: `hours_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+        }
+      },
+      buyer.token
+    );
+
+  const kitchen = memoryStore.restaurants.get(RESTAURANT) as any;
+  kitchen.isOpen = true;
+  delete kitchen.forceOpenUntil;
+
+  // A week that is switchOff right now, whenever "now" happens to be, so this does
+  // not pass or fail depending on the hour the suite is run.
+  const now = new Date();
+  const today = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'][
+    (now.getDay() + 6) % 7
+  ]!;
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+
+  kitchen.openingHours = {
+    timezone: 'Asia/Kolkata',
+    week: { [today]: [{ opensAt: Math.max(0, minutesNow - 60), closesAt: Math.min(1439, minutesNow + 60) }] }
+  };
+  memoryStore.restaurants.set(RESTAURANT, kitchen);
+
+  const inHours = await placeOrder();
+  check('A kitchen inside its declared hours takes the order', inHours.status === 201, `status ${inHours.status}`);
+
+  // Now a window that has already finished today.
+  kitchen.openingHours = {
+    timezone: 'Asia/Kolkata',
+    week: { [today]: [{ opensAt: 0, closesAt: 1 }] }
+  };
+  memoryStore.restaurants.set(RESTAURANT, kitchen);
+
+  const outOfHours = await placeOrder();
+  check(
+    'and outside them it is refused, even with the switch still on',
+    outOfHours.status === 409 && outOfHours.json?.error?.code === 'RESTAURANT_CLOSED',
+    `status ${outOfHours.status} ${outOfHours.json?.error?.code}`
+  );
+  check(
+    'and the customer is told when it opens again, not just "closed"',
+    /opens? again at \d{2}:\d{2}/i.test(String(outOfHours.json?.error?.message || '')),
+    outOfHours.json?.error?.message
+  );
+
+  // The partner's override: "I know we are past our hours, we are serving."
+  const stayOpen = await api(
+    `/restaurants/${RESTAURANT}/hours-override`,
+    { method: 'POST', body: { minutes: 60 } },
+    partner.token
+  );
+  check('The partner can override their own hours', stayOpen.status === 200, `status ${stayOpen.status}`);
+
+  const duringOverride = await placeOrder();
+  check(
+    'and the kitchen takes orders again while it lasts',
+    duringOverride.status === 201,
+    `status ${duringOverride.status}`
+  );
+
+  /*
+   * An EXPIRED override must be ignored. This is the whole reason the override
+   * is stored as a time rather than a flag: a flag quietly becomes permanent,
+   * which is the exact failure declared hours were introduced to fix.
+   */
+  const expiredOverride = memoryStore.restaurants.get(RESTAURANT) as any;
+  expiredOverride.forceOpenUntil = new Date(Date.now() - 60_000).toISOString();
+  memoryStore.restaurants.set(RESTAURANT, expiredOverride);
+
+  const afterOverride = await placeOrder();
+  check(
+    'An expired override is ignored, not honoured forever',
+    afterOverride.status === 409,
+    `status ${afterOverride.status}`
+  );
+
+  // The manual switch still beats everything: the fryer broke, the chef left.
+  const switchOff = memoryStore.restaurants.get(RESTAURANT) as any;
+  switchOff.openingHours = {
+    timezone: 'Asia/Kolkata',
+    week: { [today]: [{ opensAt: 0, closesAt: 1439 }] }
+  };
+  switchOff.isOpen = false;
+  delete switchOff.forceOpenUntil;
+  memoryStore.restaurants.set(RESTAURANT, switchOff);
+
+  const switchedOff = await placeOrder();
+  check(
+    'A partner who switches off is closed, whatever their hours say',
+    switchedOff.status === 409,
+    `status ${switchedOff.status}`
+  );
+
+  /*
+   * And a restaurant that has never declared hours behaves exactly as it
+   * always did. Reading "no hours" as "closed" would shut every restaurant
+   * onboarded before today, which is all of them.
+   */
+  const noSchedule = memoryStore.restaurants.get(RESTAURANT) as any;
+  delete noSchedule.openingHours;
+  noSchedule.isOpen = true;
+  memoryStore.restaurants.set(RESTAURANT, noSchedule);
+
+  const noHours = await placeOrder();
+  check(
+    'A kitchen that never declared hours is unaffected',
+    noHours.status === 201,
+    `status ${noHours.status}`
+  );
+
   server.close();
 
   console.log('\n====================================================');

@@ -15,6 +15,7 @@ import { Camera, X, Clock, CircleAlert, CircleCheck, Hourglass } from 'lucide-re
 import { Card, SectionHeading, Pill, Button, Field, ErrorNote } from '../components/ui';
 import { c, spacing, radii } from '../theme';
 import { chooseProfilePhoto } from '../lib/photo';
+import { OpeningHoursEditor, toWirePayload, type Week } from '../components/OpeningHoursEditor';
 import {
   fetchProfile,
   submitProfileChanges,
@@ -84,6 +85,7 @@ interface Draft {
   costForTwo: string;
   bannerUrl: string;
   galleryUrls: string[];
+  week: Week;
 }
 
 function toDraft(published: EditableProfileView): Draft {
@@ -97,7 +99,11 @@ function toDraft(published: EditableProfileView): Draft {
     cuisineTags: (published.cuisineTags ?? []).join(', '),
     costForTwo: published.costForTwo ? String(published.costForTwo) : '',
     bannerUrl: published.bannerUrl ?? '',
-    galleryUrls: published.galleryUrls ?? []
+    galleryUrls: published.galleryUrls ?? [],
+    // An ABSENT week is not a closed one. A restaurant that has never declared
+    // hours is governed entirely by its Online switch, exactly as the platform
+    // behaved before hours existed, and an empty object here preserves that.
+    week: (published.openingHours?.week as Week) ?? {}
   };
 }
 
@@ -215,6 +221,12 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
         .filter(Boolean),
       galleryUrls: draft.galleryUrls
     };
+    // Only sent once the partner has declared something. Sending an empty week
+    // would record "no hours declared" as a deliberate choice and put it
+    // through review, when in fact they simply have not filled it in.
+    if (Object.keys(draft.week).length > 0) {
+      changes.openingHours = toWirePayload(draft.week) as any;
+    }
     if (draft.costForTwo.trim()) changes.costForTwo = Number(draft.costForTwo);
     if (draft.bannerUrl) changes.bannerUrl = draft.bannerUrl;
 
@@ -439,6 +451,35 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
       {/* ------------------------------------------------------------- hours */}
       <Card style={{ marginTop: spacing.lg }}>
         <SectionHeading
+          title="When you are open"
+          sub="We close your kitchen for you when these end, so a forgotten switch never takes an order you cannot cook."
+          right={pendingFields.has('openingHours') ? <Pill label="In review" tone="warning" /> : undefined}
+        />
+        <OpeningHoursEditor
+          days={rules.daysOfWeek}
+          week={draft.week}
+          maxWindowsPerDay={rules.maxWindowsPerDay}
+          onChange={w => set('week', w)}
+        />
+        {Object.keys(draft.week).length === 0 && (
+          <Text style={styles.hoursEmpty}>
+            You have not set any hours yet, so your Online switch decides everything. Set them and we will
+            close the kitchen for you.
+          </Text>
+        )}
+        {!!refusalFor('openingHours') && (
+          <Text style={styles.refusal}>Last refused: {refusalFor('openingHours')}</Text>
+        )}
+        <Button
+          label={saving ? 'Sending\u2026' : 'Send hours for review'}
+          onPress={() => void save()}
+          busy={saving}
+          style={{ marginTop: spacing.md }}
+        />
+      </Card>
+
+      <Card style={{ marginTop: spacing.lg }}>
+        <SectionHeading
           title="Staying open late"
           sub="Your declared hours close the kitchen for you. This keeps it open past them, just for tonight."
         />
@@ -573,6 +614,7 @@ const styles = StyleSheet.create({
   },
 
   refusal: { color: c.danger, fontSize: 12, marginTop: 6, lineHeight: 17 },
+  hoursEmpty: { color: c.textMuted, fontSize: 12.5, marginTop: spacing.md, lineHeight: 18 },
 
   hoursRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   hoursText: { flex: 1, color: c.textSoft, fontSize: 13, lineHeight: 18 },

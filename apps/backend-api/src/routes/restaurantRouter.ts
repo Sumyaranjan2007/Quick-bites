@@ -30,6 +30,7 @@ import {
   placeholderColour,
   placeholderInitials
 } from '../modules/restaurants/restaurantImagery.ts';
+import { isKitchenServing, nextOpensAt } from '../modules/restaurants/openingHours.ts';
 import {
   EDITABLE_PROFILE_FIELDS,
   MAX_CUISINE_TAGS,
@@ -152,6 +153,18 @@ restaurantRouter.get('/', async (req, res) => {
       };
     };
 
+    /*
+     * Whether this kitchen is serving, and when it opens again if not.
+     *
+     * `isOpen` alone was what the apps read, and it is only a third of the
+     * answer now: the partner's switch, their unexpired late-night override
+     * and their declared hours all have a say, in that order.
+     */
+    const servingFor = (r: Restaurant) => ({
+      isServing: isKitchenServing(r as any),
+      opensAt: nextOpensAt((r as any).openingHours)
+    });
+
     let annotated = list.map((r: Restaurant) => {
       // A restaurant whose position was never set is not measured and not
       // excluded. Judging it by distance would place every pre-map restaurant
@@ -165,7 +178,8 @@ restaurantRouter.get('/', async (req, res) => {
           locationPending: !hasRealLocation(r),
           estimatedDeliveryMinutes: undefined,
           offer: bestOfferFor(r, coupons),
-          ...imageryFor(r)
+          ...imageryFor(r),
+          ...servingFor(r)
         };
       }
 
@@ -196,7 +210,8 @@ restaurantRouter.get('/', async (req, res) => {
           config.DEFAULT_PREP_MINUTES + (road.distanceKm / config.DELIVERY_SPEED_KMPH) * 60
         ),
         offer: bestOfferFor(r, coupons),
-        ...imageryFor(r)
+        ...imageryFor(r),
+        ...servingFor(r)
       };
     });
 
@@ -208,7 +223,9 @@ restaurantRouter.get('/', async (req, res) => {
     if (isPureVeg) annotated = annotated.filter(r => r.isPureVeg);
     // `isOpen !== false` rather than `isOpen === true`, so a kitchen recorded
     // before the flag existed is treated as open rather than hidden.
-    if (openNow) annotated = annotated.filter(r => r.isOpen !== false);
+    // Declared hours count here too, so "Open now" does not list a kitchen
+    // whose schedule closed an hour ago and whose partner has not noticed.
+    if (openNow) annotated = annotated.filter(r => isKitchenServing(r));
     if (minRating !== undefined) {
       annotated = annotated.filter(r => (Number(r.ratingAverage) || 0) >= minRating);
     }
@@ -278,7 +295,7 @@ restaurantRouter.get('/', async (req, res) => {
         // screen — then nearest, then best rated.
         annotated.sort(
           (a, b) =>
-            Number(b.isOpen !== false) - Number(a.isOpen !== false) ||
+            Number(isKitchenServing(b)) - Number(isKitchenServing(a)) ||
             last(a.distanceKm) - last(b.distanceKm) ||
             byRating(a, b)
         );

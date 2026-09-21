@@ -213,3 +213,73 @@ export function isWithinOpeningHours(hours: OpeningHours | undefined, at: Date):
 
   return false;
 }
+
+/**
+ * Is this kitchen taking orders right now?
+ *
+ * The one question the rest of the platform should ask, because the answer has
+ * three inputs and getting their precedence wrong is how a customer orders from
+ * a kitchen with nobody in it.
+ *
+ *   1. The manual switch wins when it is OFF. A partner who has gone offline
+ *      has said something about right now that no schedule can overrule — the
+ *      fryer broke, the chef went home, they have run out of rice.
+ *   2. An unexpired override wins next. That is the partner saying "I know we
+ *      are past our hours, we are serving anyway": a late night, a private
+ *      booking, an hour of delivery after the counter shuts.
+ *   3. Then the declared hours, which are the reason this exists. The most
+ *      common complaint a food platform gets is not a bad dish; it is an order
+ *      accepted by a restaurant that was shut, because somebody forgot to press
+ *      the button. The schedule closes them.
+ *   4. And a kitchen that has never declared hours behaves exactly as it always
+ *      did — the switch is the whole answer. Reading "no hours" as "closed"
+ *      would shut every restaurant onboarded before today, which is all of them.
+ */
+export function isKitchenServing(
+  restaurant: {
+    isOpen?: boolean;
+    openingHours?: OpeningHours;
+    forceOpenUntil?: string;
+  },
+  at: Date = new Date()
+): boolean {
+  if (restaurant.isOpen === false) return false;
+
+  if (restaurant.forceOpenUntil) {
+    const until = new Date(restaurant.forceOpenUntil).getTime();
+    // An expired override is ignored rather than honoured, which is the whole
+    // point of storing an expiry instead of a flag.
+    if (Number.isFinite(until) && until > at.getTime()) return true;
+  }
+
+  const within = isWithinOpeningHours(restaurant.openingHours, at);
+  if (within === null) return true;
+  return within;
+}
+
+/**
+ * When this kitchen next opens, as "HH:MM", or null if it cannot be said.
+ *
+ * Shown to a customer instead of a bare "Closed", because "Closed" invites
+ * them to try again in five minutes and "Opens at 18:00" does not.
+ */
+export function nextOpensAt(
+  hours: OpeningHours | undefined,
+  at: Date = new Date()
+): string | null {
+  if (!hours || Object.keys(hours.week).length === 0) return null;
+
+  const minutes = at.getHours() * 60 + at.getMinutes();
+  const todayIndex = (at.getDay() + 6) % 7;
+
+  // Today first, then the following week. Seven days rather than six, so a
+  // kitchen open only on one day still gets an answer.
+  for (let offset = 0; offset < 8; offset += 1) {
+    const day = DAYS_OF_WEEK[(todayIndex + offset) % 7]!;
+    const windows = [...(hours.week[day] ?? [])].sort((a, b) => a.opensAt - b.opensAt);
+    for (const window of windows) {
+      if (offset > 0 || window.opensAt > minutes) return formatTimeOfDay(window.opensAt);
+    }
+  }
+  return null;
+}
