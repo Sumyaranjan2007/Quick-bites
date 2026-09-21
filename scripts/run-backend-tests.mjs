@@ -41,6 +41,7 @@ const SUITES = [
   'routing',
   'membership',
   'ledger',
+  'payees',
   'platformReset',
   'accountBlocking',
   'sockets',

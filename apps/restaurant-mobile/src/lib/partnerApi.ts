@@ -393,3 +393,63 @@ export function fetchSettlements(restaurantId: string) {
     'Could not load your settlements.'
   );
 }
+
+// ---------------------------------------------------------------------------
+// Where settlements are paid
+//
+// The payee is resolved from the signed-in account on the server, never from an
+// id the app sends, so there is no restaurant id in any of these paths. That is
+// deliberate: a route shaped `/restaurants/:id/payee-accounts` invites exactly
+// one attack, and the only defence against it is a check somebody has to
+// remember to write.
+// ---------------------------------------------------------------------------
+
+export interface PayeeAccountView {
+  id: string;
+  method: 'BANK' | 'VPA';
+  holderName: string;
+  accountLast4?: string;
+  ifsc?: string;
+  vpa?: string;
+  validationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'NAME_MISMATCH' | 'INVALID';
+  validationMessage?: string;
+  /** The name the bank holds. Shown on a mismatch so the partner can act on it. */
+  registeredName?: string;
+  nameMatchScore?: number;
+  validatedAt?: string;
+  isDefault: boolean;
+  createdAt: string;
+  isPayable: boolean;
+}
+
+export function fetchPayeeAccounts() {
+  return request<{
+    accounts: PayeeAccountView[];
+    verificationAvailable: boolean;
+    /** What the bank's answer is checked against. */
+    registeredName: string;
+  }>('/payee-accounts/me');
+}
+
+export function addPayeeAccount(input: {
+  method: 'BANK' | 'VPA';
+  holderName: string;
+  accountNumber?: string;
+  accountNumberConfirm?: string;
+  ifsc?: string;
+  vpa?: string;
+}) {
+  return request<{ account: PayeeAccountView }>(
+    '/payee-accounts/me',
+    { method: 'POST', body: JSON.stringify(input) },
+    'Could not save that account.'
+  );
+}
+
+export function removePayeeAccount(accountId: string) {
+  return request<Record<string, never>>(
+    `/payee-accounts/me/${accountId}`,
+    { method: 'DELETE' },
+    'Could not remove that account.'
+  );
+}

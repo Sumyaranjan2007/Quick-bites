@@ -112,6 +112,31 @@ export const config = {
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || '',
 
   /**
+   * RazorpayX: verifying accounts, and sending money OUT.
+   *
+   * A different product from Razorpay Payments above, with its own key pair and
+   * its own current account that every payout is debited from. Kept separate
+   * rather than reusing the payments keys, because a deployment that can COLLECT
+   * must not thereby believe it can also PAY — that belief is how a payout run
+   * fails halfway through with forty riders half-settled.
+   *
+   * Absent on a deployment that has not activated RazorpayX. The payout rails
+   * report themselves unavailable and an administrator settles by bank transfer
+   * with a recorded UTR instead, which is what the manual rail is for.
+   *
+   * NOTE for whoever configures this: RazorpayX refuses calls from addresses
+   * that are not on its allowlist, and Railway's egress address is not static.
+   * That failure arrives as an authentication error and reads exactly like a
+   * wrong secret. Check the allowlist before rotating a key that is fine.
+   */
+  RAZORPAYX_KEY_ID: process.env.RAZORPAYX_KEY_ID || '',
+  RAZORPAYX_KEY_SECRET: process.env.RAZORPAYX_KEY_SECRET || '',
+  /** The current account payouts are debited from. Not a secret; still not public. */
+  RAZORPAYX_ACCOUNT_NUMBER: process.env.RAZORPAYX_ACCOUNT_NUMBER || '',
+  /** Falls back to the payments webhook secret when they share one endpoint. */
+  RAZORPAYX_WEBHOOK_SECRET: process.env.RAZORPAYX_WEBHOOK_SECRET || '',
+
+  /**
    * Whether a password-reset code is returned in the API response.
    *
    * There is no mail or SMS provider wired up, so a reset code has to reach the

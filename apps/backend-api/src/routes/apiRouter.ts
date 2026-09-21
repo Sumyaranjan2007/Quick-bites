@@ -5,6 +5,7 @@ import { authRouter } from './authRouter.ts';
 import { paymentRouter } from './paymentRouter.ts';
 import { kycRouter } from './kycRouter.ts';
 import { adminRouter } from './adminRouter.ts';
+import { payeeAccountRouter } from './payeeAccountRouter.ts';
 import { addressRouter } from './addressRouter.ts';
 import { riderRouter } from './riderRouter.ts';
 import { walletRouter } from './walletRouter.ts';
@@ -67,6 +68,10 @@ apiRouter.use('/kyc', authMiddleware(), kycRouter);
 apiRouter.use('/admin', authMiddleware('admin'), adminRouter);
 apiRouter.use('/riders', authMiddleware('rider'), riderRouter);
 apiRouter.use('/wallets', authMiddleware(), walletRouter);
+// Where a partner's or a rider's settlements are paid. Authentication is
+// applied per route inside, because the router serves two different roles and
+// resolves which payee you are from your token rather than from the path.
+apiRouter.use('/payee-accounts', payeeAccountRouter);
 // Complaints and refund requests raised from the customer, partner and rider
 // apps. Authentication is applied inside the router, which also decides who may
 // see which case.

@@ -87,7 +87,32 @@ const WIPED = [
    * should not silently find themselves back on 15% commission because the
    * button that emptied the orders also emptied the decisions.
    */
-  'ledgerEntries'
+  'ledgerEntries',
+  /**
+   * A bank account whose rider has just been deleted belongs to nobody, and a
+   * cash deposit against a rider who no longer exists is a debt against a
+   * ghost. Both go with the people they describe.
+   *
+   * There is a second reason for `payeeAccounts` specifically: leaving verified
+   * bank destinations behind after a reset means the next person to register
+   * could be handed an account somebody else verified. Whatever that is, it is
+   * not a clean start.
+   */
+  'payeeAccounts',
+  'cashDeposits',
+  /**
+   * A profile change goes with the restaurant that asked for it. What is left
+   * otherwise is a request to rename a kitchen that no longer exists, sitting
+   * in the approval queue forever because approving it has nothing to write to.
+   */
+  'profileEdits',
+  /**
+   * A push token addresses an installed app, not a person. After a reset the
+   * accounts those tokens belonged to are gone, so every one of them is either
+   * dead or - worse - still live on somebody's phone, ready to deliver a
+   * notification about an order placed by an account that no longer exists.
+   */
+  'deviceTokens'
 ] as const;
 
 /*

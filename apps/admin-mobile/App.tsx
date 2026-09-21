@@ -9,6 +9,7 @@ import {
   UtensilsCrossed,
   IndianRupee,
   Percent,
+  Landmark,
   Megaphone,
   LifeBuoy,
   FileCheck2,
@@ -31,6 +32,7 @@ import { RefundsScreen } from './src/screens/RefundsScreen';
 import { CatalogScreen } from './src/screens/CatalogScreen';
 import { FinanceScreen } from './src/screens/FinanceScreen';
 import { RatesScreen } from './src/screens/RatesScreen';
+import { PayeeAccountsScreen } from './src/screens/PayeeAccountsScreen';
 import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
@@ -136,6 +138,15 @@ const SECTIONS: Array<{
     permissions: ['finance.config.edit'],
     icon: active => <Percent size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     render: () => <RatesScreen />
+  },
+  {
+    key: 'payees',
+    label: 'Bank',
+    title: 'Payout accounts',
+    subtitle: 'Who can be paid, and the names that need a person',
+    permissions: ['finance.payouts.manage', 'finance.settlements.manage', 'finance.payouts.view'],
+    icon: active => <Landmark size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <PayeeAccountsScreen />
   },
   {
     key: 'marketing',

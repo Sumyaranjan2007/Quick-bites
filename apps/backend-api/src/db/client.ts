@@ -70,6 +70,25 @@ export interface DbStore {
    * stored alongside it.
    */
   ledgerEntries: Map<string, any>;
+  /**
+   * Where a partner's or a rider's money is sent. Holds no full account
+   * number: once a penny drop verifies one, Razorpay's fund account id is what
+   * we pay to and the digits are discarded.
+   */
+  payeeAccounts: Map<string, any>;
+  /** Cash a rider collected on COD and is bringing in to the office. */
+  cashDeposits: Map<string, any>;
+  /**
+   * Changes a partner has asked to make to how their restaurant appears.
+   *
+   * Held apart from the restaurant itself on purpose. Everything a customer
+   * sees passes a human first, so the live record must never carry an
+   * unreviewed name or an unreviewed photograph — not even for the length of a
+   * review queue. Approval is the only thing that writes to a restaurant.
+   */
+  profileEdits: Map<string, any>;
+  /** Where a push notification is actually delivered: one row per installed app. */
+  deviceTokens: Map<string, any>;
   /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
   meta: Map<string, any>;
 }
@@ -100,6 +119,10 @@ export const memoryStore: DbStore = {
   settings: new Map(),
   pricingConfigs: new Map(),
   ledgerEntries: new Map(),
+  payeeAccounts: new Map(),
+  cashDeposits: new Map(),
+  profileEdits: new Map(),
+  deviceTokens: new Map(),
   meta: new Map()
 };
 

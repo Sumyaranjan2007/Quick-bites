@@ -156,6 +156,183 @@ export interface Restaurant {
   isOpen: boolean;
   /** When the kitchen was last opened or closed, for the partner's own reference. */
   kitchenStatusChangedAt?: string;
+
+  /**
+   * What the kitchen says about itself, in its own words. Up to 400 characters.
+   *
+   * Optional, and absent on every restaurant onboarded before this existed.
+   * Those keep trading and simply show no description, which is why this is not
+   * defaulted to an empty string somewhere in the middle of the stack: absent
+   * and blank mean different things to the partner editing it.
+   */
+  description?: string;
+
+  /**
+   * Up to four photographs of the place, beyond the cover.
+   *
+   * The cover (`bannerUrl`) is what a customer sees on a card. These are what
+   * they see on the detail page, and when a kitchen has supplied neither, the
+   * detail page falls back to photographs of the food.
+   */
+  galleryUrls?: string[];
+
+  /**
+   * The week, as the kitchen has declared it.
+   *
+   * Absent means never declared, which is NOT the same as closed: a restaurant
+   * with no declared hours is governed entirely by `isOpen`, exactly as the
+   * platform behaved before hours existed. Treating absent as closed would shut
+   * every restaurant onboarded before today.
+   */
+  openingHours?: OpeningHours;
+
+  /**
+   * An ISO timestamp until which `isOpen` beats the declared hours.
+   *
+   * Hours close a kitchen the partner forgot to close. This is the partner
+   * saying "I know, we are serving anyway" — a late night, a private booking,
+   * a delivery-only hour after the counter shuts. It expires by itself, so
+   * an override can never quietly become permanent, which is exactly the
+   * failure the declared hours were introduced to fix.
+   */
+  forceOpenUntil?: string;
+}
+
+/* ------------------------------------------------------- opening hours */
+
+export const DAYS_OF_WEEK = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY'
+] as const;
+
+export type DayOfWeek = (typeof DAYS_OF_WEEK)[number];
+
+/**
+ * One continuous serving period, as minutes from midnight, local time.
+ *
+ * Minutes rather than "HH:MM" because every question worth asking of this is
+ * arithmetic — is now inside it, does it overlap the next one — and doing
+ * arithmetic on strings is where the off-by-one lives. The apps send and render
+ * "HH:MM"; it is parsed at the edge.
+ *
+ * A window whose `closesAt` is at or before its `opensAt` runs past midnight.
+ * 22:00-02:00 is a real and common kitchen.
+ */
+export interface ServingWindow {
+  opensAt: number;
+  closesAt: number;
+}
+
+export interface OpeningHours {
+  /** An absent day was never declared. An empty array is declared closed. */
+  week: Partial<Record<DayOfWeek, ServingWindow[]>>;
+  timezone: string;
+}
+
+/* -------------------------------------------------------- profile edits */
+
+/** Exactly what a partner may change about themselves. Nothing outside this list. */
+export const EDITABLE_PROFILE_FIELDS = [
+  'name',
+  'description',
+  'phone',
+  'addressLine',
+  'city',
+  'pincode',
+  'coordinates',
+  'cuisineTags',
+  'costForTwo',
+  'bannerUrl',
+  'galleryUrls',
+  'openingHours'
+] as const;
+
+export type EditableProfileField = (typeof EDITABLE_PROFILE_FIELDS)[number];
+
+export interface EditableProfile {
+  name: string;
+  description: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  pincode: string;
+  coordinates: Coordinates;
+  cuisineTags: string[];
+  costForTwo: number;
+  bannerUrl: string;
+  galleryUrls: string[];
+  openingHours: OpeningHours;
+}
+
+/**
+ * `PARTIALLY_APPROVED` is a real outcome, not a rounding of the other two.
+ *
+ * A reviewer can accept the hours and refuse the photograph in one pass.
+ * Recording that as APPROVED or REJECTED makes the partner's own history lie to
+ * them about what is live.
+ */
+export type ProfileEditStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'PARTIALLY_APPROVED'
+  | 'SUPERSEDED';
+
+export interface ProfileFieldRejection {
+  field: EditableProfileField;
+  reason: string;
+}
+
+export interface ProfileEdit {
+  id: string;
+  restaurantId: string;
+  submittedByUserId: string;
+  submittedAt: string;
+  status: ProfileEditStatus;
+  /** Only the fields that actually changed. Never a whole-record overwrite. */
+  changes: Partial<EditableProfile>;
+  /** What each changed field was at submission, so a reviewer sees before and after. */
+  previous: Partial<EditableProfile>;
+  approvedFields?: EditableProfileField[];
+  rejections?: ProfileFieldRejection[];
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+  supersededByEditId?: string;
+}
+
+/* -------------------------------------------------------- device tokens */
+
+export type DevicePlatform = 'ANDROID' | 'IOS' | 'WEB';
+
+/**
+ * Where a push notification is actually delivered.
+ *
+ * One row per installed app, not per user: a partner with a phone by the pass
+ * and a tablet in the office must be reached on both, and a rider who changes
+ * handset must stop being reached on the old one. Keyed by the token itself,
+ * because that is what the push service deduplicates on.
+ */
+export interface DeviceToken {
+  id: string;
+  userId: string;
+  role: UserRole;
+  token: string;
+  platform: DevicePlatform;
+  /** Distinguishes two installs by the same user on two devices. */
+  deviceId?: string;
+  appVersion?: string;
+  createdAt: string;
+  lastSeenAt: string;
+  /**
+   * Set when the push service reports the token dead. Kept rather than deleted
+   * so a token that fails once in a network blip is not immediately discarded.
+   */
+  invalidatedAt?: string;
 }
 
 export interface OptionItem {
@@ -1224,3 +1401,163 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   // Razorpay closes a single-use QR at two hours whatever we ask for.
   doorQrExpiryMinutes: 15
 };
+
+/* ------------------------------------------------------------------------- *
+ * PAYEE ACCOUNTS
+ *
+ * Where a partner's or a rider's money is actually sent.
+ *
+ * Before this existed there was no bank account anywhere in this platform. The
+ * only banking detail it held was a PHOTOGRAPH of a bank proof in the KYC
+ * queue, which a human read with their eyes, and a payout was a record of a
+ * decision rather than a transfer — an administrator marked one paid and typed
+ * a UTR by hand.
+ *
+ * -------------------------------------------------------------------------
+ * THE PLATFORM STOPS HOLDING BANK NUMBERS
+ * -------------------------------------------------------------------------
+ * An account is verified by a penny drop, which returns a `fund_account_id`.
+ * That id is what money is sent to afterwards, so the raw account number is
+ * DISCARDED and only the last four digits are kept, for a human to recognise
+ * the row by.
+ *
+ * Together with customer refunds going out by payout link — where the customer
+ * types their own UPI into Razorpay's page and we never see it — the result is
+ * that Quick Bites stores no full bank account number for anybody. The safest
+ * data is the data you do not have.
+ * ------------------------------------------------------------------------- */
+
+export type PayeeOwnerType = 'RESTAURANT' | 'RIDER';
+
+/** How money reaches them. A UPI id is an account for this purpose. */
+export type PayeeMethod = 'BANK' | 'VPA';
+
+export type PayeeValidationStatus =
+  /** Entered, nothing checked yet. Cannot be paid to. */
+  | 'UNVERIFIED'
+  /** A penny drop is in flight. Cannot be paid to. */
+  | 'PENDING'
+  /** The bank confirmed it exists and the name matches. Payable. */
+  | 'VERIFIED'
+  /**
+   * The account exists, but the name on it is not close enough to the name on
+   * the KYC. Not payable, and queued for a human — this is the shape both an
+   * honest married-name mismatch and an attempt to be paid into somebody
+   * else's account arrive in, and only a person can tell them apart.
+   */
+  | 'NAME_MISMATCH'
+  /** The bank says no such account, or the name is nothing like it. */
+  | 'INVALID';
+
+export interface PayeeAccount {
+  id: string;
+  ownerType: PayeeOwnerType;
+  /** The restaurant id or the rider id. Never the user id. */
+  ownerId: string;
+  /** The user account behind them, which is who a payout is audited against. */
+  ownerUserId: string;
+  method: PayeeMethod;
+  /** As the payee typed it, for comparison against what the bank returns. */
+  holderName: string;
+  /** Display only. The full number is discarded once verification succeeds. */
+  accountLast4?: string;
+  ifsc?: string;
+  /** `name@bank`. Held whole: a VPA is not secret and is needed to pay. */
+  vpa?: string;
+  bankName?: string;
+
+  validationStatus: PayeeValidationStatus;
+  /** The name the BANK holds against the account. The authority, not our copy. */
+  registeredName?: string;
+  /** Razorpay's own 0–100 comparison of the two names. */
+  nameMatchScore?: number;
+  /** Why it is not verified, in words a payee can act on. */
+  validationMessage?: string;
+  validatedAt?: string;
+  /** Which id Razorpay gave us, and what we actually pay to. */
+  razorpayContactId?: string;
+  razorpayFundAccountId?: string;
+
+  /**
+   * Whether this is the account payouts go to. Exactly one per owner, and the
+   * platform enforces it — two defaults is a payout going somewhere nobody
+   * chose.
+   */
+  isDefault: boolean;
+  createdAt: string;
+  createdByUserId: string;
+  /** Set when replaced. Kept, because a past payout points at it. */
+  archivedAt?: string;
+}
+
+/* ------------------------------------------------------------------------- *
+ * CASH A RIDER IS CARRYING
+ * ------------------------------------------------------------------------- */
+
+export type CashDepositStatus =
+  /** The rider says they are bringing this much. Nothing has moved. */
+  | 'DECLARED'
+  /** An administrator counted it and it matched. */
+  | 'CONFIRMED'
+  /** An administrator counted it and it did not match what was declared. */
+  | 'VARIANCE'
+  /** The rider withdrew the declaration before bringing it in. */
+  | 'CANCELLED';
+
+export interface CashDeposit {
+  id: string;
+  riderId: string;
+  riderUserId: string;
+  riderName?: string;
+  /** What the rider said they were bringing, in paise. */
+  declaredPaise: number;
+  /** What an administrator actually counted, in paise. */
+  receivedPaise?: number;
+  status: CashDepositStatus;
+  /** A photo of the cash or a deposit slip, as a data URI. Optional. */
+  proofUrl?: string;
+  declaredAt: string;
+  confirmedAt?: string;
+  confirmedByUserId?: string;
+  /** Required when the counted amount differs from the declared one. */
+  varianceNote?: string;
+  /** What the rider was holding when they declared, for the audit. */
+  cashInHandAtDeclarationPaise: number;
+}
+
+/* ------------------------------------------------------------------------- *
+ * PAYOUT RAILS
+ *
+ * How money physically leaves the platform. Multiple, deliberately: the owner
+ * asked to be able to pay in any situation, and a gateway that is down at nine
+ * on a Friday must not mean a rider goes unpaid for the weekend.
+ *
+ * Every rail writes the SAME ledger entries. Only the reference format differs.
+ * That is what makes several rails safe rather than a way to lose track of
+ * money.
+ * ------------------------------------------------------------------------- */
+
+export type PayoutRailId =
+  /** RazorpayX API, to a verified fund account. The default. */
+  | 'RAZORPAYX'
+  /**
+   * A link the recipient opens and enters their own account into. Used for
+   * customer refunds on cash orders, where storing their bank details would be
+   * the most dangerous data this platform holds.
+   */
+  | 'PAYOUT_LINK'
+  /** An administrator transferred it by net banking and recorded the UTR. */
+  | 'MANUAL_BANK'
+  /** An administrator paid by UPI and recorded the reference. */
+  | 'UPI_MANUAL';
+
+export type RailResultStatus =
+  | 'SENT'
+  | 'QUEUED'
+  | 'FAILED'
+  /**
+   * The request left this process and its outcome is not known — a timeout, a
+   * crash mid-flight. NEVER retried blind; reconciliation asks the gateway what
+   * actually happened before anything else may touch it.
+   */
+  | 'UNCERTAIN';

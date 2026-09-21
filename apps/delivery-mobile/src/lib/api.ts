@@ -352,8 +352,70 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input)
     });
+  },
+
+  /* --------------------------- Payout account ---------------------------- *
+   * Where this rider's earnings are actually sent.
+   *
+   * No rider id in any of these paths. The server resolves which rider is
+   * asking from the token, so there is no id to change in a request in order to
+   * read or replace somebody else's bank details.
+   * ----------------------------------------------------------------------- */
+
+  payeeAccounts(ctx: ApiContext) {
+    return request<PayeeAccountsResponse>(ctx, '/payee-accounts/me');
+  },
+
+  addPayeeAccount(
+    ctx: ApiContext,
+    input: {
+      method: 'BANK' | 'VPA';
+      holderName: string;
+      accountNumber?: string;
+      accountNumberConfirm?: string;
+      ifsc?: string;
+      vpa?: string;
+    }
+  ) {
+    // A penny drop is a real round trip to a bank. The default budget is not
+    // always enough, and a timeout here reads to the rider as a refusal.
+    return request<{ account: PayeeAccount }>(
+      ctx,
+      '/payee-accounts/me',
+      { method: 'POST', body: JSON.stringify(input) },
+      45000
+    );
+  },
+
+  removePayeeAccount(ctx: ApiContext, accountId: string) {
+    return request<Record<string, never>>(ctx, `/payee-accounts/me/${accountId}`, { method: 'DELETE' });
   }
 };
+
+export interface PayeeAccount {
+  id: string;
+  method: 'BANK' | 'VPA';
+  holderName: string;
+  accountLast4?: string;
+  ifsc?: string;
+  vpa?: string;
+  validationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'NAME_MISMATCH' | 'INVALID';
+  validationMessage?: string;
+  /** The name the bank holds. Shown on a mismatch so the rider can act on it. */
+  registeredName?: string;
+  nameMatchScore?: number;
+  validatedAt?: string;
+  isDefault: boolean;
+  createdAt: string;
+  isPayable: boolean;
+}
+
+export interface PayeeAccountsResponse {
+  accounts: PayeeAccount[];
+  verificationAvailable: boolean;
+  /** What the bank's answer is checked against. */
+  registeredName: string;
+}
 
 /* ------------------------------- Shapes ---------------------------------- */
 
