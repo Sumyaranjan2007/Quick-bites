@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -375,21 +375,54 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
     setCouponError(null);
   };
 
+  /*
+   * TWO GUARDS AGAINST PLACING THE SAME ORDER TWICE, and they catch different
+   * things.
+   *
+   * Reported by the owner: the kitchen received the same order twice, with
+   * different ids and different OTPs. Different ids means the server was asked
+   * twice with two DIFFERENT idempotency keys — the server's own duplicate
+   * check was working perfectly and had nothing to match on.
+   *
+   * The key was generated inside this handler, so every invocation minted a
+   * fresh one. And the only re-entry guard was `setIsProcessing(true)`, which
+   * is React state and therefore asynchronous: a second tap lands before the
+   * re-render disables the button, runs the handler again, and mints a second
+   * key. Two orders, two kitchens tickets, one customer.
+   *
+   * `submittingRef` is a ref, so it is set SYNCHRONOUSLY and the second tap
+   * sees it immediately.
+   *
+   * `idempotencyRef` survives a failure on purpose. If the request times out
+   * and the customer taps again, the same key goes up, and the server returns
+   * the order it already has instead of creating another. Regenerating it on
+   * retry is what turns a flaky network into a double order — which is the
+   * more common cause of this in the field than a double tap.
+   */
+  const submittingRef = useRef(false);
+  const idempotencyRef = useRef<string | null>(null);
+
   const handleCheckout = async () => {
     if (!selectedAddressId) {
       setCheckoutError('Add a delivery address before placing your order.');
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     setIsProcessing(true);
     setCheckoutError(null);
     const effectiveBase = apiUrl || DEFAULT_API_URL;
 
     try {
-      const generatedUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
+      if (!idempotencyRef.current) {
+        idempotencyRef.current = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+      const generatedUUID = idempotencyRef.current;
 
       const payload = {
         restaurantId: restaurantId || 'rst_bbh_01',
@@ -506,6 +539,11 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         total: order.bill?.totalAmount ?? pricingResult.totalAmount,
         otp: order.deliveryOtp || ''
       });
+
+      // Retired only once an order exists. The NEXT basket is a different
+      // order and must get a different key, or a customer ordering the same
+      // meal twice in an evening would silently receive the first one back.
+      idempotencyRef.current = null;
     } catch (err: any) {
       setCheckoutError(
         err?.message === 'Failed to fetch' || err?.name === 'TypeError'
@@ -514,6 +552,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
       );
     } finally {
       setIsProcessing(false);
+      // Released so a genuine retry can proceed. The idempotency key is NOT
+      // cleared here — that is the point: a retry must carry the same key.
+      submittingRef.current = false;
     }
   };
 

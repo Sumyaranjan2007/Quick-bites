@@ -548,6 +548,70 @@ async function run() {
     JSON.stringify(callLive.json || {}).slice(0, 160)
   );
 
+  // --- The same order must never reach a kitchen twice --------------------
+  //
+  // Reported by the owner: the restaurant received the same order twice, with
+  // different ids and different OTPs. Different ids means two DIFFERENT
+  // idempotency keys were sent — the server's duplicate check had nothing to
+  // match on and was working exactly as designed.
+  //
+  // The customer app was minting a fresh key inside the submit handler, and
+  // its only re-entry guard was React state, which updates asynchronously. A
+  // second tap, or a retry after a timeout, produced a second key.
+  //
+  // The app now holds one key per checkout and reuses it on retry. These
+  // checks prove the guarantee the app is relying on.
+  console.log('\n-- Placing the same order twice');
+
+  const sameKey = crypto.randomUUID();
+  const orderBody = {
+    restaurantId: RESTAURANT_ID,
+    deliveryAddressId: 'addr_sample_01',
+    items: [{ dishId: 'dish_ck_biryani', quantity: 1, selectedOptions: [] }],
+    paymentMethod: 'CASH_ON_DELIVERY',
+    idempotencyKey: sameKey
+  };
+
+  const firstSend = await api('/orders', { method: 'POST', body: orderBody }, customer.token);
+  check('The order is placed', firstSend.status === 201, `status ${firstSend.status}`);
+
+  // Exactly what a double tap or a retry after a timeout sends.
+  const secondSend = await api('/orders', { method: 'POST', body: orderBody }, customer.token);
+  check(
+    'Sending it again with the same key does not create a second order',
+    secondSend.json?.data?.order?.id === firstSend.json?.data?.order?.id,
+    `${firstSend.json?.data?.order?.id} vs ${secondSend.json?.data?.order?.id}`
+  );
+  check(
+    'and the delivery OTP is the same one, not a second code',
+    secondSend.json?.data?.order?.deliveryOtp === firstSend.json?.data?.order?.deliveryOtp ||
+      !secondSend.json?.data?.order?.deliveryOtp,
+    'OTPs differ between the two responses'
+  );
+
+  const kitchenList = await api(`/restaurants/${RESTAURANT_ID}/orders`, {}, partner.token);
+  const matching = (kitchenList.json?.data?.orders || []).filter(
+    (o: any) => o.id === firstSend.json?.data?.order?.id
+  );
+  check('and the kitchen sees it exactly once', matching.length === 1, `${matching.length} copies`);
+
+  /*
+   * A DIFFERENT key must still create a different order. Without this the
+   * check above would also pass against a server that had stopped accepting
+   * orders altogether.
+   */
+  const genuinelyNew = await api(
+    '/orders',
+    { method: 'POST', body: { ...orderBody, idempotencyKey: crypto.randomUUID() } },
+    customer.token
+  );
+  check(
+    'but a genuinely new order is still accepted',
+    genuinelyNew.status === 201 &&
+      genuinelyNew.json?.data?.order?.id !== firstSend.json?.data?.order?.id,
+    `status ${genuinelyNew.status}`
+  );
+
   customerSock.close(); partnerSock.close(); adminSock.close(); riderSock.close();
   closeSocketServer();
   server.close();
