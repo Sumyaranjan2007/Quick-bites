@@ -23,15 +23,37 @@ applications, and there is exactly one copy of each.
 | Admin | `com.quickbite.admin` | `C:\Users\priya\quickbites-keystores\quickbites-admin.jks` |
 
 Each app reads its own `apps/<app>/android/keystore.properties`, which holds
-the path, the alias and **two passwords**. That file is gitignored and is the
-only place those passwords exist.
+the path, the alias and **two passwords**.
+
+**The copy inside `android/` is disposable. The vault is the source of truth.**
+
+```
+C:/Users/priya/quickbites-keystores/
+  quickbites-customer-v2.jks    customer.keystore.properties
+  quickbites-partner.jks        partner.keystore.properties
+  quickbites-rider.jks          rider.keystore.properties
+  quickbites-admin.jks          admin.keystore.properties
+```
+
+`scripts/build-apks.sh` restores `android/keystore.properties` from that folder
+on every build when it is missing - whatever deleted it, and whether or not a
+prebuild ran. `QB_KEYSTORE_VAULT` overrides the location.
+
+This replaces the old protection, which took a `mktemp` copy immediately before
+prebuild. That was enough only while every prebuild went through the script,
+and they do not: running `npx expo prebuild` by hand is the obvious thing to do
+while debugging, and it deletes the file with nothing to restore it from. That
+is how the customer key's password was lost on 22 Sep 2026 - and the same
+deletion happened again on the same day during the Firebase work, recovered
+only because a copy had been taken by hand minutes before.
+
+The repair is verified rather than assumed: delete an
+`android/keystore.properties` and it comes back byte for byte.
 
 **`apps/<app>/android/` is generated.** `expo prebuild` deletes and recreates
 it. A `keystore.properties` inside it is destroyed with everything else, and
-because it is gitignored there is nothing to restore it from.
-
-That is not hypothetical. It is how the customer key's password was lost on
-22 Sep 2026, described below.
+because it is gitignored there is nothing in the repository to restore it from
+- which is exactly why the vault above sits outside the repository.
 
 ---
 
@@ -91,6 +113,25 @@ generation is deliberately not something this tooling does:
 
 Then write `keystore.properties` as above, pointing at `-v2.jks`, and record
 the password in the password manager **before** building anything.
+
+---
+
+## Which app updates which
+
+From this point on every build is an **update** to what is already installed,
+because the package name and the signing key are both unchanged:
+
+| App | Package | Key | Updates in place? |
+| --- | --- | --- | --- |
+| Customer | `com.quickbite.app` | `quickbites-customer-v2.jks` | Yes, from 22 Sep 2026 |
+| Partner | `com.quickbite.partner` | `quickbites-partner.jks` | Yes, always |
+| Rider | `com.quickbite.rider` | `quickbites-rider.jks` | Yes, always |
+| Admin | `com.quickbite.admin` | `quickbites-admin.jks` | Yes, always |
+
+The customer app required one uninstall when it moved to `-v2` on 22 Sep 2026.
+Nobody should ever be asked to uninstall again. **A build signed with a
+different key forces every existing user to uninstall and lose their session**,
+so the vault is not housekeeping - it is what keeps that promise true.
 
 ---
 

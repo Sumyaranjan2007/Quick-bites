@@ -147,14 +147,47 @@ for entry in "${APPS[@]}"; do
   echo "=== $app -> $artifact.apk ==="
   cd "$ROOT/apps/$app"
 
+  # QuickBites-Customer -> customer. The prefix is stripped and the rest
+  # lowercased, so the vault filename is derived from the artifact rather than
+  # held in a second list that could disagree with the first.
+  artifact_key="$(echo "${artifact#QuickBites-}" | tr '[:upper:]' '[:lower:]')"
+
+  #
+  # THE SIGNING CONFIG IS RESTORED FROM A VAULT OUTSIDE THE REPOSITORY.
+  #
+  # keystore.properties is gitignored and lives inside android/, which
+  # `prebuild --clean` deletes. This script used to protect it with a mktemp
+  # copy taken moments before, and that is enough ONLY while every prebuild
+  # goes through this script. It does not, and the gap is not hypothetical:
+  # running `npx expo prebuild` by hand - the obvious thing to do while
+  # debugging - deletes the file with nothing to restore it from, and because
+  # it is gitignored there is no diff and no warning. That is how the customer
+  # key's password was lost on 22 Sep, and it nearly happened a second time on
+  # the same day.
+  #
+  # So the copy in android/ is now treated as disposable and the vault is the
+  # source of truth. A missing or destroyed keystore.properties is repaired
+  # from $KEYSTORE_VAULT on every build, by anyone, whatever deleted it.
+  #
+  # The vault holds the .jks files too, is outside the repository, and is
+  # never committed - this repository is public.
+  #
+  KEYSTORE_VAULT="${QB_KEYSTORE_VAULT:-$HOME/quickbites-keystores}"
+  vault_config="$KEYSTORE_VAULT/$artifact_key.keystore.properties"
+
   if [[ "$PREBUILD" == "1" ]]; then
-    # keystore.properties is gitignored and lives inside android/, which
-    # prebuild --clean deletes. Keep it across the regeneration.
     keystore_backup="$(mktemp)"
     [[ -f android/keystore.properties ]] && cp android/keystore.properties "$keystore_backup"
     npx expo prebuild --platform android --clean
     [[ -s "$keystore_backup" ]] && cp "$keystore_backup" android/keystore.properties
     rm -f "$keystore_backup"
+  fi
+
+  # Restored whether or not a prebuild ran, because the file can go missing
+  # for reasons this script never sees.
+  if [[ ! -f android/keystore.properties && -f "$vault_config" ]]; then
+    cp "$vault_config" android/keystore.properties
+    echo "  restored signing config from the vault: $vault_config"
   fi
 
   echo "sdk.dir=$ANDROID_HOME_NATIVE" > android/local.properties
