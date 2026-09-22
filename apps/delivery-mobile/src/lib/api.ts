@@ -419,7 +419,27 @@ export interface PayeeAccountsResponse {
 
 /* ------------------------------- Shapes ---------------------------------- */
 
-export type TripStage = 'HEADING_TO_RESTAURANT' | 'AT_RESTAURANT' | 'OUT_FOR_DELIVERY' | 'AT_DOORSTEP';
+/*
+ * RE-EXPORTED FROM shared-types, NOT REDECLARED.
+ *
+ * This was a hand-written copy of the same union, and the copy is what broke
+ * the delivery. When the server renamed the collection stage OUT_FOR_DELIVERY
+ * -> PICKED_UP, nothing here failed to compile: a private type cannot disagree
+ * with a server it does not reference. At runtime `trip.stage` arrived as
+ * PICKED_UP, every comparison in TripScreen was false, the "I'm at the
+ * doorstep" button never rendered, and the OTP box behind it never appeared.
+ * A rider stood at the door with the food and no way to finish the trip.
+ *
+ * Nothing caught it. The typechecker had nothing to check, the backend suites
+ * passed because the backend was right, and the flow suite drives the API
+ * directly rather than this screen. The only thing that could have found it
+ * was doing the delivery, which is what the owner did.
+ *
+ * So the type comes from the shared package now. The next rename is a build
+ * error here instead of a rider stuck on a doorstep.
+ */
+import type { RiderTripStage } from '@quick-bites/shared-types';
+export type TripStage = RiderTripStage;
 
 export interface Coordinates {
   latitude: number;

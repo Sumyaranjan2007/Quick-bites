@@ -583,7 +583,7 @@ function DeliveryApp() {
   // order, so the GPS subscription lives exactly as long as that leg does.
   useEffect(() => {
     const carrying =
-      activeTrip && (activeTrip.stage === 'OUT_FOR_DELIVERY' || activeTrip.stage === 'AT_DOORSTEP');
+      activeTrip && (activeTrip.stage === 'PICKED_UP' || activeTrip.stage === 'AT_DOORSTEP');
     if (!carrying || !token) return;
 
     let subscription: Location.LocationSubscription | null = null;

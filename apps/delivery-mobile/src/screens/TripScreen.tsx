@@ -38,11 +38,36 @@ import type { ApiContext, Trip, TripStage } from '../lib/api';
  * trip gave the rider a restaurant name and nothing to steer by.
  */
 
-const STAGE_ORDER: TripStage[] = ['HEADING_TO_RESTAURANT', 'AT_RESTAURANT', 'OUT_FOR_DELIVERY', 'AT_DOORSTEP'];
+/*
+  * The four stages a rider moves through, in order.
+  *
+  * `PICKED_UP` was `OUT_FOR_DELIVERY` here until the two tracks were
+  * separated. The name now says what the RIDER did - they collected the food -
+  * rather than borrowing the name of the FOOD's status, which meant something
+  * different and was the source of the confusion.
+  *
+  * The other three stages of RiderTripStage - UNASSIGNED, OFFERED, DELIVERED -
+  * are deliberately absent: they are states this screen is never shown in.
+  */
+const STAGE_ORDER: TripStage[] = ['HEADING_TO_RESTAURANT', 'AT_RESTAURANT', 'PICKED_UP', 'AT_DOORSTEP'];
 const STAGE_LABEL: Record<TripStage, string> = {
   HEADING_TO_RESTAURANT: 'To restaurant',
   AT_RESTAURANT: 'At restaurant',
-  OUT_FOR_DELIVERY: 'To customer',
+  PICKED_UP: 'To customer',
+  /*
+   * The three stages this screen never displays, present because the label map
+   * is keyed by the full shared type and the compiler insists every case is
+   * covered. That insistence is the point: leaving them out was how the last
+   * rename slipped through silently.
+   *
+   * UNASSIGNED and OFFERED happen before a rider has the trip, and DELIVERED
+   * after the screen has closed - so a label for any of them appearing on a
+   * rider's phone means something upstream is wrong, and these strings say so
+   * rather than rendering blank.
+   */
+  UNASSIGNED: 'Not assigned',
+  OFFERED: 'Offered',
+  DELIVERED: 'Delivered',
   AT_DOORSTEP: 'At doorstep'
 };
 
@@ -204,7 +229,7 @@ export const TripScreen: React.FC<{
   const stageIndex = STAGE_ORDER.indexOf(trip.stage);
   const headingToRestaurant = trip.stage === 'HEADING_TO_RESTAURANT';
   const atRestaurant = trip.stage === 'AT_RESTAURANT';
-  const outForDelivery = trip.stage === 'OUT_FOR_DELIVERY';
+  const outForDelivery = trip.stage === 'PICKED_UP';
   const atDoorstep = trip.stage === 'AT_DOORSTEP';
 
   return (

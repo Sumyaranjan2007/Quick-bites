@@ -118,7 +118,7 @@ export const DashboardScreen: React.FC<{
             </View>
             <Text style={s.activeRestaurant}>{activeOrder.restaurantName}</Text>
             <Text style={s.activeAddress} numberOfLines={1}>
-              {activeOrder.stage === 'OUT_FOR_DELIVERY' || activeOrder.stage === 'AT_DOORSTEP'
+              {activeOrder.stage === 'PICKED_UP' || activeOrder.stage === 'AT_DOORSTEP'
                 ? activeOrder.dropAddress
                 : activeOrder.pickupAddress}
             </Text>
