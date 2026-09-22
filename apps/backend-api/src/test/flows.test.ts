@@ -362,6 +362,78 @@ async function run() {
     const forgotWitness = await witnessOf(forgotId);
     check('...and it is recorded as the rider word alone, not a mutual handover',
       forgotWitness === 'RIDER_ONLY', `got ${JSON.stringify(forgotWitness)}`);
+    /*
+     * ======================================================================
+     * SUPPORT, END TO END.
+     * ======================================================================
+     *
+     * A customer raising a complaint is a flow with four separate parties'
+     * code in it - the customer's app, an authenticated route, a permissioned
+     * admin route and the admin's screen - and every one of them can be
+     * perfect while the flow is useless. The failure that matters is the
+     * silent one: the ticket is stored, the customer is thanked, and nothing
+     * ever reaches anybody who can act on it. Nothing errors, and the customer
+     * waits for a reply that was never possible.
+     *
+     * So the checks follow the ticket rather than testing the endpoints: does
+     * it appear where a human would look, does a reply come back to the person
+     * who raised it, and does closing it close it on their side too.
+     */
+    console.log('\n-- Support: a complaint reaching a human and getting answered');
+
+    const raised = await api('/support/tickets', {
+      method: 'POST',
+      body: {
+        subject: 'Order arrived cold',
+        category: 'ORDER',
+        message: 'The food was cold when it arrived and the seal was broken.',
+        orderId
+      }
+    }, customer.token);
+    check('A customer can raise a support ticket', raised.status === 201 || raised.status === 200,
+      `status ${raised.status} ${JSON.stringify(raised.json).slice(0, 200)}`);
+    const ticketId = raised.json?.data?.ticket?.id ?? raised.json?.data?.id;
+    check('...and it comes back with an id they can be told', !!ticketId,
+      JSON.stringify(raised.json).slice(0, 200));
+
+    // The check that matters: it reaches somebody who can act on it.
+    const queue = await api('/admin/support/tickets', {}, admin.token);
+    const inQueue = (queue.json?.data?.tickets || queue.json?.data || [])
+      .find((t: any) => t.id === ticketId);
+    check('...and it appears in the admin support queue', !!inQueue,
+      `status ${queue.status} ${JSON.stringify(queue.json).slice(0, 200)}`);
+
+    const replied = await api(`/admin/support/tickets/${ticketId}/reply`, {
+      method: 'POST',
+      body: { body: 'We are sorry about that. A refund is on its way.' }
+    }, admin.token);
+    check('Support can reply to it', replied.status === 200 || replied.status === 201,
+      `status ${replied.status} ${JSON.stringify(replied.json).slice(0, 200)}`);
+
+    /*
+     * A reply that the customer cannot read is the same as no reply. This is
+     * the step most likely to be quietly missing, because the admin side looks
+     * complete from the admin side.
+     */
+    const mine = await api('/support/tickets', {}, customer.token);
+    const back = (mine.json?.data?.tickets || mine.json?.data || [])
+      .find((t: any) => t.id === ticketId);
+    const replyReachedCustomer = JSON.stringify(back || {}).includes('refund is on its way');
+    check('...and the customer can read the reply', replyReachedCustomer,
+      JSON.stringify(back || {}).slice(0, 300));
+
+    const closed = await api(`/admin/support/tickets/${ticketId}/status`, {
+      method: 'POST',
+      body: { status: 'RESOLVED' }
+    }, admin.token);
+    check('Support can resolve it', closed.status === 200,
+      `status ${closed.status} ${JSON.stringify(closed.json).slice(0, 200)}`);
+
+    const afterClose = await api('/support/tickets', {}, customer.token);
+    const resolved = (afterClose.json?.data?.tickets || afterClose.json?.data || [])
+      .find((t: any) => t.id === ticketId);
+    check('...and the customer sees it resolved rather than still open',
+      resolved?.status === 'RESOLVED', `got ${JSON.stringify(resolved?.status)}`);
   } finally {
     server.close();
   }

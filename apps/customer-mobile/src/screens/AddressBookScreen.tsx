@@ -104,16 +104,41 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
     setSheetOpen(true);
   };
 
+  /**
+   * "Use my current location" - which now OPENS THE MAP on the fix it got.
+   *
+   * It used to take the GPS reading, reverse-geocode it, fill in a city and a
+   * pincode and stop. The customer was shown no map and given no way to tell
+   * whether the point was right. Reported by the owner as exactly that: it
+   * shows no real map, it just guesses a pincode.
+   *
+   * A phone's first fix is routinely a hundred metres out and indoors it can
+   * be a different building, so "here" is a starting point, never an answer.
+   * The map that opens is the same component the "Choose on map" button uses -
+   * one picker, one set of behaviours - centred on the fix so the common case
+   * is a glance and a confirm rather than a search.
+   *
+   * `addressLine` is left alone, matching `useMapPoint` and the search path.
+   * It used to be overwritten with the geocoded street, which deleted a flat
+   * or house number the customer had already typed - the one part of an
+   * address a rider needs while standing outside the building. The comment on
+   * `useMapPoint` warned that these two disagreeing would lose a customer's
+   * flat number depending on which control they happened to press. They did
+   * disagree.
+   */
   const useCurrentLocation = async () => {
     const place = await detect();
     if (!place) return;
     setCoordinates(place.coordinates);
     setForm(prev => ({
       ...prev,
-      addressLine: place.addressLine || prev.addressLine,
+      addressLine: prev.addressLine.trim() ? prev.addressLine : place.addressLine || '',
       city: place.city || prev.city,
       pincode: place.pincode || prev.pincode
     }));
+    // Opened after the state above, so the picker starts on the detected point
+    // rather than on the previous pin or on the Bengaluru fallback.
+    setMapOpen(true);
   };
 
   /**
