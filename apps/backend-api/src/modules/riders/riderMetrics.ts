@@ -8,6 +8,7 @@
  * reopened and disagreed with the wallet the server was keeping.
  */
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
+import { settingFor } from '../payments/incentiveConfig.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import type { DeliveryRider, Order } from '@quick-bites/shared-types';
@@ -330,7 +331,22 @@ export async function evaluateIncentives(
   const incentives: IncentiveProgress[] = [];
   const newlyAwarded: IncentiveProgress[] = [];
 
-  for (const rule of INCENTIVE_RULES) {
+  for (const shipped of INCENTIVE_RULES) {
+    /*
+     * What an administrator has set for this bonus, or nothing at all.
+     *
+     * These used to be unconditional, which is how the owner found themselves
+     * paying a ₹700 bonus nobody had approved. Every one is now off until
+     * somebody turns it on, and both the amount and the target are theirs.
+     *
+     * A disabled bonus is skipped entirely rather than shown at zero. A rider
+     * looking at a target worth nothing would work towards it and be paid
+     * nothing, which is worse than never having seen it.
+     */
+    const setting = settingFor(shipped.code);
+    if (!setting) continue;
+
+    const rule: IncentiveRule = { ...shipped, reward: setting.reward, target: setting.target };
     const progress = rule.measure(ctx);
     const meetsMinimum = !rule.minRatedTrips || ctx.weekRatedTrips >= rule.minRatedTrips;
     const achieved = meetsMinimum && progress >= rule.target;

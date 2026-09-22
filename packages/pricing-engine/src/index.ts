@@ -31,7 +31,33 @@ export interface PricingInput {
     quantity: number;
     addonsTotal?: number;
   }>;
+  /**
+   * What the CUSTOMER is charged for packaging.
+   *
+   * Not necessarily what the restaurant gets — see `partnerPackagingFee`.
+   */
   packagingFee?: number;
+  /**
+   * What the RESTAURANT declared and had approved for packaging.
+   *
+   * Defaults to `packagingFee` when absent, which is the no-markup case. When
+   * an administrator has raised the customer's charge, this stays at the
+   * restaurant's own figure and the difference is platform revenue.
+   *
+   * This is the single most important field in this interface. Paying a
+   * restaurant the marked-up figure would hand them money the platform charged
+   * on its own behalf, and it would be invisible — the bill would still add up.
+   */
+  partnerPackagingFee?: number;
+  /** This restaurant's own GST rate, where it has one. */
+  gstFoodPercent?: number;
+  /** This restaurant's own platform fee, before GST on the fee. */
+  platformFeeBase?: number;
+  /** This restaurant's own delivery floor. */
+  deliveryBaseFee?: number;
+  /** Anything else the platform adds. Charged to the customer, kept by us. */
+  extraCharge?: number;
+  extraChargeLabel?: string;
   distanceKm?: number;
   isGold?: boolean;
   coupon?: {
@@ -94,7 +120,17 @@ export interface PricingInput {
 export interface CalculatedBill {
   itemsTotal: number;
   gstAmount: number;
+  /** What the customer paid for packaging. */
   packagingFee: number;
+  /**
+   * What the restaurant earns of it. Frozen onto the bill so a settlement
+   * drafted weeks later can prove what the markup was at the time, rather than
+   * re-deriving it from a figure that may since have changed.
+   */
+  partnerPackagingFee: number;
+  /** Anything else the platform charged, and what it was called on the bill. */
+  extraCharge: number;
+  extraChargeLabel: string;
   deliveryFee: number;
   platformFee: number;
   couponDiscount: number;
@@ -136,15 +172,32 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   }
   itemsTotal = Math.round(itemsTotal * 100) / 100;
 
-  // 2. GST on food. 5% by default, for restaurant service without ITC.
-  const gstAmount = Math.round(itemsTotal * (rates.gstFoodPercent / 100) * 100) / 100;
+  // 2. GST on food. This restaurant's own rate where it has one, otherwise
+  //    the platform default.
+  const gstFoodPercent =
+    typeof input.gstFoodPercent === 'number' && Number.isFinite(input.gstFoodPercent)
+      ? Math.min(28, Math.max(0, input.gstFoodPercent))
+      : rates.gstFoodPercent;
+  const gstAmount = Math.round(itemsTotal * (gstFoodPercent / 100) * 100) / 100;
 
-  // 3. Packaging Fee — the restaurant's own, or the platform default.
+  /*
+   * 3. Packaging, which has TWO figures and not one.
+   *
+   *    `packagingFee` is what the customer pays. `partnerPackagingFee` is what
+   *    the restaurant declared and is the only one that reaches their payout.
+   *    When no markup is configured the two are equal, which is the ordinary
+   *    case and why this used to be a single number.
+   */
   const packagingFee = input.packagingFee !== undefined ? input.packagingFee : rates.packagingFeeDefault;
+  const partnerPackagingFee =
+    input.partnerPackagingFee !== undefined ? input.partnerPackagingFee : packagingFee;
 
   // 4. Delivery Fee: base up to the base distance, then per whole km beyond.
   //    Free for a member whose food total clears the threshold.
-  let deliveryFee = rates.deliveryBaseFee;
+  let deliveryFee =
+    typeof input.deliveryBaseFee === 'number' && Number.isFinite(input.deliveryBaseFee)
+      ? Math.max(0, input.deliveryBaseFee)
+      : rates.deliveryBaseFee;
   if (input.distanceKm && input.distanceKm > rates.deliveryBaseKm) {
     const extraKm = Math.ceil(input.distanceKm - rates.deliveryBaseKm);
     deliveryFee += extraKm * rates.deliveryPerKmBeyond;
@@ -154,8 +207,16 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   }
 
   // 5. Platform Fee: the flat fee plus GST on it. Rs 5.00 + 18% = Rs 5.90.
+  const platformFeeBase =
+    typeof input.platformFeeBase === 'number' && Number.isFinite(input.platformFeeBase)
+      ? Math.max(0, input.platformFeeBase)
+      : rates.platformFeeBase;
   const platformFee =
-    Math.round(rates.platformFeeBase * (1 + rates.platformFeeGstPercent / 100) * 100) / 100;
+    Math.round(platformFeeBase * (1 + rates.platformFeeGstPercent / 100) * 100) / 100;
+
+  // 5b. Anything else the platform adds for this restaurant. Charged in full,
+  //     kept in full, and named on the bill.
+  const extraCharge = Math.max(0, Math.round((input.extraCharge || 0) * 100) / 100);
 
   // 6. Coupon Discount Calculation
   let couponDiscount = 0.00;
@@ -191,7 +252,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   const tipAmount = Math.max(0, Math.round((input.tipAmount || 0) * 100) / 100);
 
   // 8. Total Payable
-  const preDiscount = itemsTotal + gstAmount + packagingFee + deliveryFee + platformFee;
+  const preDiscount = itemsTotal + gstAmount + packagingFee + deliveryFee + platformFee + extraCharge;
   const totalAmount = Math.max(
     0,
     Math.round((preDiscount - couponDiscount - membershipDiscount) * 100) / 100 + tipAmount
@@ -210,12 +271,24 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
       : rates.defaultCommissionPercent;
   const commission = Math.round(itemsTotal * (commissionPercent / 100) * 100) / 100;
   const tds = Math.round(itemsTotal * (rates.tdsPercent / 100) * 100) / 100;
-  const restaurantNetPayout = Math.round((itemsTotal - commission - tds + packagingFee) * 100) / 100;
+  /*
+   * The restaurant gets its OWN packaging figure, never the marked-up one.
+   *
+   * This line used to add , which was correct only while the two
+   * were the same number. With a markup it would have paid the restaurant the
+   * platform's own revenue, and nothing would have looked wrong: the bill still
+   * balances, the ledger still balances, and the money simply leaves.
+   */
+  const restaurantNetPayout =
+    Math.round((itemsTotal - commission - tds + partnerPackagingFee) * 100) / 100;
 
   return {
     itemsTotal,
     gstAmount,
     packagingFee,
+    partnerPackagingFee,
+    extraCharge,
+    extraChargeLabel: input.extraChargeLabel || '',
     deliveryFee,
     platformFee,
     couponDiscount,

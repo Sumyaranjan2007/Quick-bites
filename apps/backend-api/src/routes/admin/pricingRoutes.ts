@@ -16,11 +16,26 @@ import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
+import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
+import {
+  getGrievanceContact,
+  setGrievanceContact,
+  policyGaps
+} from '../../modules/payments/paymentPolicies.ts';
+import { runPaymentsHealthCheck } from '../../modules/payments/paymentsHealth.ts';
+import { incentiveSettings, setIncentiveSettings } from '../../modules/payments/incentiveConfig.ts';
+import {
+  effectiveCharges,
+  setCharges,
+  chargesView,
+  CHARGE_BOUNDS
+} from '../../modules/payments/restaurantCharges.ts';
 import {
   getActiveConfig,
   listConfigs,
   createVersion,
   findConfigByVersion,
+  getActiveRates,
   RATE_BOUNDS,
   DEFAULT_RATES
 } from '../../modules/payments/pricingConfig.ts';
@@ -279,3 +294,304 @@ pricingRoutes.get('/ledger/audit', requirePermission('finance.ledger.view'), asy
     next(err);
   }
 });
+
+/* ------------------------------------------------------------------ *
+ *  WHAT EACH RESTAURANT COSTS                                         *
+ *
+ *  The Rates screen the owner actually described: not partners, riders or
+ *  payouts, but a list of restaurants where an administrator sets what the
+ *  platform charges for each one — and sees, in words, how much of it is ours.
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/rates/restaurants
+ *
+ * Every restaurant with what it currently charges and what we make on it.
+ *
+ * The margin is COMPUTED from the two stored figures rather than stored, so it
+ * cannot drift away from them. A stored margin is a third number that has to be
+ * kept in step with two others, and the moment it is not, a screen confidently
+ * reports a profit that does not exist.
+ */
+pricingRoutes.get(
+  '/rates/restaurants',
+  requirePermission('finance.config.edit', 'finance.reports.view'),
+  async (_req, res, next) => {
+    try {
+      const rates = getActiveRates();
+      const restaurants = await restaurantRepository.listAll();
+
+      const rows = restaurants.map((restaurant: any) => {
+        const charges = effectiveCharges(restaurant.id, rates);
+        return {
+          name: restaurant.name,
+          /** What the partner asked for, and whether they have asked at all. */
+          partnerDeclared: Number.isFinite(Number(restaurant.partnerPackagingFee)),
+          ...chargesView(charges)
+        };
+      });
+
+      res.json({
+        success: true,
+        data: {
+          restaurants: rows,
+          /** What a restaurant falls back to when it has no figure of its own. */
+          defaults: {
+            packagingFee: rates.packagingFeeDefault,
+            platformFee: rates.platformFeeBase,
+            gstFoodPercent: rates.gstFoodPercent,
+            commissionPercent: rates.defaultCommissionPercent,
+            deliveryBaseFee: rates.deliveryBaseFee
+          },
+          bounds: CHARGE_BOUNDS
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const ChargesSchema = z.object({
+  /** `null` puts a field back to following the platform default. */
+  customerPackagingFee: z.number().min(0).max(200).nullable().optional(),
+  platformFee: z.number().min(0).max(100).nullable().optional(),
+  gstFoodPercent: z.number().min(0).max(28).nullable().optional(),
+  commissionPercent: z.number().min(0).max(40).nullable().optional(),
+  deliveryBaseFee: z.number().min(0).max(200).nullable().optional(),
+  extraCharge: z.number().min(0).max(200).optional(),
+  extraChargeLabel: z.string().trim().max(60).optional(),
+  note: z.string().trim().max(300).optional()
+});
+
+/**
+ * PUT /api/admin/rates/restaurants/:restaurantId
+ *
+ * Changes what one restaurant costs a customer.
+ *
+ * It does not touch a single order that has already been placed. Every order
+ * freezes what it was charged onto its own bill, so a change here prices the
+ * next order and restates nothing — not a bill, not a statement, not a
+ * settlement.
+ */
+pricingRoutes.put(
+  '/rates/restaurants/:restaurantId',
+  requirePermission('finance.config.edit'),
+  validate({ body: ChargesSchema }),
+  async (req, res, next) => {
+    try {
+      const before = effectiveCharges(req.params.restaurantId);
+      const { note, ...changes } = req.body;
+      const after = setCharges(req.params.restaurantId, changes, req.user!.id, note);
+
+      recordAudit(req, {
+        action: 'RESTAURANT_CHARGES_UPDATED',
+        entityType: 'RESTAURANT',
+        entityId: req.params.restaurantId,
+        summary:
+          `Charges changed. Customer packaging ${before.customerPackagingFee} \u2192 ${after.customerPackagingFee}, ` +
+          `commission ${before.commissionPercent}% \u2192 ${after.commissionPercent}%` +
+          (note ? ` \u2014 ${note}` : ''),
+        before: before as any,
+        after: after as any
+      });
+
+      res.json({
+        success: true,
+        data: chargesView(after),
+        message: 'Saved. It applies to the next order from this restaurant, and changes nothing already placed.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  POLICIES: WHO A COMPLAINT GOES TO                                  *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/policies/grievance
+ *
+ * The named person a formal complaint escalates to, and whether one has been
+ * published at all. Until it has, every payment policy says so in its own text
+ * rather than naming somebody who does not exist — a customer writing to an
+ * invented address would reasonably conclude the complaint had been received.
+ */
+pricingRoutes.get(
+  '/policies/grievance',
+  requirePermission('finance.config.edit', 'finance.ledger.view'),
+  (_req, res) => {
+    res.json({
+      success: true,
+      data: { contact: getGrievanceContact(), gaps: policyGaps() }
+    });
+  }
+);
+
+const GrievanceSchema = z.object({
+  officerName: z.string().trim().min(3).max(120),
+  designation: z.string().trim().max(120).optional(),
+  email: z.string().trim().email(),
+  phone: z.string().trim().max(20).optional(),
+  /** A postal address is required by the e-commerce rules, not optional. */
+  address: z.string().trim().min(10).max(400),
+  hours: z.string().trim().max(200).optional()
+});
+
+pricingRoutes.put(
+  '/policies/grievance',
+  requirePermission('finance.config.edit'),
+  validate({ body: GrievanceSchema }),
+  async (req, res, next) => {
+    try {
+      const before = getGrievanceContact();
+      const contact = setGrievanceContact(req.body);
+
+      recordAudit(req, {
+        action: 'GRIEVANCE_OFFICER_UPDATED',
+        entityType: 'SETTING',
+        entityId: 'policy:grievance',
+        summary: before
+          ? `Grievance officer changed from ${before.officerName} to ${contact.officerName}`
+          : `Grievance officer published: ${contact.officerName} (${contact.email})`,
+        before: before || undefined,
+        after: contact
+      });
+
+      res.json({
+        success: true,
+        data: { contact, gaps: policyGaps() },
+        message: 'Published. It now appears at the end of every payment policy.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  THE HEALTH SWEEP, ON DEMAND                                        *
+ * ------------------------------------------------------------------ */
+
+/**
+ * POST /api/admin/payments/health-check
+ *
+ * Runs the sweep now rather than waiting for the next quarter hour.
+ *
+ * It resolves payouts whose outcome we never learnt by ASKING the gateway, and
+ * raises cash that has been out too long and any ledger imbalance. It never
+ * sends a payment and never corrects the books: an imbalance means an
+ * assumption somewhere is wrong, and a job that quietly rebalanced them would
+ * destroy the only evidence of which one.
+ */
+pricingRoutes.post(
+  '/payments/health-check',
+  requirePermission('finance.payouts.manage', 'finance.settlements.manage'),
+  async (req, res, next) => {
+    try {
+      const report = await runPaymentsHealthCheck();
+
+      recordAudit(req, {
+        action: 'PAYMENTS_HEALTH_CHECK',
+        entityType: 'SYSTEM',
+        entityId: 'payments',
+        summary:
+          `Sweep run by hand: ${report.uncertainPayouts.resolvedPaid} confirmed paid, ` +
+          `${report.uncertainPayouts.resolvedFailed} confirmed failed, ` +
+          `${report.uncertainPayouts.stillUnknown} still unknown, ` +
+          `ledger ${report.ledger.balanced ? 'balanced' : 'NOT BALANCED'}`,
+        after: report as any
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...report,
+          cash: { ...report.cash, total: toRupees(report.cash.totalPaise) }
+        },
+        message:
+          report.alerts.length === 0
+            ? 'Nothing needs attention.'
+            : `${report.alerts.length} thing${report.alerts.length === 1 ? '' : 's'} need attention.`
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  RIDER BONUSES                                                      *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/rates/incentives
+ *
+ * Which rider bonuses the platform pays, and what they are worth.
+ *
+ * All five ship DISABLED. They used to be hardcoded and unconditional, which is
+ * how the owner found a ₹700 bonus on a payout they had never approved. The
+ * safe default for automatically giving money away is not to.
+ */
+pricingRoutes.get(
+  '/rates/incentives',
+  requirePermission('finance.config.edit', 'finance.reports.view'),
+  (_req, res) => {
+    res.json({
+      success: true,
+      data: {
+        incentives: incentiveSettings(),
+        note:
+          'Every bonus is off until you switch it on. A rider only sees a target that is actually being paid.'
+      }
+    });
+  }
+);
+
+const IncentiveSchema = z.object({
+  changes: z
+    .array(
+      z.object({
+        code: z.string().trim().min(2).max(40),
+        enabled: z.boolean().optional(),
+        reward: z.number().min(0).max(5000).optional(),
+        target: z.number().min(0.1).max(500).optional()
+      })
+    )
+    .min(1)
+});
+
+/** PUT /api/admin/rates/incentives — switch one on, or change what it pays. */
+pricingRoutes.put(
+  '/rates/incentives',
+  requirePermission('finance.config.edit'),
+  validate({ body: IncentiveSchema }),
+  async (req, res, next) => {
+    try {
+      const before = incentiveSettings();
+      const after = setIncentiveSettings(req.body.changes, req.user!.id);
+
+      recordAudit(req, {
+        action: 'RIDER_INCENTIVES_UPDATED',
+        entityType: 'SETTING',
+        entityId: 'incentives:config',
+        summary:
+          'Rider bonuses changed. Now paying: ' +
+          (after.filter(s => s.enabled).map(s => `${s.code} at Rs ${s.reward}`).join(', ') || 'nothing'),
+        before: { rules: before } as any,
+        after: { rules: after } as any
+      });
+
+      res.json({
+        success: true,
+        data: { incentives: after },
+        message:
+          'Saved. Bonuses already earned are not taken back \u2014 turning one off stops it being awarded from now on.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

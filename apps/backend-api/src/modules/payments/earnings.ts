@@ -76,10 +76,26 @@ export function splitForOrder(order: Order, rates: PricingRates = getActiveRates
   const commissionGstPaise = percentOf(commissionPaise, rates.commissionGstPercent);
   const tcsPaise = percentOf(itemsPaise, rates.tcsPercent);
 
-  // The kitchen keeps the food total and the packaging it paid for, less our
-  // commission and the tax withheld from them. The tip is deliberately absent:
-  // it is the customer's money passing through to the rider.
-  const partnerPaise = Math.max(0, itemsPaise + packagingPaise - commissionPaise - tdsPaise);
+  /*
+   * The kitchen keeps the food total and the packaging THEY declared, less our
+   * commission and the tax withheld from them. The tip is deliberately absent:
+   * it is the customer's money passing through to the rider.
+   *
+   * `partnerPackagingFee`, not `packagingFee`. Where an administrator has
+   * marked packaging up for this restaurant, the customer paid the higher
+   * figure and the difference is platform revenue. Using the customer's figure
+   * here would hand the restaurant money the platform charged on its own
+   * behalf — and nothing would look wrong, because the bill would still balance
+   * and so would the ledger. The money would simply leave.
+   *
+   * Orders placed before per-restaurant charges existed have no such field, and
+   * fall back to the customer's figure, which is what was true then.
+   */
+  const partnerPackagingPaise = Number.isFinite(Number(bill.partnerPackagingFee))
+    ? toPaise(Number(bill.partnerPackagingFee))
+    : packagingPaise;
+
+  const partnerPaise = Math.max(0, itemsPaise + partnerPackagingPaise - commissionPaise - tdsPaise);
 
   // What the rider earned on this trip, plus the whole tip.
   const riderPaise = toPaise(Number(order.riderPayout) || 0) + tipPaise;

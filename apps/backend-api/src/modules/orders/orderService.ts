@@ -5,7 +5,8 @@ import { menuRepository } from '../../db/repositories/menuRepository.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
-import { getActiveRates, commissionPercentFor } from '../payments/pricingConfig.ts';
+import { getActiveRates } from '../payments/pricingConfig.ts';
+import { effectiveCharges } from '../payments/restaurantCharges.ts';
 import { recordOrderEarnings } from '../payments/earnings.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
@@ -190,13 +191,27 @@ export const orderService = {
       }
     }
 
+    const charges = effectiveCharges(restaurant.id, getActiveRates());
     const bill = calculateOrderPricing({
       items: pricedItems.map(i => ({
         unitPrice: i.unitPrice,
         quantity: i.quantity,
         addonsTotal: i.addonsTotal
       })),
-      packagingFee: Number(restaurant.packagingFee),
+      /*
+       * Per-restaurant charges, from the Rates screen.
+       *
+       * Two packaging figures, not one: the customer pays what an
+       * administrator set, the restaurant earns what it declared, and the
+       * difference is platform revenue. Both are frozen onto the bill.
+       */
+      packagingFee: charges.customerPackagingFee,
+      partnerPackagingFee: charges.partnerPackagingFee,
+      gstFoodPercent: charges.gstFoodPercent,
+      platformFeeBase: charges.platformFee,
+      deliveryBaseFee: charges.deliveryBaseFee,
+      extraCharge: charges.extraCharge,
+      extraChargeLabel: charges.extraChargeLabel,
       distanceKm: tripDistanceKm,
       // Expiry-aware. `customer.isGold` alone honours a lapsed membership
       // forever, which is what `goldExpiresAt` existing and being read by
@@ -211,7 +226,7 @@ export const orderService = {
       // a deploy — and so the figure frozen onto the order is the one its
       // settlement will later be defended with.
       rates: getActiveRates(),
-      commissionPercent: commissionPercentFor(restaurant)
+      commissionPercent: charges.commissionPercent
     });
 
     return {
@@ -395,13 +410,27 @@ export const orderService = {
         : undefined;
     const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
 
+    const charges = effectiveCharges(restaurant.id, getActiveRates());
     const bill = calculateOrderPricing({
       items: orderItems.map(i => ({
         unitPrice: i.unitPrice,
         quantity: i.quantity,
         addonsTotal: i.addonsTotal
       })),
-      packagingFee: Number(restaurant.packagingFee),
+      /*
+       * Per-restaurant charges, from the Rates screen.
+       *
+       * Two packaging figures, not one: the customer pays what an
+       * administrator set, the restaurant earns what it declared, and the
+       * difference is platform revenue. Both are frozen onto the bill.
+       */
+      packagingFee: charges.customerPackagingFee,
+      partnerPackagingFee: charges.partnerPackagingFee,
+      gstFoodPercent: charges.gstFoodPercent,
+      platformFeeBase: charges.platformFee,
+      deliveryBaseFee: charges.deliveryBaseFee,
+      extraCharge: charges.extraCharge,
+      extraChargeLabel: charges.extraChargeLabel,
       distanceKm: tripDistanceKm,
       // Expiry-aware. `customer.isGold` alone honours a lapsed membership
       // forever, which is what `goldExpiresAt` existing and being read by
@@ -416,7 +445,7 @@ export const orderService = {
       // a deploy — and so the figure frozen onto the order is the one its
       // settlement will later be defended with.
       rates: getActiveRates(),
-      commissionPercent: commissionPercentFor(restaurant)
+      commissionPercent: charges.commissionPercent
     });
 
     // 7. Generate Delivery OTP (Rule 40)

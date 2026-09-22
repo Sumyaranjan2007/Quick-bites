@@ -101,6 +101,7 @@ const WIPED = [
   'payeeAccounts',
   'cashDeposits',
   'payoutRequests',
+  'restaurantCharges',
   /**
    * A profile change goes with the restaurant that asked for it. What is left
    * otherwise is a request to rename a kitchen that no longer exists, sitting

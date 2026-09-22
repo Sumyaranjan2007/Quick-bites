@@ -37,7 +37,6 @@ import { FinanceScreen } from './src/screens/FinanceScreen';
 import { RatesScreen } from './src/screens/RatesScreen';
 import { PayeeAccountsScreen } from './src/screens/PayeeAccountsScreen';
 import { PayoutsScreen } from './src/screens/PayoutsScreen';
-import { TaxScreen } from './src/screens/TaxScreen';
 import { MarketingScreen } from './src/screens/MarketingScreen';
 import { SupportScreen } from './src/screens/SupportScreen';
 import { DocumentsScreen } from './src/screens/DocumentsScreen';
@@ -126,6 +125,7 @@ const SECTIONS: Array<{
     subtitle: 'What customers can order',
     permissions: ['catalog.menus.view', 'catalog.menus.review', 'catalog.categories.manage'],
     icon: active => <UtensilsCrossed size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    badge: counts => counts?.pendingMenuRequests,
     render: () => <CatalogScreen />
   },
   {
@@ -163,15 +163,6 @@ const SECTIONS: Array<{
     permissions: ['finance.payouts.manage', 'finance.settlements.manage', 'finance.payouts.view'],
     icon: active => <Landmark size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     render: () => <PayeeAccountsScreen />
-  },
-  {
-    key: 'tax',
-    label: 'Tax',
-    title: 'Tax & invoices',
-    subtitle: 'What is owed to the government, and what a return is filed from',
-    permissions: ['finance.config.edit', 'finance.ledger.view'],
-    icon: active => <FileText size={16} color={active ? c.brand.amberText : c.text.secondary} />,
-    render: () => <TaxScreen />
   },
   {
     key: 'marketing',
@@ -212,6 +203,7 @@ const SECTIONS: Array<{
     subtitle: 'What partners have asked to change about how they appear',
     permissions: ['catalog.restaurants.approve'],
     icon: active => <Store size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    badge: counts => counts?.pendingProfileEdits,
     render: () => <ProfileApprovalsScreen />
   },
   {

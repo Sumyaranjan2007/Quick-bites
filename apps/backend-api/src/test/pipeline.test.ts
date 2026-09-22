@@ -11,6 +11,7 @@
  * rider closes it with the customer's OTP.
  */
 import { createApp } from '../app.ts';
+import { setIncentiveSettings } from '../modules/payments/incentiveConfig.ts';
 import { initSocketServer, closeSocketServer } from '../sockets/socketServer.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { io as ioClient, type Socket } from 'socket.io-client';
@@ -309,11 +310,32 @@ async function run() {
     riderRatings.json?.data?.average === 5 && riderRatings.json?.data?.reviews?.[0]?.comment === 'Polite and quick.',
     JSON.stringify(riderRatings.json?.data).slice(0, 200));
 
+  /*
+   * Incentives are now switched OFF until an administrator turns one on.
+   *
+   * This check used to assert that a rider always saw the ladder, which was
+   * true while five bonuses were hardcoded and unconditional — and that is
+   * precisely the behaviour the owner objected to, having found a Rs 700 bonus
+   * on a payout nobody approved. So the contract is inverted rather than
+   * loosened: by default a rider sees NOTHING, and turning one on is what makes
+   * it appear.
+   *
+   * Asserting both halves matters. "The list is empty" alone would also pass if
+   * incentives had stopped working altogether.
+   */
+  const incentivesOff = await api('/riders/incentives', {}, rider.token);
+  check('With no bonus switched on, a rider is shown none',
+    Array.isArray(incentivesOff.json?.data?.incentives) &&
+      incentivesOff.json.data.incentives.length === 0,
+    JSON.stringify(incentivesOff.json?.data?.incentives || []).slice(0, 200));
+
+  setIncentiveSettings([{ code: 'DAILY_8', enabled: true }], 'usr_admin_pipeline');
   const incentives = await api('/riders/incentives', {}, rider.token);
-  check('Rider sees incentive targets and progress',
+  check('Switching one on makes it appear, with real progress against it',
     Array.isArray(incentives.json?.data?.incentives) && incentives.json.data.incentives.length > 0 &&
       incentives.json.data.incentives.some((i: any) => i.code === 'DAILY_8' && i.progress === 1),
-    JSON.stringify(incentives.json?.data?.incentives?.[0]).slice(0, 200));
+    JSON.stringify(incentives.json?.data?.incentives?.[0] || {}).slice(0, 200));
+  setIncentiveSettings([{ code: 'DAILY_8', enabled: false }], 'usr_admin_pipeline');
 
   const weekly = await api('/riders/trips?range=week', {}, rider.token);
   check('Weekly trips list the delivery just completed',
@@ -377,6 +399,85 @@ async function run() {
   check('Customers in the menu room are not shown other people\'s orders', !leaked);
 
   browsingSock.close();
+  // --- A rider cannot collect food the kitchen has not finished -------------
+  //
+  // Reported by the owner: the customer was told their order was out for
+  // delivery as soon as a rider accepted it.
+  //
+  // The main flow above cannot catch this, because there the kitchen marks the
+  // food ready BEFORE a rider claims. But the rider broadcast offers orders
+  // that are merely ACCEPTED or PREPARING - deliberately, so a rider can set
+  // off towards the restaurant while the food cooks - so claiming before ready
+  // is a real and ordinary sequence, and it is the one that was broken.
+  //
+  // `verifyPickup` checked the rider's code and nothing else. The status could
+  // not be consulted either: claiming overwrites `status` with RIDER_ASSIGNED,
+  // so by the time the rider reaches the counter nothing remains to say whether
+  // the kitchen ever finished. `readyAt` is stamped when the food is marked
+  // ready and never cleared, which is what makes this answerable.
+  console.log('\n-- Collecting before the food is ready');
+
+  const early = await api('/orders', {
+    method: 'POST',
+    body: {
+      restaurantId: RESTAURANT_ID,
+      deliveryAddressId: 'addr_sample_01',
+      items: [{ dishId: 'dish_ck_biryani', quantity: 1, selectedOptions: [] }],
+      paymentMethod: 'CASH_ON_DELIVERY',
+      idempotencyKey: crypto.randomUUID()
+    }
+  }, customer.token);
+  const earlyId = early.json?.data?.order?.id;
+  check('A second order is placed', early.status === 201, `status ${early.status}`);
+
+  await api(`/orders/${earlyId}/status`, {
+    method: 'PUT', body: { status: 'PREPARING', preparationMinutes: 20 }
+  }, partner.token);
+
+  // Claimed while still cooking, which the broadcast explicitly allows.
+  const earlyClaim = await api(`/riders/orders/${earlyId}/claim`, { method: 'POST', body: {} }, rider.token);
+  check('A rider can claim an order that is still cooking', earlyClaim.status === 200,
+    `status ${earlyClaim.status}`);
+
+  const earlyView = await api(`/orders/${earlyId}`, {}, partner.token);
+  const earlyCode = earlyView.json?.data?.order?.pickupCode;
+  check('and the restaurant has a pickup code for it', typeof earlyCode === 'string');
+
+  const tooEarly = await api(`/riders/orders/${earlyId}/verify-pickup`, {
+    method: 'POST', body: { pickupCode: earlyCode }
+  }, rider.token);
+  check(
+    'but collecting it is REFUSED while the kitchen is still cooking',
+    tooEarly.status === 400,
+    `status ${tooEarly.status}`
+  );
+  check(
+    'and the reason says so, rather than blaming the code',
+    /still being prepared|not marked it ready/i.test(JSON.stringify(tooEarly.json || {})),
+    JSON.stringify(tooEarly.json?.error || {}).slice(0, 150)
+  );
+
+  const notMoved = await api(`/orders/${earlyId}`, {}, partner.token);
+  check(
+    'so the customer is never told it is on the way',
+    notMoved.json?.data?.order?.status !== 'OUT_FOR_DELIVERY',
+    notMoved.json?.data?.order?.status
+  );
+
+  // The kitchen finishes. The same code now works, unchanged.
+  await api(`/orders/${earlyId}/status`, {
+    method: 'PUT', body: { status: 'READY_FOR_PICKUP' }
+  }, partner.token);
+
+  const nowAllowed = await api(`/riders/orders/${earlyId}/verify-pickup`, {
+    method: 'POST', body: { pickupCode: earlyCode }
+  }, rider.token);
+  check(
+    'and once the food is ready the SAME code is accepted',
+    nowAllowed.status === 200,
+    `status ${nowAllowed.status} ${JSON.stringify(nowAllowed.json).slice(0, 160)}`
+  );
+
   customerSock.close(); partnerSock.close(); adminSock.close(); riderSock.close();
   closeSocketServer();
   server.close();

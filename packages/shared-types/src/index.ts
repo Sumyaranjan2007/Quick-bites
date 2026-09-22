@@ -456,6 +456,22 @@ export interface OrderBillBreakdown {
   commissionAmount?: number;
   /** TDS withheld from the partner's share, as its own line. */
   tdsAmount?: number;
+  /**
+   * What the RESTAURANT earns of the packaging charge.
+   *
+   * `packagingFee` above is what the customer paid. Where an administrator has
+   * marked packaging up for this restaurant, the two differ and the gap is
+   * platform revenue. Both are frozen onto the bill so a settlement drafted
+   * weeks later can prove what the markup was at the time, rather than
+   * re-deriving it from a figure that may since have changed.
+   *
+   * Absent on orders placed before per-restaurant charges existed; those are
+   * read as "no markup", which is what was true then.
+   */
+  partnerPackagingFee?: number;
+  /** Anything else the platform charged on this order, and its name on the bill. */
+  extraCharge?: number;
+  extraChargeLabel?: string;
 }
 
 export interface Order {
@@ -489,6 +505,19 @@ export interface Order {
    * this the ETA would say the same twenty minutes twenty minutes later.
    */
   acceptedAt?: string;
+  /**
+   * When the kitchen said the food was ready.
+   *
+   * Recorded as its own fact because the STATUS cannot carry it: assigning a
+   * rider overwrites `status` with RIDER_ASSIGNED, so by the time the rider
+   * arrives there is nothing left to say whether the food was ever cooked.
+   *
+   * That is not academic. Pickup verification checked only the rider's code,
+   * so a rider could confirm collection mid-cook and the order jumped to
+   * OUT_FOR_DELIVERY - telling the customer their food was on its way while
+   * it was still in the pan. Reported by the owner.
+   */
+  readyAt?: string;
   pickupCode?: string;
   deliveryOtp?: string;
   /**

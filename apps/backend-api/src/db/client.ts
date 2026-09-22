@@ -87,6 +87,15 @@ export interface DbStore {
    */
   payoutRequests: Map<string, any>;
   /**
+   * What each restaurant costs a customer, keyed by restaurant id.
+   *
+   * Deliberately NOT stored on the restaurant record. The partner writes their
+   * own declared packaging figure onto that record; the platform writes its
+   * markup here. Two collections means the two writes can never land on one
+   * object and quietly overwrite each other.
+   */
+  restaurantCharges: Map<string, any>;
+  /**
    * Changes a partner has asked to make to how their restaurant appears.
    *
    * Held apart from the restaurant itself on purpose. Everything a customer
@@ -130,6 +139,7 @@ export const memoryStore: DbStore = {
   payeeAccounts: new Map(),
   cashDeposits: new Map(),
   payoutRequests: new Map(),
+  restaurantCharges: new Map(),
   profileEdits: new Map(),
   deviceTokens: new Map(),
   meta: new Map()
