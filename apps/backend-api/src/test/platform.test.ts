@@ -766,7 +766,7 @@ async function run() {
     clearPlacesCache();
     check(
       'A deployment with no Places key says so rather than guessing',
-      isPlacesConfigured() === Boolean(config.GOOGLE_MAPS_SERVER_KEY)
+      isPlacesConfigured() === Boolean(config.MAPBOX_ACCESS_TOKEN)
     );
 
     const short = await suggestAddresses('ko', 'usr_test');

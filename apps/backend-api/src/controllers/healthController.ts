@@ -35,7 +35,7 @@ export function getHealth(req: Request, res: Response): void {
        * Whether this deployment can answer questions about places.
        *
        * Both of these were written to be reported here and never connected, so
-       * the only way to find out whether GOOGLE_MAPS_SERVER_KEY had actually
+       * the only way to find out whether MAPBOX_ACCESS_TOKEN had actually
        * reached the deployment was to sign in as a customer and watch an
        * address search come back empty — which looks identical to a street
        * that does not exist.

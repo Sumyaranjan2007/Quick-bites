@@ -39,7 +39,7 @@ import { CircuitBreaker } from '../platform/circuitBreaker.ts';
 import { isPlacesConfigured } from './placesService.ts';
 import type { Coordinates } from '@quick-bites/shared-types';
 
-const GOOGLE = 'https://maps.googleapis.com/maps/api/distancematrix/json';
+const MAPBOX_MATRIX = 'https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic';
 
 /**
  * Its own breaker, separate from address lookup's.
@@ -65,11 +65,11 @@ export interface RoadDistance {
   distanceKm: number;
   durationMinutes: number;
   /**
-   * GOOGLE — measured along real roads.
-   * ESTIMATED — straight line scaled by the road factor, because Google was not
+   * MAPBOX — measured along real roads, on the traffic-aware profile.
+   * ESTIMATED — straight line scaled by the road factor, because Mapbox was not
    * configured, not reachable, or had no route to offer.
    */
-  source: 'GOOGLE' | 'ESTIMATED';
+  source: 'MAPBOX' | 'ESTIMATED';
 }
 
 /* -------------------------------------------------------------------------- *
@@ -142,9 +142,9 @@ function readCache(k: string): RoadDistance | undefined {
 
 function writeCache(k: string, value: RoadDistance): void {
   // Only real measurements are worth keeping. Caching an estimate would pin the
-  // fallback in place for six hours after Google came back, which is how a
+  // fallback in place for six hours after Mapbox came back, which is how a
   // transient outage turns into an afternoon of wrong delivery fees.
-  if (value.source !== 'GOOGLE') return;
+  if (value.source !== 'MAPBOX') return;
   if (cache.size >= MAX_ENTRIES) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
@@ -211,8 +211,21 @@ export async function roadDistanceMatrix(
     return results.map((r, i) => r ?? estimateByRoad(from, destinations[i]));
   }
 
-  for (let start = 0; start < pending.length; start += 25) {
-    const chunk = pending.slice(start, start + 25);
+  /*
+   * NINE, not twenty-five.
+   *
+   * Google billed per element and allowed 25 destinations in a request. The
+   * Mapbox traffic-aware profile limits a matrix to TEN COORDINATES IN TOTAL,
+   * and the origin is one of them. Carrying the old batch size over would have
+   * made every call with more than 24 destinations fail — and because a failed
+   * matrix falls back to the straight-line estimate rather than erroring, the
+   * only symptom would have been delivery fees quietly becoming estimates on
+   * busy batches, with nothing in the logs to say why.
+   */
+  const MAX_DESTINATIONS_PER_CALL = 9;
+
+  for (let start = 0; start < pending.length; start += MAX_DESTINATIONS_PER_CALL) {
+    const chunk = pending.slice(start, start + MAX_DESTINATIONS_PER_CALL);
     const measured = await callDistanceMatrix(from, chunk.map(i => destinations[i]));
     chunk.forEach((destIndex, chunkIndex) => {
       const value = measured?.[chunkIndex];
@@ -236,65 +249,90 @@ async function callDistanceMatrix(
   from: Coordinates,
   destinations: Coordinates[]
 ): Promise<(RoadDistance | null)[] | null> {
+  /*
+   * Coordinates go in the path, semicolon separated, LONGITUDE FIRST.
+   *
+   * Google took lat,lng in a query parameter. Mapbox takes lon,lat in the URL
+   * path. Swapped, an Indian delivery becomes a point in the Indian Ocean and
+   * the API answers perfectly happily with a distance of several hundred
+   * kilometres — so the failure is not an error, it is a delivery fee.
+   */
+  const points = [from, ...destinations].map(c => `${c.longitude},${c.latitude}`).join(';');
+
   const params = new URLSearchParams({
-    origins: `${from.latitude},${from.longitude}`,
-    destinations: destinations.map(d => `${d.latitude},${d.longitude}`).join('|'),
-    key: config.GOOGLE_MAPS_SERVER_KEY,
-    // Two-wheelers are what actually does these deliveries. Google has no
-    // scooter mode; driving is the closer of the two it offers, since walking
-    // would route down lanes no rider takes and give times nobody could meet.
-    mode: 'driving',
-    units: 'metric',
-    region: config.PLACES_REGION
+    access_token: config.MAPBOX_ACCESS_TOKEN,
+    // Both, and both are needed: distance prices the delivery, duration is the
+    // ETA the customer is shown.
+    annotations: 'distance,duration',
+    sources: '0',
+    destinations: destinations.map((_, i) => i + 1).join(';')
   });
 
   try {
     const response = await breaker.run(
-      signal => fetch(`${GOOGLE}?${params.toString()}`, { signal }),
+      signal => fetch(`${MAPBOX_MATRIX}/${points}?${params.toString()}`, { signal }),
       res => res.status >= 500
     );
-    if (!response.ok) return null;
-    const body: any = await response.json().catch(() => null);
 
-    // Google answers 200 with a status field. REQUEST_DENIED — the shape of
-    // "this key is not authorised for Distance Matrix" — arrives as HTTP 200
-    // and would otherwise read as a route that does not exist, which is to say
-    // it would silently degrade every fee on the platform to an estimate with
-    // nothing in the logs to say why.
-    if (!body || (body.status && body.status !== 'OK')) {
-      if (body?.status) {
-        lastRefusal = {
-          status: String(body.status),
-          detail: body.error_message ? String(body.error_message) : undefined,
-          at: new Date().toISOString()
-        };
-      }
+    if (!response.ok) {
+      /*
+       * Mapbox refuses with a real status code — 401 for a bad token, 403 for
+       * one without the scope, 422 for too many coordinates. None of them mean
+       * "there is no road", and every one of them would otherwise degrade every
+       * fee on the platform to an estimate with nothing in the logs to say why.
+       */
+      const errorBody: any = await response.json().catch(() => null);
+      lastRefusal = {
+        status: `HTTP_${response.status}`,
+        detail: errorBody?.message ? String(errorBody.message) : undefined,
+        at: new Date().toISOString()
+      };
       console.log(JSON.stringify({
         level: 'ERROR',
         timestamp: new Date().toISOString(),
         event: 'ROUTING_API_REFUSED',
-        googleStatus: body?.status,
-        // Names the misconfiguration; contains no key material.
-        detail: body?.error_message
+        httpStatus: response.status,
+        // Names the misconfiguration; contains no token material.
+        detail: errorBody?.message
       }));
       return null;
     }
 
-    const elements = body.rows?.[0]?.elements;
-    if (!Array.isArray(elements)) return null;
+    const body: any = await response.json().catch(() => null);
+    // Mapbox reports its own outcome in `code`. Anything other than Ok on a
+    // 200 is not a route.
+    if (!body || (body.code && body.code !== 'Ok')) return null;
 
-    return elements.map((el: any) => {
-      // Per-element status. ZERO_RESULTS is a real answer meaning "no drivable
-      // route" — an island, a sea, a typo — and it must fall back for that one
-      // destination without discarding the others in the same batch.
-      if (el?.status !== 'OK') return null;
-      const metres = Number(el.distance?.value);
-      const seconds = Number(el.duration?.value);
+    // One source, so one row in each matrix. Distances are metres, durations
+    // are seconds — the same units Google used, which is the one thing about
+    // this port that did not change.
+    const distances = body.distances?.[0];
+    const durations = body.durations?.[0];
+    if (!Array.isArray(distances) || !Array.isArray(durations)) return null;
+
+    return destinations.map((_, i) => {
+      /*
+       * Checked for null BEFORE converting, because Number(null) is 0 and not
+       * NaN. Converting first made an unroutable pair look like a measured
+       * zero-kilometre trip — a real answer, cached as one, and priced as a
+       * free delivery. The straight-line fallback never ran.
+       */
+      if (distances[i] === null || distances[i] === undefined) return null;
+      if (durations[i] === null || durations[i] === undefined) return null;
+
+      const metres = Number(distances[i]);
+      const seconds = Number(durations[i]);
+      /*
+       * Mapbox returns null for a pair it cannot route — an island, a sea, a
+       * typo. That is a real answer about that one destination and it must
+       * fall back for that one alone, without discarding the others measured
+       * in the same call.
+       */
       if (!Number.isFinite(metres) || !Number.isFinite(seconds)) return null;
       return {
         distanceKm: round2(metres / 1000),
         durationMinutes: Math.max(1, Math.ceil(seconds / 60)),
-        source: 'GOOGLE' as const
+        source: 'MAPBOX' as const
       };
     });
   } catch {

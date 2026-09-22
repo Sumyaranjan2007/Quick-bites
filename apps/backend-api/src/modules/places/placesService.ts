@@ -30,13 +30,14 @@
  * before this file existed, so an absent key costs a convenience and never an
  * outage.
  */
+import { randomUUID } from 'node:crypto';
 import { config } from '../../config/env.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { CircuitBreaker } from '../platform/circuitBreaker.ts';
 
-const GOOGLE = 'https://maps.googleapis.com/maps/api';
+const MAPBOX = 'https://api.mapbox.com';
 
-/** Its own breaker: Google being slow must not be confused with Razorpay being slow. */
+/** Its own breaker: Mapbox being slow must not be confused with Razorpay being slow. */
 const breaker = new CircuitBreaker('Address lookup', {
   threshold: 4,
   cooldownMs: 60_000,
@@ -44,21 +45,27 @@ const breaker = new CircuitBreaker('Address lookup', {
 });
 
 /**
- * Why Google last refused a call, if it did.
+ * Why Mapbox last refused a call, if it did.
  *
  * Kept because "configured" and "working" are different questions and only the
- * first was answerable. A key can be set, reach Google, and be rejected — and
+ * first was answerable. A token can be set, reach Mapbox, and be rejected — and
  * the only symptom is an empty result, which is indistinguishable from a street
- * that does not exist. Diagnosing that previously meant reading the deployment
- * logs; this puts Google's own words in the health payload.
+ * that does not exist.
  *
- * `detail` is Google's `error_message`, which names the misconfiguration ("This
- * API project is not authorized to use this API") and carries no key material.
+ * The shape of a refusal changed with the provider and that is the part worth
+ * being careful about. Google answered HTTP 200 with a `status` field, so
+ * refusals were found by reading the body. Mapbox uses real status codes: 401
+ * for a bad token, 403 for one lacking the scope, 422 for a malformed query,
+ * 429 for the rate limit. Porting this by deleting the body check would have
+ * made every one of those look like "no such address", forever, silently.
+ *
+ * `detail` is Mapbox's own `message`, which names the misconfiguration and
+ * carries no token material.
  */
 let lastRefusal: { status: string; detail?: string; at: string } | null = null;
 
 export function isPlacesConfigured(): boolean {
-  return config.GOOGLE_MAPS_SERVER_KEY.length > 0;
+  return config.MAPBOX_ACCESS_TOKEN.length > 0;
 }
 
 export interface PlaceSuggestion {
@@ -188,42 +195,67 @@ function enforceQuota(callerId: string): void {
  *                                  LOOKUPS                                    *
  * -------------------------------------------------------------------------- */
 
-async function callGoogle(url: string): Promise<any | null> {
+/**
+ * One call to Mapbox, with every refusal made visible.
+ *
+ * Returns null for "no answer" — a refusal, a timeout, an open breaker — and
+ * the caller must not cache null unless `lastRefusal` is unchanged across the
+ * call. Caching a refusal would leave every address anybody looked up broken
+ * for as long as the cache lives, which is exactly long enough for somebody to
+ * decide that fixing the token did not work.
+ */
+async function callMapbox(url: string): Promise<any | null> {
   try {
     const response = await breaker.run(
       signal => fetch(url, { signal }),
       res => res.status >= 500
     );
-    if (!response.ok) return null;
-    const body: any = await response.json().catch(() => null);
-    if (!body) return null;
 
-    // Google answers 200 with a status field; OVER_QUERY_LIMIT and
-    // REQUEST_DENIED both arrive as HTTP 200 and would otherwise read as an
-    // address that does not exist.
-    if (body.status && body.status !== 'OK' && body.status !== 'ZERO_RESULTS') {
+    if (!response.ok) {
+      /*
+       * A non-2xx from Mapbox is the refusal. 401 is a bad token, 403 a token
+       * without the scope, 422 a malformed query, 429 the account rate limit.
+       * None of them mean "that address does not exist", and recording them is
+       * the only thing that makes the difference visible to anybody.
+       */
+      const body: any = await response.json().catch(() => null);
       lastRefusal = {
-        status: String(body.status),
-        detail: body.error_message ? String(body.error_message) : undefined,
+        status: `HTTP_${response.status}`,
+        detail: body?.message ? String(body.message) : undefined,
         at: new Date().toISOString()
       };
       console.log(JSON.stringify({
         level: 'ERROR',
         timestamp: new Date().toISOString(),
         event: 'PLACES_API_REFUSED',
-        googleStatus: body.status,
-        // error_message names the misconfiguration ("This API project is not
-        // authorized to use this API") and contains no key material.
-        detail: body.error_message
+        httpStatus: response.status,
+        // Mapbox's own message names the misconfiguration and contains no
+        // token material.
+        detail: body?.message
       }));
       return null;
     }
-    return body;
+
+    return (await response.json().catch(() => null)) || null;
   } catch {
     // Breaker open or request timed out. Null means "no suggestions", and the
     // app falls back to manual entry rather than showing an error.
     return null;
   }
+}
+
+/**
+ * Search Box requires a session token; Google merely preferred one.
+ *
+ * On Google a missing `sessiontoken` cost more money and worked. On Mapbox the
+ * suggest/retrieve pair is billed per session and a missing one is rejected, so
+ * an older client that never sent one would have had address search fail
+ * outright rather than get more expensive. One is generated per call when the
+ * client does not supply it: it bills as a single-use session, which is the
+ * correct price for a caller that is not grouping its keystrokes anyway.
+ */
+function sessionFor(supplied?: string): string {
+  return supplied && supplied.trim() ? supplied.trim() : randomUUID();
 }
 
 /**
@@ -254,28 +286,33 @@ export async function suggestAddresses(
   if (cached) return cached;
 
   const params = new URLSearchParams({
-    input: trimmed,
-    key: config.GOOGLE_MAPS_SERVER_KEY,
-    components: `country:${config.PLACES_REGION}`,
-    types: 'geocode|establishment'
+    q: trimmed,
+    access_token: config.MAPBOX_ACCESS_TOKEN,
+    session_token: sessionFor(options.sessionToken),
+    country: config.PLACES_REGION,
+    language: 'en',
+    limit: '8',
+    types: 'address,street,place,locality,neighborhood,poi'
   });
-  if (options.sessionToken) params.set('sessiontoken', options.sessionToken);
   if (options.near) {
-    params.set('location', `${options.near.latitude},${options.near.longitude}`);
-    params.set('radius', '30000');
+    // LONGITUDE FIRST. Mapbox orders every coordinate as lon,lat and Google
+    // ordered them lat,lng. Reversed, this silently biases results toward a
+    // point in the wrong hemisphere rather than failing, so it reads as
+    // "the suggestions are bad" instead of as a bug.
+    params.set('proximity', `${options.near.longitude},${options.near.latitude}`);
   }
 
   const refusalsBefore = lastRefusal?.at;
-  const body = await callGoogle(`${GOOGLE}/place/autocomplete/json?${params.toString()}`);
+  const body = await callMapbox(`${MAPBOX}/search/searchbox/v1/suggest?${params.toString()}`);
   // A refusal returns nothing AND is not cached below, so the next keystroke
-  // after the key is fixed gets a real answer.
-  if (!body || !Array.isArray(body.predictions)) return [];
+  // after the token is fixed gets a real answer.
+  if (!body || !Array.isArray(body.suggestions)) return [];
   if (lastRefusal?.at !== refusalsBefore) return [];
 
-  const suggestions: PlaceSuggestion[] = body.predictions.slice(0, 8).map((p: any) => ({
-    placeId: p.place_id,
-    primary: p.structured_formatting?.main_text || p.description || '',
-    secondary: p.structured_formatting?.secondary_text || ''
+  const suggestions: PlaceSuggestion[] = body.suggestions.slice(0, 8).map((p: any) => ({
+    placeId: p.mapbox_id,
+    primary: p.name || p.name_preferred || '',
+    secondary: p.place_formatted || p.full_address || ''
   }));
 
   suggestionCache.set(cacheKey, suggestions);
@@ -297,18 +334,23 @@ export async function resolvePlace(
   if (cached !== undefined) return cached;
 
   const params = new URLSearchParams({
-    place_id: placeId,
-    key: config.GOOGLE_MAPS_SERVER_KEY,
-    // Asked for by name so the response stays small and the call stays on the
-    // cheapest billing tier that answers the question.
-    fields: 'formatted_address,geometry/location,address_component'
+    access_token: config.MAPBOX_ACCESS_TOKEN,
+    // The same session as the suggest calls that led here, so the whole address
+    // entry bills as one session rather than as a suggest plus a lookup.
+    session_token: sessionFor(sessionToken)
   });
-  if (sessionToken) params.set('sessiontoken', sessionToken);
 
   const refusalsBefore = lastRefusal?.at;
-  const body = await callGoogle(`${GOOGLE}/place/details/json?${params.toString()}`);
-  const location = body?.result?.geometry?.location;
-  if (!location) {
+  const body = await callMapbox(
+    `${MAPBOX}/search/searchbox/v1/retrieve/${encodeURIComponent(placeId)}?${params.toString()}`
+  );
+  const feature = body?.features?.[0];
+  // GeoJSON: [longitude, latitude]. In that order, always.
+  const coordinates = feature?.geometry?.coordinates;
+  const location = Array.isArray(coordinates) && coordinates.length >= 2
+    ? { lat: Number(coordinates[1]), lng: Number(coordinates[0]) }
+    : null;
+  if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
     // Only cache a genuine "no such place". A refused or failed call must not
     // be remembered, or fixing the key leaves every address anybody has already
     // looked up broken for a day — which is exactly long enough for somebody to
@@ -318,10 +360,10 @@ export async function resolvePlace(
   }
 
   const resolved = shapePlace(
-    body.result.formatted_address,
+    feature.properties?.full_address || feature.properties?.name || '',
     location.lat,
     location.lng,
-    body.result.address_components
+    feature.properties?.context
   );
   placeCache.set(placeId, resolved);
   return resolved;
@@ -346,14 +388,18 @@ export async function reverseGeocode(
   if (cached !== undefined) return cached;
 
   const params = new URLSearchParams({
-    latlng: `${latitude},${longitude}`,
-    key: config.GOOGLE_MAPS_SERVER_KEY,
-    result_type: 'street_address|premise|subpremise|route|neighborhood'
+    // Named parameters rather than an ordered pair, which is the one place
+    // Mapbox removes the chance of swapping them.
+    longitude: String(longitude),
+    latitude: String(latitude),
+    access_token: config.MAPBOX_ACCESS_TOKEN,
+    types: 'address,street,neighborhood,place',
+    limit: '1'
   });
 
   const refusalsBefore = lastRefusal?.at;
-  const body = await callGoogle(`${GOOGLE}/geocode/json?${params.toString()}`);
-  const first = body?.results?.[0];
+  const body = await callMapbox(`${MAPBOX}/search/geocode/v6/reverse?${params.toString()}`);
+  const first = body?.features?.[0];
   if (!first) {
     // See resolvePlace: a refusal is not an answer and is not cached.
     if (body && lastRefusal?.at === refusalsBefore) reverseCache.set(cacheKey, null);
@@ -361,32 +407,44 @@ export async function reverseGeocode(
   }
 
   const resolved = shapePlace(
-    first.formatted_address,
-    first.geometry?.location?.lat ?? latitude,
-    first.geometry?.location?.lng ?? longitude,
-    first.address_components
+    first.properties?.full_address || first.properties?.name || '',
+    Number(first.geometry?.coordinates?.[1] ?? latitude),
+    Number(first.geometry?.coordinates?.[0] ?? longitude),
+    first.properties?.context
   );
   reverseCache.set(cacheKey, resolved);
   return resolved;
 }
 
+/**
+ * `context` replaces Google's address_components, and it is a different shape
+ * rather than a renamed one.
+ *
+ * Google returned an ARRAY of components, each carrying a list of types, so a
+ * locality was found by searching for one. Mapbox returns an OBJECT keyed by
+ * the type, so it is a lookup. A port that kept the array search would find
+ * nothing, every time, and every address would silently lose its locality and
+ * postcode — which does not break anything loudly, it just quietly degrades
+ * every address the platform stores.
+ */
 function shapePlace(
   formattedAddress: string,
   lat: number,
   lng: number,
-  components: any[] | undefined
+  context: Record<string, any> | undefined
 ): ResolvedPlace {
-  const find = (type: string) =>
-    Array.isArray(components)
-      ? components.find(c => Array.isArray(c.types) && c.types.includes(type))?.long_name
-      : undefined;
+  const find = (type: string) => {
+    const entry = context && typeof context === 'object' ? (context as any)[type] : undefined;
+    const value = entry?.name;
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  };
 
   return {
     formattedAddress: formattedAddress || '',
     latitude: lat,
     longitude: lng,
-    locality: find('locality') || find('sublocality') || find('administrative_area_level_2'),
-    postalCode: find('postal_code')
+    locality: find('locality') || find('neighborhood') || find('place') || find('district'),
+    postalCode: find('postcode')
   };
 }
 
@@ -397,7 +455,7 @@ export function placesStatus() {
     region: config.PLACES_REGION,
     cachedSuggestions: suggestionCache.size,
     /**
-     * Present only when Google has actually refused something. Its absence on a
+     * Present only when Mapbox has actually refused something. Its absence on a
      * configured deployment is the good case; its presence names the fix.
      */
     lastRefusal,

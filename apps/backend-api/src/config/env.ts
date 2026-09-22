@@ -325,7 +325,17 @@ export const config = {
    *
    * Absent, address lookup falls back to manual entry and nothing crashes.
    */
-  GOOGLE_MAPS_SERVER_KEY: process.env.GOOGLE_MAPS_SERVER_KEY || '',
+  /**
+   * Mapbox, for address search, reverse geocoding and road distances.
+   *
+   * A public `pk.` token is what the apps ship with and works server-side too.
+   * A token scoped for the server alone is better practice, because a token
+   * restricted to the apps' bundle identifiers cannot then be used from here.
+   *
+   * Absent, address lookup falls back to manual entry and road distances fall
+   * back to a straight-line estimate. Neither crashes anything.
+   */
+  MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN || '',
 
   /**
    * Biases address search toward the country being served, so "MG Road"
