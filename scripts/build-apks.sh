@@ -192,6 +192,36 @@ for entry in "${APPS[@]}"; do
 
   echo "sdk.dir=$ANDROID_HOME_NATIVE" > android/local.properties
 
+  #
+  # THE MAPBOX SDK DOWNLOAD TOKEN, SUPPLIED TO GRADLE AND NOT TO EXPO.
+  #
+  # The Mapbox Android SDK comes from an authenticated Maven repository. The
+  # @rnmapbox config plugin writes that repository into build.gradle with
+  # `password = project.properties['MAPBOX_DOWNLOADS_TOKEN']`, so the token is
+  # an ordinary Gradle property and belongs here.
+  #
+  # It is NOT passed as a plugin option, which is what @rnmapbox's own
+  # documentation recommends. That builds perfectly and puts the SECRET token
+  # inside every APK, because Expo serialises the resolved config - plugin
+  # options included - into `assets/app.config`, which is packaged. We shipped
+  # exactly that and found it by unzipping the result.
+  #
+  # android/ is generated and gitignored, and gradle.properties is a build
+  # input that is never packaged, so the token reaches the compiler and
+  # nothing else.
+  #
+  if [[ -n "${MAPBOX_DOWNLOAD_TOKEN:-}" ]]; then
+    printf 'MAPBOX_DOWNLOADS_TOKEN=%s
+' "$MAPBOX_DOWNLOAD_TOKEN" >> android/gradle.properties
+  elif [[ -f "$ROOT/.env" ]] && grep -q '^MAPBOX_DOWNLOAD_TOKEN=' "$ROOT/.env"; then
+    # Read from the repository-root .env, where every other secret in this
+    # project lives. Expo reads .env from the APP directory, so relying on its
+    # loader would silently find nothing here.
+    grep '^MAPBOX_DOWNLOAD_TOKEN=' "$ROOT/.env"       | head -1       | sed 's/^MAPBOX_DOWNLOAD_TOKEN=/MAPBOX_DOWNLOADS_TOKEN=/'       >> android/gradle.properties
+  else
+    echo "  WARNING: no MAPBOX_DOWNLOAD_TOKEN - the Mapbox SDK cannot be fetched" >&2
+  fi
+
   # Refuse to quietly hand back a DEBUG-SIGNED release.
   #
   # withReleaseSigning falls back to Android's debug keystore when it cannot

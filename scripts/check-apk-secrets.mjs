@@ -47,6 +47,29 @@ const pass = m => console.log(`[PASS] ${m}`);
  */
 const PLACEHOLDER = /^(your-|sample|change-?me|set-this|placeholder|local-development|xxx|todo|<)/i;
 
+/*
+ * VALUES THAT ARE MEANT TO BE IN THE APP.
+ *
+ * Not every name matching /KEY|TOKEN/ is a secret. Some are publishable by
+ * design, ship inside the binary on purpose, and are protected by a
+ * restriction set in the provider's console rather than by being hidden.
+ * Flagging them would fail every honest build, and a check that always fails
+ * is one people learn to ignore - which costs more than the gap it was
+ * guarding.
+ *
+ * Each entry here is a deliberate decision that extraction is harmless, not a
+ * convenience. Anything not listed is treated as a secret.
+ */
+const PUBLISHABLE = new Set([
+  // Mapbox pk.* - compiled into the app so the map can fetch tiles. Mapbox's
+  // own model assumes it is extractable; the account's URL and scope
+  // restrictions are what protect it.
+  'MAPBOX_PUBLIC_TOKEN',
+  // The Android Maps key was package-name and SHA-1 restricted for the same
+  // reason. Retained so a build made from an older .env does not fail.
+  'GOOGLE_MAPS_ANDROID_KEY'
+]);
+
 function secretsFromEnv() {
   const envPath = path.join(ROOT, '.env');
   if (!fs.existsSync(envPath)) return [];
@@ -60,6 +83,7 @@ function secretsFromEnv() {
     if (value.length < 12) continue;
     if (PLACEHOLDER.test(value)) continue;
     if (!/SECRET|KEY|TOKEN|PASSWORD|DSN|URI|URL/.test(name)) continue;
+    if (PUBLISHABLE.has(name)) continue;
     out.push({ name, value });
   }
   return out;
@@ -99,7 +123,24 @@ const FORBIDDEN = [
    * local `.env` — it is only ever set on the deployment — so the value-based
    * check above could never see it.
    */
-  { label: 'a Google API key (neither Google key belongs in the JS bundle)', pattern: /AIza[0-9A-Za-z_-]{35}/ },
+  {
+    label: 'a Google API key (neither Google key belongs in the JS bundle)',
+    pattern: /AIza[0-9A-Za-z_-]{35}/,
+    /*
+     * BUNDLE ONLY, and the scope is the whole point.
+     *
+     * google-services.json legitimately contains an AIza key - it is the
+     * Firebase client key, it ships in every Android app that uses Firebase,
+     * and Google's model assumes it is readable. It lands in the packaged
+     * resources, so scanning those for this pattern fails every build that has
+     * notifications configured.
+     *
+     * The danger this rule was written for is the Maps SERVER key, which
+     * cannot be restricted and would reach the client only by somebody pasting
+     * it into application code. That lands in the JavaScript bundle.
+     */
+    scope: 'bundle'
+  },
   /**
    * A MAPBOX SECRET TOKEN, ANYWHERE IN AN ARTIFACT.
    *
@@ -146,22 +187,61 @@ console.log(
 
 for (const apk of apks) {
   const full = path.join(APK_DIR, apk);
-  let bundle;
-  try {
-    // -p writes to stdout. The bundle is a couple of megabytes, which is fine
-    // to hold; the APK as a whole is fifty-odd and is not.
-    bundle = execFileSync('unzip', ['-p', full, 'assets/index.android.bundle'], {
-      maxBuffer: 64 * 1024 * 1024,
-      encoding: 'latin1'
-    });
-  } catch {
-    fail(`${apk}: could not read assets/index.android.bundle out of it`);
-    continue;
-  }
+  /*
+   * MORE THAN THE JAVASCRIPT BUNDLE, because a secret reached a release
+   * through the gap.
+   *
+   * This read only `assets/index.android.bundle` and reported "no credentials"
+   * on three APKs that each contained a Mapbox SECRET token. The token was in
+   * `assets/app.config` - Expo serialises the fully resolved config, plugin
+   * options included, and packages it. The scanner was looking in the one
+   * place it was not.
+   *
+   * So every packaged asset that can carry a string is read. The bundle is
+   * still required to exist and be a plausible size, because an APK with no
+   * bundle is a broken build rather than a clean one - but a missing
+   * app.config is not an error, since only Expo builds have one.
+   */
+  const REQUIRED_ENTRIES = ['assets/index.android.bundle'];
+  const OPTIONAL_ENTRIES = ['assets/app.config', 'resources.arsc', 'AndroidManifest.xml'];
 
-  if (!bundle || bundle.length < 10000) {
-    fail(`${apk}: its JavaScript bundle is ${bundle?.length ?? 0} bytes, which cannot be a real app`);
-    continue;
+  const readEntry = entry => {
+    try {
+      // -p writes to stdout. Each entry is a few megabytes at most, which is
+      // fine to hold; the APK as a whole is fifty-odd and is not.
+      return execFileSync('unzip', ['-p', full, entry], {
+        maxBuffer: 64 * 1024 * 1024,
+        encoding: 'latin1'
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  let bundle = '';
+  /** The JavaScript bundle alone, for rules scoped to it. */
+  let jsBundle = '';
+  let missingRequired = false;
+  for (const entry of REQUIRED_ENTRIES) {
+    const text = readEntry(entry);
+    if (text === null) {
+      fail(`${apk}: could not read ${entry} out of it`);
+      missingRequired = true;
+      break;
+    }
+    if (text.length < 10000) {
+      fail(`${apk}: its JavaScript bundle is ${text.length} bytes, which cannot be a real app`);
+      missingRequired = true;
+      break;
+    }
+    bundle += text;
+    jsBundle += text;
+  }
+  if (missingRequired) continue;
+
+  for (const entry of OPTIONAL_ENTRIES) {
+    const text = readEntry(entry);
+    if (text) bundle += String.fromCharCode(10) + text;
   }
 
   let found = 0;
@@ -175,7 +255,11 @@ for (const apk of apks) {
   }
 
   for (const rule of FORBIDDEN) {
-    if (rule.pattern.test(bundle)) {
+    // A rule may narrow itself to the JavaScript bundle. Everything else is
+    // checked against every packaged asset, which is what let a secret token
+    // through in `assets/app.config`.
+    const haystack = rule.scope === 'bundle' ? jsBundle : bundle;
+    if (rule.pattern.test(haystack)) {
       fail(`${apk} contains ${rule.label}`);
       found++;
     }

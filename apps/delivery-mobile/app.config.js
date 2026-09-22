@@ -97,16 +97,28 @@ module.exports = ({ config }) => {
     return expo;
   }
 
+  /*
+   * THE TOKEN IS NOT PASSED TO THE PLUGIN. That is the whole point of this
+   * shape, and it was learned by shipping it.
+   *
+   * @rnmapbox's own documentation says to pass RNMapboxMapsDownloadToken as a
+   * plugin option. Doing so builds successfully and puts the SECRET token
+   * inside every APK: Expo serialises the fully resolved config - plugin
+   * options and all - into `assets/app.config`, which is packaged. Verified by
+   * unzipping a build and finding it there.
+   *
+   * The plugin does not need it. What it writes into build.gradle is a Maven
+   * repository whose password reads
+   * `project.properties['MAPBOX_DOWNLOADS_TOKEN']` - an ordinary Gradle
+   * property. So the plugin goes in with no options, and the token is written
+   * to android/gradle.properties by scripts/build-apks.sh, which is generated,
+   * gitignored, and not packaged into the APK.
+   *
+   * The presence check above stays, because a build with no token still fails
+   * in a way that points at the wrong thing.
+   */
   return {
     ...expo,
-    plugins: [
-      ...(expo.plugins || []),
-      [
-        '@rnmapbox/maps',
-        {
-          RNMapboxMapsDownloadToken: DOWNLOAD_TOKEN
-        }
-      ]
-    ]
+    plugins: [...(expo.plugins || []), '@rnmapbox/maps']
   };
 };
