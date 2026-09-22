@@ -94,6 +94,7 @@
     },
     "android": {
       "package": "com.quickbite.app",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

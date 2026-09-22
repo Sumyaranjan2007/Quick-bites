@@ -94,6 +94,7 @@
     },
     "android": {
       "package": "com.quickbite.partner",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -145,7 +146,9 @@
         "expo-notifications",
         {
           "color": "#F5A623",
-          "sounds": ["./assets/new_order.wav"]
+          "sounds": [
+            "./assets/new_order.wav"
+          ]
         }
       ],
       "../../packages/config/expo-plugins/withKeptNotificationSound",

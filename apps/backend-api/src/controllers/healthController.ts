@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { config } from '../config/env.ts';
 import { placesStatus } from '../modules/places/placesService.ts';
 import { routingStatus } from '../modules/places/routingService.ts';
+import { pushIsConfigured } from '../notifications/fcmTransport.ts';
 
 export function getHealth(req: Request, res: Response): void {
   const uptimeSeconds = Math.floor(process.uptime());
@@ -44,7 +45,22 @@ export function getHealth(req: Request, res: Response): void {
        * asserts rather than assumes.
        */
       addressLookup: placesStatus(),
-      roadDistance: routingStatus()
+      roadDistance: routingStatus(),
+      /**
+       * Whether this deployment can actually deliver a push notification.
+       *
+       * Same reasoning as the two above, and the same failure it prevents. A
+       * notification that goes nowhere is logged as dispatched and looks
+       * identical to one that arrived - so without this, the only way to find
+       * out whether FCM_SERVICE_ACCOUNT_JSON had reached the deployment was to
+       * install an app on a phone, place an order, and wait for a notification
+       * that might never have been possible.
+       *
+       * `configured` is a boolean. No part of the service account, including
+       * the project id, passes through here: a credential's contents do not
+       * belong on an endpoint that answers without authentication.
+       */
+      pushNotifications: { configured: pushIsConfigured() }
     },
     system: {
       memoryRssMb: Math.round((memUsage.rss / 1024 / 1024) * 100) / 100,

@@ -96,6 +96,7 @@
     },
     "android": {
       "package": "com.quickbite.rider",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

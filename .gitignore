@@ -33,3 +33,8 @@ build/apk/
 # Launch-test screenshots: evidence for one run on one emulator, regenerated
 # every time. Megabytes of PNG that go stale the moment anything changes.
 build/screenshots/
+
+# Firebase client config. Ships inside the APK, so it is not a secret in the
+# strict sense - but this repository is public and keys do not belong in it.
+# Recreate from the Firebase console: Project settings > your Android apps.
+apps/*/google-services.json
