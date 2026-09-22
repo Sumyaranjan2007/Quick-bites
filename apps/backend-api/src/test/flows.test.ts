@@ -629,6 +629,62 @@ async function run() {
       .find((t: any) => t.id === ticketId);
     check('...and the customer sees it resolved rather than still open',
       resolved?.status === 'RESOLVED', `got ${JSON.stringify(resolved?.status)}`);
+
+    /*
+     * ======================================================================
+     * THE GRIEVANCE OFFICER, WHICH THE LAW REQUIRES AND NOTHING SURFACED.
+     * ======================================================================
+     *
+     * The Consumer Protection (E-Commerce) Rules require a named person, a
+     * working email and a postal address for complaints to escalate to. The
+     * server has always known whether that was published - `policyGaps()`
+     * returns what is missing - and no screen ever read it. The only way to
+     * discover the platform was non-compliant was to read the source.
+     *
+     * Checked in both directions. A gap list that is always empty would pass
+     * a "publishing works" test perfectly while telling an owner they are
+     * compliant when they are not, which is the more dangerous failure of the
+     * two.
+     */
+    console.log('\n-- Legal: the grievance officer the rules require');
+
+    const grievance = async () =>
+      (await api('/admin/policies/grievance', {}, admin.token)).json?.data || {};
+
+    const initial = await grievance();
+    check('The platform reports whether a grievance officer is published',
+      Array.isArray(initial.gaps), JSON.stringify(initial).slice(0, 200));
+
+    // A postal address is required, not optional. The rules are specific and
+    // the server enforces them rather than accepting a blank.
+    const refused = await api('/admin/policies/grievance', {
+      method: 'PUT',
+      body: { officerName: 'A Person', email: 'someone@quickbite.app', address: 'x' }
+    }, admin.token);
+    check('An address too short to post to is refused', refused.status >= 400,
+      `status ${refused.status}`);
+
+    const published = await api('/admin/policies/grievance', {
+      method: 'PUT',
+      body: {
+        officerName: 'Grievance Officer',
+        designation: 'Grievance Officer',
+        email: 'officalquickbites@gmail.com',
+        address: 'Harohalli, Kanakapura Main Road, Ramanagara, Karnataka 562112',
+        hours: 'Monday to Friday, 10am to 6pm'
+      }
+    }, admin.token);
+    check('A complete grievance officer is accepted', published.status === 200,
+      `status ${published.status} ${JSON.stringify(published.json).slice(0, 200)}`);
+
+    const afterPublish = await grievance();
+    check('...and the platform then reports no legal gaps',
+      (afterPublish.gaps || []).length === 0,
+      `still reporting: ${JSON.stringify(afterPublish.gaps)}`);
+    check('...and the officer comes back to be shown on the screen',
+      afterPublish.contact?.email === 'officalquickbites@gmail.com',
+      JSON.stringify(afterPublish.contact));
+
   } finally {
     server.close();
   }

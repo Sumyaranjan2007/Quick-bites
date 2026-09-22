@@ -16,6 +16,7 @@ import {
 import { tokens, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { GrievanceCard } from './GrievanceCard';
 
 const c = tokens.colors;
 
@@ -116,6 +117,18 @@ export const SettingsScreen: React.FC = () => {
         contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={settings.loading} onRefresh={settings.reload} />}
       >
+        {/*
+          Above the switches on purpose. A feature flag is something you change
+          when you want to; an unpublished grievance officer is something that
+          has to be fixed before customers arrive. Below a list of toggles it
+          would read as one more optional setting.
+
+          It renders itself as nothing when the signed-in administrator cannot
+          see finance settings, so it does not leave a heading over an empty
+          space for people who cannot act on it.
+        */}
+        <GrievanceCard />
+
         {!!settings.error && (
           <Card style={s.errorCard}>
             <Text style={s.errorText}>{settings.error}</Text>
