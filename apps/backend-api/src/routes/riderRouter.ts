@@ -9,6 +9,7 @@ import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { riderEarningsBalance } from '../modules/payments/earnings.ts';
 import { cashStanding } from '../modules/payments/cashDeposits.ts';
+import { getActiveRates } from '../modules/payments/pricingConfig.ts';
 import { payoutRepository } from '../db/repositories/payoutRepository.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
@@ -62,20 +63,58 @@ async function requireRiderSelf(req: any): Promise<DeliveryRider> {
 }
 
 /**
- * Trip payout, derived from the order itself rather than supplied by the caller.
- * A flat base covers the rider's time; the delivery fee the customer was charged
- * covers distance. Gold orders can carry a zero delivery fee, so the base is a floor.
+ * What a rider earns for one trip.
  *
- * The customer's tip is added on top, in full and untouched. The platform takes
- * nothing from it: a tip with a commission deducted is not a tip, and a rider
- * who works that out once stops believing the earnings screen.
+ * -------------------------------------------------------------------------
+ * THIS USED TO LOSE MONEY ON EVERY SINGLE DELIVERY
+ * -------------------------------------------------------------------------
+ * The old formula was `40 + the whole delivery fee + tip`, with the 40
+ * hardcoded. The customer is charged Rs 30 for delivery by default, so the
+ * platform collected 30 and paid out 70 — a Rs 40 loss on every order, before
+ * anything else was counted. On a small basket that wiped out the commission
+ * entirely and the order ran at a loss.
+ *
+ * It was also paying the rider the delivery fee ON TOP of a base, which is
+ * paying for the same distance twice: the fee already scales with distance.
+ *
+ * And the four rider rates an administrator can set on the Rates screen —
+ * `riderBaseFeePerTrip`, `riderBaseKm`, `riderPerKmFee`,
+ * `riderMinEarningPerTrip` — were read by nothing at all. They were editable,
+ * they were displayed, and they moved no money. This is the function that was
+ * supposed to read them.
+ *
+ * -------------------------------------------------------------------------
+ * WHAT IT IS NOW
+ * -------------------------------------------------------------------------
+ * A base fee for the rider's time, plus a per-kilometre rate beyond a free
+ * distance, floored at a guaranteed minimum so a very short trip is still worth
+ * taking. All four from the live configuration, so the owner can move them.
+ *
+ * The delivery fee the CUSTOMER pays is a separate number, set per restaurant.
+ * Keeping the two apart is the entire point: the margin between them is the
+ * platform's, and it is visible instead of accidental.
+ *
+ * The tip is added on top, in full and untouched. The platform takes nothing
+ * from it — a tip with a commission deducted is not a tip, and a rider who
+ * works that out once stops believing the earnings screen.
  */
-const RIDER_BASE_PAYOUT = 40.0;
+export function calculateTripPayout(order: {
+  distanceKm?: number;
+  bill?: { deliveryFee?: number; tipAmount?: number };
+}): number {
+  const rates = getActiveRates();
 
-function calculateTripPayout(order: { bill?: { deliveryFee?: number; tipAmount?: number } }): number {
-  const distanceComponent = Number(order.bill?.deliveryFee) || 0;
+  const distanceKm = Math.max(0, Number(order.distanceKm) || 0);
+  const beyond = Math.max(0, distanceKm - rates.riderBaseKm);
+  // Whole kilometres, matching how the customer's delivery fee is charged, so a
+  // rider and a customer are never billed against different distances.
+  const distanceComponent = Math.ceil(beyond) * rates.riderPerKmFee;
+
+  const earned = rates.riderBaseFeePerTrip + distanceComponent;
+  const floored = Math.max(earned, rates.riderMinEarningPerTrip);
+
   const tip = Math.max(0, Number(order.bill?.tipAmount) || 0);
-  return Math.round((RIDER_BASE_PAYOUT + Math.max(0, distanceComponent) + tip) * 100) / 100;
+  return Math.round((floored + tip) * 100) / 100;
 }
 
 // ---------------------------------------------------------------------------
