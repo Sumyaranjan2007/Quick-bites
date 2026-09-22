@@ -160,7 +160,11 @@ export const PayoutsScreen: React.FC = () => {
     enabled: canView
   });
 
-  const [tab, setTab] = useState('due');
+  const overview = useResource<any>(() => api.get('/admin/payments/overview').then(r => r.data), [], {
+    enabled: canView
+  });
+
+  const [tab, setTab] = useState('overview');
   const [drafting, setDrafting] = useState<DueRow | null>(null);
   const [rail, setRail] = useState<string>('');
   const [sending, setSending] = useState<PayoutRow | null>(null);
@@ -184,6 +188,7 @@ export const PayoutsScreen: React.FC = () => {
     await dues.reload();
     void history.silentReload();
     void cash.silentReload();
+    void overview.silentReload();
   };
 
   const draft = async () => {
@@ -317,6 +322,7 @@ export const PayoutsScreen: React.FC = () => {
 
         <Segmented
           options={[
+            { key: 'overview', label: 'What is going on' },
             { key: 'due', label: `Owed${payload ? ` (${payload.summary.payableCount})` : ''}` },
             {
               key: 'sending',
@@ -331,6 +337,121 @@ export const PayoutsScreen: React.FC = () => {
           value={tab}
           onChange={setTab}
         />
+
+        {/* ------------------------- What is going on ------------------------- */}
+        {tab === 'overview' && (
+          <>
+            {overview.loading && !overview.data ? (
+              <Loading label="Working out what needs doing…" />
+            ) : !overview.data ? (
+              <EmptyState title="Could not load this" message={overview.error || 'Pull down to try again.'} />
+            ) : (
+              <>
+                {/*
+                  Blockers first, above the money.
+
+                  An empty payouts queue can mean "everybody has been paid" or
+                  "nothing was ever recorded and nobody can be paid at all".
+                  Those look identical and mean opposite things, and not being
+                  able to tell them apart was most of what the owner was
+                  describing.
+                */}
+                {overview.data.blockers.length === 0 ? (
+                  <Card style={{ borderColor: c.state.success, marginBottom: 12 }}>
+                    <Text style={s.okTitle}>
+                      {overview.data.queue.readyToPay > 0
+                        ? `${overview.data.queue.readyToPay} to pay, and nothing in the way`
+                        : 'Nothing needs your attention'}
+                    </Text>
+                    <Text style={s.okBody}>
+                      {overview.data.queue.readyToPay > 0
+                        ? `${rupees(overview.data.queue.readyToPayTotal)} is ready to send. Open the Owed tab.`
+                        : 'Nobody is waiting to be paid and nothing is stuck.'}
+                    </Text>
+                  </Card>
+                ) : (
+                  <>
+                    <SectionTitle
+                      title="What is stopping payments"
+                      subtitle="Each of these has one thing that clears it."
+                    />
+                    {overview.data.blockers.map((blocker: any, index: number) => (
+                      <Card key={index} style={s.blockerCard}>
+                        <View style={s.blockRow}>
+                          <TriangleAlert size={15} color={c.state.warning} />
+                          <Text style={s.blockerWhat}>{blocker.what}</Text>
+                        </View>
+                        <Text style={s.blockerFix}>{blocker.fix}</Text>
+
+                        {blocker.where === 'CATCH_UP' && canPay && (
+                          <Button
+                            label={busy ? 'Catching up…' : 'Record the missing earnings'}
+                            onPress={async () => {
+                              setBusy(true);
+                              setActionError(null);
+                              try {
+                                await api.post('/admin/payouts/backfill', {});
+                                await reloadAll();
+                              } catch (err: any) {
+                                setActionError(err?.message || 'The catch-up could not run.');
+                              } finally {
+                                setBusy(false);
+                              }
+                            }}
+                            disabled={busy}
+                            style={{ marginTop: 10 }}
+                          />
+                        )}
+                        {blocker.where === 'CASH' && (
+                          <Button
+                            label="Go to Cash in"
+                            variant="ghost"
+                            onPress={() => setTab('cash')}
+                            style={{ marginTop: 10 }}
+                          />
+                        )}
+                      </Card>
+                    ))}
+                  </>
+                )}
+
+                {!!actionError && <Text style={s.errorText}>{actionError}</Text>}
+
+                {/* ---------------------- What we earned ---------------------- */}
+                <SectionTitle
+                  title={`What we earned, last ${overview.data.period.days} days`}
+                  subtitle={`${overview.data.business.orders} delivered orders, ${rupees(overview.data.business.gross)} taken from customers.`}
+                />
+                <Card>
+                  <Text style={s.earnedTotal}>{rupees(overview.data.business.earned.total)}</Text>
+                  <Text style={s.earnedCaption}>ours, after paying restaurants and riders</Text>
+                  <Divider style={{ marginVertical: 12 }} />
+
+                  <EarnRow label="Commission on food" value={overview.data.business.earned.commission} />
+                  <EarnRow label="Packaging markup" value={overview.data.business.earned.packagingMarkup} />
+                  <EarnRow label="Platform fees" value={overview.data.business.earned.platformFee} />
+                  {overview.data.business.earned.extraCharges > 0 && (
+                    <EarnRow label="Extra charges" value={overview.data.business.earned.extraCharges} />
+                  )}
+                  <EarnRow
+                    label="Delivery"
+                    value={overview.data.business.earned.deliveryMargin}
+                    hint={
+                      overview.data.business.earned.deliveryMargin < 0
+                        ? 'Negative: delivery costs more than you charge for it.'
+                        : undefined
+                    }
+                  />
+                </Card>
+
+                <Text style={s.footnote}>
+                  These are what each delivered order actually charged, not today’s rates — so changing a rate
+                  never rewrites what you already earned.
+                </Text>
+              </>
+            )}
+          </>
+        )}
 
         {tab === 'due' &&
           (!payload || payload.dues.length === 0 ? (
@@ -841,6 +962,16 @@ export const PayoutsScreen: React.FC = () => {
   );
 };
 
+const EarnRow: React.FC<{ label: string; value: number; hint?: string }> = ({ label, value, hint }) => (
+  <View style={{ paddingVertical: 4 }}>
+    <View style={s.earnRow}>
+      <Text style={s.earnLabel}>{label}</Text>
+      <Text style={[s.earnValue, value < 0 && { color: c.state.danger }]}>{rupees(value)}</Text>
+    </View>
+    {!!hint && <Text style={s.earnHint}>{hint}</Text>}
+  </View>
+);
+
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   errorCard: { borderColor: c.state.danger, marginBottom: 12 },
@@ -889,5 +1020,21 @@ const s = StyleSheet.create({
     padding: 12,
     marginBottom: 12
   },
-  warnText: { color: c.state.warning, fontSize: 12, lineHeight: 17, flex: 1 }
+  warnText: { color: c.state.warning, fontSize: 12, lineHeight: 17, flex: 1 },
+
+  okTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
+  okBody: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 6 },
+
+  blockerCard: { marginBottom: 10 },
+  blockerWhat: { color: c.text.primary, fontSize: 13, fontWeight: '700', lineHeight: 19, flex: 1 },
+  blockerFix: { color: c.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 8 },
+
+  earnedTotal: { color: c.text.primary, fontSize: 30, fontWeight: '800' },
+  earnedCaption: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
+  earnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  earnLabel: { color: c.text.secondary, fontSize: 13 },
+  earnValue: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
+  earnHint: { color: c.state.danger, fontSize: 11, lineHeight: 16, marginTop: 2 },
+
+  footnote: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 12 }
 });

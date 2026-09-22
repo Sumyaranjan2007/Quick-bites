@@ -38,7 +38,10 @@ import {
 import { railCatalogue, defaultRail } from '../../modules/payments/rails.ts';
 import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
 import { payableAccountFor, publicView as payeeView } from '../../modules/payments/payeeAccounts.ts';
-import { backfillEarnings } from '../../modules/payments/earnings.ts';
+import { backfillEarnings, earningsPosted } from '../../modules/payments/earnings.ts';
+import { platformMarginPaiseFor } from '../../modules/payments/restaurantCharges.ts';
+import { reviewQueue } from '../../modules/payments/payeeAccounts.ts';
+import { memoryStore } from '../../db/client.ts';
 import { listDeposits, confirmDeposit, cashAgeing } from '../../modules/payments/cashDeposits.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import {
@@ -683,6 +686,189 @@ payoutRoutes.post(
               ? `${formatPaise(deposit.receivedPaise || 0)} received. They are carrying nothing and can be paid.`
               : `${formatPaise(deposit.receivedPaise || 0)} received. ${formatPaise(remainingPaise)} still outstanding.`
             : `Recorded with a variance of ${formatPaise(Math.abs(variancePaise))}. It stays against the rider.`
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  WHY IS THIS SCREEN EMPTY, AND WHAT DID WE EARN                     *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/payments/overview
+ *
+ * The screen the owner asked for: *"I am not understanding the finance of that
+ * part... I can give a proper payouts to everyone... and really it will show
+ * how much we are also earning by all the orders."*
+ *
+ * Two halves, and the first is the one that was missing.
+ *
+ * **Why a list is empty.** An empty payouts queue can mean "everybody has been
+ * paid" or "nothing has ever been recorded and nobody can be paid at all".
+ * Those look identical and mean opposite things, and being unable to tell them
+ * apart is most of what the owner was describing. So every blocker is named,
+ * counted, and given the thing that clears it.
+ *
+ * **What we earned.** Commission, the packaging markup, the platform fee, any
+ * extra charge, and what delivery cost us — derived from the FROZEN bill on
+ * each delivered order, so it stays right for orders priced before the last
+ * rate change.
+ */
+payoutRoutes.get(
+  '/payments/overview',
+  requirePermission('finance.payouts.view', 'finance.reports.view', 'finance.settlements.view'),
+  async (req, res, next) => {
+    try {
+      const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+      const since = new Date(Date.now() - days * 86_400_000).toISOString();
+
+      const [riders, restaurants] = await Promise.all([
+        riderRepository.findAll(),
+        restaurantRepository.listAll()
+      ]);
+
+      /* ---- What we earned ---- */
+
+      let orders = 0;
+      let grossPaise = 0;
+      const earned = {
+        commissionPaise: 0,
+        packagingMarginPaise: 0,
+        platformFeePaise: 0,
+        extraChargePaise: 0,
+        deliveryMarginPaise: 0,
+        totalPaise: 0
+      };
+
+      /*
+       * Orders whose earnings were never recorded.
+       *
+       * These are the ones nobody can be paid for, and they are invisible from
+       * the dues queue precisely because they are not in it. Counting them is
+       * the difference between "nothing to do" and "nothing is working".
+       */
+      let unposted = 0;
+
+      for (const order of memoryStore.orders.values()) {
+        const typed: any = order;
+        if (typed.status !== 'DELIVERED') continue;
+        const at = typed.deliveredAt || typed.updatedAt;
+        if (!at || at < since) continue;
+
+        orders += 1;
+        grossPaise += toPaise(Number(typed.bill?.totalAmount) || 0);
+
+        const margin = platformMarginPaiseFor(typed);
+        earned.commissionPaise += margin.commissionPaise;
+        earned.packagingMarginPaise += margin.packagingMarginPaise;
+        earned.platformFeePaise += margin.platformFeePaise;
+        earned.extraChargePaise += margin.extraChargePaise;
+        earned.deliveryMarginPaise += margin.deliveryMarginPaise;
+        earned.totalPaise += margin.totalPaise;
+
+        if (!earningsPosted(typed.id)) unposted += 1;
+      }
+
+      /* ---- Why the queue looks the way it does ---- */
+
+      const everyone = [
+        ...restaurants.map((r: any) => ({ ownerType: 'RESTAURANT' as const, ownerId: r.id, ownerName: r.name })),
+        ...riders.map((r: any) => ({
+          ownerType: 'RIDER' as const,
+          ownerId: r.id,
+          ownerName: r.fullName || r.driverCode || r.id
+        }))
+      ];
+
+      const dues = allDues(everyone);
+      const noAccount = dues.filter(d => d.outstandingPaise > 0 && !d.hasVerifiedAccount);
+      const holdingCash = dues.filter(d => d.cashInHandPaise > 0);
+      const stillHeld = dues.filter(d => d.payablePaise === 0 && d.heldPaise > 0);
+      const ready = dues.filter(d => !d.blockedReason && d.payablePaise > 0);
+
+      const awaitingReview = reviewQueue().length;
+      const cashWaiting = listDeposits({ status: 'DECLARED' }).length;
+
+      /*
+       * Each blocker in one sentence, with what clears it.
+       *
+       * Prose rather than counts, because the complaint was never that the
+       * numbers were missing. It was that nobody could tell what they meant or
+       * what to do next.
+       */
+      const blockers: Array<{ what: string; count: number; fix: string; where: string }> = [];
+
+      if (unposted > 0) {
+        blockers.push({
+          what: `${unposted} delivered order${unposted === 1 ? ' has' : 's have'} no earnings recorded, so nobody can be paid for ${unposted === 1 ? 'it' : 'them'}.`,
+          count: unposted,
+          fix: 'Run the catch-up. Safe to run more than once — an order already recorded is skipped.',
+          where: 'CATCH_UP'
+        });
+      }
+      if (awaitingReview > 0) {
+        blockers.push({
+          what: `${awaitingReview} bank account${awaitingReview === 1 ? '' : 's'} waiting for you to approve.`,
+          count: awaitingReview,
+          fix: 'Until an account is approved there is nowhere to send that person’s money.',
+          where: 'BANK'
+        });
+      }
+      if (noAccount.length > 0) {
+        blockers.push({
+          what: `${noAccount.length} ${noAccount.length === 1 ? 'person is' : 'people are'} owed money with no approved account to send it to.`,
+          count: noAccount.length,
+          fix: 'They add one in their own app. Chase them — they cannot be paid until they do.',
+          where: 'BANK'
+        });
+      }
+      if (cashWaiting > 0) {
+        blockers.push({
+          what: `${cashWaiting} rider${cashWaiting === 1 ? ' is' : 's are'} bringing cash in.`,
+          count: cashWaiting,
+          fix: 'Count it and record what you counted. Their payout is blocked until their cash is zero.',
+          where: 'CASH'
+        });
+      }
+      if (holdingCash.length > 0) {
+        blockers.push({
+          what: `${holdingCash.length} rider${holdingCash.length === 1 ? ' is' : 's are'} still holding our cash, so their earnings are on hold.`,
+          count: holdingCash.length,
+          fix: 'They must deposit it. We never net it off — that would be paying out money we are owed.',
+          where: 'CASH'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          period: { days, since },
+          business: {
+            orders,
+            gross: toRupees(grossPaise),
+            earned: {
+              commission: toRupees(earned.commissionPaise),
+              packagingMarkup: toRupees(earned.packagingMarginPaise),
+              platformFee: toRupees(earned.platformFeePaise),
+              extraCharges: toRupees(earned.extraChargePaise),
+              /** Negative when delivery costs more than it is charged for. */
+              deliveryMargin: toRupees(earned.deliveryMarginPaise),
+              total: toRupees(earned.totalPaise)
+            }
+          },
+          queue: {
+            readyToPay: ready.length,
+            readyToPayTotal: toRupees(ready.reduce((t, d) => t + d.payablePaise, 0)),
+            stillInHoldPeriod: stillHeld.length,
+            blockedCount: noAccount.length + holdingCash.length
+          },
+          blockers,
+          /** True when there is genuinely nothing to do, not merely nothing visible. */
+          allClear: blockers.length === 0 && ready.length === 0
+        }
       });
     } catch (err) {
       next(err);

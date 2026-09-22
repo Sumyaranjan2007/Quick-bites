@@ -162,10 +162,21 @@ export function payableAccountFor(ownerType: PayeeOwnerType, ownerId: string): P
   return accounts.find(a => a.isDefault) || accounts[0] || null;
 }
 
-/** Everything waiting on a human, newest first. */
+/**
+ * Everything waiting on a human, newest first.
+ *
+ * Both the close-but-not-certain names AND the accounts nothing has checked.
+ * The second group is the whole queue on a deployment without bank
+ * verification switched on, and leaving it out meant the screen was always
+ * empty while nobody could be paid.
+ */
 export function reviewQueue(): PayeeAccount[] {
   return rows()
-    .filter(a => !a.archivedAt && a.validationStatus === 'NAME_MISMATCH')
+    .filter(
+      a =>
+        !a.archivedAt &&
+        (a.validationStatus === 'NAME_MISMATCH' || a.validationStatus === 'UNVERIFIED')
+    )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -377,10 +388,35 @@ export async function verifyAccount(
 /**
  * A human's decision on an account the automatic check could not settle.
  *
- * Deliberately only reachable for `NAME_MISMATCH`. An administrator cannot
- * approve an account the bank said does not exist, and cannot approve one that
- * was never checked — those are not judgement calls, and letting a person
- * override them would make the penny drop advisory.
+ * -------------------------------------------------------------------------
+ * TWO CASES REACH A PERSON, NOT ONE
+ * -------------------------------------------------------------------------
+ * `NAME_MISMATCH` — the bank answered and the name is close but not close
+ * enough to decide automatically. A judgement call, and always was.
+ *
+ * `UNVERIFIED` — nothing checked it. Usually because bank verification is not
+ * switched on for this deployment at all, which is the state every account is
+ * in today.
+ *
+ * The second case used to be refused here, and that was a serious defect. The
+ * message shown to a partner adding an account says *"our team will verify this
+ * account by hand before your first payout"* — and there was no by-hand path.
+ * An UNVERIFIED account could never become VERIFIED, `payableAccountFor`
+ * returns only VERIFIED accounts, so on this deployment **nobody could ever be
+ * paid at all.** The owner reported it as the bank section not working; it was
+ * worse than that.
+ *
+ * `INVALID` is still refused. That is the bank actively saying the account does
+ * not exist, and letting a person override it would make the penny drop
+ * advisory rather than a control.
+ *
+ * -------------------------------------------------------------------------
+ * AND A MANUAL APPROVAL IS RECORDED AS ONE
+ * -------------------------------------------------------------------------
+ * Approving an account nobody checked with a bank is a real decision with a
+ * real risk: the first payout is the test. So it is stamped as manual, with who
+ * did it, rather than being left indistinguishable from an account a bank
+ * confirmed.
  */
 export function reviewAccount(
   accountId: string,
@@ -391,12 +427,21 @@ export function reviewAccount(
   const account = findById(accountId);
   if (!account) throw new AppError('No such payout account.', 404, 'PAYEE_ACCOUNT_NOT_FOUND');
 
-  if (account.validationStatus !== 'NAME_MISMATCH') {
+  const decidable = account.validationStatus === 'NAME_MISMATCH' || account.validationStatus === 'UNVERIFIED';
+  if (!decidable) {
     throw new AppError(
-      `Only an account awaiting review can be decided. This one is ${account.validationStatus}.`,
+      account.validationStatus === 'INVALID'
+        ? 'The bank said this account does not exist. It cannot be approved by hand — ask them to add a different one.'
+        : `Only an account awaiting review can be decided. This one is ${account.validationStatus}.`,
       409,
       'PAYEE_ACCOUNT_NOT_IN_REVIEW'
     );
+  }
+
+  if (decision === 'APPROVE' && account.validationStatus === 'UNVERIFIED') {
+    (account as any).manuallyApproved = true;
+    (account as any).manuallyApprovedByUserId = actor.userId;
+    (account as any).manuallyApprovedAt = new Date().toISOString();
   }
 
   if (decision === 'APPROVE' && !account.razorpayFundAccountId && isRazorpayXConfigured()) {
