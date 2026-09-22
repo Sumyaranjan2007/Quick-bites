@@ -349,6 +349,24 @@ export const config = {
    */
   FCM_SERVICE_ACCOUNT_JSON: process.env.FCM_SERVICE_ACCOUNT_JSON || '',
 
+  /*
+   * Call masking, so a rider and a customer can speak without either learning
+   * the other's number.
+   *
+   * A phone call has to be carried by somebody licensed to carry phone calls,
+   * so this is the one privacy feature that cannot be built in software alone.
+   * Exotel is the default because it is what most Indian food platforms use.
+   *
+   * Absent, the apps keep showing the direct number for the life of the trip,
+   * exactly as they do now, and no call is attempted. Present, the apps switch
+   * to the masked route and the direct number stops being sent at all.
+   */
+  EXOTEL_SID: process.env.EXOTEL_SID || '',
+  EXOTEL_API_KEY: process.env.EXOTEL_API_KEY || '',
+  EXOTEL_API_TOKEN: process.env.EXOTEL_API_TOKEN || '',
+  /** The rented virtual number. This is what both handsets display. */
+  EXOTEL_CALLER_ID: process.env.EXOTEL_CALLER_ID || '',
+
   /** How often the sweeper looks. Short enough to be timely, long enough to be cheap. */
   ORDER_SWEEP_INTERVAL_SECONDS: Math.max(5, parseInt(process.env.ORDER_SWEEP_INTERVAL_SECONDS || '30', 10)),
 

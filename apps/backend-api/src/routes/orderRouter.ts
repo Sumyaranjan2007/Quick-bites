@@ -14,6 +14,8 @@ import { cancellationReasonsFor, actorForRole } from '../modules/orders/cancella
 import { config } from '../config/env.ts';
 import type { LanguageCode } from '@quick-bites/shared-types';
 import { visibleContact, shapeOrderForViewer, viewerFor } from '../modules/orders/contactVisibility.ts';
+import { isCallMaskingConfigured, placeMaskedCall } from '../modules/orders/callMasking.ts';
+import { isContactable } from '../modules/orders/contactVisibility.ts';
 
 export const orderRouter = Router();
 
@@ -558,6 +560,102 @@ orderRouter.post('/:id/messages', authMiddleware(), validate({ body: MessageSche
       success: true,
       data: { message },
       meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+/**
+ * POST /api/orders/:id/call — put the rider and the customer on a call without
+ * either learning the other's number.
+ *
+ * The operator rings whoever tapped Call, then rings the other party and joins
+ * the legs. Both handsets show the rented virtual number. Nothing in the
+ * response carries a real number, so a client that logs its own responses
+ * cannot leak one either.
+ *
+ * Refused rather than faked when no operator is configured. Pretending to mask
+ * a call would be worse than not masking it: the direct number would still be
+ * on the screen and everybody would believe it was hidden.
+ */
+orderRouter.post('/:id/call', authMiddleware(), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.id);
+    if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+
+    /*
+     * ONLY THE TWO PEOPLE ON THIS DELIVERY, AND ONLY WHILE IT IS LIVE.
+     *
+     * Without the first check this endpoint dials any customer on the platform
+     * for anyone who can guess an order id - a cold-calling machine with our
+     * own virtual number on the display. Without the second, a rider who
+     * delivered last Tuesday can still ring that address today, which is the
+     * exact harm masking exists to prevent.
+     */
+    const userId = req.user!.id;
+    const isCustomer = order.customerId === userId;
+
+    const ridersSelf = order.riderId ? await riderRepository.findById(order.riderId) : null;
+    const isRider = Boolean(ridersSelf && ridersSelf.userId === userId);
+
+    if (!isCustomer && !isRider) {
+      throw new AppError('This order is not yours.', 403, 'NOT_YOUR_ORDER');
+    }
+    if (!isContactable(order.status)) {
+      throw new AppError(
+        'This delivery has finished, so the line is closed.',
+        409,
+        'ORDER_NOT_CONTACTABLE'
+      );
+    }
+    if (!order.riderId || !order.riderPhone) {
+      throw new AppError('No delivery partner is on this order yet.', 409, 'NO_RIDER_ASSIGNED');
+    }
+
+    if (!isCallMaskingConfigured()) {
+      // Said plainly, with a code the apps read to fall back to the direct
+      // number they are already allowed to show for the life of the trip.
+      throw new AppError(
+        'Connected calling is not switched on for this deployment.',
+        503,
+        'CALL_MASKING_NOT_CONFIGURED'
+      );
+    }
+
+    const customerPhone = order.customerPhone || '';
+    const caller = isRider ? order.riderPhone : customerPhone;
+    const callee = isRider ? customerPhone : order.riderPhone;
+
+    if (!caller || !callee) {
+      throw new AppError('A number is missing for this order.', 409, 'CONTACT_UNAVAILABLE');
+    }
+
+    const result = await placeMaskedCall({
+      callerNumber: caller,
+      calleeNumber: callee,
+      orderNumber: order.orderNumber
+    });
+
+    if (!result.ok) {
+      throw new AppError(
+        'Could not connect the call. Try again in a moment.',
+        502,
+        result.error || 'CALL_NOT_CONNECTED'
+      );
+    }
+
+    res.json({
+      success: true,
+      data: {
+        connecting: true,
+        // The rented number, which is safe to show: it is the one their own
+        // handset will display when the call arrives.
+        displayNumber: result.displayNumber,
+        callSid: result.callSid,
+        message: 'Connecting your call. Answer when your phone rings.'
+      }
     });
   } catch (err) {
     next(err);

@@ -497,6 +497,57 @@ async function run() {
     `status ${nowAllowed.status} ${JSON.stringify(nowAllowed.json).slice(0, 160)}`
   );
 
+  // --- Connected calling, without either party learning a number ------------
+  //
+  // A phone call has to be carried by a licensed operator, so masked calling
+  // cannot be proven end to end here — that needs an Exotel account and a
+  // per-minute bill. What IS proven is everything that decides whether it is
+  // safe: who may open a line, when, and that no real number comes back.
+  //
+  // The authorisation is the whole risk. An unguarded version of this endpoint
+  // dials any customer on the platform for anybody who can guess an order id,
+  // from our own rented number.
+  console.log('\n-- Connected calling');
+
+  const callAsStranger = await api(`/orders/${orderId}/call`, { method: 'POST', body: {} }, partner.token);
+  check(
+    'The restaurant cannot open a line to the customer, though the order is theirs',
+    callAsStranger.status === 403,
+    `status ${callAsStranger.status}`
+  );
+
+  // orderId was DELIVERED earlier in this suite.
+  const callAfterDelivery = await api(`/orders/${orderId}/call`, { method: 'POST', body: {} }, rider.token);
+  check(
+    'and the rider who delivered it cannot ring that address afterwards',
+    callAfterDelivery.status === 409,
+    `status ${callAfterDelivery.status} ${JSON.stringify(callAfterDelivery.json?.error || {}).slice(0, 120)}`
+  );
+
+  /*
+   * With no operator configured the endpoint REFUSES rather than pretending.
+   * Faking a masked call would be worse than not having one: the direct number
+   * is still on the screen and everybody believes it is hidden. The apps read
+   * this code and fall back to the number they are already allowed to show for
+   * the life of the trip.
+   */
+  const callLive = await api(`/orders/${earlyId}/call`, { method: 'POST', body: {} }, rider.token);
+  check(
+    'On a live order it reaches the masking layer rather than an authorisation error',
+    callLive.status === 503,
+    `status ${callLive.status} ${JSON.stringify(callLive.json?.error || {}).slice(0, 120)}`
+  );
+  check(
+    'and says plainly that connected calling is not switched on',
+    String(callLive.json?.error?.code) === 'CALL_MASKING_NOT_CONFIGURED',
+    callLive.json?.error?.code
+  );
+  check(
+    'and no phone number appears anywhere in the response',
+    !/\b[6-9]\d{9}\b/.test(JSON.stringify(callLive.json || {})),
+    JSON.stringify(callLive.json || {}).slice(0, 160)
+  );
+
   customerSock.close(); partnerSock.close(); adminSock.close(); riderSock.close();
   closeSocketServer();
   server.close();
