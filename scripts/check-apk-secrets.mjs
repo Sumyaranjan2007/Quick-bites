@@ -99,7 +99,27 @@ const FORBIDDEN = [
    * local `.env` — it is only ever set on the deployment — so the value-based
    * check above could never see it.
    */
-  { label: 'a Google API key (neither Google key belongs in the JS bundle)', pattern: /AIza[0-9A-Za-z_-]{35}/ }
+  { label: 'a Google API key (neither Google key belongs in the JS bundle)', pattern: /AIza[0-9A-Za-z_-]{35}/ },
+  /**
+   * A MAPBOX SECRET TOKEN, ANYWHERE IN AN ARTIFACT.
+   *
+   * Mapbox issues two kinds and they differ by one character of prefix:
+   *
+   *   pk.*  public. Ships inside the APK by design, restricted in the account,
+   *         and is what the map view uses. Expected, and not matched here.
+   *   sk.*  secret. Downloads the SDK at build time and can create further
+   *         tokens, including public ones. Never belongs in an artifact.
+   *
+   * They are pasted from the same page of the same dashboard, which is what
+   * makes this worth a check rather than a convention. The config plugin
+   * already refuses an sk.* token at build time; this is the second line, for
+   * a copy that arrived some other way - hardcoded in a screen, pasted into a
+   * config file, committed in a fixture.
+   *
+   * Matched by shape rather than value: the secret token is not in any local
+   * .env by design, so the value-based check above could never see it.
+   */
+  { label: 'a Mapbox SECRET token (sk.*) - only pk.* may ship', pattern: /(^|[^A-Za-z0-9])sk[.][A-Za-z0-9_-]{20,}/ }
 ];
 
 console.log('====================================================');

@@ -1,7 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { t } from '../theme';
-import { Maps, canRenderNativeMap } from '../lib/nativeMap';
+import { canRenderNativeMap, MapCanvas, MapPin, MapRoute } from '../lib/nativeMap';
+
+/**
+ * Straight-line metres between two points, for choosing how much ground the
+ * map should show.
+ *
+ * Deliberately not a road distance. This picks a zoom level, and a network
+ * call that can fail has no business deciding whether a map renders - the
+ * same reasoning the server uses when it falls back to a straight line with a
+ * road factor rather than failing an order.
+ */
+function metresBetween(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
 
 export interface Point {
   latitude: number;
@@ -58,27 +78,16 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
   const [mapReady, setMapReady] = useState(false);
   const canDriveCamera = mapReady && mapSize.width > 0 && mapSize.height > 0;
 
-  // Declared before the early returns below: hooks cannot be called
-  // conditionally, and a `return null` above a `useEffect` changes the hook
-  // count between renders, which React treats as a fatal error rather than a
-  // warning.
-  useEffect(() => {
-    if (!rider || !destination || !canDriveCamera) return;
-    ref.current?.fitToCoordinates?.([rider, destination], {
-      edgePadding: { top: 56, right: 56, bottom: 56, left: 56 },
-      animated: true
-    });
-  }, [
-    rider?.latitude,
-    rider?.longitude,
-    destination?.latitude,
-    destination?.longitude,
-    canDriveCamera
-  ]);
+  /*
+   * The camera is arithmetic now, not an imperative call after two readiness
+   * flags. `fitToCoordinates` threw on a map of zero size and took the process
+   * with it, so it had to wait for the map to report ready AND for a measured
+   * layout; a centre and a span need neither, and the crash goes with them.
+   */
 
   if (!destination) return null;
 
-  if (!canRenderNativeMap || !Maps?.default) {
+  if (!canRenderNativeMap) {
     return (
       <View style={s.fallback}>
         <Text style={s.fallbackText}>
@@ -89,56 +98,40 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
     );
   }
 
-  const MapView = Maps.default;
-  const { Marker, Polyline, PROVIDER_GOOGLE } = Maps;
+  // Both points in frame when we have both, otherwise a close view of the
+  // destination. 1.6x the gap keeps neither marker against an edge.
+  const centre = rider
+    ? {
+        latitude: (rider.latitude + destination.latitude) / 2,
+        longitude: (rider.longitude + destination.longitude) / 2
+      }
+    : destination;
+  const spanMetres = rider ? Math.max(500, metresBetween(rider, destination) * 1.6) : 1600;
 
   return (
-    <View
-      style={s.frame}
-      onLayout={e => {
-        const { width, height } = e.nativeEvent.layout;
-        setMapSize({ width, height });
-      }}
-    >
-      {mapSize.width > 0 && mapSize.height > 0 && (
-        <MapView
-          ref={ref}
-          style={StyleSheet.absoluteFill}
-          onMapReady={() => setMapReady(true)}
-          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-          initialRegion={{
-            latitude: destination.latitude,
-            longitude: destination.longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02
-          }}
-          // The rider's own position is drawn by the OS blue dot rather than by a
-          // marker of ours: it carries the accuracy circle and the heading arrow,
-          // both of which matter on a bike and neither of which a plain pin has.
-          showsUserLocation
-          showsMyLocationButton={false}
-          toolbarEnabled={false}
-          // Scroll is off because this map lives inside a scrolling screen. A
-          // pannable map in a ScrollView steals every vertical drag that starts
-          // on it, so the rider cannot scroll past it to reach the buttons below.
-          scrollEnabled={false}
-          zoomEnabled={false}
-        >
-          <Marker
-            coordinate={destination}
-            title={destinationLabel}
-            pinColor={carryingFood ? t.color.go : t.color.money}
+    <View style={s.frame}>
+      <MapCanvas
+        style={StyleSheet.absoluteFill}
+        centre={centre}
+        spanMetres={spanMetres}
+        // The rider's own position is drawn by the OS dot rather than a marker
+        // of ours: it carries the accuracy circle and the heading arrow, both
+        // of which matter on a bike and neither of which a plain pin has.
+        showUserLocation
+        // Scroll is off because this map lives inside a scrolling screen. A
+        // pannable map in a ScrollView steals every vertical drag that starts
+        // on it, so the rider cannot scroll past it to reach the buttons below.
+        scrollEnabled={false}
+      >
+        {rider && (
+          <MapRoute id="trip" points={[rider, destination]} colour={t.color.brand} width={3} />
+        )}
+        <MapPin id="destination" at={destination}>
+          <View
+            style={[s.pin, { backgroundColor: carryingFood ? t.color.go : t.color.money }]}
           />
-          {rider && (
-            <Polyline
-              coordinates={[rider, destination]}
-              strokeColor={t.color.brand}
-              strokeWidth={3}
-              lineDashPattern={[8, 6]}
-            />
-          )}
-        </MapView>
-      )}
+        </MapPin>
+      </MapCanvas>
       <View style={s.tag}>
         <Text style={s.tagText}>{carryingFood ? 'To the customer' : 'To the kitchen'}</Text>
       </View>
@@ -147,6 +140,10 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
 };
 
 const s = StyleSheet.create({
+  // Mapbox takes a child view for a marker rather than a `pinColor`. A dot
+  // with a white ring stays readable over dark tiles at this size, where a
+  // stock teardrop would not.
+  pin: { width: 16, height: 16, borderRadius: 8, borderWidth: 3, borderColor: '#FFFFFF' },
   frame: {
     height: 170,
     borderRadius: t.radius.md,

@@ -11,7 +11,7 @@ import {
 import * as Location from 'expo-location';
 import { MapPin, X, Crosshair, Check } from 'lucide-react-native';
 import { c } from '../theme';
-import { Maps, canRenderNativeMap } from '../lib/nativeMap';
+import { canRenderNativeMap, MapCanvas } from '../lib/nativeMap';
 
 export interface KitchenPoint {
   latitude: number;
@@ -27,7 +27,13 @@ interface Props {
 
 /** Bengaluru. The same default the server falls back to when no pin is sent. */
 const FALLBACK_CENTRE = { latitude: 12.9716, longitude: 77.5946 };
-const SPAN = 0.008;
+/*
+ * ~900m across, in metres rather than degrees of latitude. A degree span is a
+ * property of the old tile scheme and covers different ground at different
+ * latitudes; metres are what the decision is actually about - close enough to
+ * put the pin on the right doorway.
+ */
+const SPAN_METRES = 900;
 
 /**
  * Where the kitchen actually is, placed on a map by the person who runs it.
@@ -52,6 +58,15 @@ const SPAN = 0.008;
  */
 export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onConfirm, initial }) => {
   const [centre, setCentre] = useState<KitchenPoint>(initial || FALLBACK_CENTRE);
+  /*
+   * Where the camera is being SENT, which is not where it is.
+   *
+   * `centre` follows the owner's thumb. Feeding it back into a declarative
+   * camera would re-issue a move to wherever they have just panned to - the
+   * map fighting the gesture, which reads as a sticky map. Programmatic moves
+   * bump this; panning does not.
+   */
+  const [cameraTarget, setCameraTarget] = useState<KitchenPoint>(initial || FALLBACK_CENTRE);
   const [label, setLabel] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const mapRef = useRef<any>(null);
@@ -108,14 +123,7 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
     const start = initial || FALLBACK_CENTRE;
     setCentre(start);
     describe(start);
-    // Only once the map exists and has been measured. Calling this earlier is
-    // what the crash above was.
-    if (canDriveCamera) {
-      mapRef.current?.animateToRegion?.(
-        { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
-        0
-      );
-    }
+    setCameraTarget(start);
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };
@@ -142,12 +150,7 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const point = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setCentre(point);
-      if (canDriveCamera) {
-        mapRef.current?.animateToRegion?.(
-          { ...point, latitudeDelta: SPAN, longitudeDelta: SPAN },
-          450
-        );
-      }
+      setCameraTarget(point);
       describe(point);
     } catch {
       /* The pin stays where it is; the owner can still place it by hand. */
@@ -155,8 +158,6 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
       setLocating(false);
     }
   }, [describe, canDriveCamera]);
-
-  const MapView = Maps?.default;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -176,22 +177,19 @@ export const KitchenLocationPicker: React.FC<Props> = ({ visible, onClose, onCon
             setMapSize({ width, height });
           }}
         >
-          {canRenderNativeMap && MapView && mapSize.width > 0 && mapSize.height > 0 ? (
+          {canRenderNativeMap ? (
             <>
-              <MapView
-                ref={mapRef}
+              {/*
+                The measured-layout gate is gone with the crash it guarded
+                against: a declarative camera cannot throw on a zero-sized map
+                the way fitToCoordinates could.
+              */}
+              <MapCanvas
                 style={StyleSheet.absoluteFill}
-                onMapReady={() => setMapReady(true)}
-                provider={Platform.OS === 'android' ? Maps?.PROVIDER_GOOGLE : undefined}
-                initialRegion={{
-                  ...(initial || FALLBACK_CENTRE),
-                  latitudeDelta: SPAN,
-                  longitudeDelta: SPAN
-                }}
-                onRegionChangeComplete={onRegionChange}
-                showsUserLocation
-                showsMyLocationButton={false}
-                toolbarEnabled={false}
+                centre={cameraTarget}
+                spanMetres={SPAN_METRES}
+                onSettle={onRegionChange}
+                showUserLocation
               />
               {/* Fixed over the centre, and transparent to touches so it never
                   swallows a pan. The spacer beneath lifts the icon by half its

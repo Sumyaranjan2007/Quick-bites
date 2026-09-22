@@ -12,7 +12,7 @@ import { MapPin, X, Crosshair, Check } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
-import { Maps, canRenderNativeMap } from '../lib/nativeMap';
+import { canRenderNativeMap, MapCanvas } from '../lib/nativeMap';
 
 const c = tokens.colors;
 
@@ -40,8 +40,12 @@ const FALLBACK_CENTRE = { latitude: 12.9716, longitude: 77.5946 };
  * ~1.1 km across. Close enough to see individual buildings and pick a gate,
  * wide enough that a GPS fix a street off is still on screen and can be dragged
  * to rather than hunted for.
+ *
+ * In metres rather than degrees of latitude. A degree span is a property of
+ * the old tile scheme and means different ground distances at different
+ * latitudes; metres are what the decision is actually about.
  */
-const SPAN = 0.01;
+const SPAN_METRES = 1100;
 
 /**
  * Pick a delivery point on a real map.
@@ -79,6 +83,19 @@ export const MapAddressPicker: React.FC<Props> = ({
   token
 }) => {
   const [centre, setCentre] = useState(initial || FALLBACK_CENTRE);
+  /*
+   * WHERE THE CAMERA IS BEING SENT, which is not the same as where it is.
+   *
+   * `centre` is updated by the user panning. The camera is a declarative prop
+   * now, so feeding `centre` straight back into it would mean every pan
+   * re-issues a camera move to where the user has just moved to - the map
+   * fighting the thumb, which reads as a sticky or juddering map.
+   *
+   * So programmatic moves - opening the sheet, tapping "my location" - bump
+   * this, and panning does not. The two are deliberately separate values that
+   * happen to hold the same coordinates most of the time.
+   */
+  const [cameraTarget, setCameraTarget] = useState(initial || FALLBACK_CENTRE);
   const [resolved, setResolved] = useState<PickedLocation | null>(null);
   const [looking, setLooking] = useState(false);
   const { detect, detecting } = useDeviceLocation();
@@ -159,12 +176,7 @@ export const MapAddressPicker: React.FC<Props> = ({
     // children unmount while hidden is a platform detail — so the camera is
     // placed explicitly. Gated, because doing it before the map is measured is
     // the crash described above.
-    if (canDriveCamera) {
-      mapRef.current?.animateToRegion?.(
-        { ...start, latitudeDelta: SPAN, longitudeDelta: SPAN },
-        0
-      );
-    }
+    setCameraTarget(start);
     return () => {
       if (debounce.current) clearTimeout(debounce.current);
     };
@@ -190,22 +202,13 @@ export const MapAddressPicker: React.FC<Props> = ({
     const place = await detect();
     if (!place) return;
     setCentre(place.coordinates);
-    // animateToRegion rather than a state-driven re-render: re-mounting the map
-    // at a new region loses the tiles already drawn and blinks the whole view.
-    if (canDriveCamera) {
-      mapRef.current?.animateToRegion?.(
-        { ...place.coordinates, latitudeDelta: SPAN, longitudeDelta: SPAN },
-        450
-      );
-    }
+    setCameraTarget(place.coordinates);
     lookUp(place.coordinates);
   }, [detect, lookUp, canDriveCamera]);
 
   const confirm = useCallback(() => {
     onConfirm(resolved || { coordinates: centre, addressLine: '' });
   }, [onConfirm, resolved, centre]);
-
-  const MapView = Maps?.default;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -225,22 +228,20 @@ export const MapAddressPicker: React.FC<Props> = ({
             setMapSize({ width, height });
           }}
         >
-          {canRenderNativeMap && MapView && mapSize.width > 0 && mapSize.height > 0 ? (
+          {canRenderNativeMap ? (
             <>
-              <MapView
-                ref={mapRef}
+              {/*
+                No longer gated on a measured layout. That gate existed because
+                driving the camera imperatively on a zero-sized map threw and
+                took the process with it; a declarative camera cannot do that,
+                so the gate went with the crash.
+              */}
+              <MapCanvas
                 style={StyleSheet.absoluteFill}
-                onMapReady={() => setMapReady(true)}
-                provider={Platform.OS === 'android' ? Maps?.PROVIDER_GOOGLE : undefined}
-                initialRegion={{
-                  ...(initial || FALLBACK_CENTRE),
-                  latitudeDelta: SPAN,
-                  longitudeDelta: SPAN
-                }}
-                onRegionChangeComplete={onRegionChange}
-                showsUserLocation
-                showsMyLocationButton={false}
-                toolbarEnabled={false}
+                centre={cameraTarget}
+                spanMetres={SPAN_METRES}
+                onSettle={onRegionChange}
+                showUserLocation
               />
               {/* The fixed pin. Outside the map, centred over it, and
                   pointer-events none so it never swallows a pan gesture. */}

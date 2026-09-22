@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, Platform } fr
 import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
 import { Bike } from 'lucide-react-native';
-import { Maps, canRenderNativeMap } from '../lib/nativeMap';
+import { canRenderNativeMap, MapCanvas, MapPin, MapRoute } from '../lib/nativeMap';
 
 const c = tokens.colors;
 
@@ -114,71 +114,50 @@ const MapLegend: React.FC<{ metres: number; updatedAt?: string | null; riderName
  * what makes it read as movement in the meantime.
  */
 const NativeRiderMap: React.FC<{ rider: Coords; destination: Coords }> = ({ rider, destination }) => {
-  const MapView = Maps!.default;
-  const { Marker, Polyline, PROVIDER_GOOGLE } = Maps!;
-  const ref = useRef<any>(null);
-
-  /**
-   * The camera is not touched until the map exists and has been measured.
+  /*
+   * The camera is framed by arithmetic rather than by a fitToCoordinates call.
    *
-   * `fitToCoordinates` becomes `newLatLngBounds`, which throws on a map of zero
-   * size and takes the process with it:
+   * The previous version drove the camera imperatively through a ref, and had
+   * to wait for the map to report ready AND for a non-zero layout, because
+   * `fitToCoordinates` becomes `newLatLngBounds`, which throws on a map of
+   * zero size and takes the process with it:
    *
    *   Error using newLatLngBounds(LatLngBounds, int): Map size can't be 0.
    *
-   * This crashed the partner app on a device. This screen is the one a customer
-   * opens when they are already anxious about where their food is, so it is the
-   * worst possible place to lose the process.
+   * That crashed the partner app on a real device, on the screen a customer
+   * opens when they are already anxious about where their food is.
+   *
+   * Centre plus a span is declarative, needs no ref, no readiness flag and no
+   * measured layout, and the whole class of crash goes with it. Both points
+   * stay in frame, which is the thing that matters - a map centred on the
+   * rider alone tells you where they are and not whether they are getting
+   * closer.
    */
-  const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
-  const [mapReady, setMapReady] = useState(false);
-  const canDriveCamera = mapReady && mapSize.width > 0 && mapSize.height > 0;
+  const centre = {
+    latitude: (rider.latitude + destination.latitude) / 2,
+    longitude: (rider.longitude + destination.longitude) / 2
+  };
 
-  useEffect(() => {
-    if (!canDriveCamera) return;
-    // Both points kept in frame: a map centred on the rider alone tells you
-    // where they are and not whether they are getting closer.
-    ref.current?.fitToCoordinates?.([rider, destination], {
-      edgePadding: { top: 48, right: 48, bottom: 48, left: 48 },
-      animated: true
-    });
-  }, [
-    rider.latitude,
-    rider.longitude,
-    destination.latitude,
-    destination.longitude,
-    canDriveCamera
-  ]);
+  // 1.6x the gap, so neither marker sits against an edge, and never tighter
+  // than 400m or two points a few metres apart would zoom to a rooftop.
+  const spanMetres = Math.max(400, distanceMetres(rider, destination) * 1.6);
 
   return (
-    <View
-      style={StyleSheet.absoluteFill}
-      onLayout={e => {
-        const { width, height } = e.nativeEvent.layout;
-        setMapSize({ width, height });
-      }}
-    >
-      {mapSize.width > 0 && mapSize.height > 0 && (
-      <MapView
-        ref={ref}
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <MapCanvas
         style={StyleSheet.absoluteFill}
-        onMapReady={() => setMapReady(true)}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={{
-          latitude: (rider.latitude + destination.latitude) / 2,
-          longitude: (rider.longitude + destination.longitude) / 2,
-          latitudeDelta: Math.max(0.01, Math.abs(rider.latitude - destination.latitude) * 2.5),
-          longitudeDelta: Math.max(0.01, Math.abs(rider.longitude - destination.longitude) * 2.5)
-        }}
-        pointerEvents="none"
-        toolbarEnabled={false}
-        showsMyLocationButton={false}
+        centre={centre}
+        spanMetres={spanMetres}
+        scrollEnabled={false}
       >
-        <Marker coordinate={destination} title="Delivery address" pinColor={c.primary[500]} />
-        <Marker coordinate={rider} title="Your rider" pinColor={c.accent[500]} />
-        <Polyline coordinates={[rider, destination]} strokeColor={c.primary[500]} strokeWidth={3} />
-      </MapView>
-      )}
+        <MapRoute id="rider-route" points={[rider, destination]} colour={c.primary[500]} width={3} />
+        <MapPin id="destination" at={destination}>
+          <View style={[styles.pin, { backgroundColor: c.primary[500] }]} />
+        </MapPin>
+        <MapPin id="rider" at={rider}>
+          <View style={[styles.pin, { backgroundColor: c.accent[500] }]} />
+        </MapPin>
+      </MapCanvas>
     </View>
   );
 };
@@ -204,7 +183,7 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
 
   const metres = distanceMetres(rider, destination);
 
-  if (canRenderNativeMap && Maps?.default) {
+  if (canRenderNativeMap) {
     return (
       <View>
         <View style={[styles.mapFrame, { height: H }]}>
@@ -312,6 +291,16 @@ export const LiveRiderMap: React.FC<Props> = ({ rider, destination, updatedAt, r
 };
 
 const styles = StyleSheet.create({
+  /*
+   * The marker's own view.
+   *
+   * react-native-maps drew a stock teardrop from a `pinColor` prop; Mapbox
+   * takes a child view instead, which is more work and more control. A plain
+   * dot reads better at this size than a pin: at 190px tall with two markers
+   * often close together, two teardrops overlap into something unreadable,
+   * and the white ring is what keeps the dot visible over dark map tiles.
+   */
+  pin: { width: 14, height: 14, borderRadius: 7, borderWidth: 2.5, borderColor: '#FFFFFF' },
   mapFrame: {
     width: '100%',
     borderRadius: tokens.radii.md,
