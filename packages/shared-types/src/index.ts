@@ -163,6 +163,23 @@ export interface Restaurant {
    */
   partnerPackagingFee?: number;
   /**
+   * When riders are offered this restaurant's trips.
+   *
+   * Dispatch offered every order from ACCEPTED onwards, hardcoded, so a rider
+   * could be riding over while the food had not been started. That suits a
+   * kitchen whose dishes take twenty minutes and wastes a rider's evening at
+   * one whose dishes take three.
+   *
+   * READY_FOR_PICKUP by default: the owner's choice, and the safe one, because
+   * food that is ready stays ready and a rider cannot be left waiting on it. A
+   * restaurant with long cook times sets it earlier.
+   *
+   * A status rather than a lead time, deliberately. You cannot know in advance
+   * when "ready" will happen, so a countdown to it gets a rider to the counter
+   * at the wrong moment; a status is a fact.
+   */
+  riderOfferAtStatus?: 'ACCEPTED' | 'PREPARING' | 'READY_FOR_PICKUP';
+  /**
    * When they last changed that figure.
    *
    * Stamped on EVERY change, not just the first, so an administrator can tell

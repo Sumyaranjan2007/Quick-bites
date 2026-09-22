@@ -26,6 +26,7 @@ import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { VALID_TRANSITIONS } from '../modules/orders/orderStateMachine.ts';
 import type { OrderStatus } from '@quick-bites/shared-types';
+import { memoryStore as memoryStoreRef } from '../db/client.ts';
 
 const PORT = 5191;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -421,6 +422,70 @@ async function run() {
     const replyReachedCustomer = JSON.stringify(back || {}).includes('refund is on its way');
     check('...and the customer can read the reply', replyReachedCustomer,
       JSON.stringify(back || {}).slice(0, 300));
+
+    /*
+     * ======================================================================
+     * DISPATCH: WHEN A RESTAURANT'S TRIPS ARE OFFERED.
+     * ======================================================================
+     *
+     * The filter used to be hardcoded to offer everything from ACCEPTED
+     * onwards, for every kitchen. Both halves are checked here, and the second
+     * is the one that matters: a setting that is read but ignored, and a
+     * setting that is not read at all, look identical from the default case.
+     */
+    console.log('\n-- Dispatch: riders are offered trips at the restaurant point');
+
+    /*
+     * THE RIDER MUST BE FREE FIRST, and this is not housekeeping.
+     *
+     * The rider is still carrying the previous order. A rider on a trip is
+     * shown NO broadcasts at all - correctly - so every check below would have
+     * passed against an empty list, including the one asserting an order is
+     * not offered. Verified: written without this, "not offered by default"
+     * passed and "offered once the restaurant asks" failed, which is the
+     * signature of a list that is empty for an unrelated reason.
+     */
+    await api(`/riders/orders/${forgotId}/verify-otp`, {
+      method: 'POST',
+      body: { deliveryOtp: second?.deliveryOtp }
+    }, rider.token);
+
+    const riderSees = async (id: string) => {
+      const r = await api('/riders/orders/broadcast', {}, rider.token);
+      const body = r.json?.data || {};
+      // Asserted rather than assumed. If the rider is busy or offline the list
+      // is empty and every check reading it is meaningless.
+      if (body.busy || body.offline) {
+        throw new Error(`rider is not free: ${JSON.stringify(body)}`);
+      }
+      return (body.broadcasts || []).some((o: any) => o.id === id);
+    };
+
+    const cooking = await place(`flow-dispatch-${Date.now()}`);
+    await api(`/orders/${cooking.id}/status`, {
+      method: 'PUT', body: { status: 'ACCEPTED', preparationMinutes: 20 }
+    }, partner.token);
+
+    check('An order still being cooked is NOT offered by default',
+      !(await riderSees(cooking.id)),
+      'default is READY_FOR_PICKUP; offering earlier sends a rider to a kitchen that has not started');
+
+    /*
+     * The same order, the same rider, one setting changed. If this does not
+     * flip, the setting is decoration.
+     */
+    const thisRestaurant: any = memoryStoreRef.restaurants.get(restaurant.id);
+    thisRestaurant.riderOfferAtStatus = 'ACCEPTED';
+    memoryStoreRef.restaurants.set(restaurant.id, thisRestaurant);
+
+    check('...and IS offered once that restaurant asks for riders at ACCEPTED',
+      await riderSees(cooking.id),
+      'the per-restaurant setting is not being read');
+
+    thisRestaurant.riderOfferAtStatus = 'READY_FOR_PICKUP';
+    memoryStoreRef.restaurants.set(restaurant.id, thisRestaurant);
+    check('...and stops being offered again when it is set back',
+      !(await riderSees(cooking.id)));
 
     const closed = await api(`/admin/support/tickets/${ticketId}/status`, {
       method: 'POST',

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
 import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
-import { isAwaitingPickup } from '../../modules/orders/riderTrip.ts';
+import { isAwaitingPickup, offerableNow } from '../../modules/orders/riderTrip.ts';
 
 /*
  * WHAT DELIVERY IS ALLOWED TO CONCLUDE ABOUT THE MONEY.
@@ -421,8 +421,20 @@ export const orderRepository = {
    * and a rider who has just come on shift has not pinged yet.
    */
   async listAvailableBroadcasts(forRiderId?: string, near?: Coordinates): Promise<Order[]> {
+    /*
+     * WHICH ORDERS ARE OFFERED, decided per restaurant rather than hardcoded.
+     *
+     * This read `ACCEPTED || PREPARING || READY_FOR_PICKUP` for every kitchen,
+     * so a rider could be sent to a restaurant that had not started cooking.
+     * That is right for a kitchen whose dishes take twenty minutes and wastes
+     * a rider's evening at one whose dishes take three.
+     *
+     * `riderOfferAtStatus` is the restaurant's own setting, defaulting to
+     * READY_FOR_PICKUP - the owner's choice, and the one that cannot strand a
+     * rider, because food that is ready stays ready.
+     */
     const available = Array.from(memoryStore.orders.values())
-      .filter((o: Order) => (o.status === 'ACCEPTED' || o.status === 'PREPARING' || o.status === 'READY_FOR_PICKUP') && !o.riderId)
+      .filter((o: Order) => !o.riderId && offerableNow(o))
       .filter((o: Order) => !forRiderId || !(o.declinedByRiderIds || []).includes(forRiderId));
 
     if (!near || !Number.isFinite(near.latitude) || !Number.isFinite(near.longitude)) {

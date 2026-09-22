@@ -1,4 +1,5 @@
 import type { Order, RiderTripStage } from '@quick-bites/shared-types';
+import { memoryStore } from '../../db/client.ts';
 
 /*
  * ---------------------------------------------------------------------------
@@ -62,6 +63,32 @@ export function isAwaitingPickup(
   if (!order.riderId || !order.riderStage) return false;
   if (order.pickedUpAt) return false;
   return BEFORE_PICKUP.includes(order.riderStage);
+}
+
+/**
+ * How far along the food must be before this restaurant's trips are offered.
+ * The order matters: an order at or past the configured point is offerable.
+ */
+const OFFER_SEQUENCE = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'] as const;
+
+/**
+ * Is this order far enough along to be offered to riders?
+ *
+ * Reads the restaurant's `riderOfferAtStatus`, defaulting to READY_FOR_PICKUP.
+ * An unknown or missing setting falls back to that default rather than
+ * throwing or offering everything: a restaurant with a typo in its
+ * configuration should dispatch conservatively, not stop dispatching and not
+ * flood every rider in the city.
+ */
+export function offerableNow(order: Pick<Order, 'status' | 'restaurantId'>): boolean {
+  const at = OFFER_SEQUENCE.indexOf(order.status as (typeof OFFER_SEQUENCE)[number]);
+  if (at === -1) return false; // Not yet cooking, or already collected.
+
+  const restaurant: any = memoryStore.restaurants.get(order.restaurantId);
+  const configured = OFFER_SEQUENCE.indexOf(restaurant?.riderOfferAtStatus);
+  const threshold = configured === -1 ? OFFER_SEQUENCE.indexOf('READY_FOR_PICKUP') : configured;
+
+  return at >= threshold;
 }
 
 /** Carrying the food. */
