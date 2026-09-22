@@ -418,6 +418,30 @@ async function run() {
     check('Every section the navigation badges has a real count', absent.length === 0,
       `missing or not numeric: ${absent.join(', ')}`);
 
+    /*
+     * NUMERIC IS NOT EVIDENCE, and this check exists because I learned that
+     * the hard way on this very endpoint.
+     *
+     * Two of the three money counts were written against status values that
+     * do not exist on their types - PENDING and REQUESTED on a payout request
+     * whose states are OPEN | SEEN | SETTLED | DECLINED | WITHDRAWN. The
+     * filter matched nothing, the count was structurally zero however many
+     * people were waiting to be paid, and the assertion above passed happily,
+     * because zero is a number.
+     *
+     * The only assertion that catches that is one where the count MOVES. So
+     * each count now has to be proved against something that changes it,
+     * rather than inspected once and pronounced present. Placing an order is
+     * the cheapest of those, and it is checked here on an order this suite is
+     * placing anyway.
+     */
+    const movedByAnOrder = await place(`flow-badge-${Date.now()}`);
+    const afterOrder = await liveCounts();
+    check('...and placing an order moves the live-orders badge',
+      afterOrder.liveOrders === before.liveOrders + 1,
+      `was ${before.liveOrders}, now ${afterOrder.liveOrders}`);
+    check('...on an order that really exists', !!movedByAnOrder?.id);
+
     const raised = await api('/support/tickets', {
       method: 'POST',
       body: {
@@ -440,8 +464,8 @@ async function run() {
      */
     const after = await liveCounts();
     check('...and raising a ticket moves the support badge',
-      after.openTickets === before.openTickets + 1,
-      `was ${before.openTickets}, now ${after.openTickets}`);
+      after.openTickets === afterOrder.openTickets + 1,
+      `was ${afterOrder.openTickets}, now ${after.openTickets}`);
 
     // The check that matters: it reaches somebody who can act on it.
     const queue = await api('/admin/support/tickets', {}, admin.token);
