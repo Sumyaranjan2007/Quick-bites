@@ -42,16 +42,42 @@ interface Props {
   currentUserId?: string;
 }
 
-// Backend order status -> index in the customer-facing progress tracker
+/*
+ * Where the FOOD is, as a tick on the customer's tracker.
+ *
+ * RIDER_ASSIGNED used to map to step 3 - the same step as OUT_FOR_DELIVERY -
+ * so a rider merely accepting the job advanced the customer's tracker as
+ * though the food had left the restaurant. It had not; it was often still
+ * cooking. That is the screen behind "it says out for delivery and nobody has
+ * collected anything".
+ *
+ * The rider's own progress is not a step here at all. It is a separate line,
+ * because the two genuinely move independently and squeezing them into one
+ * sequence is what produced the wrong tick.
+ */
 const STATUS_STEP_INDEX: Record<string, number> = {
   PAYMENT_PENDING: 0,
   ORDER_PLACED: 0,
   ACCEPTED: 1,
   PREPARING: 2,
   READY_FOR_PICKUP: 2,
-  RIDER_ASSIGNED: 3,
+  HANDED_TO_RIDER: 3,
   OUT_FOR_DELIVERY: 3,
   DELIVERED: 4
+};
+
+/**
+ * Where the RIDER is, in the customer's words. Shown on its own line beneath
+ * the ticks, so "a rider is coming" never reads as "your food has left".
+ */
+export const RIDER_STAGE_TEXT: Record<string, string> = {
+  UNASSIGNED: '',
+  OFFERED: '',
+  HEADING_TO_RESTAURANT: 'Your rider is on the way to the restaurant',
+  AT_RESTAURANT: 'Your rider is at the restaurant',
+  PICKED_UP: 'Your rider has collected your order',
+  AT_DOORSTEP: 'Your rider is at your door',
+  DELIVERED: ''
 };
 
 export const OrderTrackingScreen: React.FC<Props> = ({

@@ -12,7 +12,7 @@ const c = tokens.colors;
 
 const FILTERS = [
   { key: 'ALL', label: 'All' },
-  { key: 'ORDER_PLACED,ACCEPTED,PREPARING,READY_FOR_PICKUP,RIDER_ASSIGNED,OUT_FOR_DELIVERY', label: 'Live' },
+  { key: 'ORDER_PLACED,ACCEPTED,PREPARING,READY_FOR_PICKUP,HANDED_TO_RIDER,OUT_FOR_DELIVERY', label: 'Live' },
   { key: 'DELIVERED', label: 'Delivered' },
   { key: 'CANCELLED', label: 'Cancelled' },
   { key: 'REFUNDED', label: 'Refunded' },

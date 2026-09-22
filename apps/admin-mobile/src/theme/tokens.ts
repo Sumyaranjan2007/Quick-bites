@@ -99,7 +99,7 @@ export function toneForStatus(status: string): 'success' | 'warning' | 'danger' 
     return 'warning';
   }
   if (
-    ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'].includes(value)
+    ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'].includes(value)
   ) {
     return 'info';
   }

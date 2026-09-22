@@ -428,13 +428,42 @@ export interface RestaurantMenu {
   categories: MenuCategory[];
 }
 
-export type OrderStatus = 
+/*
+ * WHERE THE FOOD IS. Not where the rider is - that is `riderStage`.
+ *
+ * `RIDER_ASSIGNED` used to live here, and it was the defect behind the bug the
+ * owner reported as "the rider accepts and everything marks itself done". A
+ * rider accepting is not a thing that happens to the food, but it was written
+ * into the food's status, and the only transitions out of it were
+ * OUT_FOR_DELIVERY and CANCELLED. So the moment a rider accepted, PREPARING and
+ * READY_FOR_PICKUP became unreachable: the kitchen's buttons did nothing, and
+ * pickup was then refused - correctly - because the food had never
+ * legitimately passed "prepared".
+ *
+ * Two tracks, because two independent things are happening at once. The food
+ * is cooked, finished and handed over. The rider is offered a trip, accepts,
+ * rides, collects and delivers. Either can be ahead of the other, and every
+ * attempt to express both as one sequence eventually has to answer "which
+ * came first" for a pair that has no order.
+ *
+ * Persisted orders written before this change still carry 'RIDER_ASSIGNED'.
+ * `normaliseLoadedStore()` rewrites them at boot, on BOTH hydration paths.
+ */
+export type OrderStatus =
   | 'PAYMENT_PENDING'
   | 'ORDER_PLACED'
   | 'ACCEPTED'
   | 'PREPARING'
   | 'READY_FOR_PICKUP'
-  | 'RIDER_ASSIGNED'
+  /**
+   * The kitchen says the food physically left their counter.
+   *
+   * Half of a two-sided handover: the rider confirms the other half by moving
+   * to OUT_FOR_DELIVERY. Both sides recording it is what settles "he never
+   * collected it" - the dispute that has no answer when only one party is
+   * asked.
+   */
+  | 'HANDED_TO_RIDER'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
   | 'CANCELLED'
@@ -640,6 +669,19 @@ export interface Order {
    * mid-trip comes back to the stage they were actually at.
    */
   riderStage?: RiderTripStage;
+  /**
+   * Whether both sides of the handover were recorded, or only the rider's.
+   *
+   * 'BOTH'       the kitchen tapped "handed to rider" AND the rider quoted the
+   *              pickup code. Neither party has to be believed.
+   * 'RIDER_ONLY' the rider quoted the code and the kitchen never tapped. The
+   *              collection still went through - blocking it would strand a
+   *              rider holding the food because a busy kitchen forgot an
+   *              button that costs them nothing to skip - but the difference
+   *              is kept, because it is the whole of the evidence in a
+   *              "he never collected it" dispute.
+   */
+  handoverWitnessedBy?: 'BOTH' | 'RIDER_ONLY';
   /** Riders who passed on this trip; they are not offered it again. */
   declinedByRiderIds?: string[];
   /** Riders this trip has been put in front of, counted once each, so a rider's
@@ -658,12 +700,29 @@ export interface Order {
   settlementId?: string;
 }
 
-/** How far along a claimed trip the rider is. */
+/*
+ * WHERE THE RIDER IS, which is a different question from where the food is.
+ *
+ * Runs alongside `OrderStatus`, not inside it. A rider can be at the
+ * restaurant while the food is still cooking, and the food can be ready with
+ * no rider yet assigned; neither is an error, and neither can be expressed if
+ * the two are one sequence.
+ *
+ * `PICKED_UP` was called `OUT_FOR_DELIVERY`, borrowing the food status's name
+ * for a different fact. Now that the tracks are separate the names should be
+ * too: this one says what the RIDER did.
+ *
+ * Persisted orders still carry the old name; `normaliseLoadedStore()` rewrites
+ * it at boot on both hydration paths.
+ */
 export type RiderTripStage =
+  | 'UNASSIGNED'
+  | 'OFFERED'
   | 'HEADING_TO_RESTAURANT'
   | 'AT_RESTAURANT'
-  | 'OUT_FOR_DELIVERY'
-  | 'AT_DOORSTEP';
+  | 'PICKED_UP'
+  | 'AT_DOORSTEP'
+  | 'DELIVERED';
 
 /** A message between the customer and the rider about one order. */
 export interface OrderMessage {

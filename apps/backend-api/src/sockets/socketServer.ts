@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { config } from '../config/env.ts';
-import type { Order, OrderStatus } from '@quick-bites/shared-types';
+import type { Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
 import {
   canJoinOrder,
   canJoinRestaurant,
@@ -362,6 +362,19 @@ export function emitOrderStatusUpdate(
   data: {
     orderId: string;
     status: OrderStatus;
+    /**
+     * Where the RIDER is, sent alongside where the food is.
+     *
+     * The two move independently, and a rider accepting used to be announced
+     * as a change of `status` - which is how every listening app came to
+     * believe the food had moved on when only the rider had. Sending both
+     * lets the customer app show the rider on its own line instead of
+     * advancing the kitchen's ticks.
+     *
+     * Optional: most status changes are about the food alone and say nothing
+     * about the rider, and an absent field must not be read as "no rider".
+     */
+    riderStage?: RiderTripStage;
     prepMinutes?: number;
     estimatedDeliveryTime?: string;
     updatedAt?: string;
@@ -390,6 +403,7 @@ export function emitOrderStatusUpdate(
     event: 'SOCKET_EMIT_STATUS_UPDATE',
     orderId,
     status: data.status,
+    riderStage: data.riderStage,
     prepMinutes: data.prepMinutes
   }));
 }

@@ -12,7 +12,7 @@
  * payout are costs of the order; what is left — commission, platform fee and the
  * margin on delivery, less any discount the platform funded — is the take.
  */
-import type { Order, Restaurant, DeliveryRider } from '@quick-bites/shared-types';
+import type { Order, OrderStatus, Restaurant, DeliveryRider } from '@quick-bites/shared-types';
 import { memoryStore } from '../../db/client.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 
@@ -30,16 +30,31 @@ export function istDayKey(at: Date | string): string {
 }
 
 export const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED', 'REFUNDED']);
-export const LIVE_STATUSES = new Set([
+/*
+ * Typed as OrderStatus rather than a bare string Set.
+ *
+ * These were `new Set([...])` of plain strings, so removing a status from
+ * OrderStatus did not produce an error here - the entry simply stopped
+ * matching anything and the dashboards quietly under-counted. Nothing failed,
+ * nothing was logged, and a number on an admin screen was wrong. The
+ * annotation is what turns that into a build error.
+ */
+export const LIVE_STATUSES = new Set<OrderStatus>([
   'ORDER_PLACED',
   'ACCEPTED',
   'PREPARING',
   'READY_FOR_PICKUP',
-  'RIDER_ASSIGNED',
+  'HANDED_TO_RIDER',
   'OUT_FOR_DELIVERY'
 ]);
-/** A trip a rider is physically on, as opposed to one still in the kitchen. */
-export const IN_TRANSIT_STATUSES = new Set(['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY']);
+/**
+ * A trip a rider is physically on, as opposed to one still in the kitchen.
+ *
+ * HANDED_TO_RIDER is NOT in transit. The kitchen has said the food left their
+ * counter; the rider has not yet confirmed they have it, and until both halves
+ * of the handover are recorded the food is not on the road.
+ */
+export const IN_TRANSIT_STATUSES = new Set<OrderStatus>(['OUT_FOR_DELIVERY']);
 
 export interface OrderEconomics {
   gross: number;

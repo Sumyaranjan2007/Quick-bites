@@ -115,8 +115,14 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
       basis = 'KITCHEN_ESTIMATE';
       break;
     case 'READY_FOR_PICKUP':
-    case 'RIDER_ASSIGNED':
+    case 'HANDED_TO_RIDER':
       // The food is made; what remains is a rider reaching it and then driving.
+      //
+      // HANDED_TO_RIDER sits here rather than with OUT_FOR_DELIVERY because it
+      // is only the KITCHEN's half of the handover. The rider has not yet
+      // confirmed they have the bag, so the journey has not started and
+      // quoting travel time alone would promise an arrival from a point
+      // nobody has left.
       minutes = config.DELIVERY_HANDLING_MINUTES + travel;
       basis = 'AWAITING_PICKUP';
       break;

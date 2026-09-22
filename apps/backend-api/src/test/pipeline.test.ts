@@ -193,8 +193,19 @@ async function run() {
     !JSON.stringify(broadcast.json).includes(String(customerOtp)));
 
   // --- 4. Rider claims it; both the customer and the kitchen see it ---
-  statusHeard = waitFor(customerSock, 'order:status_update', 6000, p => p.status === 'RIDER_ASSIGNED');
-  const kitchenHeard = waitFor(partnerSock, 'order:status_update', 6000, p => p.status === 'RIDER_ASSIGNED');
+  /*
+   * A rider claiming is announced as a RIDER stage, not as a food status.
+   *
+   * Both of these used to wait for `status === 'RIDER_ASSIGNED'`, which is how
+   * the customer's tracker and the kitchen's live list both came to believe
+   * the food had moved on when only the rider had. What they wait for now is
+   * the rider's own track changing while the food's status stays where the
+   * kitchen left it.
+   */
+  statusHeard = waitFor(customerSock, 'order:status_update', 6000,
+    p => p.riderStage === 'HEADING_TO_RESTAURANT');
+  const kitchenHeard = waitFor(partnerSock, 'order:status_update', 6000,
+    p => p.riderStage === 'HEADING_TO_RESTAURANT');
   const claim = await api(`/riders/orders/${orderId}/claim`, { method: 'POST', body: {} }, rider.token);
   check('Delivery partner claims the order', claim.status === 200,
     `status ${claim.status} ${JSON.stringify(claim.json).slice(0, 200)}`);

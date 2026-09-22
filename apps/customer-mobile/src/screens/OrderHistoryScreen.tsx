@@ -35,7 +35,7 @@ interface Props {
   token?: string;
 }
 
-const LIVE_STATUSES = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'];
+const LIVE_STATUSES = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'];
 
 const STATUS_LABEL: Record<string, string> = {
   PAYMENT_PENDING: 'Payment pending',
@@ -43,7 +43,7 @@ const STATUS_LABEL: Record<string, string> = {
   ACCEPTED: 'Accepted',
   PREPARING: 'Being prepared',
   READY_FOR_PICKUP: 'Ready for pickup',
-  RIDER_ASSIGNED: 'Rider assigned',
+  HANDED_TO_RIDER: 'Handed to rider',
   OUT_FOR_DELIVERY: 'Out for delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',

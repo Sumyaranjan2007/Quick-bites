@@ -34,6 +34,7 @@ import { AppError } from '../utils/AppError.ts';
 import type { DeliveryRider, Order, SosAlert } from '@quick-bites/shared-types';
 import { requireFeature } from '../middlewares/featureGate.ts';
 import { visibleContact } from '../modules/orders/contactVisibility.ts';
+import { hasActiveTrip } from '../modules/orders/riderTrip.ts';
 
 export const riderRouter = Router();
 
@@ -749,8 +750,11 @@ riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (r
     }
 
     // A rider already carrying an order is not offered another one.
+    //
+    // Asked of the rider's track. This read the FOOD's status, which answered
+    // correctly only while claiming an order overwrote it.
     const mine = await orderRepository.listByRiderId(rider.id);
-    if (mine.some(o => o.status === 'RIDER_ASSIGNED' || o.status === 'OUT_FOR_DELIVERY')) {
+    if (mine.some(o => hasActiveTrip(o))) {
       res.json({ success: true, data: { broadcasts: [], busy: true } });
       return;
     }
@@ -777,7 +781,7 @@ riderRouter.get('/orders/active', async (req, res, next) => {
   try {
     const rider = await requireRiderSelf(req);
     const orders = await orderRepository.listByRiderId(rider.id);
-    const active = orders.find(o => o.status === 'RIDER_ASSIGNED' || o.status === 'OUT_FOR_DELIVERY');
+    const active = orders.find(o => hasActiveTrip(o));
     res.json({
       success: true,
       data: { order: active ? await shapeTripForRider(withoutDeliveryOtp(active) as Order) : null }
@@ -813,9 +817,7 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
     // up a second delivery — and a rider holding two bags for two customers in
     // opposite directions is a promise the platform cannot keep.
     const carrying = await orderRepository.listByRiderId(self.id);
-    const inFlight = carrying.find(
-      o => o.status === 'RIDER_ASSIGNED' || o.status === 'OUT_FOR_DELIVERY'
-    );
+    const inFlight = carrying.find(o => hasActiveTrip(o));
     if (inFlight) {
       throw new AppError(
         `Finish order #${inFlight.orderNumber} before accepting another trip.`,
@@ -873,9 +875,19 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
     if (!wasOffered) await orderRepository.markOfferedToRider(order.id, self.id);
     await riderRepository.recordAcceptance(self.id, !wasOffered);
 
+    /*
+     * The FOOD's status is broadcast unchanged, because claiming a trip does
+     * not change it. This used to announce 'RIDER_ASSIGNED', which is how
+     * every listening app - the customer's tracker, the kitchen's live list -
+     * came to believe the order had moved on when only the rider had.
+     *
+     * `riderStage` carries the news that actually happened, and the customer
+     * app shows it on its own line rather than advancing the food.
+     */
     emitOrderStatusUpdate(order.id, {
       orderId: order.id,
-      status: 'RIDER_ASSIGNED',
+      status: order.status,
+      riderStage: order.riderStage,
       updatedAt: new Date().toISOString(),
       restaurantId: order.restaurantId
     });
@@ -920,7 +932,15 @@ riderRouter.post('/orders/:id/decline', async (req, res, next) => {
 });
 
 const StageSchema = z.object({
-  stage: z.enum(['HEADING_TO_RESTAURANT', 'AT_RESTAURANT', 'OUT_FOR_DELIVERY', 'AT_DOORSTEP'])
+  /*
+   * Only the stages a rider may set themselves.
+   *
+   * OFFERED and UNASSIGNED are dispatch's to write, and PICKED_UP and
+   * DELIVERED are reached through the pickup code and the doorstep code. A
+   * rider posting straight to either of those would be claiming the food
+   * changed hands without the code that proves it.
+   */
+  stage: z.enum(['HEADING_TO_RESTAURANT', 'AT_RESTAURANT', 'AT_DOORSTEP'])
 });
 
 /**
@@ -938,9 +958,13 @@ riderRouter.post('/orders/:id/stage', validate({ body: StageSchema }), async (re
     if (order.riderId !== self.id) {
       throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
     }
-    // Pickup and delivery move the trip on through their own verified routes;
-    // letting this endpoint jump straight to them would skip the codes.
-    if (req.body.stage === 'OUT_FOR_DELIVERY' && order.status !== 'OUT_FOR_DELIVERY') {
+    /*
+     * AT_DOORSTEP means the rider is standing at the customer's door with the
+     * food, so the food has to be with them. The schema already refuses
+     * PICKED_UP and DELIVERED outright; this is the one remaining stage that
+     * implies a collection that may not have happened.
+     */
+    if (req.body.stage === 'AT_DOORSTEP' && !order.pickedUpAt) {
       throw new AppError('Verify the pickup code first.', 409, 'PICKUP_NOT_VERIFIED');
     }
 
@@ -1103,7 +1127,7 @@ riderRouter.post('/orders/:id/cancel', validate({ body: CancelSchema }), async (
     order.riderId = undefined;
     order.riderName = undefined;
     order.riderPhone = undefined;
-    order.riderStage = undefined;
+    order.riderStage = 'UNASSIGNED';
     order.riderAssignedAt = undefined;
     order.cancellationReason = req.body.reason;
     order.cancelledAt = new Date().toISOString();

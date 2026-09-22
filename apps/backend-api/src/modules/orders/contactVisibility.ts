@@ -34,7 +34,7 @@ const CONTACTABLE: OrderStatus[] = [
   'ACCEPTED',
   'PREPARING',
   'READY_FOR_PICKUP',
-  'RIDER_ASSIGNED',
+  'HANDED_TO_RIDER',
   'OUT_FOR_DELIVERY'
 ];
 

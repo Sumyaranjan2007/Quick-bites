@@ -39,6 +39,7 @@
  */
 import pg from 'pg';
 import { memoryStore, type DbStore } from './client.ts';
+import { normaliseLoadedStore } from './normaliseStore.ts';
 
 const { Pool } = pg;
 
@@ -141,6 +142,19 @@ export async function loadStoreFromDatabase(): Promise<boolean> {
     target.set(row.id, row.data);
     persistedFor(row.collection).set(row.id, JSON.stringify(row.data));
   }
+
+  /*
+   * THIS is the call that matters.
+   *
+   * Local runs, every test and every gate go through loadStoreFromFile, which
+   * makes the same call. Production comes through here. A migration written
+   * only into the JSON loader would be green everywhere we can observe it and
+   * absent in the one place it is needed.
+   *
+   * It runs before `return true`, so nothing is served from a store still
+   * carrying values this build cannot transition out of.
+   */
+  normaliseLoadedStore();
   return true;
 }
 

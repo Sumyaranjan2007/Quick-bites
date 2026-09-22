@@ -285,7 +285,7 @@ async function run() {
 
   await orderRepository.updateStatus(fresh.id, 'PREPARING');
   await orderRepository.updateStatus(fresh.id, 'READY_FOR_PICKUP');
-  await orderRepository.updateStatus(fresh.id, 'RIDER_ASSIGNED');
+  await orderRepository.updateStatus(fresh.id, 'HANDED_TO_RIDER');
   await orderRepository.updateStatus(fresh.id, 'OUT_FOR_DELIVERY');
   const enRoute = (await orderRepository.findById(fresh.id))!;
   enRoute.riderCoordinates = enRoute.deliveryCoordinates
@@ -673,7 +673,7 @@ async function run() {
   await orderRepository.updateStatus(delivered2.id, 'ACCEPTED', 20);
   await orderRepository.updateStatus(delivered2.id, 'PREPARING');
   await orderRepository.updateStatus(delivered2.id, 'READY_FOR_PICKUP');
-  await orderRepository.updateStatus(delivered2.id, 'RIDER_ASSIGNED');
+  await orderRepository.updateStatus(delivered2.id, 'HANDED_TO_RIDER');
   await orderRepository.updateStatus(delivered2.id, 'OUT_FOR_DELIVERY');
   await orderRepository.updateStatus(delivered2.id, 'DELIVERED');
   const tooLate = await api(

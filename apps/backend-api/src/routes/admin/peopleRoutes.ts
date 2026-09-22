@@ -22,6 +22,7 @@ import { summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { setRiderOfferPoolMembership } from '../../sockets/socketServer.ts';
 import type { Order } from '@quick-bites/shared-types';
+import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
 
 export const peopleRoutes = Router();
 
@@ -235,7 +236,7 @@ peopleRoutes.get('/drivers', requirePermission('users.drivers.view'), async (req
       const own = orders.filter(o => o.riderId === rider.id);
       const delivered = own.filter(o => o.status === 'DELIVERED');
       const rated = delivered.filter(o => typeof o.riderRating === 'number');
-      const active = own.find(o => o.status === 'RIDER_ASSIGNED' || o.status === 'OUT_FOR_DELIVERY');
+      const active = own.find(o => hasActiveTrip(o));
       return {
         id: rider.id,
         userId: rider.userId,

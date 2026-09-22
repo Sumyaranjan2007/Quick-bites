@@ -122,7 +122,7 @@ export const STATUS_NOTIFICATION: Record<string, { title: string; body: string }
   // the restaurant - the food may still be cooking. Saying picked up here is
   // what made customers think their order was on its way while it was in the
   // pan, and it is the message the owner reported.
-  RIDER_ASSIGNED: { title: 'Delivery partner assigned', body: 'A rider is on the way to collect your order.' },
+  HANDED_TO_RIDER: { title: 'Handed to your rider', body: 'The restaurant has given your order to the rider.' },
   OUT_FOR_DELIVERY: { title: 'Out for delivery', body: 'Your order is on the way. Track it live.' },
   DELIVERED: { title: 'Delivered', body: 'Enjoy your meal. Tap to rate your order.' },
   CANCELLED: { title: 'Order cancelled', body: 'Your order was cancelled. Any payment is refunded.' }

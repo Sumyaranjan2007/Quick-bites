@@ -16,6 +16,7 @@ import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { ADMIN_PERMISSION_GROUPS } from '@quick-bites/shared-types';
 import type { Order } from '@quick-bites/shared-types';
+import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
 
 export const dashboardRoutes = Router();
 
@@ -181,7 +182,7 @@ dashboardRoutes.get('/live', requirePermission('analytics.dashboard.view'), asyn
       success: true,
       data: {
         liveOrders: live.length,
-        inTransit: live.filter(o => o.status === 'RIDER_ASSIGNED' || o.status === 'OUT_FOR_DELIVERY').length,
+        inTransit: live.filter(o => hasActiveTrip(o)).length,
         onlineRiders: onlineRiders.length,
         pendingKyc: Array.from(memoryStore.kycDocuments.values()).filter((d: any) => d.status === 'PENDING').length,
         openRefunds: Array.from(memoryStore.refundRequests.values()).filter(

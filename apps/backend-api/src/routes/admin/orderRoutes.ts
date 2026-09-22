@@ -159,6 +159,15 @@ orderRoutes.get('/deliveries/live', requirePermission('orders.deliveries.manage'
   }
 });
 
+/*
+ * Kept in step with OrderStatus by hand, and it will not warn if it drifts.
+ *
+ * `z.enum` takes string literals, so removing a status from OrderStatus does
+ * not fail here - the entry simply becomes a value an administrator can send
+ * that nothing downstream accepts, or a real status they can no longer set.
+ * Neither produces an error; both produce a support ticket. Anything added to
+ * OrderStatus has to be added here too.
+ */
 const StatusSchema = z.object({
   status: z.enum([
     'PAYMENT_PENDING',
@@ -166,7 +175,7 @@ const StatusSchema = z.object({
     'ACCEPTED',
     'PREPARING',
     'READY_FOR_PICKUP',
-    'RIDER_ASSIGNED',
+    'HANDED_TO_RIDER',
     'OUT_FOR_DELIVERY',
     'DELIVERED',
     'CANCELLED'

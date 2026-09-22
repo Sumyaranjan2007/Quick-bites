@@ -29,8 +29,8 @@ function describe(status: string): { text: string; icon: 'cooking' | 'ready' | '
       return { text: 'Being cooked', icon: 'cooking' };
     case 'READY_FOR_PICKUP':
       return { text: 'Ready, waiting for a rider', icon: 'ready' };
-    case 'RIDER_ASSIGNED':
-      return { text: 'Rider on the way to collect', icon: 'ready' };
+    case 'HANDED_TO_RIDER':
+      return { text: 'Handed to your rider', icon: 'ready' };
     case 'OUT_FOR_DELIVERY':
       return { text: 'On its way to you', icon: 'riding' };
     default:

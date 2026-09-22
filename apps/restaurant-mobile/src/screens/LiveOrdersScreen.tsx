@@ -296,11 +296,40 @@ export const LiveOrdersScreen: React.FC<Props> = ({
           {status === 'PREPARING' && (
             <Button label="Ready for pickup" onPress={() => advance(item, 'READY_FOR_PICKUP')} style={{ flex: 1 }} />
           )}
-          {(status === 'READY_FOR_PICKUP' || status === 'RIDER_ASSIGNED' || status === 'OUT_FOR_DELIVERY') && (
+          {/*
+            THE FOURTH TAP: the kitchen says the food physically left.
+
+            This step did not exist. Once the order was marked ready the
+            kitchen had nothing further to do, and collection was recorded by
+            the rider alone - so "he never collected it" came down to one
+            party's word. The rider still quotes the pickup code, so both
+            sides record the handover and the dispute has an answer.
+
+            Shown only while a rider is actually here to hand it to. Offering
+            it with nobody at the counter invites a kitchen to clear the card
+            off their screen, which is exactly the tap that makes the record
+            worthless.
+          */}
+          {status === 'READY_FOR_PICKUP' && !!item.riderName && (
+            <Button
+              label={`Handed to ${item.riderName.split(' ')[0]}`}
+              onPress={() => advance(item, 'HANDED_TO_RIDER')}
+              style={{ flex: 1 }}
+            />
+          )}
+          {status === 'READY_FOR_PICKUP' && !item.riderName && (
+            <View style={styles.waitingNote}>
+              <CheckCircle2 size={15} color={c.success} />
+              <Text style={styles.waitingText}>Ready — waiting for a rider</Text>
+            </View>
+          )}
+          {(status === 'HANDED_TO_RIDER' || status === 'OUT_FOR_DELIVERY') && (
             <View style={styles.waitingNote}>
               <CheckCircle2 size={15} color={c.success} />
               <Text style={styles.waitingText}>
-                {status === 'OUT_FOR_DELIVERY' ? 'On the way to the customer' : 'Waiting for the rider'}
+                {status === 'OUT_FOR_DELIVERY'
+                  ? 'On the way to the customer'
+                  : 'Handed over — waiting for the rider to confirm'}
               </Text>
             </View>
           )}

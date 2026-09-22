@@ -12,6 +12,7 @@ import { settingFor } from '../payments/incentiveConfig.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import type { DeliveryRider, Order } from '@quick-bites/shared-types';
+import { hasActiveTrip } from '../orders/riderTrip.ts';
 
 /** Riders, restaurants and customers are all in India; days end at IST midnight. */
 const IST_OFFSET_MINUTES = 330;
@@ -44,7 +45,16 @@ export function istWeekKey(at: Date = new Date()): string {
   return `W${istDayKey(startOfIstWeek(at))}`;
 }
 
-const ACTIVE_TRIP_STATUSES = new Set(['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY']);
+/*
+ * Removed: `new Set(['RIDER_ASSIGNED', 'OUT_FOR_DELIVERY'])`.
+ *
+ * A Set of plain strings, so when RIDER_ASSIGNED stopped existing this would
+ * not have failed to compile. It would have kept matching nothing, and a rider
+ * on a trip would have shown no active order on their own dashboard - with
+ * every test still green.
+ *
+ * The question is about the RIDER anyway, so it is asked of the rider's track.
+ */
 
 function payoutOf(order: Order): number {
   return Number(order.riderPayout) || 0;
@@ -215,7 +225,7 @@ export async function computeRiderMetrics(rider: DeliveryRider, now: Date = new 
 }> {
   const orders = await orderRepository.listByRiderId(rider.id);
   const delivered = orders.filter(o => o.status === 'DELIVERED');
-  const activeOrder = orders.find(o => ACTIVE_TRIP_STATUSES.has(o.status)) || null;
+  const activeOrder = orders.find(o => hasActiveTrip(o)) || null;
 
   const dayStart = startOfIstDay(now).getTime();
   const weekStart = startOfIstWeek(now).getTime();

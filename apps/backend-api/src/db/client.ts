@@ -7,6 +7,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+/*
+ * A cycle, deliberately: normaliseStore imports `memoryStore` from this
+ * module. Harmless for ES modules because the binding is read when
+ * loadStoreFromFile RUNS, not while either module is being evaluated.
+ */
+import { normaliseLoadedStore } from './normaliseStore.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +29,35 @@ export const DATA_DIR = process.env.QB_DATA_DIR
   ? path.resolve(process.env.QB_DATA_DIR)
   : path.resolve(__dirname, '../../data');
 export const STORE_FILE = path.resolve(DATA_DIR, 'store.json');
+
+/*
+ * A SUITE MAY NOT WRITE TO THE DEVELOPER'S STORE.
+ *
+ * `scripts/run-backend-tests.mjs` gives every suite a directory of its own via
+ * QB_DATA_DIR, and while the suites are run that way this cannot happen. But
+ * the isolation lived entirely in the runner, so running one suite directly —
+ * which is the obvious thing to do while writing it — silently wrote fixtures
+ * into `apps/backend-api/data/store.json`. That is exactly how ord_markup_1,
+ * rst_charge_1 and rst_silent ended up in a store meant to hold seeded data.
+ *
+ * Nothing about that failure was visible. The suite passed, the file was not
+ * tracked by git so no diff appeared, and the fixtures simply sat there behind
+ * whatever was loaded next.
+ *
+ * So the rule is enforced where the path is decided rather than in the runner
+ * that happens to set it. Detected from the entry file instead of NODE_ENV,
+ * because NODE_ENV is another thing a person has to remember, and the whole
+ * defect was a thing a person had to remember.
+ */
+const ENTRY = process.argv[1] || '';
+if (/\.test\.(ts|mts|js)$/.test(ENTRY) && !process.env.QB_DATA_DIR) {
+  throw new Error(
+    'This suite would write to the developer store at ' +
+      STORE_FILE +
+      '.\nRun the suites with `node scripts/run-backend-tests.mjs`, or set QB_DATA_DIR ' +
+      'to a throwaway directory to run this one on its own.'
+  );
+}
 
 export interface DbStore {
   users: Map<string, any>;
@@ -194,6 +229,10 @@ export function loadStoreFromFile(customPath?: string): boolean {
         (memoryStore as any)[key] = new Map(entries as [string, any][]);
       }
     }
+    // Values this build no longer accepts are rewritten before anything is
+    // served. Called from BOTH hydration paths, not just this one - see
+    // normaliseStore.ts for why that distinction is the whole point.
+    normaliseLoadedStore();
     return true;
   } catch (err) {
     console.error('[WARN] Failed to load database store from disk:', err);

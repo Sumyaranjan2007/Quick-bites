@@ -160,10 +160,44 @@ async function run() {
       fullName: 'Test Rider',
       isOnline: true
     } as any);
+    /*
+     * The kitchen accepts and finishes before the rider claims, which is the
+     * ordinary sequence: riders are offered a trip at READY_FOR_PICKUP.
+     *
+     * It also keeps this scenario about the one thing it is testing. Left at
+     * ORDER_PLACED, the sweep that releases the no-show ALSO cancels the order
+     * for never having been accepted by the kitchen - correct behaviour, but
+     * it buries the no-show assertions under an unrelated cancellation.
+     */
+    await orderRepository.updateStatus(order.id, 'ACCEPTED', 20);
+    await orderRepository.updateStatus(order.id, 'PREPARING');
+    await orderRepository.updateStatus(order.id, 'READY_FOR_PICKUP');
+
+    /*
+     * Copied to a string BEFORE the claim, and that is the whole point.
+     *
+     * This read `order.status` at assertion time and compared it with the
+     * order fetched afterwards. The repository hands back the SAME object it
+     * holds in the store, so `order` and the fetched order are one object:
+     * the check compared a value with itself and passed no matter what
+     * assignment did to it. Verified by putting a status write back into
+     * `assignRider` - the assertion still passed.
+     */
+    const statusBeforeClaim = String(order.status);
+
     await orderRepository.assignRider(order.id, 'rdr_noshow_test', 'Test Rider', '9800000001', 40);
 
     const assigned = await orderRepository.findById(order.id);
-    check('A claimed trip sits in RIDER_ASSIGNED', assigned?.status === 'RIDER_ASSIGNED', `got ${assigned?.status}`);
+    /*
+     * Claiming moves the RIDER and leaves the FOOD alone. Both halves are
+     * asserted: a claim that advanced the food's status is the original bug,
+     * and a claim that set no rider stage would leave the no-show sweep with
+     * nothing to find.
+     */
+    check('A claimed trip does not move the food',
+      assigned?.status === statusBeforeClaim, `was ${statusBeforeClaim}, now ${assigned?.status}`);
+    check('...and the rider is recorded as heading to the restaurant',
+      assigned?.riderStage === 'HEADING_TO_RESTAURANT', `got ${assigned?.riderStage}`);
 
     // A minute before the warning. The boundary is the point: a sweeper that
     // warns immediately passes a test that only looks at old assignments.
@@ -203,7 +237,18 @@ async function run() {
     );
 
     const pooled = await orderRepository.findById(order.id);
-    check('and it goes back to the pool at READY_FOR_PICKUP', pooled?.status === 'READY_FOR_PICKUP', `got ${pooled?.status}`);
+    /*
+     * The FOOD's status is untouched by the release.
+     *
+     * This asserted READY_FOR_PICKUP, which passed only because releasing a
+     * rider forced that status and stamped `readyAt` - a workaround for
+     * claiming having overwritten the status in the first place. It declared
+     * food ready that the kitchen had never finished, purely because a rider
+     * wandered off. A rider leaving tells us nothing about the food, so the
+     * status stays exactly where the kitchen left it.
+     */
+    check('and the food is left exactly where the kitchen had it',
+      pooled?.status === statusBeforeClaim, `was ${statusBeforeClaim}, now ${pooled?.status}`);
     check('with no rider on it', !pooled?.riderId, `riderId ${pooled?.riderId}`);
     check(
       'and it is not offered straight back to the rider who dropped it',
@@ -224,7 +269,18 @@ async function run() {
       `released ${JSON.stringify(again.released)}`
     );
 
-    // A rider who DOES collect must not be punished by a sweep that races them.
+    /*
+     * A rider who DOES collect must not be punished by a sweep that races them.
+     *
+     * The food is advanced with `updateStatus` and the rider's stage is left
+     * alone, which is deliberate. A real collection goes through
+     * `verifyPickup` and moves both, so this is the DISAGREEMENT case: the
+     * food says delivered-in-progress, the rider's track still says heading to
+     * the restaurant. Two tracks that move independently will disagree
+     * eventually, and the cost of getting it wrong here is a rider stripped of
+     * a trip they are actively delivering and flagged for not turning up.
+     * `isAwaitingPickup` believes `pickedUpAt` over the stage for exactly this.
+     */
     const collected = await placeOrder();
     memoryStore.riders.set('rdr_ontime_test', { id: 'rdr_ontime_test', fullName: 'Punctual Rider', isOnline: true } as any);
     await orderRepository.assignRider(collected.id, 'rdr_ontime_test', 'Punctual Rider', '9800000002', 40);

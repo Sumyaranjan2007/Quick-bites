@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
 import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
+import { isAwaitingPickup } from '../../modules/orders/riderTrip.ts';
 
 /*
  * WHAT DELIVERY IS ALLOWED TO CONCLUDE ABOUT THE MONEY.
@@ -110,6 +111,24 @@ export const orderRepository = {
     if (status === 'READY_FOR_PICKUP' && !order.readyAt) {
       order.readyAt = new Date().toISOString();
     }
+    /*
+     * Stamped here as well as in `verifyPickup`, and once only.
+     *
+     * OUT_FOR_DELIVERY has to mean the same thing however it was reached. An
+     * administrator moving an order on through this method left `pickedUpAt`
+     * unset, and two things then read the order wrongly: the no-show sweep saw
+     * a rider still "on their way to the restaurant" and took a trip off
+     * somebody actively delivering it, and the settlement gate - which treats
+     * `pickedUpAt` as the proof that food left the kitchen - would never let
+     * that order be paid out at all.
+     *
+     * `!order.pickedUpAt` matters. Re-stamping on a later write would move the
+     * collection time forward and quietly stretch every delivery-duration
+     * figure computed from it.
+     */
+    if (status === 'OUT_FOR_DELIVERY' && !order.pickedUpAt) {
+      order.pickedUpAt = new Date().toISOString();
+    }
     if (status === 'DELIVERED') {
       order.deliveredAt = new Date().toISOString();
       settlePaymentOnDelivery(order);
@@ -183,7 +202,22 @@ export const orderRepository = {
     order.riderName = riderName;
     if (riderPhone) order.riderPhone = riderPhone;
     if (typeof payout === 'number') order.riderPayout = payout;
-    order.status = 'RIDER_ASSIGNED';
+
+    /*
+     * `order.status` IS DELIBERATELY NOT TOUCHED HERE.
+     *
+     * This line used to read `order.status = 'RIDER_ASSIGNED'`, and it is the
+     * whole of the bug the owner reported as "the rider accepts and everything
+     * marks itself done". A rider accepting a trip is not something that
+     * happens to the food, but it was written into the food's status, and the
+     * only exits from that status were OUT_FOR_DELIVERY and CANCELLED. The
+     * kitchen's remaining steps became unreachable, their buttons stopped
+     * doing anything, and collection was then refused - correctly - because
+     * the food had never legitimately passed "prepared".
+     *
+     * The rider's progress lives on `riderStage`, which runs alongside. The
+     * food cooks at its own pace and the rider rides at theirs.
+     */
     order.riderStage = 'HEADING_TO_RESTAURANT';
     order.riderAssignedAt = new Date().toISOString();
     order.updatedAt = order.riderAssignedAt;
@@ -234,23 +268,6 @@ export const orderRepository = {
     return order;
   },
 
-  /**
-   * The kitchen finished, but a rider had already claimed the order.
-   *
-   * Records the fact without moving the status, because RIDER_ASSIGNED is
-   * further along than READY_FOR_PICKUP and going back would take the order
-   * off the rider who is already on their way to collect it.
-   */
-  async markReadyWithoutTransition(id: string): Promise<Order | null> {
-    const order = memoryStore.orders.get(id);
-    if (!order) return null;
-    if (!order.readyAt) order.readyAt = new Date().toISOString();
-    order.updatedAt = new Date().toISOString();
-    memoryStore.orders.set(id, order);
-    triggerAutoSave();
-    return order;
-  },
-
   async verifyPickup(id: string, pickupCode: string): Promise<{ success: boolean; order?: Order; error?: string }> {
     const order = memoryStore.orders.get(id);
     if (!order) return { success: false, error: 'Order not found' };
@@ -270,14 +287,15 @@ export const orderRepository = {
      * Reported by the owner as "it should not be out for delivery until the
      * cooking is done AND the code is entered". Both, not either.
      *
-     * READY_FOR_PICKUP is the kitchen saying it is done. Anything earlier is
-     * the rider arriving before the food. RIDER_ASSIGNED is accepted as well
-     * only when the kitchen already marked it ready and the assignment
-     * followed - see the guard below, which asks about `readyAt` rather than
-     * trusting the status alone, because an order can be assigned a rider and
-     * marked ready in either order.
+     * `readyAt` rather than the status alone: readiness is a FACT with a
+     * timestamp, and the status is a position that later steps move on from.
+     * Asking the status would refuse a collection the instant the kitchen
+     * tapped "handed over".
      */
-    const kitchenIsDone = order.status === 'READY_FOR_PICKUP' || Boolean(order.readyAt);
+    const kitchenIsDone =
+      order.status === 'READY_FOR_PICKUP' ||
+      order.status === 'HANDED_TO_RIDER' ||
+      Boolean(order.readyAt);
     if (!kitchenIsDone) {
       return {
         success: false,
@@ -285,8 +303,26 @@ export const orderRepository = {
       };
     }
 
+    /*
+     * WHO SAID THE FOOD CHANGED HANDS.
+     *
+     * A handover has two halves: the kitchen taps HANDED_TO_RIDER, and the
+     * rider quotes the code. When both happened it is mutual, and "he never
+     * collected it" has an answer that does not depend on believing either
+     * party.
+     *
+     * When the kitchen did not tap, the rider still proceeds. The kitchen has
+     * already got what it wanted once the bag is off the counter, so the tap
+     * is pure overhead to them and will be forgotten - and the cost of
+     * blocking lands on a rider standing outside holding the food and a
+     * customer watching an order that never moves. So the collection is
+     * recorded as rider-asserted instead, which keeps the distinction that
+     * mattered without turning a forgotten tap into a stranded delivery.
+     */
+    order.handoverWitnessedBy = order.status === 'HANDED_TO_RIDER' ? 'BOTH' : 'RIDER_ONLY';
+
     order.status = 'OUT_FOR_DELIVERY';
-    order.riderStage = 'OUT_FOR_DELIVERY';
+    order.riderStage = 'PICKED_UP';
     order.pickedUpAt = new Date().toISOString();
     order.updatedAt = order.pickedUpAt;
     memoryStore.orders.set(id, order);
@@ -338,7 +374,7 @@ export const orderRepository = {
     }
 
     order.status = 'DELIVERED';
-    order.riderStage = undefined;
+    order.riderStage = 'DELIVERED';
     order.deliveredAt = new Date().toISOString();
     settlePaymentOnDelivery(order);
     order.updatedAt = order.deliveredAt;
@@ -461,16 +497,34 @@ export const orderRepository = {
     const order = memoryStore.orders.get(id);
     if (!order) return null;
     if (order.riderId !== riderId) return null;
-    if (order.status !== 'RIDER_ASSIGNED') return null;
+
+    /*
+     * Asked of the rider's track, not the food's.
+     *
+     * This read `status !== 'RIDER_ASSIGNED'`, which worked only because
+     * assigning a rider overwrote the food's status. A rider who has already
+     * collected must not be released - that would take an order away from
+     * somebody carrying the food - and `isAwaitingPickup` is the question
+     * that actually distinguishes the two.
+     */
+    if (!isAwaitingPickup(order)) return null;
 
     order.declinedByRiderIds = Array.from(new Set([...(order.declinedByRiderIds || []), riderId]));
     order.riderId = undefined;
     order.riderName = undefined;
     order.riderPhone = undefined;
-    order.riderStage = undefined;
+    order.riderStage = 'UNASSIGNED';
     order.riderAssignedAt = undefined;
-    order.status = 'READY_FOR_PICKUP';
-    if (!order.readyAt) order.readyAt = new Date().toISOString();
+
+    /*
+     * The FOOD's status is left exactly where it was, along with `readyAt`.
+     *
+     * Both were written here before, forcing READY_FOR_PICKUP and stamping
+     * `readyAt` on release - a workaround for the status having been
+     * overwritten at assignment, which it no longer is. Keeping it would now
+     * declare food ready that the kitchen may still be cooking, purely because
+     * a rider wandered off. A rider leaving tells us nothing about the food.
+     */
     order.updatedAt = new Date().toISOString();
     memoryStore.orders.set(id, order);
     triggerAutoSave();
@@ -479,9 +533,7 @@ export const orderRepository = {
 
   /** Every trip a rider has accepted and not yet collected. */
   async listAssignedAwaitingPickup(): Promise<Order[]> {
-    return Array.from(memoryStore.orders.values()).filter(
-      (o: Order) => o.status === 'RIDER_ASSIGNED' && !!o.riderId
-    );
+    return Array.from(memoryStore.orders.values()).filter((o: Order) => isAwaitingPickup(o));
   },
 
   /** So one warning is sent rather than one every thirty seconds. */

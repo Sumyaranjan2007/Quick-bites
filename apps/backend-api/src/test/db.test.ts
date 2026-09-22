@@ -3,6 +3,8 @@ import { userRepository } from '../db/repositories/userRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { menuRepository } from '../db/repositories/menuRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { memoryStore } from '../db/client.ts';
+import { normaliseLoadedStore } from '../db/normaliseStore.ts';
 
 console.log('====================================================');
 console.log('    RUNNING CHUNK 03 DATA LAYER INTEGRATION TESTS   ');
@@ -200,6 +202,81 @@ async function runDbTests() {
     throw new Error('A cash order was flagged unresolved; cash on delivery IS the payment.');
   }
   console.log('[PASS] Test 8b: A cash order is still marked paid, because delivery IS the payment');
+
+  /*
+   * TEST 9: AN ORDER PERSISTED BY THE PREVIOUS BUILD STILL WORKS.
+   *
+   * `RIDER_ASSIGNED` was removed from OrderStatus and `riderStage` renamed its
+   * collection stage. Orders already written to the store carry the old values,
+   * and they do not fail loudly: a status missing from VALID_TRANSITIONS makes
+   * every action on that order return "invalid transition", so the order sticks
+   * forever with food in a bag and a customer watching a screen that never
+   * changes. Nothing throws. Nothing is logged.
+   *
+   * This is the check that the migration exists AND runs. Writing one and
+   * never exercising it is the same as not writing it, except that it looks
+   * handled.
+   */
+  console.log('Test 9: Verifying a store written by the previous build is migrated ...');
+
+  memoryStore.orders.set('ord_test_legacy', {
+    id: 'ord_test_legacy',
+    orderNumber: 'QB-TEST-LEGACY',
+    status: 'RIDER_ASSIGNED',
+    riderStage: 'OUT_FOR_DELIVERY',
+    riderId: 'rdr_legacy',
+    riderName: 'Legacy Rider',
+    paymentStatus: 'PENDING',
+    paymentMethod: 'CASH_ON_DELIVERY'
+  } as any);
+
+  normaliseLoadedStore();
+  const migrated: any = memoryStore.orders.get('ord_test_legacy');
+
+  if (migrated.status !== 'READY_FOR_PICKUP') {
+    throw new Error(`Legacy RIDER_ASSIGNED was not migrated; status is ${migrated.status}.`);
+  }
+  if (migrated.riderStage !== 'PICKED_UP') {
+    throw new Error(`Legacy rider stage was not migrated; stage is ${migrated.riderStage}.`);
+  }
+  // The rider is still on this trip. Only the FOOD's status was wrong, and a
+  // migration that dropped the rider would hand a second one an order somebody
+  // is already delivering.
+  if (migrated.riderId !== 'rdr_legacy' || migrated.riderName !== 'Legacy Rider') {
+    throw new Error('The migration lost the rider who was on the trip.');
+  }
+  console.log('[PASS] Test 9a: A legacy order is migrated and keeps its rider');
+
+  /*
+   * Idempotent: it runs at every boot, on a store that is usually already
+   * current. A migration that changes something on the second pass would
+   * rewrite live orders on every restart.
+   */
+  normaliseLoadedStore();
+  const twice: any = memoryStore.orders.get('ord_test_legacy');
+  if (twice.status !== 'READY_FOR_PICKUP' || twice.riderStage !== 'PICKED_UP') {
+    throw new Error('Running the migration a second time changed the order again.');
+  }
+  console.log('[PASS] Test 9b: Running it again changes nothing');
+
+  /*
+   * And it must not touch orders that are already current. A rule matching too
+   * broadly would rewrite live orders at every boot, and 9a and 9b both pass
+   * with a migration that does.
+   */
+  memoryStore.orders.set('ord_test_current', {
+    id: 'ord_test_current',
+    status: 'PREPARING',
+    riderStage: 'HEADING_TO_RESTAURANT',
+    riderId: 'rdr_current'
+  } as any);
+  normaliseLoadedStore();
+  const current: any = memoryStore.orders.get('ord_test_current');
+  if (current.status !== 'PREPARING' || current.riderStage !== 'HEADING_TO_RESTAURANT') {
+    throw new Error('The migration rewrote an order that was already current.');
+  }
+  console.log('[PASS] Test 9c: An order already on the current build is left alone');
+
 
 
   console.log('\n====================================================');
