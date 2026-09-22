@@ -153,8 +153,25 @@ powershell -NoProfile -Command "Get-Process java -ErrorAction SilentlyContinue |
 
 ## After every build, check the signature — not the exit code
 
-**`scripts/build-apks.sh` exits 0 on builds that failed.** Observed on 22 Sep:
-an `EBUSY` failure reported `BUILD SUCCESSFUL` and exit status 0. A missing
+**`scripts/build-apks.sh` does NOT exit 0 on a failed build - but it will look
+as though it does if you pipe it.** This file previously claimed the script
+swallowed failures. It does not: it runs under `set -euo pipefail` and exits 1.
+
+What actually happens is that `bash scripts/build-apks.sh 2>&1 | tail -25`
+reports the exit status of `tail`, which succeeds whatever the build did. On
+23 Sep a Gradle failure - the Mapbox SDK could not be downloaded - was reported
+as exit code 0 for exactly this reason, and four unchanged APKs from the
+previous day sat in `build/apk` looking like a fresh build.
+
+So: run it unpiped, or read `${PIPESTATUS[0]}` rather than `$?`.
+
+```bash
+bash scripts/build-apks.sh 2>&1 | tail -25; echo "build exit: ${PIPESTATUS[0]}"
+```
+
+The hash comparison below is still the check that matters, for a different
+reason: it catches a build that succeeded but produced a stale or identical
+artifact, which no exit code can tell you about. A missing
 keystore is worse — it produces a complete, installable, **debug-signed** APK
 and reports success, and nothing about the file looks wrong until you check.
 
