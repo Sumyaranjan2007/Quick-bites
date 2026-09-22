@@ -15,6 +15,11 @@
  * audience's list returns it.
  */
 import { Router } from 'express';
+import {
+  businessIdentity,
+  formattedAddress,
+  officialFooter
+} from '../modules/platform/businessIdentity.ts';
 import { AppError } from '../utils/AppError.ts';
 import {
   paymentPolicies,
@@ -69,6 +74,33 @@ policyRouter.get('/payments/:id', (req, res, next) => {
     const policy = findPaymentPolicy(req.params.id);
     if (!policy) throw new AppError('No such policy.', 404, 'POLICY_NOT_FOUND');
     res.json({ success: true, data: { policy } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/policies/business — who this platform legally is.
+ *
+ * Unauthenticated on purpose, like the policies beside it. A customer deciding
+ * whether to trust a new food app, or a partner deciding whether to sign up,
+ * should not have to create an account first to find out who they would be
+ * dealing with. All of it is public record: a Udyam number can be verified by
+ * anyone on the government portal, and the contact details are the ones
+ * printed on receipts.
+ */
+policyRouter.get('/business', async (_req, res, next) => {
+  try {
+    const identity = businessIdentity();
+    res.json({
+      success: true,
+      data: {
+        identity,
+        formattedAddress: formattedAddress(identity),
+        /** Ready-to-render lines, so four apps cannot format it four ways. */
+        footer: officialFooter(identity)
+      }
+    });
   } catch (err) {
     next(err);
   }

@@ -39,6 +39,11 @@ import { memoryStore, saveStoreToFile } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
+import { recordAudit } from '../../modules/admin/audit.ts';
+import {
+  businessIdentity,
+  saveBusinessIdentity
+} from '../../modules/platform/businessIdentity.ts';
 
 export const platformRoutes = Router();
 
@@ -222,6 +227,97 @@ platformRoutes.post('/platform/reset', async (req, res, next) => {
         message: 'Platform data deleted. Administrator accounts kept.'
       }
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const BusinessIdentitySchema = z.object({
+  legalName: z.string().trim().min(2).max(160).optional(),
+  tradingName: z.string().trim().min(2).max(160).optional(),
+  // Format checked, because a Udyam number that does not look like one is a
+  // typo, and a typo on a receipt is a registration nobody can verify.
+  udyamNumber: z
+    .string()
+    .trim()
+    .regex(/^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/, 'A Udyam number looks like UDYAM-KR-29-0052148.')
+    .optional(),
+  enterpriseType: z.enum(['Micro', 'Small', 'Medium']).optional(),
+  majorActivity: z.string().trim().max(60).optional(),
+  addressLine: z.string().trim().max(200).optional(),
+  street: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(80).optional(),
+  district: z.string().trim().max(80).optional(),
+  state: z.string().trim().max(80).optional(),
+  pincode: z.string().trim().regex(/^\d{6}$/, 'A pincode is six digits.').optional(),
+  contactPhone: z
+    .string()
+    .trim()
+    .regex(/^[6-9]\d{9}$/, 'Ten digits, starting 6 to 9.')
+    .optional(),
+  contactEmail: z.string().trim().email().max(200).optional(),
+  incorporatedOn: z.string().trim().max(20).optional(),
+  commencedOn: z.string().trim().max(20).optional(),
+  registeredOn: z.string().trim().max(20).optional(),
+  notes: z.string().trim().max(2000).optional()
+});
+
+/**
+ * GET / PUT /api/admin/platform/business — the platform's own legal record.
+ *
+ * Super administrator only. This is not an operational setting: it is what the
+ * business says it is on every receipt and in every policy, and getting it
+ * wrong is a different class of mistake from getting a delivery radius wrong.
+ *
+ * Editable at all — rather than compiled in — because an address moves, a
+ * phone number changes, and an enterprise is reclassified from Micro to Small
+ * on its next return. Each of those should be a correction somebody types, not
+ * a release somebody cuts.
+ */
+platformRoutes.get('/platform/business', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'super_admin') {
+      throw new AppError(
+        'Only a super administrator can view the platform registration.',
+        403,
+        'SUPER_ADMIN_REQUIRED'
+      );
+    }
+    res.json({ success: true, data: { identity: businessIdentity() } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+platformRoutes.put('/platform/business', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'super_admin') {
+      throw new AppError(
+        'Only a super administrator can change the platform registration.',
+        403,
+        'SUPER_ADMIN_REQUIRED'
+      );
+    }
+
+    const parsed = BusinessIdentitySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(
+        parsed.error.issues[0]?.message || 'Those registration details are not valid.',
+        400,
+        'INVALID_BUSINESS_IDENTITY'
+      );
+    }
+
+    const identity = saveBusinessIdentity(parsed.data);
+    recordAudit(req, {
+      action: 'BUSINESS_IDENTITY_UPDATED',
+      entityType: 'PLATFORM',
+      entityId: 'business-identity',
+      summary: `Updated the platform registration (${identity.udyamNumber})`,
+      after: parsed.data
+    });
+
+    res.json({ success: true, data: { identity } });
   } catch (err) {
     next(err);
   }

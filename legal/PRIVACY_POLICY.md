@@ -6,6 +6,37 @@
 
 ---
 
+## Who operates this platform
+
+Quick Bites is operated by:
+
+| | |
+| --- | --- |
+| **Legal name** | QUICK BITES |
+| **MSME Udyam Registration** | UDYAM-KR-29-0052148 |
+| **Enterprise type** | Micro enterprise — Services |
+| **Registered address** | Harohalli, Kanakapura Main Road, Harohalli, Ramanagara, Karnataka 562112 |
+| **Email** | officalquickbites@gmail.com |
+| **Phone** | 7899415741 |
+| **Registered on** | 21/09/2026 |
+
+The Udyam registration can be verified by anyone at
+<https://udyamregistration.gov.in>.
+
+**This is an MSME registration, not a tax registration.** It confers no right
+to charge or reclaim tax, and nothing issued by this platform is a tax invoice.
+Customers receive a payment receipt, which says what was paid and makes no tax
+claim. A GST registration, if and when one exists, is a separate thing and will
+be shown separately.
+
+These details are held as a record an administrator can correct, not compiled
+into the software, so an address change or a reclassification is a correction
+rather than a release. The authoritative copy is the one served at
+`/api/policies/business`; if this document and that endpoint ever disagree,
+the endpoint is current.
+
+---
+
 ## 1. Introduction
 
 Quick Bite Technologies Private Limited ("Quick Bite", "we", "our", or "us") operates the Quick Bite customer mobile application, restaurant partner portal, rider partner application, and administrative web interfaces (collectively, the "Platform"). We are committed to safeguarding the privacy and personal data of our customers, merchant partners, and delivery personnel.

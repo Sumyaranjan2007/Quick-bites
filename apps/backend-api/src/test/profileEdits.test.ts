@@ -874,6 +874,91 @@ async function run() {
     (memoryStore.restaurants.get(RESTAURANT) as any)?.description
   );
 
+  // -------------------------------------------------------------------
+  console.log('\n-- Who this platform legally is');
+
+  /*
+   * Every official surface needs the same answer, and before this there was no
+   * answer anywhere: the Terms and the Privacy Policy described obligations
+   * without naming the entity that holds them, which is the one thing a legal
+   * document cannot leave out.
+   */
+  const business = await api('/policies/business');
+  check('The operator record is readable without signing in', business.status === 200,
+    `status ${business.status}`);
+  check(
+    'and carries the Udyam registration',
+    business.json?.data?.identity?.udyamNumber === 'UDYAM-KR-29-0052148',
+    business.json?.data?.identity?.udyamNumber
+  );
+  check(
+    'and a single formatted address, so four apps cannot format it four ways',
+    /Harohalli.*Karnataka 562112/.test(String(business.json?.data?.formattedAddress || '')),
+    business.json?.data?.formattedAddress
+  );
+
+  /*
+   * The footer must NOT imply a tax registration. Udyam is an MSME
+   * registration and confers no right to charge or reclaim tax, and the tax
+   * section was removed from this platform at the owner's instruction - so
+   * anything on a receipt that reads like a GSTIN would be a misleading
+   * document rather than an incomplete one.
+   */
+  const footer = (business.json?.data?.footer || []).join(' | ');
+  check(
+    'The receipt footer names it as an MSME registration',
+    /MSME Udyam Registration/i.test(footer),
+    footer.slice(0, 140)
+  );
+  check(
+    'and never calls it GST or a tax registration',
+    !/GST|GSTIN|tax invoice/i.test(footer),
+    footer.slice(0, 140)
+  );
+
+  // -------------------------------------------------------------------
+  console.log('\n-- Correcting the registration');
+
+  const opsEdit = await api(
+    '/admin/platform/business',
+    { method: 'PUT', body: { contactPhone: '9876500099' } },
+    ops.token
+  );
+  check(
+    'An Operations Admin cannot rewrite the platform registration',
+    opsEdit.status === 403,
+    `status ${opsEdit.status}`
+  );
+
+  /*
+   * A Udyam number that does not look like one is a typo, and a typo on a
+   * receipt is a registration nobody can verify. Refused rather than stored.
+   */
+  const typo = await api(
+    '/admin/platform/business',
+    { method: 'PUT', body: { udyamNumber: 'UDYAM-KR-290052148' } },
+    admin.token
+  );
+  check('A malformed Udyam number is refused', typo.status === 400, `status ${typo.status}`);
+  check(
+    'and the original is untouched',
+    (await api('/policies/business')).json?.data?.identity?.udyamNumber === 'UDYAM-KR-29-0052148'
+  );
+
+  const corrected = await api(
+    '/admin/platform/business',
+    { method: 'PUT', body: { contactPhone: '9876500099' } },
+    admin.token
+  );
+  check('A super administrator can correct a detail', corrected.status === 200,
+    `status ${corrected.status}`);
+  check(
+    'and correcting ONE field does not blank the others',
+    corrected.json?.data?.identity?.udyamNumber === 'UDYAM-KR-29-0052148' &&
+      corrected.json?.data?.identity?.legalName === 'QUICK BITES',
+    JSON.stringify(corrected.json?.data?.identity || {}).slice(0, 160)
+  );
+
   server.close();
 
   console.log('\n====================================================');
