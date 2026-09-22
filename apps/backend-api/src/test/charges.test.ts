@@ -24,6 +24,13 @@ import {
 } from '../modules/payments/restaurantCharges.ts';
 import { splitForOrder, recordOrderEarnings } from '../modules/payments/earnings.ts';
 import {
+  addAccount,
+  reviewAccount,
+  reviewQueue,
+  payableAccountFor,
+  resetPayeeAccountsForTesting
+} from '../modules/payments/payeeAccounts.ts';
+import {
   incentiveSettings,
   setIncentiveSettings,
   settingFor,
@@ -70,6 +77,7 @@ async function run() {
   resetConfigsForTesting();
   resetRestaurantChargesForTesting();
   resetIncentiveConfigForTesting();
+  resetPayeeAccountsForTesting();
   memoryStore.restaurants.clear();
   memoryStore.orders.clear();
   memoryStore.riders.clear();
@@ -309,6 +317,138 @@ async function run() {
   await rejects('A bonus beyond the allowed ceiling is refused', 'REWARD_OUT_OF_RANGE', () =>
     setIncentiveSettings([{ code: 'WEEK_40', reward: 50000 }], ADMIN)
   );
+
+  /* ---------------------------------------------------------------- *
+   *  AND SOMEBODY CAN ACTUALLY BE PAID                                *
+   * ---------------------------------------------------------------- */
+
+  await check('An account nothing could check reaches a human, and can be approved', async () => {
+    /*
+     * The worst defect in this release, and it was silent.
+     *
+     * Without bank verification switched on — which is every deployment today —
+     * a new account lands on UNVERIFIED. `reviewQueue` only listed
+     * NAME_MISMATCH, and `reviewAccount` only accepted NAME_MISMATCH. So the
+     * account could never be approved, never appeared in the queue, and
+     * `payableAccountFor` returns only VERIFIED accounts.
+     *
+     * Nobody on the platform could be paid at all, while the partner was told
+     * "our team will verify this account by hand before your first payout."
+     * There was no by-hand path.
+     */
+    const account = await addAccount({
+      ownerType: 'RESTAURANT',
+      ownerId: RESTAURANT,
+      ownerUserId: 'usr_partner_charge',
+      createdByUserId: 'usr_partner_charge',
+      kycName: 'Ganesh Bhavan',
+      method: 'VPA',
+      holderName: 'Ganesh Bhavan',
+      vpa: 'ganesh@okicici'
+    });
+
+    assert.equal(account.validationStatus, 'UNVERIFIED', 'no gateway, so nothing checked it');
+    assert.equal(payableAccountFor('RESTAURANT', RESTAURANT), null, 'an unchecked account was payable');
+
+    assert.ok(
+      reviewQueue().some(a => a.id === account.id),
+      'an account nobody can check is invisible to the person who has to decide'
+    );
+
+    reviewAccount(account.id, 'APPROVE', { userId: ADMIN }, 'Checked the passbook photo');
+
+    const payable = payableAccountFor('RESTAURANT', RESTAURANT);
+    assert.ok(payable, 'approving it still left nowhere to send money');
+    assert.equal(payable!.id, account.id);
+  });
+
+  await check('And the approval is stamped as done by hand, not by a bank', () => {
+    // A real decision with a real risk: the first payout is the test. It must
+    // not look identical to an account a bank confirmed.
+    const account = payableAccountFor('RESTAURANT', RESTAURANT)! as any;
+    assert.equal(account.manuallyApproved, true);
+    assert.equal(account.manuallyApprovedByUserId, ADMIN);
+  });
+
+  await rejects('An account the BANK refused cannot be approved by hand', 'PAYEE_ACCOUNT_NOT_IN_REVIEW', async () => {
+    /*
+     * The other half of opening the queue up, and the half that keeps the
+     * penny drop meaningful.
+     *
+     * UNVERIFIED means nobody checked — a judgement call. INVALID means the
+     * bank was asked and said the account does not exist. Letting a person
+     * override the second turns bank verification into advice, and the whole
+     * reason it exists is that one wrong digit sends a settlement to a
+     * stranger who will not give it back.
+     *
+     * A mutation run caught this: widening the check to "anything not already
+     * verified" passed every test in this file.
+     */
+    const refused = await addAccount({
+      ownerType: 'RIDER',
+      ownerId: 'rdr_refused',
+      ownerUserId: 'usr_rider_refused',
+      createdByUserId: 'usr_rider_refused',
+      kycName: 'Someone Else',
+      method: 'VPA',
+      holderName: 'Someone Else',
+      vpa: 'someone@okaxis'
+    });
+    refused.validationStatus = 'INVALID';
+    memoryStore.payeeAccounts.set(refused.id, refused);
+
+    return reviewAccount(refused.id, 'APPROVE', { userId: ADMIN }, 'Looks fine to me');
+  });
+
+  await check('A membership discount cannot exceed the plan cap', () => {
+    /*
+     * A percentage with no ceiling is not a discount, it is an open liability:
+     * one large basket can cost more than the membership sold for. Also caught
+     * by mutation — nothing asserted the cap at all.
+     */
+    const big = calculateOrderPricing({
+      items: [{ unitPrice: 5000, quantity: 1 }],
+      membershipDiscountPercent: 5,
+      membershipMaxDiscount: 75,
+      rates: getActiveRates()
+    });
+    assert.equal(big.membershipDiscount, 75, '5% of 5000 was allowed through uncapped');
+
+    // And a small order is unaffected by the ceiling.
+    const small = calculateOrderPricing({
+      items: [{ unitPrice: 200, quantity: 1 }],
+      membershipDiscountPercent: 5,
+      membershipMaxDiscount: 75,
+      rates: getActiveRates()
+    });
+    assert.equal(small.membershipDiscount, 10, 'the cap ate into an order below it');
+
+    // No cap set behaves as it did before caps existed.
+    const uncapped = calculateOrderPricing({
+      items: [{ unitPrice: 5000, quantity: 1 }],
+      membershipDiscountPercent: 5,
+      rates: getActiveRates()
+    });
+    assert.equal(uncapped.membershipDiscount, 250);
+  });
+
+  await check('A member only gets free delivery above their own plan floor', () => {
+    const below = calculateOrderPricing({
+      items: [{ unitPrice: 150, quantity: 1 }],
+      isGold: true,
+      memberFreeDeliveryMinOrder: 199,
+      rates: getActiveRates()
+    });
+    assert.ok(below.deliveryFee > 0, 'delivery was free below the plan floor');
+
+    const above = calculateOrderPricing({
+      items: [{ unitPrice: 250, quantity: 1 }],
+      isGold: true,
+      memberFreeDeliveryMinOrder: 199,
+      rates: getActiveRates()
+    });
+    assert.equal(above.deliveryFee, 0);
+  });
 
   await check('The books balance after everything above', () => {
     const result = ledger.audit();
