@@ -94,11 +94,17 @@ export const RatesScreen: React.FC = () => {
   const rates = useResource<RatesPayload>(() => api.get('/admin/rates/restaurants').then(r => r.data), [], {
     enabled: canView
   });
+  const platform = useResource<any>(() => api.get('/admin/pricing/config').then(r => r.data), [], {
+    enabled: canView
+  });
   const bonuses = useResource<{ incentives: Incentive[]; note: string }>(
     () => api.get('/admin/rates/incentives').then(r => r.data),
     [],
     { enabled: canView }
   );
+
+  const [platformEdits, setPlatformEdits] = useState<Record<string, string>>({});
+  const [platformNote, setPlatformNote] = useState('');
 
   const [editing, setEditing] = useState<ChargeRow | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -186,6 +192,7 @@ export const RatesScreen: React.FC = () => {
         <Segmented
           options={[
             { key: 'restaurants', label: 'Per restaurant' },
+            { key: 'platform', label: 'Rider pay & defaults' },
             { key: 'bonuses', label: 'Rider bonuses' }
           ]}
           value={tab}
@@ -285,6 +292,121 @@ export const RatesScreen: React.FC = () => {
                   </Card>
                 </TouchableOpacity>
               ))
+            )}
+          </>
+        )}
+
+        {/* ------------------ Rider pay and platform defaults ------------------ */}
+        {tab === 'platform' && (
+          <>
+            <Card style={s.explainer}>
+              <View style={s.head}>
+                <Info size={16} color={c.text.secondary} />
+                <Text style={s.explainerTitle}>What you pay riders, and every fallback</Text>
+              </View>
+              <Text style={s.explainerBody}>
+                These apply everywhere. A restaurant with nothing set of its own follows them, and keeps
+                following them when you change one.
+              </Text>
+              <Text style={s.explainerBody}>
+                Rider pay is a base fee plus a rate for every kilometre beyond the free distance, never less
+                than the guaranteed minimum. The delivery fee you charge the customer is separate — the gap
+                between the two is yours.
+              </Text>
+            </Card>
+
+            {platform.loading && !platform.data ? (
+              <Loading label="Reading your rates…" />
+            ) : !platform.data ? (
+              <EmptyState title="Could not load these" message={platform.error || 'Pull down to try again.'} />
+            ) : (
+              <>
+                {(platform.data.bounds || []).map((bound: any) => {
+                  const live = platform.data.config?.rates?.[bound.key];
+                  const edited = platformEdits[bound.key];
+                  const changed = edited !== undefined && edited !== '' && Number(edited) !== Number(live);
+                  return (
+                    <Card key={bound.key} style={s.row}>
+                      <View style={s.rowHead}>
+                        <Text style={s.rowName}>{bound.label}</Text>
+                        {bound.affectsCustomerBill && <Badge label="On the bill" tone="warning" />}
+                      </View>
+                      <Text style={s.explainerBody}>{bound.help}</Text>
+
+                      <View style={{ marginTop: 10 }}>
+                        <View style={s.fieldRow}>
+                          <TextInput
+                            style={s.fieldInput}
+                            value={edited ?? String(live ?? '')}
+                            onChangeText={v =>
+                              setPlatformEdits(e => ({ ...e, [bound.key]: v.replace(/[^0-9.]/g, '') }))
+                            }
+                            keyboardType="numeric"
+                          />
+                          <Text style={s.fieldSuffix}>
+                            {bound.unit === 'PERCENT' ? '%' : bound.unit === 'KM' ? 'km' : bound.unit === 'DAYS' ? 'days' : 'Rs'}
+                          </Text>
+                        </View>
+                        {changed && (
+                          <Text style={s.fieldHint}>
+                            Now {String(live)} — saving creates a new version. Orders already placed keep what
+                            they were charged.
+                          </Text>
+                        )}
+                      </View>
+                    </Card>
+                  );
+                })}
+
+                {Object.keys(platformEdits).some(
+                  k => platformEdits[k] !== '' && Number(platformEdits[k]) !== Number(platform.data.config?.rates?.[k])
+                ) && (
+                  <Card>
+                    <Text style={s.fieldLabel}>Why are you changing these?</Text>
+                    <View style={s.fieldRow}>
+                      <TextInput
+                        style={s.fieldInput}
+                        value={platformNote}
+                        onChangeText={setPlatformNote}
+                        placeholder="e.g. raising rider pay for the monsoon"
+                        placeholderTextColor={c.text.muted}
+                      />
+                    </View>
+                    <Text style={s.fieldHint}>
+                      Required. Rates are versioned, never overwritten — this is what somebody reads when they
+                      ask why a number moved.
+                    </Text>
+
+                    {!!error && <Text style={s.error}>{error}</Text>}
+
+                    <Button
+                      label={busy ? 'Saving…' : 'Save these rates'}
+                      onPress={async () => {
+                        setBusy(true);
+                        setError(null);
+                        try {
+                          const changes: Record<string, number> = {};
+                          for (const [key, value] of Object.entries(platformEdits)) {
+                            if (value === '' || Number(value) === Number(platform.data.config?.rates?.[key])) continue;
+                            changes[key] = Number(value);
+                          }
+                          await api.put('/admin/pricing/config', { changes, note: platformNote.trim() });
+                          setPlatformEdits({});
+                          setPlatformNote('');
+                          await platform.reload();
+                          await rates.reload();
+                        } catch (err: any) {
+                          setError(err?.message || 'Those rates could not be saved.');
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                      disabled={busy || platformNote.trim().length < 4}
+                      style={{ marginTop: 12 }}
+                    />
+                  </Card>
+                )}
+              </>
             )}
           </>
         )}
