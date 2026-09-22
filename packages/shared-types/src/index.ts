@@ -522,6 +522,21 @@ export interface Order {
   riderLocationUpdatedAt?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  /**
+   * Set when an order was handed to the customer while its payment was still
+   * unresolved, on a method where delivery is NOT the payment event.
+   *
+   * Delivery used to write `paymentStatus = 'PAID'` for every order, so a
+   * prepaid order whose payment never completed was recorded as paid the
+   * moment the food arrived - and settlement selects on DELIVERED without
+   * consulting `paymentStatus`, so it became a payout. The food moved; the
+   * money did not.
+   *
+   * Delivery no longer invents the payment. It records this instead, because
+   * "food delivered, money not received" is a real condition somebody must
+   * look at, and overwriting it is how it stops being visible to anyone.
+   */
+  paymentUnresolvedAt?: string;
   paymentMethod: PaymentMethod;
   items: OrderItemPayload[];
   bill: OrderBillBreakdown;

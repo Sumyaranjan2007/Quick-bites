@@ -2,6 +2,50 @@ import crypto from 'crypto';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
 import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
 
+/*
+ * WHAT DELIVERY IS ALLOWED TO CONCLUDE ABOUT THE MONEY.
+ *
+ * Both places that mark an order DELIVERED used to write
+ * `paymentStatus = 'PAID'` for every order regardless of method. On a prepaid
+ * order whose payment never completed, arrival of the food recorded receipt of
+ * money that never arrived.
+ *
+ * That is not cosmetic. `financeRoutes.ts` selects payables and settlements on
+ * `status === 'DELIVERED'` without consulting `paymentStatus` at all, so an
+ * unpaid order became a payable and then a payout to the restaurant and the
+ * rider. The platform pays out money it never collected.
+ *
+ * The rule is about which event is the payment:
+ *
+ *   CASH_ON_DELIVERY  - handing the food over IS the payment. PAID is correct.
+ *   already PAID      - a gateway or webhook said so. Leave it alone.
+ *   anything else     - the payment is somebody else's event and has not
+ *                       happened. Delivery must not invent it.
+ *
+ * The third case is recorded rather than ignored. An order delivered with the
+ * money unresolved is a real condition that needs a human, and the way it stops
+ * being visible to anyone is precisely by overwriting it with 'PAID'.
+ */
+function settlePaymentOnDelivery(order: Order): void {
+  if (order.paymentMethod === 'CASH_ON_DELIVERY' || order.paymentStatus === 'PAID') {
+    order.paymentStatus = 'PAID';
+    return;
+  }
+
+  order.paymentUnresolvedAt = new Date().toISOString();
+  console.log(
+    JSON.stringify({
+      level: 'ERROR',
+      timestamp: order.paymentUnresolvedAt,
+      event: 'DELIVERED_WITHOUT_PAYMENT',
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus
+    })
+  );
+}
+
 export const orderRepository = {
   async findById(id: string): Promise<Order | null> {
     return memoryStore.orders.get(id) || null;
@@ -68,7 +112,7 @@ export const orderRepository = {
     }
     if (status === 'DELIVERED') {
       order.deliveredAt = new Date().toISOString();
-      order.paymentStatus = 'PAID';
+      settlePaymentOnDelivery(order);
     }
     order.updatedAt = new Date().toISOString();
     memoryStore.orders.set(id, order);
@@ -296,7 +340,7 @@ export const orderRepository = {
     order.status = 'DELIVERED';
     order.riderStage = undefined;
     order.deliveredAt = new Date().toISOString();
-    order.paymentStatus = 'PAID';
+    settlePaymentOnDelivery(order);
     order.updatedAt = order.deliveredAt;
     memoryStore.orders.set(id, order);
     triggerAutoSave();

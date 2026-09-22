@@ -118,6 +118,89 @@ async function runDbTests() {
     throw new Error('Order lookup by idempotency key failed.');
   }
   console.log('[PASS] Test 7: Order repository and idempotency key match verified');
+  /*
+   * TEST 8: DELIVERY DOES NOT INVENT A PAYMENT.
+   *
+   * Both writers that mark an order DELIVERED used to set
+   * `paymentStatus = 'PAID'` for every order regardless of method, so a
+   * prepaid order whose payment never completed was recorded as paid the
+   * moment the food arrived. `financeRoutes` selects payables and settlements
+   * on DELIVERED without consulting `paymentStatus`, so that became a payout
+   * of money the platform never collected.
+   *
+   * Driven through the repository rather than over HTTP on purpose: the value
+   * under test is what gets WRITTEN, and the checkout flow cannot easily
+   * produce a prepaid order that is delivered while still unpaid - which is
+   * exactly why the case went unnoticed for so long.
+   */
+  console.log('Test 8: Verifying delivery does not invent a payment ...');
+
+  const billStub = {
+    itemsTotal: 100, gstAmount: 0, packagingFee: 0, deliveryFee: 0,
+    platformFee: 0, couponDiscount: 0, totalAmount: 100, restaurantNetPayout: 100
+  };
+
+  const unpaidPrepaid: any = await orderRepository.create({
+    id: 'ord_test_unpaid',
+    idempotencyKey: 'idem_test_unpaid',
+    orderNumber: 'QB-TEST-UNPAID',
+    customerId: 'usr_customer_01',
+    restaurantId: 'rst_bbh_01',
+    addressId: 'adr_test_01',
+    status: 'OUT_FOR_DELIVERY',
+    paymentStatus: 'PENDING',
+    paymentMethod: 'RAZORPAY_SANDBOX',
+    deliveryOtp: '4321',
+    items: [],
+    bill: billStub,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  } as any);
+
+  const afterDelivery = await orderRepository.verifyDeliveryOtp(unpaidPrepaid.id, '4321');
+  if (!afterDelivery.success) {
+    throw new Error('Expected the delivery to complete; it was refused: ' + afterDelivery.error);
+  }
+  if (afterDelivery.order!.paymentStatus === 'PAID') {
+    throw new Error('A prepaid order that never paid was marked PAID by being delivered.');
+  }
+  if (!(afterDelivery.order as any).paymentUnresolvedAt) {
+    throw new Error('Delivery with an unresolved payment was not recorded for anybody to see.');
+  }
+  console.log('[PASS] Test 8a: An unpaid prepaid order is not marked paid by being delivered');
+
+  /*
+   * The other half, and the one more likely to be got wrong: this must NOT
+   * have broken cash on delivery, where handing the food over genuinely IS
+   * the payment. A guard that refuses everything passes 8a and silently stops
+   * every cash order being recorded as paid.
+   */
+  const cashOrder: any = await orderRepository.create({
+    id: 'ord_test_cash',
+    idempotencyKey: 'idem_test_cash',
+    orderNumber: 'QB-TEST-CASH',
+    customerId: 'usr_customer_01',
+    restaurantId: 'rst_bbh_01',
+    addressId: 'adr_test_01',
+    status: 'OUT_FOR_DELIVERY',
+    paymentStatus: 'PENDING',
+    paymentMethod: 'CASH_ON_DELIVERY',
+    deliveryOtp: '8765',
+    items: [],
+    bill: billStub,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  } as any);
+
+  const afterCash = await orderRepository.verifyDeliveryOtp(cashOrder.id, '8765');
+  if (afterCash.order!.paymentStatus !== 'PAID') {
+    throw new Error('A cash-on-delivery order was not marked paid on delivery.');
+  }
+  if ((afterCash.order as any).paymentUnresolvedAt) {
+    throw new Error('A cash order was flagged unresolved; cash on delivery IS the payment.');
+  }
+  console.log('[PASS] Test 8b: A cash order is still marked paid, because delivery IS the payment');
+
 
   console.log('\n====================================================');
   console.log('    ALL 7 CHUNK 03 TESTS PASSED SUCCESSFULLY!       ');
