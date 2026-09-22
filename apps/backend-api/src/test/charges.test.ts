@@ -868,6 +868,29 @@ async function run() {
     );
   });
 
+  await check('A legacy wallet order can still be settled', () => {
+    /*
+     * The customer wallet was removed. `orderId` was always optional on a
+     * wallet debit, and orderRouter accepts only RAZORPAY_SANDBOX and
+     * CASH_ON_DELIVERY — so no wallet order can be created now, and none of the
+     * old ones can produce a transaction record on demand.
+     *
+     * Requiring one refused every wallet order in the store permanently, with
+     * no route to a remedy. Local fixtures could not show that, because a
+     * fixture can always be given the record a real order does not have.
+     */
+    const order = deliveredOrder({ paymentMethod: 'WALLET', razorpayPaymentId: undefined });
+    assert.equal(settlementEvidence(order).ok, true, 'a legacy wallet order is stranded forever');
+
+    memoryStore.orders.set(order.id, order);
+    const before = ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT));
+    recordOrderEarnings(order);
+    assert.ok(
+      ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT)) > before,
+      'it passed the check and still paid nobody'
+    );
+  });
+
   await check('An order the delivery path flagged as unpaid is refused even so', () => {
     /*
      * The delivery path stamps `paymentUnresolvedAt` when it hands food over on

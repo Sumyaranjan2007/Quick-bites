@@ -195,14 +195,22 @@ export function paymentEvidence(order: Order): { ok: boolean; reason?: string } 
   // than the platform's bank for exactly that reason.
   if (order.paymentMethod === 'CASH_ON_DELIVERY') return { ok: true };
 
-  if (order.paymentMethod === 'WALLET') {
-    const paid = Array.from(memoryStore.walletTransactions.values() as Iterable<any>).some(
-      t => t?.orderId === order.id
-    );
-    return paid
-      ? { ok: true }
-      : { ok: false, reason: 'Paid from wallet, but no wallet transaction records it.' };
-  }
+  /*
+   * WALLET is a closed method, so every such order is a legacy one.
+   *
+   * This branch used to require a wallet transaction carrying the order id.
+   * That was wrong in a way local fixtures could not show: the customer wallet
+   * was removed (see orderService.ts, the refund path), `orderId` was only ever
+   * optional on a wallet debit, and `orderRouter` accepts just RAZORPAY_SANDBOX
+   * and CASH_ON_DELIVERY — so no new wallet order can be created, and no
+   * existing one could ever satisfy the check. Every wallet order in the store
+   * would have been refused permanently, with no route to a remedy.
+   *
+   * Accepting them costs nothing forward, because the method is shut. A
+   * transaction record is still the better evidence where one exists, but its
+   * absence says the wallet was retired rather than that the money never came.
+   */
+  if (order.paymentMethod === 'WALLET') return { ok: true };
 
   if (!order.razorpayPaymentId) {
     return {

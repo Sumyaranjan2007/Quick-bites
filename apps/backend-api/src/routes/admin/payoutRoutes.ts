@@ -38,7 +38,13 @@ import {
 import { railCatalogue, defaultRail } from '../../modules/payments/rails.ts';
 import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
 import { payableAccountFor, publicView as payeeView } from '../../modules/payments/payeeAccounts.ts';
-import { backfillEarnings, earningsPosted } from '../../modules/payments/earnings.ts';
+import {
+  backfillEarnings,
+  earningsPosted,
+  heldEarnings,
+  settlementEvidence,
+  recordOrderEarnings
+} from '../../modules/payments/earnings.ts';
 import { platformMarginPaiseFor } from '../../modules/payments/restaurantCharges.ts';
 import { reviewQueue } from '../../modules/payments/payeeAccounts.ts';
 import { memoryStore } from '../../db/client.ts';
@@ -458,6 +464,66 @@ payoutRoutes.get(
  * running it twice is harmless, and it is the recovery path if any future code
  * completes an order without posting its earnings.
  */
+/**
+ * POST /api/admin/payments/held/:orderId/release
+ *
+ * A person has checked a refused order and says it was real.
+ *
+ * Exists because the alternative to a release path is not "no releases" — it
+ * is an administrator reading a blocker that tells them to check something and
+ * finding no way to act on it, which ends with the refusal being worked around
+ * somewhere it is not recorded.
+ *
+ * The note is mandatory and is written into the audit trail with the reason the
+ * order was refused. What an auditor asks about a payment made against a
+ * missing proof of delivery is who decided and on what basis, so both are kept.
+ */
+const ReleaseHeldSchema = z.object({
+  note: z.string().trim().min(8, 'Say what you checked, in a sentence.')
+});
+
+payoutRoutes.post(
+  '/payments/held/:orderId/release',
+  requirePermission('finance.settlements.manage'),
+  validate({ body: ReleaseHeldSchema }),
+  async (req, res, next) => {
+    try {
+      const order = memoryStore.orders.get(req.params.orderId);
+      if (!order) throw new AppError('No such order.', 404, 'ORDER_NOT_FOUND');
+
+      const evidence = settlementEvidence(order);
+      if (evidence.ok) {
+        // Not an error worth failing on, but it must not be recorded as an
+        // override: overriding nothing would put a person's name against a
+        // decision they did not take.
+        throw new AppError(
+          'That order is not being held — nothing needs releasing.',
+          409,
+          'ORDER_NOT_HELD'
+        );
+      }
+
+      recordOrderEarnings(order, { byUserId: req.user!.id, note: req.body.note });
+
+      recordAudit(req, {
+        action: 'HELD_EARNINGS_RELEASED',
+        entityType: 'ORDER',
+        entityId: order.id,
+        summary: `Released earnings for ${order.orderNumber || order.id} despite: ${evidence.reason}`,
+        after: { reason: evidence.reason, note: req.body.note }
+      });
+
+      res.json({
+        success: true,
+        data: { orderId: order.id },
+        message: 'Earnings posted. What it was held for, and your note, are on the audit trail.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 payoutRoutes.post(
   '/payouts/backfill',
   requirePermission('finance.settlements.manage'),
@@ -842,6 +908,25 @@ payoutRoutes.get(
         });
       }
 
+      /*
+       * Orders that say they were delivered but cannot show it, so nobody has
+       * been paid for them.
+       *
+       * Surfaced here because the gate that refuses them REMOVES them from the
+       * dues list. Without this line the money does not appear anywhere and
+       * nothing says why — a figure quietly short on a money screen, which is
+       * the failure the refusal was written to prevent in the first place.
+       */
+      const held = heldEarnings();
+      if (held.length > 0) {
+        blockers.push({
+          what: `${held.length} delivered order${held.length === 1 ? '' : 's'} cannot be paid out until somebody checks ${held.length === 1 ? 'it' : 'them'}.`,
+          count: held.length,
+          fix: 'Each one is missing proof that the food was collected or that the money arrived. Open it, check what happened, and release it if it was real.',
+          where: 'HELD'
+        });
+      }
+
       res.json({
         success: true,
         data: {
@@ -866,6 +951,7 @@ payoutRoutes.get(
             blockedCount: noAccount.length + holdingCash.length
           },
           blockers,
+          held,
           /** True when there is genuinely nothing to do, not merely nothing visible. */
           allClear: blockers.length === 0 && ready.length === 0
         }
