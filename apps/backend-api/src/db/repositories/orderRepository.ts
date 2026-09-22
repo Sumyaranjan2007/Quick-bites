@@ -250,9 +250,45 @@ export const orderRepository = {
     return { success: true, order };
   },
 
+  /*
+   * A CORRECT OTP IS NOT ON ITS OWN A DELIVERY.
+   *
+   * This wrote `status = 'DELIVERED'` with no precondition at all, and the
+   * route above it checks only that the rider owns the order. So an order
+   * sitting at ORDER_PLACED - never cooked, never collected - became DELIVERED
+   * the moment a correct code arrived. `validateTransition` never sees this
+   * path; the route calls the repository directly.
+   *
+   * That is not a display problem. DELIVERED is where money moves:
+   * `recordOrderEarnings` posts against it, and `backfillEarnings()` sweeps
+   * every DELIVERED order at boot and posts any it finds unposted. A trip that
+   * never happened would be paid for, and paid again on the next restart.
+   *
+   * The code itself is not a secret the rider cannot obtain - it is stripped
+   * from rider responses, but the customer reads it out loud, which is the
+   * entire point of it. What makes it proof of delivery is that it arrives at
+   * the END of a trip the system watched happen. So the trip has to have
+   * happened: the kitchen finished, the rider collected, the food left. That is
+   * exactly what OUT_FOR_DELIVERY means, and it is the only status this may be
+   * entered from.
+   */
   async verifyDeliveryOtp(id: string, otp: string): Promise<{ success: boolean; order?: Order; error?: string }> {
     const order = memoryStore.orders.get(id);
     if (!order) return { success: false, error: 'Order not found' };
+
+    // Answered before the OTP is examined, so a rider who taps twice on a bad
+    // connection is told what actually happened rather than 'invalid code'.
+    if (order.status === 'DELIVERED') {
+      return { success: false, error: 'This order is already marked delivered.' };
+    }
+    if (order.status !== 'OUT_FOR_DELIVERY') {
+      return {
+        success: false,
+        error:
+          'This order has not been collected yet. Confirm pickup at the restaurant before entering the doorstep code.'
+      };
+    }
+
     if (order.deliveryOtp !== otp.trim()) {
       return { success: false, error: 'Invalid doorstep delivery OTP' };
     }

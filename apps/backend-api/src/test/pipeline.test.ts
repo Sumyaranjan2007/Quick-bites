@@ -209,6 +209,38 @@ async function run() {
   check('Restaurant is shown a pickup code to hand over',
     typeof pickupCode === 'string' && pickupCode.length === 4, `got ${JSON.stringify(pickupCode)}`);
 
+  /*
+   * THE CORRECT DOORSTEP CODE, ENTERED BEFORE THE FOOD IS COLLECTED.
+   *
+   * Run here deliberately: a rider is assigned, the kitchen has finished, and
+   * pickup has NOT been confirmed. `verifyDeliveryOtp` used to write
+   * `status = 'DELIVERED'` on nothing but a code match, and the route reaches
+   * the repository directly so the state machine never saw it. The customer
+   * reads that code out loud on every delivery, so obtaining it early is not
+   * an exploit, it is a phone call.
+   *
+   * It matters because DELIVERED is where money moves: earnings post against
+   * it, and the boot backfill posts again for any DELIVERED order it finds
+   * unposted. A trip that never happened would be paid for, twice.
+   *
+   * The reason is asserted, not just the status. A 4xx here is the default
+   * outcome of half a dozen unrelated faults - a missing token, a bad order id,
+   * a rider who does not own the trip - so a bare `>= 400` would keep passing
+   * with the guard deleted.
+   */
+  const earlyDoorstep = await api(`/riders/orders/${orderId}/verify-otp`, {
+    method: 'POST', body: { deliveryOtp: customerOtp }
+  }, rider.token);
+  check('The correct doorstep code is refused before the food is collected',
+    earlyDoorstep.status >= 400 &&
+    JSON.stringify(earlyDoorstep.json).toLowerCase().includes('not been collected'),
+    `status ${earlyDoorstep.status} ${JSON.stringify(earlyDoorstep.json).slice(0, 200)}`);
+
+  const stillNotDelivered = await api(`/orders/${orderId}`, {}, customer.token);
+  check('...and the order did not move to delivered',
+    (stillNotDelivered.json?.data?.order?.status ?? stillNotDelivered.json?.data?.status) !== 'DELIVERED',
+    JSON.stringify(stillNotDelivered.json?.data?.order?.status));
+
   statusHeard = waitFor(customerSock, 'order:status_update', 6000, p => p.status === 'OUT_FOR_DELIVERY');
   const pickup = await api(`/riders/orders/${orderId}/verify-pickup`, {
     method: 'POST', body: { pickupCode }
