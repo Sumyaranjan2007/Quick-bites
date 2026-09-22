@@ -35,6 +35,12 @@ interface QueueRow {
   ownerName: string;
   ownerDetail: string;
   createdAt: string;
+  validationStatus: 'VERIFIED' | 'UNVERIFIED' | 'NAME_MISMATCH' | 'INVALID';
+  /** Set when an administrator applied it. Absent means nobody can be paid. */
+  appliedAt?: string;
+  appliedByAdminId?: string;
+  /** What the automatic check thinks, stated as advice rather than a decision. */
+  advice: string;
 }
 
 interface CoverageGroup {
@@ -73,10 +79,12 @@ export const PayeeAccountsScreen: React.FC = () => {
   const canSeeCoverage = can('finance.payouts.view', 'finance.settlements.view');
 
   const queue = useResource<{
-    queue: QueueRow[];
+    accounts: QueueRow[];
+    waiting: number;
+    applied: number;
     thresholds: { accept: number; review: number };
     verificationAvailable: boolean;
-  }>(() => api.get('/admin/payee-accounts/review').then(r => r.data), [], { enabled: allowed });
+  }>(() => api.get('/admin/payee-accounts').then(r => r.data), [], { enabled: allowed });
 
   const coverage = useResource<{ riders: CoverageGroup; restaurants: CoverageGroup }>(
     () => api.get('/admin/payee-accounts/coverage').then(r => r.data),
@@ -84,7 +92,7 @@ export const PayeeAccountsScreen: React.FC = () => {
     { enabled: canSeeCoverage }
   );
 
-  const [tab, setTab] = useState('review');
+  const [tab, setTab] = useState('waiting');
   const [deciding, setDeciding] = useState<QueueRow | null>(null);
   const [decision, setDecision] = useState<'APPROVE' | 'REJECT'>('APPROVE');
   const [note, setNote] = useState('');
@@ -92,7 +100,7 @@ export const PayeeAccountsScreen: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!allowed && !canSeeCoverage) return <NoAccess permission="finance.payouts.manage" />;
-  if (queue.loading && !queue.data && allowed) return <Loading label="Reading the verification queue…" />;
+  if (queue.loading && !queue.data && allowed) return <Loading label="Reading the accounts…" />;
 
   const decide = async () => {
     if (!deciding) return;
@@ -111,7 +119,19 @@ export const PayeeAccountsScreen: React.FC = () => {
     }
   };
 
-  const rows = queue.data?.queue || [];
+  const all = queue.data?.accounts || [];
+  /*
+   * Split on appliedAt, not on the bank's verdict.
+   *
+   * "What do I have to do" and "what have I already done" are different
+   * questions, and an administrator should not have to read a status column to
+   * tell them apart. An account the bank refused cannot be applied, so it sits
+   * with the finished work rather than in the queue — showing work that cannot
+   * be done beside work that can is how somebody learns to ignore the number.
+   */
+  const waiting = all.filter(r => !r.appliedAt && r.validationStatus !== 'INVALID');
+  const settled = all.filter(r => r.appliedAt || r.validationStatus === 'INVALID');
+  const rows = tab === 'waiting' ? waiting : settled;
   const thresholds = queue.data?.thresholds;
 
   const renderCoverage = (label: string, group?: CoverageGroup) => {
@@ -179,30 +199,37 @@ export const PayeeAccountsScreen: React.FC = () => {
 
         <Segmented
           options={[
-            { key: 'review', label: `Review${rows.length ? ` (${rows.length})` : ''}` },
+            { key: 'waiting', label: `Waiting${waiting.length ? ` (${waiting.length})` : ''}` },
+            { key: 'applied', label: 'Decided' },
             { key: 'coverage', label: 'Who can be paid' }
           ]}
           value={tab}
           onChange={setTab}
         />
 
-        {tab === 'review' ? (
+        {tab !== 'coverage' ? (
           !allowed ? (
             <NoAccess permission="finance.payouts.manage" />
           ) : rows.length === 0 ? (
             <EmptyState
-              title="Nothing waiting"
-              message="Every account has either been verified by the bank or refused. This queue only holds the ones where the name was close but not identical."
+              title={tab === 'waiting' ? 'Nothing waiting for you' : 'Nothing decided yet'}
+              message={
+                tab === 'waiting'
+                  ? 'Every account anybody has given us has been applied or refused. Nobody is waiting to be paid because of a bank detail.'
+                  : 'No account has been applied or refused yet. Anything submitted appears under Waiting.'
+              }
               icon={<UserCheck size={28} color={c.text.muted} />}
             />
           ) : (
             <>
               <SectionTitle
-                title="Names that need a person"
+                title={tab === 'waiting' ? 'Waiting for you to apply' : 'Already decided'}
                 subtitle={
-                  thresholds
-                    ? `Verified automatically at ${thresholds.accept}% and above. Refused below ${thresholds.review}%. These are in between.`
-                    : undefined
+                  tab === 'waiting'
+                    ? 'No account receives money until you apply it — whatever the bank check said. Check the name against the account, then apply.'
+                    : thresholds
+                      ? `Applied accounts receive the money. Refused ones cannot be applied: the bank said they do not exist.`
+                      : undefined
                 }
               />
               {rows.map(row => (
@@ -217,7 +244,26 @@ export const PayeeAccountsScreen: React.FC = () => {
                       <Text style={s.owner}>{row.ownerName}</Text>
                       <Text style={s.ownerDetail}>{row.ownerDetail}</Text>
                     </View>
-                    <Badge label={`${row.nameMatchScore ?? '—'}%`} tone="warning" />
+                    <Badge
+                      label={
+                        row.appliedAt
+                          ? 'APPLIED'
+                          : row.validationStatus === 'INVALID'
+                            ? 'REFUSED'
+                            : row.validationStatus === 'VERIFIED'
+                              ? 'BANK OK'
+                              : row.validationStatus === 'NAME_MISMATCH'
+                                ? `${row.nameMatchScore ?? '—'}%`
+                                : 'UNCHECKED'
+                      }
+                      tone={
+                        row.appliedAt
+                          ? 'success'
+                          : row.validationStatus === 'INVALID'
+                            ? 'danger'
+                            : 'warning'
+                      }
+                    />
                   </View>
 
                   <Divider style={{ marginVertical: 10 }} />
@@ -240,29 +286,42 @@ export const PayeeAccountsScreen: React.FC = () => {
                     </Text>
                   </View>
 
-                  <Text style={s.added}>Added {timeAgo(row.createdAt)}</Text>
+                  {/* The automatic check, as advice. The decision is theirs. */}
+                  <Text style={s.advice}>{row.advice}</Text>
 
-                  <View style={s.actions}>
-                    <Button
-                      label="Reject"
-                      variant="danger"
-                      onPress={() => {
-                        setDeciding(row);
-                        setDecision('REJECT');
-                        setNote('');
-                        setSaveError(null);
-                      }}
-                    />
-                    <Button
-                      label="Approve"
-                      onPress={() => {
-                        setDeciding(row);
-                        setDecision('APPROVE');
-                        setNote('');
-                        setSaveError(null);
-                      }}
-                    />
-                  </View>
+                  <Text style={s.added}>
+                    Added {timeAgo(row.createdAt)}
+                    {row.appliedAt ? ` · applied ${timeAgo(row.appliedAt)}` : ''}
+                  </Text>
+
+                  {row.validationStatus === 'INVALID' ? (
+                    <Text style={s.refusedNote}>
+                      The bank says this account does not exist, so it cannot be applied. Ask them
+                      to add different details.
+                    </Text>
+                  ) : (
+                    <View style={s.actions}>
+                      <Button
+                        label="Reject"
+                        variant="danger"
+                        onPress={() => {
+                          setDeciding(row);
+                          setDecision('REJECT');
+                          setNote('');
+                          setSaveError(null);
+                        }}
+                      />
+                      <Button
+                        label={row.appliedAt ? 'Apply again' : 'Apply'}
+                        onPress={() => {
+                          setDeciding(row);
+                          setDecision('APPROVE');
+                          setNote('');
+                          setSaveError(null);
+                        }}
+                      />
+                    </View>
+                  )}
                 </Card>
               ))}
             </>
@@ -282,7 +341,7 @@ export const PayeeAccountsScreen: React.FC = () => {
       <Sheet
         visible={!!deciding}
         onClose={() => setDeciding(null)}
-        title={decision === 'APPROVE' ? 'Approve this account' : 'Reject this account'}
+        title={decision === 'APPROVE' ? 'Apply this account' : 'Reject this account'}
         subtitle={deciding?.ownerName}
       >
         <View style={s.confirmBox}>
@@ -347,6 +406,13 @@ const s = StyleSheet.create({
   compareValue: { color: c.text.primary, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
 
   added: { color: c.text.muted, fontSize: 11, marginTop: 8 },
+  advice: { color: c.text.secondary, fontSize: 12, marginTop: 10, lineHeight: 17 },
+  refusedNote: {
+    color: c.state.danger,
+    fontSize: 12,
+    marginTop: 12,
+    lineHeight: 17
+  },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12, justifyContent: 'flex-end' },
 
   confirmBox: { backgroundColor: c.bg.sunken, borderRadius: 10, padding: 12, marginBottom: 12 },
