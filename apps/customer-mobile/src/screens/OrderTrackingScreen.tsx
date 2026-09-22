@@ -120,7 +120,18 @@ export const OrderTrackingScreen: React.FC<Props> = ({
       // for the next poll left a delivered order still showing a live delivery
       // for up to twenty seconds, which is the whole complaint.
       setOrder((prev: any) =>
-        prev ? { ...prev, status: u.status, deliveredAt: u.status === 'DELIVERED' ? u.updatedAt : prev.deliveredAt } : prev
+        prev
+          ? {
+              ...prev,
+              status: u.status,
+              // Only when the update actually carries one. Most status changes
+              // are about the food and say nothing about the rider, and
+              // overwriting with `undefined` would blank the rider's line
+              // every time the kitchen pressed a button.
+              riderStage: u.riderStage ?? prev.riderStage,
+              deliveredAt: u.status === 'DELIVERED' ? u.updatedAt : prev.deliveredAt
+            }
+          : prev
       );
     },
     onRiderLocation: l =>
@@ -171,6 +182,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 
   const restaurantName = order?.restaurantName || 'the restaurant';
   const riderName = order?.riderName;
+  const riderStageText = RIDER_STAGE_TEXT[order?.riderStage as string] || '';
   const riderPhone: string | undefined = order?.riderPhone || tracking?.riderPhone;
   const existingRating: number | null = order?.rating ?? null;
   const shownRating = submittedRating ?? existingRating;
@@ -295,8 +307,18 @@ export const OrderTrackingScreen: React.FC<Props> = ({
     { title: 'Kitchen Accepted', desc: 'Chef started food preparation' },
     { title: 'Cooking in Progress', desc: 'Your food is being prepared fresh' },
     {
+      /*
+       * This step is about the FOOD leaving the restaurant, and its wording
+       * used to say "rider assigned and on the way" - reached whenever a rider
+       * merely accepted the job, while the food was often still cooking. That
+       * sentence, on that step, is the screen behind "it says out for delivery
+       * and nobody has collected anything".
+       *
+       * Where the rider is now has its own line below, because the two move
+       * independently.
+       */
       title: 'Out for Delivery',
-      desc: riderName ? `${riderName} is on the way` : 'Rider assigned and on the way'
+      desc: riderName ? `On its way with ${riderName}` : 'On its way to you'
     },
     {
       title: 'Delivered',
@@ -451,6 +473,27 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             updatedAt={tracking?.riderLocationUpdatedAt}
             riderName={tracking?.riderName ?? riderName}
           />
+        </Card>
+      )}
+
+      {/*
+        THE RIDER'S OWN LINE, which is the second of the two tracks.
+
+        The ticks above are the food. This is the rider, and it is deliberately
+        not a tick: a rider who has accepted and is riding over has not moved
+        the customer's order along, and showing it as progress is exactly what
+        made the tracker claim a delivery that had not started.
+
+        Rendered only when there is something to say. UNASSIGNED, OFFERED and
+        DELIVERED map to an empty string - before a rider exists there is
+        nothing to report, and afterwards the delivered card says it better.
+      */}
+      {!isClosed && !!riderStageText && (
+        <Card style={styles.block}>
+          <View style={styles.riderTrackRow}>
+            <Bike size={16} color={c.primary[500]} />
+            <Text style={styles.riderTrackText}>{riderStageText}</Text>
+          </View>
         </Card>
       )}
 
@@ -872,6 +915,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  riderTrackRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  riderTrackText: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19 },
   riderName: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
   riderMeta: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 2 },
   callBtn: {

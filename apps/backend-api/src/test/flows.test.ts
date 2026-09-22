@@ -265,6 +265,28 @@ async function run() {
     check('and the kitchen can see which rider is coming', !!claimed?.riderName,
       `riderName ${JSON.stringify(claimed?.riderName)}`);
 
+    /*
+     * THE SECOND TRACK HAS TO REACH THE CUSTOMER'S PHONE.
+     *
+     * The tracking screen renders the rider's line from `order.riderStage`.
+     * Separating the tracks in the database achieves nothing if the customer's
+     * own view of the order does not carry the rider's half - the ticks would
+     * correctly stop claiming the food had left, and the customer would simply
+     * be told nothing at all, which is a different bad screen rather than a
+     * fix.
+     */
+    const customerView = async () =>
+      (await api(`/orders/${orderId}`, {}, customer.token)).json?.data?.order;
+    const claimedForCustomer = await customerView();
+    check('and the customer is told where the RIDER is, separately from the food',
+      claimedForCustomer?.riderStage === 'HEADING_TO_RESTAURANT',
+      `riderStage ${JSON.stringify(claimedForCustomer?.riderStage)}`);
+    check('...while their food ticks stay where the kitchen left them',
+      claimedForCustomer?.status === beforeClaim,
+      `status ${claimedForCustomer?.status}`);
+    check('...and the doorstep code is still not in what the rider can read',
+      !JSON.stringify(claimed || {}).includes(String(doorstepOtp)));
+
     const handed = await api(`/orders/${orderId}/status`, {
       method: 'PUT',
       body: { status: 'HANDED_TO_RIDER' }
@@ -287,6 +309,9 @@ async function run() {
     const afterPickup = await statusOf();
     check('...and the food is now out for delivery', afterPickup === 'OUT_FOR_DELIVERY',
       `got ${afterPickup}`);
+    const carrying = await customerView();
+    check('...and the customer sees the rider carrying it', carrying?.riderStage === 'PICKED_UP',
+      `riderStage ${JSON.stringify(carrying?.riderStage)}`);
 
     const witnessOf = async (id: string) => {
       const r = await api(`/admin/orders/${id}`, {}, admin.token);

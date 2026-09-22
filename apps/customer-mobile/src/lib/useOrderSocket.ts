@@ -22,6 +22,14 @@ export interface RiderLocation {
 export interface OrderStatusUpdate {
   orderId: string;
   status: string;
+  /**
+   * Where the RIDER is, when this update is about them rather than the food.
+   *
+   * Absent on most updates, and that is not the same as "no rider" - the
+   * kitchen pressing a button says nothing about where the rider has got to,
+   * so a screen must keep what it had rather than clear it.
+   */
+  riderStage?: string;
   updatedAt: string;
 }
 
