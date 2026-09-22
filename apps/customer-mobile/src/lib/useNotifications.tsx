@@ -118,7 +118,11 @@ export const STATUS_NOTIFICATION: Record<string, { title: string; body: string }
   ACCEPTED: { title: 'Order accepted', body: 'The restaurant has accepted your order.' },
   PREPARING: { title: 'Cooking started', body: 'Your food is being prepared now.' },
   READY_FOR_PICKUP: { title: 'Food is ready', body: 'Packed and waiting for a delivery partner.' },
-  RIDER_ASSIGNED: { title: 'Delivery partner assigned', body: 'Your order has been picked up for delivery.' },
+  // NOT "picked up". A rider being assigned is a rider setting off towards
+  // the restaurant - the food may still be cooking. Saying picked up here is
+  // what made customers think their order was on its way while it was in the
+  // pan, and it is the message the owner reported.
+  RIDER_ASSIGNED: { title: 'Delivery partner assigned', body: 'A rider is on the way to collect your order.' },
   OUT_FOR_DELIVERY: { title: 'Out for delivery', body: 'Your order is on the way. Track it live.' },
   DELIVERED: { title: 'Delivered', body: 'Enjoy your meal. Tap to rate your order.' },
   CANCELLED: { title: 'Order cancelled', body: 'Your order was cancelled. Any payment is refunded.' }

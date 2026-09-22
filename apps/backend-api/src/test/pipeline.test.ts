@@ -417,6 +417,13 @@ async function run() {
   // ready and never cleared, which is what makes this answerable.
   console.log('\n-- Collecting before the food is ready');
 
+  // An earlier step in this suite marks this dish out of stock to prove the
+  // stock check works. Put it back, or the order below is refused for a
+  // reason that has nothing to do with what is being tested here.
+  await api(`/restaurants/${RESTAURANT_ID}/menu/toggle-stock`, {
+    method: 'POST', body: { dishId: 'dish_ck_biryani', isAvailable: true }
+  }, partner.token);
+
   const early = await api('/orders', {
     method: 'POST',
     body: {
@@ -428,7 +435,13 @@ async function run() {
     }
   }, customer.token);
   const earlyId = early.json?.data?.order?.id;
-  check('A second order is placed', early.status === 201, `status ${early.status}`);
+  check('A second order is placed', early.status === 201,
+    `status ${early.status} ${JSON.stringify(early.json?.error || early.json || {}).slice(0, 200)}`);
+
+  // Back on shift. An earlier step in this suite takes the rider off, and a
+  // rider who is off shift is refused with RIDER_OFFLINE long before any of
+  // the pickup logic below is reached.
+  await api('/riders/shift', { method: 'POST', body: { isOnline: true } }, rider.token);
 
   await api(`/orders/${earlyId}/status`, {
     method: 'PUT', body: { status: 'PREPARING', preparationMinutes: 20 }
@@ -437,7 +450,9 @@ async function run() {
   // Claimed while still cooking, which the broadcast explicitly allows.
   const earlyClaim = await api(`/riders/orders/${earlyId}/claim`, { method: 'POST', body: {} }, rider.token);
   check('A rider can claim an order that is still cooking', earlyClaim.status === 200,
-    `status ${earlyClaim.status}`);
+    // The code, not just the status: three different guards return 409 here
+    // and "status 409" alone does not say which one refused.
+    `status ${earlyClaim.status} ${JSON.stringify(earlyClaim.json?.error || {}).slice(0, 160)}`);
 
   const earlyView = await api(`/orders/${earlyId}`, {}, partner.token);
   const earlyCode = earlyView.json?.data?.order?.pickupCode;
@@ -446,15 +461,19 @@ async function run() {
   const tooEarly = await api(`/riders/orders/${earlyId}/verify-pickup`, {
     method: 'POST', body: { pickupCode: earlyCode }
   }, rider.token);
+  /*
+   * Asserting the REASON, not just the status.
+   *
+   * A missing `pickupCode` also returns 400, and an earlier version of this
+   * check passed on precisely that - the setup was broken, the request never
+   * reached the guard, and the suite reported the guard as working. Status
+   * alone cannot tell a refusal from a different refusal.
+   */
+  const tooEarlyBody = JSON.stringify(tooEarly.json || {});
   check(
     'but collecting it is REFUSED while the kitchen is still cooking',
-    tooEarly.status === 400,
-    `status ${tooEarly.status}`
-  );
-  check(
-    'and the reason says so, rather than blaming the code',
-    /still being prepared|not marked it ready/i.test(JSON.stringify(tooEarly.json || {})),
-    JSON.stringify(tooEarly.json?.error || {}).slice(0, 150)
+    tooEarly.status === 400 && /still being prepared|not marked it ready/i.test(tooEarlyBody),
+    `status ${tooEarly.status} ${tooEarlyBody.slice(0, 160)}`
   );
 
   const notMoved = await api(`/orders/${earlyId}`, {}, partner.token);

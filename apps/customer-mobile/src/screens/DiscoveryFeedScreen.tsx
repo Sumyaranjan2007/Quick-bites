@@ -45,6 +45,17 @@ export interface RestaurantItem {
   placeholder?: { initials: string; colour: string };
   /** A real live coupon, or absent. Never a string typed into this app. */
   offer?: { label: string; code: string; description: string } | null;
+  /**
+   * Whether this kitchen is taking orders RIGHT NOW.
+   *
+   * Not the same as the partner's Online switch: declared opening hours close
+   * a kitchen whose partner forgot to, and a partner who taps Online outside
+   * their hours overrides that. The server resolves all three; the app is
+   * told the answer rather than working it out from `isOpen`.
+   */
+  isServing?: boolean;
+  /** "HH:MM" when they open again, when that can be said. */
+  opensAt?: string | null;
   highlightTag?: string;
   locality?: string;
 }
@@ -276,6 +287,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             photos: Array.isArray(r.photos) ? r.photos : undefined,
             placeholder: r.placeholder,
             offer: r.offer ?? null,
+            isServing: r.isServing,
+            opensAt: r.opensAt ?? null,
             highlightTag: r.highlightTag,
             locality: r.addressLine
           }))
@@ -691,6 +704,25 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                   style={styles.banner1}
                 />
 
+                {/*
+                  A kitchen that cannot take an order says so on the card, not
+                  at checkout. Nothing here said it at all: a closed restaurant
+                  looked identical to an open one until the order was refused,
+                  which is the worst possible moment to find out.
+
+                  `isServing === false` rather than `!r.isServing`, because an
+                  older server that does not send the field must not paint
+                  every restaurant as unavailable.
+                */}
+                {r.isServing === false && (
+                  <View style={styles.closedVeil}>
+                    <View style={styles.closedPill}>
+                      <Text style={styles.closedPillText}>Unavailable</Text>
+                    </View>
+                    {!!r.opensAt && <Text style={styles.closedWhen}>Opens at {r.opensAt}</Text>}
+                  </View>
+                )}
+
                 <TouchableOpacity
                   style={styles.heartButton}
                   onPress={() => toggleFavourite(r.id)}
@@ -1045,6 +1077,32 @@ const styles = StyleSheet.create({
 
   restaurantCard: { marginBottom: 18, overflow: 'hidden' },
   banner1: { width: '100%', height: 172, backgroundColor: c.surface.sunken },
+  closedVeil: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 172,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    // Dimmed rather than hidden: the customer can still see whose kitchen it
+    // is and come back later, which a removed card cannot offer.
+    backgroundColor: 'rgba(12,10,9,0.55)'
+  },
+  closedPill: {
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: tokens.radii.full
+  },
+  closedPillText: {
+    fontSize: tokens.font.size.xs,
+    fontWeight: tokens.font.weight.extrabold,
+    color: c.text.primary,
+    letterSpacing: 0.4
+  },
+  closedWhen: { color: '#FFFFFF', fontSize: tokens.font.size.xs, fontWeight: '700' },
   heartButton: {
     position: 'absolute',
     top: 12,

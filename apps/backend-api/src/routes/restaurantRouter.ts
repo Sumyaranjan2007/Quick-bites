@@ -30,7 +30,15 @@ import {
   placeholderColour,
   placeholderInitials
 } from '../modules/restaurants/restaurantImagery.ts';
-import { isKitchenServing, nextOpensAt } from '../modules/restaurants/openingHours.ts';
+import {
+  DAYS_OF_WEEK,
+  MAX_WINDOWS_PER_DAY,
+  formatTimeOfDay,
+  isKitchenServing,
+  isWithinOpeningHours,
+  nextOpensAt,
+  nextClosesAt
+} from '../modules/restaurants/openingHours.ts';
 import {
   EDITABLE_PROFILE_FIELDS,
   MAX_CUISINE_TAGS,
@@ -42,12 +50,6 @@ import {
   readEditableProfile,
   validateProfileChanges
 } from '../modules/restaurants/profileEdits.ts';
-import {
-  DAYS_OF_WEEK,
-  MAX_WINDOWS_PER_DAY,
-  formatTimeOfDay,
-  isWithinOpeningHours
-} from '../modules/restaurants/openingHours.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
 
 export const restaurantRouter = Router();
@@ -580,6 +582,32 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
     const restaurant = await restaurantRepository.setOpenState(req.params.id, Boolean(isKitchenActive));
     if (!restaurant) {
       return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+
+    /*
+     * TAPPING ONLINE MUST PUT YOU ONLINE.
+     *
+     * Declared hours were closing a kitchen whose partner had just said they
+     * were open. A partner who comes in early, taps Online and then watches
+     * the app tell customers they are shut has been overruled by a schedule
+     * they set for their own convenience.
+     *
+     * The owner was explicit: the schedule may take a kitchen OFF shift when
+     * they forget, and must never refuse to put them ON. So going online
+     * outside declared hours records an override that lapses at the next
+     * scheduled closing time - the same mechanism the manual "stay open late"
+     * button uses, rather than a second one invented beside it.
+     *
+     * Going OFFLINE clears it. Choosing to close is a decision about right
+     * now, and leaving an override behind would reopen them unexpectedly.
+     */
+    if (!isKitchenActive) {
+      await restaurantRepository.setForceOpenUntil(restaurant.id, undefined);
+    } else if (isWithinOpeningHours(restaurant.openingHours, new Date()) === false) {
+      const lapsesAt = nextClosesAt(restaurant.openingHours, new Date());
+      if (lapsesAt) {
+        await restaurantRepository.setForceOpenUntil(restaurant.id, lapsesAt.toISOString());
+      }
     }
 
     emitKitchenStatus(restaurant.id, { isKitchenActive: restaurant.isOpen });

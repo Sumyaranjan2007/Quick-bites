@@ -651,17 +651,34 @@ const styles = StyleSheet.create({
   statusPillDone: { backgroundColor: c.dietary.vegBg },
   statusText: { fontSize: 11, fontWeight: '800', color: c.text.secondary },
   itemLine: { fontSize: 13, color: c.text.secondary, marginTop: 2 },
+  /*
+   * WRAPS, because this row outgrew one line.
+   *
+   * A delivered order can carry four controls at once - Report a problem,
+   * Bill, a rating chip and Reorder - and this was a single non-wrapping row
+   * with `justifyContent: space-between`. On a phone the last one or two were
+   * pushed past the right edge and simply could not be reached: the buttons
+   * existed, rendered, and were unusable. Reported by the owner.
+   *
+   * The total now sits on its own line above the controls rather than
+   * competing with them for the same line, which is what made the row too
+   * long in the first place.
+   */
   orderBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: c.border.subtle
+    borderTopColor: c.border.subtle,
+    gap: 10
   },
   total: { fontSize: 15.5, fontWeight: '800', color: c.text.primary },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    rowGap: 8
+  },
   ratedChip: {
     flexDirection: 'row',
     alignItems: 'center',

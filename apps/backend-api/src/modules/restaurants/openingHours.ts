@@ -283,3 +283,43 @@ export function nextOpensAt(
   }
   return null;
 }
+
+/**
+ * The next moment the schedule would close this kitchen, as a real timestamp.
+ *
+ * Used when a partner taps Online outside their declared hours. The owner was
+ * explicit about what should happen: "if he wants to go online he'll just
+ * click online and from the time he'll be online", and the schedule should
+ * only ever take them OFF shift, never refuse to put them on.
+ *
+ * So a manual Online is honoured until the schedule's next closing time, and
+ * then lapses — which is exactly the behaviour the override already has, so
+ * the toggle simply sets one rather than a second mechanism being invented.
+ *
+ * Returns null when hours were never declared, because then there is nothing
+ * to lapse at and the manual switch is already the whole answer.
+ */
+export function nextClosesAt(hours: OpeningHours | undefined, at: Date = new Date()): Date | null {
+  if (!hours || Object.keys(hours.week).length === 0) return null;
+
+  const minutesNow = at.getHours() * 60 + at.getMinutes();
+  const todayIndex = (at.getDay() + 6) % 7;
+
+  for (let offset = 0; offset < 8; offset += 1) {
+    const day = DAYS_OF_WEEK[(todayIndex + offset) % 7]!;
+    const windows = [...(hours.week[day] ?? [])].sort((a, b) => a.opensAt - b.opensAt);
+
+    for (const window of windows) {
+      // A window running past midnight closes on the FOLLOWING day, which is
+      // why this counts days rather than adding minutes to today.
+      const closesDayOffset = crossesMidnight(window) ? offset + 1 : offset;
+      if (closesDayOffset > offset || window.closesAt > minutesNow || offset > 0) {
+        const when = new Date(at);
+        when.setDate(when.getDate() + closesDayOffset);
+        when.setHours(Math.floor(window.closesAt / 60), window.closesAt % 60, 0, 0);
+        if (when.getTime() > at.getTime()) return when;
+      }
+    }
+  }
+  return null;
+}

@@ -191,6 +191,20 @@ dashboardRoutes.get('/live', requirePermission('analytics.dashboard.view'), asyn
           (t: any) => t.status === 'OPEN' || t.status === 'IN_PROGRESS'
         ).length,
         openSos: Array.from(memoryStore.sosAlerts.values()).filter((a: any) => a.status === 'OPEN').length,
+        /*
+         * Queues that had no count, and therefore no badge.
+         *
+         * An approval queue nobody can see from the outside is an approval
+         * queue nobody empties. A partner who submits a new photograph or a
+         * new dish has no way to make anyone look at it, and the only person
+         * who could is not told it exists.
+         */
+        pendingProfileEdits: Array.from(memoryStore.profileEdits.values()).filter(
+          (e: any) => e.status === 'PENDING'
+        ).length,
+        pendingMenuRequests: Array.from(memoryStore.menuRequests.values()).filter(
+          (r: any) => r.status === 'PENDING'
+        ).length,
         generatedAt: new Date().toISOString()
       }
     });

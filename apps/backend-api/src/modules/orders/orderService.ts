@@ -896,6 +896,36 @@ export const orderService = {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
 
+    /*
+     * THE KITCHEN CAN FINISH AFTER A RIDER HAS ALREADY CLAIMED.
+     *
+     * The rider broadcast deliberately offers orders that are only ACCEPTED or
+     * PREPARING, so a rider can set off while the food cooks. But claiming
+     * moves the order to RIDER_ASSIGNED, and the state machine allows only
+     * OUT_FOR_DELIVERY or CANCELLED from there - so the kitchen pressing
+     * "Ready" was refused with INVALID_STATUS_TRANSITION.
+     *
+     * That was harmless while nothing depended on knowing the food was cooked.
+     * It stopped being harmless the moment pickup started requiring it: a
+     * rider who claimed early could never collect, because the kitchen could
+     * never record that it had finished. A guard that can never be satisfied
+     * is worse than the missing guard it replaced.
+     *
+     * Readiness is a FACT, not a position in a sequence. So it is recorded
+     * without moving the order backwards: `readyAt` is stamped, the order
+     * stays RIDER_ASSIGNED, and the rider app keeps seeing it as theirs.
+     */
+    if (nextStatus === 'READY_FOR_PICKUP' && order.status === 'RIDER_ASSIGNED') {
+      const stamped = await orderRepository.markReadyWithoutTransition(orderId);
+      emitOrderStatusUpdate(orderId, {
+        orderId,
+        status: stamped!.status,
+        updatedAt: stamped!.updatedAt,
+        restaurantId: stamped!.restaurantId
+      });
+      return stamped;
+    }
+
     validateTransition(order.status, nextStatus);
 
     if (nextStatus === 'DELIVERED') {

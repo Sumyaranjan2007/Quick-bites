@@ -60,6 +60,12 @@ export const orderRepository = {
     if ((status === 'ACCEPTED' || status === 'PREPARING') && !order.acceptedAt) {
       order.acceptedAt = new Date().toISOString();
     }
+    // Stamped once, and never cleared. Assigning a rider overwrites `status`,
+    // so this is the only durable record that the kitchen finished - and it is
+    // what pickup verification is allowed to trust.
+    if (status === 'READY_FOR_PICKUP' && !order.readyAt) {
+      order.readyAt = new Date().toISOString();
+    }
     if (status === 'DELIVERED') {
       order.deliveredAt = new Date().toISOString();
       order.paymentStatus = 'PAID';
@@ -184,11 +190,55 @@ export const orderRepository = {
     return order;
   },
 
+  /**
+   * The kitchen finished, but a rider had already claimed the order.
+   *
+   * Records the fact without moving the status, because RIDER_ASSIGNED is
+   * further along than READY_FOR_PICKUP and going back would take the order
+   * off the rider who is already on their way to collect it.
+   */
+  async markReadyWithoutTransition(id: string): Promise<Order | null> {
+    const order = memoryStore.orders.get(id);
+    if (!order) return null;
+    if (!order.readyAt) order.readyAt = new Date().toISOString();
+    order.updatedAt = new Date().toISOString();
+    memoryStore.orders.set(id, order);
+    triggerAutoSave();
+    return order;
+  },
+
   async verifyPickup(id: string, pickupCode: string): Promise<{ success: boolean; order?: Order; error?: string }> {
     const order = memoryStore.orders.get(id);
     if (!order) return { success: false, error: 'Order not found' };
     if (order.pickupCode !== pickupCode.trim()) {
       return { success: false, error: 'Invalid pickup verification code' };
+    }
+
+    /*
+     * THE FOOD HAS TO EXIST BEFORE ANYBODY CAN CARRY IT.
+     *
+     * This checked the code and nothing else, so a rider holding a valid
+     * pickup code could verify collection while the kitchen was still
+     * cooking, and the order jumped straight to OUT_FOR_DELIVERY. The
+     * customer was then told their food was on its way while it was still in
+     * the pan.
+     *
+     * Reported by the owner as "it should not be out for delivery until the
+     * cooking is done AND the code is entered". Both, not either.
+     *
+     * READY_FOR_PICKUP is the kitchen saying it is done. Anything earlier is
+     * the rider arriving before the food. RIDER_ASSIGNED is accepted as well
+     * only when the kitchen already marked it ready and the assignment
+     * followed - see the guard below, which asks about `readyAt` rather than
+     * trusting the status alone, because an order can be assigned a rider and
+     * marked ready in either order.
+     */
+    const kitchenIsDone = order.status === 'READY_FOR_PICKUP' || Boolean(order.readyAt);
+    if (!kitchenIsDone) {
+      return {
+        success: false,
+        error: 'This order is still being prepared. The kitchen has not marked it ready yet.'
+      };
     }
 
     order.status = 'OUT_FOR_DELIVERY';
@@ -340,6 +390,7 @@ export const orderRepository = {
     order.riderStage = undefined;
     order.riderAssignedAt = undefined;
     order.status = 'READY_FOR_PICKUP';
+    if (!order.readyAt) order.readyAt = new Date().toISOString();
     order.updatedAt = new Date().toISOString();
     memoryStore.orders.set(id, order);
     triggerAutoSave();
