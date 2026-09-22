@@ -67,6 +67,7 @@ const SUITES = [
   'contract',
   'resilience',
   'platform',
+  'flows',
   'regression'
 ];
 

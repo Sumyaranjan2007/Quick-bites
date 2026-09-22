@@ -311,11 +311,25 @@ orderRouter.post('/:id/confirm-payment', authMiddleware(), validate({ body: Conf
   }
 });
 
+/*
+ * The statuses a partner or a customer may ask for over this route.
+ *
+ * A z.enum takes string literals, so this does NOT track OrderStatus and will
+ * not fail to compile when that type changes. HANDED_TO_RIDER was added to the
+ * type, to the state machine, to the kitchen's screen and to the admin route,
+ * and omitted here - so the button existed, the transition was legal, and the
+ * request was rejected with a validation error before any of that was
+ * consulted. Found by driving the flow, not by the typechecker or any unit
+ * test, because there is nothing here for either of them to catch.
+ *
+ * Anything added to OrderStatus that a partner can set has to be added here.
+ */
 const StatusTransitionSchema = z.object({
   status: z.enum([
     'ACCEPTED',
     'PREPARING',
     'READY_FOR_PICKUP',
+    'HANDED_TO_RIDER',
     'OUT_FOR_DELIVERY',
     'DELIVERED',
     'CANCELLED'
