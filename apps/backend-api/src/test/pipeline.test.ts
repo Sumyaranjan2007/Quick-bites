@@ -513,9 +513,19 @@ async function run() {
    * alone cannot tell a refusal from a different refusal.
    */
   const tooEarlyBody = JSON.stringify(tooEarly.json || {});
+  /*
+   * 409 rather than 400, and the code rather than the prose.
+   *
+   * This refusal used to be reported as INVALID_PICKUP_CODE alongside every
+   * other pickup failure, which is what the owner saw: a rider holding the
+   * correct code, told the code was wrong, when the real instruction was "ask
+   * the kitchen to tap Ready". A state conflict is a 409 and now carries its
+   * own code, so this asserts the code - the message is a sentence somebody
+   * will reword, and rewording it must not silently weaken the check.
+   */
   check(
     'but collecting it is REFUSED while the kitchen is still cooking',
-    tooEarly.status === 400 && /still being prepared|not marked it ready/i.test(tooEarlyBody),
+    tooEarly.status === 409 && tooEarly.json?.error?.code === 'KITCHEN_NOT_READY',
     `status ${tooEarly.status} ${tooEarlyBody.slice(0, 160)}`
   );
 
