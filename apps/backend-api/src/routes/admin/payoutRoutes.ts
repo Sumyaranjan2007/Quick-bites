@@ -37,7 +37,11 @@ import {
 } from '../../modules/payments/payouts.ts';
 import { railCatalogue, defaultRail } from '../../modules/payments/rails.ts';
 import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
-import { payableAccountFor, publicView as payeeView } from '../../modules/payments/payeeAccounts.ts';
+import {
+  payableAccountFor,
+  publicView as payeeView,
+  awaitingApply
+} from '../../modules/payments/payeeAccounts.ts';
 import {
   backfillEarnings,
   earningsPosted,
@@ -917,6 +921,24 @@ payoutRoutes.get(
        * nothing says why — a figure quietly short on a money screen, which is
        * the failure the refusal was written to prevent in the first place.
        */
+      /*
+       * Accounts nobody has applied yet.
+       *
+       * The owner's rule is that their tap makes an account payable, so the
+       * count of un-tapped accounts IS the queue. Without this line the gate
+       * would be invisible in exactly the way the held-earnings gate was:
+       * people go unpaid and the screen shows nothing.
+       */
+      const waitingApply = awaitingApply();
+      if (waitingApply.length > 0) {
+        blockers.push({
+          what: `${waitingApply.length} bank or UPI account${waitingApply.length === 1 ? '' : 's'} waiting for you to apply ${waitingApply.length === 1 ? 'it' : 'them'}.`,
+          count: waitingApply.length,
+          fix: 'Open Banks, check the name against the account, and apply it. Nobody can be paid until you do.',
+          where: 'BANKS'
+        });
+      }
+
       const held = heldEarnings();
       if (held.length > 0) {
         blockers.push({

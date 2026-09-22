@@ -1659,6 +1659,21 @@ export interface PayeeAccount {
    * chose.
    */
   isDefault: boolean;
+
+  /**
+   * When an administrator decided this account may receive money, and who.
+   *
+   * Separate from `validationStatus` because the two answer different
+   * questions. Verification is the bank confirming the account exists and whose
+   * name is on it; applying is a person at the platform deciding to pay it.
+   * An automatic check passing is not that decision, and the owner asked
+   * explicitly that nothing be payable until they have looked at it.
+   *
+   * Absent means not payable, whatever the validation says.
+   */
+  appliedAt?: string;
+  appliedByAdminId?: string;
+
   createdAt: string;
   createdByUserId: string;
   /** Set when replaced. Kept, because a past payout points at it. */

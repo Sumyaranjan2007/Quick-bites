@@ -158,8 +158,61 @@ export function findById(id: string): PayeeAccount | null {
  * interface is a convenience, and this is the control.
  */
 export function payableAccountFor(ownerType: PayeeOwnerType, ownerId: string): PayeeAccount | null {
-  const accounts = listFor(ownerType, ownerId).filter(a => a.validationStatus === 'VERIFIED');
+  const accounts = listFor(ownerType, ownerId).filter(
+    a => a.validationStatus === 'VERIFIED' && Boolean(a.appliedAt)
+  );
   return accounts.find(a => a.isDefault) || accounts[0] || null;
+}
+
+/**
+ * Why this payee cannot be paid, in words an administrator can act on.
+ *
+ * Exists because "no verified account" is the wrong sentence for an account the
+ * bank verified and nobody applied. An administrator reading that would go and
+ * ask the partner to re-submit details that are already correct, and the
+ * partner would have no idea what was being asked of them.
+ */
+export function accountBlockReason(
+  ownerType: PayeeOwnerType,
+  ownerId: string
+): string | null {
+  if (payableAccountFor(ownerType, ownerId)) return null;
+
+  const accounts = listFor(ownerType, ownerId);
+  if (accounts.length === 0) return 'They have not given us an account to pay.';
+
+  const waiting = accounts.filter(
+    a => a.validationStatus === 'VERIFIED' && !a.appliedAt
+  );
+  if (waiting.length > 0) {
+    return 'Their account is verified but nobody has applied it yet. Open Banks and apply it.';
+  }
+
+  const pending = accounts.filter(
+    a => a.validationStatus === 'UNVERIFIED' || a.validationStatus === 'NAME_MISMATCH'
+  );
+  if (pending.length > 0) return 'Their account is waiting to be checked and applied in Banks.';
+
+  return 'Every account they have given us was refused by the bank.';
+}
+
+/**
+ * Every account anybody has submitted, newest first.
+ *
+ * `reviewQueue` deliberately shows only what failed, which is right for a queue
+ * and wrong for the Banks screen: an account that passed the automatic check
+ * never appeared anywhere, so the owner could not see it, could not apply it,
+ * and could not understand why a partner was unpaid.
+ */
+export function allAccounts(): PayeeAccount[] {
+  return rows()
+    .filter(a => !a.archivedAt)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Waiting on somebody to press Apply. The count the owner needs on the nav. */
+export function awaitingApply(): PayeeAccount[] {
+  return allAccounts().filter(a => a.validationStatus !== 'INVALID' && !a.appliedAt);
 }
 
 /**
@@ -427,7 +480,12 @@ export function reviewAccount(
   const account = findById(accountId);
   if (!account) throw new AppError('No such payout account.', 404, 'PAYEE_ACCOUNT_NOT_FOUND');
 
-  const decidable = account.validationStatus === 'NAME_MISMATCH' || account.validationStatus === 'UNVERIFIED';
+  const decidable =
+    account.validationStatus === 'NAME_MISMATCH' ||
+    account.validationStatus === 'UNVERIFIED' ||
+    // An account the bank verified automatically still needs a person to apply
+    // it. Refusing it here was why a passed account could never be made payable.
+    (account.validationStatus === 'VERIFIED' && !account.appliedAt);
   if (!decidable) {
     throw new AppError(
       account.validationStatus === 'INVALID'
@@ -452,6 +510,28 @@ export function reviewAccount(
       409,
       'PAYEE_ACCOUNT_NOT_REGISTERED'
     );
+  }
+
+  if (decision === 'APPROVE') {
+    /*
+     * Applying is the act that makes an account payable, and it makes this one
+     * THE account: a payee with two applied accounts is a payout going
+     * somewhere nobody chose.
+     */
+    for (const other of listFor(account.ownerType, account.ownerId)) {
+      if (other.id !== account.id && other.isDefault) {
+        other.isDefault = false;
+        memoryStore.payeeAccounts.set(other.id, other);
+      }
+    }
+    account.isDefault = true;
+    account.appliedAt = new Date().toISOString();
+    account.appliedByAdminId = actor.userId;
+  } else {
+    // A refused account must not keep receiving money it was applied for.
+    account.appliedAt = undefined;
+    account.appliedByAdminId = undefined;
+    account.isDefault = false;
   }
 
   account.validationStatus = decision === 'APPROVE' ? 'VERIFIED' : 'INVALID';
@@ -492,6 +572,8 @@ export function publicView(account: PayeeAccount) {
     nameMatchScore: account.nameMatchScore,
     validatedAt: account.validatedAt,
     isDefault: account.isDefault,
+    appliedAt: account.appliedAt,
+    appliedByAdminId: account.appliedByAdminId,
     createdAt: account.createdAt,
     /** So a screen can say "you can be paid" without re-deriving the rule. */
     isPayable: account.validationStatus === 'VERIFIED'

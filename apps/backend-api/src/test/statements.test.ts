@@ -332,6 +332,8 @@ async function run() {
     // Force the verified state the penny drop would have produced; the drop
     // itself is asserted in payees.test.ts and is not what is under test here.
     (account as any).validationStatus = 'VERIFIED';
+    (account as any).appliedAt = new Date().toISOString();
+    (account as any).appliedByAdminId = 'usr_admin_fixture';
     (account as any).razorpayFundAccountId = 'fa_test_stmt';
     memoryStore.payeeAccounts.set(account.id, account);
 
@@ -469,6 +471,8 @@ async function run() {
       kycName: 'Rahul Sharma'
     });
     (riderAccount as any).validationStatus = 'VERIFIED';
+    (riderAccount as any).appliedAt = new Date().toISOString();
+    (riderAccount as any).appliedByAdminId = 'usr_admin_fixture';
     (riderAccount as any).razorpayFundAccountId = 'fa_test_rider';
     memoryStore.payeeAccounts.set(riderAccount.id, riderAccount);
 

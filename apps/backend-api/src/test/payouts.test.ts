@@ -256,6 +256,8 @@ async function run() {
     // No gateway in a test, so verification is completed by hand — the same
     // path an administrator uses on a deployment without RazorpayX.
     account.validationStatus = 'VERIFIED';
+    account.appliedAt = new Date().toISOString();
+    account.appliedByAdminId = 'usr_admin_fixture';
     account.razorpayFundAccountId = 'fa_test_partner';
     memoryStore.payeeAccounts.set(account.id, account);
 
@@ -287,6 +289,8 @@ async function run() {
       vpa: 'rahul@okhdfcbank'
     });
     account.validationStatus = 'VERIFIED';
+    account.appliedAt = new Date().toISOString();
+    account.appliedByAdminId = 'usr_admin_fixture';
     account.razorpayFundAccountId = 'fa_test_rider';
     memoryStore.payeeAccounts.set(account.id, account);
 

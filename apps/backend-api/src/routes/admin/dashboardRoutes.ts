@@ -17,6 +17,8 @@ import { AppError } from '../../utils/AppError.ts';
 import { ADMIN_PERMISSION_GROUPS } from '@quick-bites/shared-types';
 import type { Order } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
+import { awaitingApply } from '../../modules/payments/payeeAccounts.ts';
+import { listRequests } from '../../modules/payments/payoutRequests.ts';
 
 export const dashboardRoutes = Router();
 
@@ -225,14 +227,26 @@ dashboardRoutes.get('/live', requirePermission('analytics.dashboard.view'), asyn
          * renamed there must make a badge wrong, never make this endpoint
          * throw and take every other badge down with it.
          */
-        payeeAccountsAwaitingReview: Array.from(memoryStore.payeeAccounts.values()).filter(
-          (a: any) => !a.appliedAt && a.status !== 'REJECTED'
-        ).length,
-        openPayoutRequests: Array.from(memoryStore.payoutRequests.values()).filter(
-          (r: any) => r.status === 'PENDING' || r.status === 'REQUESTED'
-        ).length,
+        /*
+         * The real status values, checked against the types rather than
+         * guessed. The first two were counting nothing:
+         *
+         *   - a payee account has `validationStatus`, not `status`, and there
+         *     is no REJECTED state — so the clause was always true and the
+         *     count included archived accounts and ones the bank had refused,
+         *     which cannot be applied and are not work anybody can do.
+         *   - a payout request is OPEN | SEEN | SETTLED | DECLINED |
+         *     WITHDRAWN. PENDING and REQUESTED do not exist, so this read zero
+         *     however many people were waiting to be paid — and zero on a
+         *     badge reads as "nothing to do".
+         *
+         * Read through the modules that own these collections, so a rename
+         * moves the count with it instead of silently zeroing it.
+         */
+        payeeAccountsAwaitingReview: awaitingApply().length,
+        openPayoutRequests: listRequests({ open: true }).length,
         cashDepositsAwaitingConfirmation: Array.from(memoryStore.cashDeposits.values()).filter(
-          (d: any) => d.status === 'PENDING' || d.status === 'DECLARED'
+          (d: any) => d.status === 'DECLARED'
         ).length,
 
         generatedAt: new Date().toISOString()

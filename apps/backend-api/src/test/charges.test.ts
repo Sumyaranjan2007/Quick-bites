@@ -38,6 +38,9 @@ import {
   reviewAccount,
   reviewQueue,
   payableAccountFor,
+  allAccounts,
+  awaitingApply,
+  accountBlockReason,
   resetPayeeAccountsForTesting
 } from '../modules/payments/payeeAccounts.ts';
 import {
@@ -435,6 +438,121 @@ async function run() {
     const account = payableAccountFor('RESTAURANT', RESTAURANT)! as any;
     assert.equal(account.manuallyApproved, true);
     assert.equal(account.manuallyApprovedByUserId, ADMIN);
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  APPLYING AN ACCOUNT                                              *
+   * ---------------------------------------------------------------- *
+   *
+   * Verification and application answer different questions. The bank says
+   * the account exists and whose name is on it; a person at the platform
+   * decides to pay it. The owner asked that their decision be the one that
+   * matters, and the defect they reported was that an account which PASSED
+   * the automatic check appeared on no screen at all — so it could never be
+   * looked at, and the partner behind it went unpaid with nothing explaining
+   * why.
+   */
+
+  await check('An account the bank verified is still not payable until applied', () => {
+    const fresh = memoryStore.payeeAccounts;
+    const account: any = Array.from(fresh.values()).find(
+      (a: any) => a.ownerId === RESTAURANT && !a.archivedAt
+    );
+    assert.ok(account, 'no account to work with');
+
+    // Exactly what an automatic penny drop leaves behind: passed, untouched
+    // by a person.
+    account.validationStatus = 'VERIFIED';
+    account.appliedAt = undefined;
+    account.appliedByAdminId = undefined;
+    fresh.set(account.id, account);
+
+    assert.equal(
+      payableAccountFor('RESTAURANT', RESTAURANT),
+      null,
+      'a verified account nobody applied was payable'
+    );
+  });
+
+  await check('It appears in the full list even though the review queue omits it', () => {
+    // The reported defect, stated as an assertion. reviewQueue is right to
+    // show only failures; the bug was that nothing else showed anything.
+    const inQueue = reviewQueue().some(a => a.ownerId === RESTAURANT);
+    const inList = allAccounts().some(a => a.ownerId === RESTAURANT);
+    assert.equal(inQueue, false, 'a passed account is in the failure queue');
+    assert.equal(inList, true, 'a passed account is invisible to the owner');
+    assert.equal(awaitingApply().some(a => a.ownerId === RESTAURANT), true);
+  });
+
+  await check('The refusal says to apply it, not that the account is missing', () => {
+    /*
+     * Asserted because the wrong sentence here has a real cost: an
+     * administrator told "they have no account" goes and asks the partner to
+     * re-submit details that are already correct, and the partner cannot tell
+     * what is being asked of them.
+     */
+    const reason = accountBlockReason('RESTAURANT', RESTAURANT) || '';
+    assert.match(reason, /appl(y|ied)/i, `unhelpful refusal: ${reason}`);
+    assert.doesNotMatch(reason, /have not given us/i);
+  });
+
+  await check('Applying it makes it payable, and records who decided', () => {
+    const account: any = awaitingApply().find(a => a.ownerId === RESTAURANT);
+    reviewAccount(account.id, 'APPROVE', { userId: ADMIN }, 'Checked against their KYC.');
+
+    const payable: any = payableAccountFor('RESTAURANT', RESTAURANT);
+    assert.ok(payable, 'applying it did not make it payable');
+    assert.equal(payable.id, account.id);
+    assert.ok(payable.appliedAt, 'nothing recorded when it was applied');
+    assert.equal(payable.appliedByAdminId, ADMIN, 'nobody is on record as having decided');
+    assert.equal(accountBlockReason('RESTAURANT', RESTAURANT), null);
+
+    /*
+     * The nav badge counts this. Asserting it MOVES, not merely that it is a
+     * number: a badge wired to a predicate that matches nothing renders zero,
+     * and zero reads as "nothing to do" — the exact thing the badge exists to
+     * prevent, wearing a reassuring face.
+     */
+    assert.equal(
+      awaitingApply().some(a => a.ownerId === RESTAURANT),
+      false,
+      'the badge would still show this account as needing a decision'
+    );
+  });
+
+  await check('Changing bank details does not inherit the old approval', async () => {
+    /*
+     * The property that matters most on this screen, and it is a security one.
+     *
+     * Adding an account archives the previous one, and the replacement arrives
+     * with isDefault already true. If payability followed isDefault, anyone who
+     * could change a payee's bank details could redirect their money using an
+     * approval somebody granted for a different account. It follows appliedAt
+     * instead, so the swap lands unpaid until a person looks at it again.
+     */
+    const second = await addAccount({
+      ownerType: 'RESTAURANT',
+      ownerId: RESTAURANT,
+      ownerUserId: 'usr_partner_charge',
+      method: 'UPI',
+      holderName: 'Ganesh Bhavan',
+      vpa: 'ganesh@okaxis',
+      createdByUserId: 'usr_partner_charge'
+    });
+
+    assert.equal(second.isDefault, true, 'the replacement is not the default');
+    assert.equal(
+      payableAccountFor('RESTAURANT', RESTAURANT),
+      null,
+      'new bank details inherited the approval given to the old ones'
+    );
+    assert.match(accountBlockReason('RESTAURANT', RESTAURANT) || '', /appl(y|ied)/i);
+
+    reviewAccount(second.id, 'APPROVE', { userId: ADMIN }, 'Partner asked us to switch to UPI.');
+
+    const live = allAccounts().filter(a => a.ownerId === RESTAURANT);
+    assert.equal(live.length, 1, 'the archived account is still in the list');
+    assert.equal(payableAccountFor('RESTAURANT', RESTAURANT)!.id, second.id);
   });
 
   await rejects('An account the BANK refused cannot be approved by hand', 'PAYEE_ACCOUNT_NOT_IN_REVIEW', async () => {

@@ -32,6 +32,7 @@ import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import {
   reviewQueue,
+  allAccounts,
   reviewAccount,
   listFor,
   publicView,
@@ -67,6 +68,70 @@ async function describeOwner(account: PayeeAccount): Promise<{ name: string; det
  * by side — a queue that shows only "needs review" is a queue that gets
  * approved on autopilot.
  */
+/**
+ * GET /api/admin/payee-accounts
+ *
+ * EVERY account anybody has submitted, whatever the automatic check said.
+ *
+ * The review queue above shows only what failed, which is correct for a queue
+ * and was the whole of what an administrator could see. An account the bank
+ * verified automatically appeared nowhere: it could not be looked at, could not
+ * be applied, and the partner it belonged to simply went unpaid with no screen
+ * anywhere explaining why. That is the defect this endpoint exists to close.
+ *
+ * Sectioned rather than sorted, because "what do I have to do" and "what have I
+ * already done" are different questions and an administrator should not have to
+ * read a status column to separate them.
+ */
+payeeRoutes.get(
+  '/payee-accounts',
+  requirePermission('finance.payouts.view', 'finance.settlements.view'),
+  async (_req, res, next) => {
+    try {
+      const rows = await Promise.all(
+        allAccounts().map(async account => {
+          const owner = await describeOwner(account);
+          return {
+            ...publicView(account),
+            ownerType: account.ownerType,
+            ownerId: account.ownerId,
+            ownerName: owner.name,
+            ownerDetail: owner.detail,
+            /*
+             * What the automatic check thinks, stated as ADVICE.
+             *
+             * The owner asked that their tap be what makes an account payable.
+             * So the score is shown to inform the decision and never presented
+             * as having taken it.
+             */
+            advice:
+              account.validationStatus === 'INVALID'
+                ? 'The bank says this account does not exist. It cannot be applied.'
+                : account.validationStatus === 'VERIFIED'
+                  ? 'The bank confirmed this account and the name matches.'
+                  : account.validationStatus === 'NAME_MISMATCH'
+                    ? `The bank holds a different name: "${account.registeredName || 'unknown'}". Check it is the same person.`
+                    : 'Nothing has checked this account yet.'
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: {
+          accounts: rows,
+          waiting: rows.filter(r => r.validationStatus !== 'INVALID' && !r.appliedAt).length,
+          applied: rows.filter(r => Boolean(r.appliedAt)).length,
+          thresholds: { accept: NAME_MATCH_ACCEPT, review: NAME_MATCH_REVIEW },
+          verificationAvailable: isRazorpayXConfigured()
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 payeeRoutes.get(
   '/payee-accounts/review',
   requirePermission('finance.payouts.manage', 'finance.settlements.manage'),

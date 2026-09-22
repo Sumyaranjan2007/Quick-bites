@@ -37,7 +37,7 @@ import { AppError } from '../../utils/AppError.ts';
 import { ledger, accountFor } from './ledger.ts';
 import { toPaise, toRupees, formatPaise } from './money.ts';
 import { getActiveRates } from './pricingConfig.ts';
-import { payableAccountFor } from './payeeAccounts.ts';
+import { payableAccountFor, accountBlockReason } from './payeeAccounts.ts';
 import { railFor, defaultRail } from './rails.ts';
 import type { PayoutRailId, RailResultStatus, PayeeOwnerType } from '@quick-bites/shared-types';
 
@@ -406,7 +406,8 @@ export async function executePayout(input: {
   const account = payableAccountFor(payout.ownerType, payout.ownerId);
   if (payout.rail === 'RAZORPAYX' && !account?.razorpayFundAccountId) {
     throw new AppError(
-      'They have no verified account to pay into. Verify one, or use a recorded bank transfer.',
+      accountBlockReason(payout.ownerType, payout.ownerId) ||
+        'They have no verified account to pay into. Verify one, or use a recorded bank transfer.',
       409,
       'PAYEE_NOT_VERIFIED'
     );
