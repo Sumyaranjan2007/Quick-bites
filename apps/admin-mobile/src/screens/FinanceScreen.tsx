@@ -300,7 +300,7 @@ const PayoutSheet: React.FC<{ rider: any | null; onClose: () => void; onChanged:
   const draft = async () => {
     setBusy(true);
     try {
-      const result = await api.post<any>('/admin/payouts', {
+      const result = await api.post<any>('/admin/rider-settlements', {
         riderId: rider.riderId,
         ...(bonuses ? { bonuses: Number(bonuses) } : {})
       });

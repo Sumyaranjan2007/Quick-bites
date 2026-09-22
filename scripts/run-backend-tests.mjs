@@ -46,6 +46,7 @@ const SUITES = [
   'refunds',
   'cash',
   'charges',
+  'routes',
   'statements',
   'policies',
   'platformReset',

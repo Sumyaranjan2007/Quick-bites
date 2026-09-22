@@ -594,14 +594,33 @@ const PayoutDraftSchema = z.object({
 });
 
 /**
- * POST /api/admin/payouts
+ * POST /api/admin/rider-settlements
  *
  * Drafts a settlement covering everything the rider has completed and not yet
  * been paid for. The trips are stamped with the payout id in the same step, so
  * a second draft cannot pick up the same work.
+ *
+ * -------------------------------------------------------------------------
+ * WHY THIS IS NOT AT /payouts ANY MORE
+ * -------------------------------------------------------------------------
+ * It was, and so was the ledger-backed payout system in `payoutRoutes`. Two
+ * handlers, one method and path, in two files that are each correct on their
+ * own. Express runs the first one it finds and this router is mounted earlier,
+ * so this handler answered every request and the other was unreachable.
+ *
+ * They did not agree on their input. This one requires `riderId`; the other
+ * expects `ownerType` and `ownerId`, which is what the admin app's Payouts
+ * screen and the web console both send. So drafting a payout failed validation
+ * every time — the platform could not pay anybody from its main payouts
+ * screen, while every suite stayed green because the tests called the
+ * shadowed module directly and proved the unreachable code correct.
+ *
+ * `/payouts` now belongs to the ledger system, which is the one with
+ * maker-checker, the payout cap and the rails. This keeps its own path.
+ * `src/test/routes.test.ts` fails if anything shadows a route again.
  */
 financeRoutes.post(
-  '/payouts',
+  '/rider-settlements',
   requirePermission('finance.payouts.manage'),
   validate({ body: PayoutDraftSchema }),
   async (req, res, next) => {

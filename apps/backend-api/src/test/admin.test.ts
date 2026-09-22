@@ -445,13 +445,13 @@ async function run() {
   const riderRow = (payoutsBefore.json?.data?.payouts || []).find((p: any) => p.riderId === 'rdr_vikram_01');
   check('Unsettled earnings are reported per driver', (riderRow?.unsettledTrips || 0) >= 1, JSON.stringify(riderRow?.unsettledTrips));
 
-  const draft = await api('/admin/payouts', { method: 'POST', body: { riderId: 'rdr_vikram_01', bonuses: 50 } }, finance.token);
+  const draft = await api('/admin/rider-settlements', { method: 'POST', body: { riderId: 'rdr_vikram_01', bonuses: 50 } }, finance.token);
   check('A payout can be drafted', draft.status === 201, JSON.stringify(draft.json).slice(0, 200));
   const payoutId = draft.json?.data?.payout?.id;
   check('The draft covers the delivered trips', draft.json?.data?.payout?.tripsCompleted >= 1);
   check('The bonus is carried into the net amount', draft.json?.data?.payout?.bonuses === 50);
 
-  const redraft = await api('/admin/payouts', { method: 'POST', body: { riderId: 'rdr_vikram_01' } }, finance.token);
+  const redraft = await api('/admin/rider-settlements', { method: 'POST', body: { riderId: 'rdr_vikram_01' } }, finance.token);
   check('Settled trips are not paid a second time', redraft.status === 409, String(redraft.status));
 
   const marked = await api(`/admin/payouts/${payoutId}/status`, { method: 'POST', body: { status: 'PAID', reference: 'UTR-TEST-1' } }, finance.token);
