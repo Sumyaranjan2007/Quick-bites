@@ -21,6 +21,7 @@ import { matchesQuery, paginate, shapeOrderDetail } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { sendRefund } from '../../modules/payments/refunds.ts';
 import { toPaise } from '../../modules/payments/money.ts';
+import { settlementEvidence } from '../../modules/payments/earnings.ts';
 import type { Order, RefundRequest } from '@quick-bites/shared-types';
 
 export const financeRoutes = Router();
@@ -488,7 +489,15 @@ financeRoutes.post(
 /** Trips a rider has completed that no settlement has covered yet. */
 async function unsettledFor(riderId: string) {
   const orders = await orderRepository.listByRiderId(riderId);
-  return orders.filter(o => o.status === 'DELIVERED' && !o.payoutId);
+  /*
+   * `settlementEvidence`, not `status === 'DELIVERED'`.
+   *
+   * Reaching DELIVERED writes `paymentStatus = 'PAID'` whether or not a payment
+   * was ever taken, so a prepaid order that was never paid for looked exactly
+   * like a settled one from here, and became a payout. The evidence check asks
+   * whether the money arrived rather than whether a flag says so.
+   */
+  return orders.filter(o => settlementEvidence(o).ok && !o.payoutId);
 }
 
 /**
@@ -771,7 +780,8 @@ financeRoutes.get('/reports/financial', requirePermission('finance.reports.view'
  */
 async function unsettledOrdersFor(restaurantId: string): Promise<Order[]> {
   const orders = await orderRepository.listByRestaurantId(restaurantId);
-  return orders.filter(o => o.status === 'DELIVERED' && !o.settlementId);
+  // Same evidence check as rider payouts, and for the same reason.
+  return orders.filter(o => settlementEvidence(o).ok && !o.settlementId);
 }
 
 /** What a restaurant is owed for one order, using the same split as analytics. */

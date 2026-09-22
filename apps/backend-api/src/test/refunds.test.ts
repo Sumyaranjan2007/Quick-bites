@@ -60,6 +60,7 @@ function order(overrides: Record<string, any> = {}): any {
     customerName: 'Priya Verma',
     customerPhone: '9876543210',
     status: 'DELIVERED',
+    pickedUpAt: new Date(Date.now() - 86_400_000).toISOString(),
     paymentStatus: 'PAID',
     paymentMethod: 'RAZORPAY_SANDBOX',
     razorpayPaymentId: 'pay_test_abc123',

@@ -25,7 +25,14 @@ import {
   customerDishPrice,
   inflateMenuForCustomer
 } from '../modules/payments/restaurantCharges.ts';
-import { splitForOrder, recordOrderEarnings } from '../modules/payments/earnings.ts';
+import {
+  splitForOrder,
+  recordOrderEarnings,
+  deliveryEvidence,
+  settlementEvidence,
+  heldEarnings,
+  backfillEarnings
+} from '../modules/payments/earnings.ts';
 import {
   addAccount,
   reviewAccount,
@@ -221,8 +228,10 @@ async function run() {
       riderId: 'rdr_charge_1',
       customerId: 'usr_cust_charge',
       status: 'DELIVERED',
+      pickedUpAt: new Date(Date.now() - 86_400_000).toISOString(),
       paymentStatus: 'PAID',
       paymentMethod: 'RAZORPAY_SANDBOX',
+      razorpayPaymentId: 'pay_test_fixture',
       riderPayout: 40,
       deliveredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
       updatedAt: new Date().toISOString(),
@@ -574,8 +583,10 @@ async function run() {
       riderId: 'rdr_charge_1',
       customerId: 'usr_cust_charge',
       status: 'DELIVERED',
+      pickedUpAt: new Date(Date.now() - 86_400_000).toISOString(),
       paymentStatus: 'PAID',
       paymentMethod: 'RAZORPAY_SANDBOX',
+      razorpayPaymentId: 'pay_test_fixture',
       riderPayout: 37,
       deliveredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
       updatedAt: new Date().toISOString(),
@@ -791,6 +802,138 @@ async function run() {
     assert.ok(
       bill.deliveryFee >= riderPay,
       `delivery is charged at ${bill.deliveryFee} and paid at ${riderPay} — still a subsidy`
+    );
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  WHAT MAY BECOME MONEY OWED                                       *
+   * ---------------------------------------------------------------- *
+   *
+   * Everything above proves the split is right. This proves it is only
+   * ever APPLIED to an order that earned it.
+   *
+   * Two independent things have to be true — the food moved, and the money
+   * arrived — and the dangerous case is the one where only the first is.
+   * Both are asserted by REASON rather than by "it threw", because an order
+   * id that does not exist and an order that was never collected would both
+   * throw, and a test that accepts any refusal cannot tell the difference.
+   */
+
+  const deliveredOrder = (over: Record<string, unknown> = {}) => ({
+    id: `ord_gate_${Math.random().toString(36).slice(2, 8)}`,
+    orderNumber: 'QB-940001',
+    restaurantId: RESTAURANT,
+    riderId: 'rdr_charge_1',
+    customerId: 'usr_cust_charge',
+    status: 'DELIVERED',
+    pickedUpAt: new Date(Date.now() - 86_400_000).toISOString(),
+    paymentStatus: 'PAID',
+    paymentMethod: 'RAZORPAY_SANDBOX',
+    razorpayPaymentId: 'pay_test_fixture',
+    riderPayout: 40,
+    deliveredAt: new Date().toISOString(),
+    bill: { itemsTotal: 500, packagingFee: 20, totalAmount: 590, commissionAmount: 75, tdsAmount: 5 },
+    ...over
+  }) as any;
+
+  await check('An order nobody collected earns nobody anything', () => {
+    const order = deliveredOrder({ pickedUpAt: undefined });
+    const before = ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT));
+
+    assert.throws(
+      () => recordOrderEarnings(order),
+      (e: Error) => e.name === 'EarningsNotDue' && /confirmed collecting/i.test(e.message),
+      'refused for the wrong reason, or for no reason in particular'
+    );
+    assert.equal(
+      ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT)),
+      before,
+      'it refused and posted anyway'
+    );
+  });
+
+  await check('Food that moved without the money is the case that matters', () => {
+    // The kitchen cooked, the rider collected, the customer ate. Marking the
+    // order delivered set paymentStatus to PAID on its own, so every flag on
+    // this order says it was paid for.
+    const order = deliveredOrder({ razorpayPaymentId: undefined });
+
+    assert.equal(deliveryEvidence(order).ok, true, 'the delivery half should pass — the food did move');
+    assert.equal(order.paymentStatus, 'PAID', 'the flag says paid, which is exactly the trap');
+
+    assert.throws(
+      () => recordOrderEarnings(order),
+      (e: Error) => e.name === 'EarningsNotDue' && /no payment reference/i.test(e.message),
+      'a never-paid order became money somebody is owed'
+    );
+  });
+
+  await check('An order the delivery path flagged as unpaid is refused even so', () => {
+    /*
+     * The delivery path stamps `paymentUnresolvedAt` when it hands food over on
+     * a prepaid order nothing had confirmed payment for.
+     *
+     * Given a payment reference ON PURPOSE. Without it this order would be
+     * refused anyway by the missing-reference rule, and the test would pass
+     * whether or not the stamp was ever read.
+     */
+    const order = deliveredOrder({
+      razorpayPaymentId: 'pay_looks_fine',
+      paymentUnresolvedAt: new Date().toISOString()
+    });
+
+    assert.throws(
+      () => recordOrderEarnings(order),
+      (e: Error) => e.name === 'EarningsNotDue' && /never accounted for/i.test(e.message),
+      'the delivery path said the money is missing and the ledger paid out regardless'
+    );
+  });
+
+  await check('Cash at the door is payment, and is not refused for lacking a reference', () => {
+    // The half of the rule that stops it being "refuse everything". A cash
+    // order has no gateway reference and never will.
+    const order = deliveredOrder({
+      paymentMethod: 'CASH_ON_DELIVERY',
+      razorpayPaymentId: undefined
+    });
+    assert.equal(settlementEvidence(order).ok, true, 'cash deliveries can no longer be settled at all');
+
+    memoryStore.orders.set(order.id, order);
+    recordOrderEarnings(order);
+    assert.ok(
+      ledger.balanceOf(accountFor('RIDER_CASH', 'rdr_charge_1')) > 0,
+      'the cash never reached the rider cash account'
+    );
+  });
+
+  await check('Every refusal is put in front of a person, with its reason', () => {
+    const stranded = deliveredOrder({ pickedUpAt: undefined });
+    memoryStore.orders.set(stranded.id, stranded);
+
+    const held = heldEarnings();
+    const mine = held.find(h => h.orderId === stranded.id);
+    assert.ok(mine, 'money stopped moving and nothing told anybody');
+    assert.match(mine!.reason, /confirmed collecting/i);
+
+    // And the sweeper counts it rather than shouting about it every boot.
+    assert.ok(backfillEarnings().held >= 1, 'the sweeper did not report it as held');
+  });
+
+  await check('A person who has checked can release one, and is recorded', () => {
+    const stranded = deliveredOrder({ pickedUpAt: undefined });
+    memoryStore.orders.set(stranded.id, stranded);
+    const before = ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT));
+
+    recordOrderEarnings(stranded, { byUserId: ADMIN, note: 'Confirmed with the restaurant by phone.' });
+
+    assert.ok(
+      ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT)) > before,
+      'an override that overrides nothing'
+    );
+    assert.equal(
+      heldEarnings().some(h => h.orderId === stranded.id),
+      false,
+      'still listed as held after being released'
     );
   });
 

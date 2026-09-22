@@ -130,13 +130,138 @@ export function splitForOrder(order: Order, rates: PricingRates = getActiveRates
 }
 
 /**
+ * Whether an order carries evidence that the delivery it claims actually ran.
+ *
+ * Kept separate from the posting itself so the same judgement can be shown to
+ * an administrator without posting anything.
+ *
+ * There is a precondition on `verifyDeliveryOtp` that already refuses to mark
+ * an uncollected order delivered. This is deliberately a second check in a
+ * different place rather than trust in that one. A guard inside a repository
+ * method is one refactor away from being removed by somebody who cannot see
+ * what it was holding up; this one sits where the money actually leaves, so it
+ * survives that refactor and any new path that reaches DELIVERED another way.
+ *
+ * `pickedUpAt` is the load-bearing field. It is written only when a rider
+ * confirms collection at the restaurant, so it is the platform's own record
+ * that food physically left the kitchen — as opposed to a status, which is a
+ * claim about that, and an OTP, which the customer reads out loud.
+ */
+export function deliveryEvidence(order: Order): { ok: boolean; reason?: string } {
+  if (order.status !== 'DELIVERED') {
+    return { ok: false, reason: 'The order has not been delivered.' };
+  }
+  if (!order.pickedUpAt) {
+    return {
+      ok: false,
+      reason: 'No rider ever confirmed collecting this order from the restaurant.'
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Whether the customer's money actually arrived.
+ *
+ * Separate from the delivery half because the two fail independently, and the
+ * combination that matters most is the one where the food moved and the money
+ * did not. `deliveryEvidence` passes cleanly on such an order — the kitchen
+ * cooked, the rider collected, the customer ate.
+ *
+ * `paymentStatus` cannot answer this on its own. Marking an order delivered
+ * writes `paymentStatus = 'PAID'` in two places that know nothing about whether
+ * a payment was taken, so on a prepaid order the flag is set by the act of
+ * handing food over. Every route that genuinely takes money writes a gateway
+ * reference at the same moment it writes PAID, and the two delivery writers
+ * write no reference — which is what makes the reference, rather than the flag,
+ * the thing worth reading.
+ */
+export function paymentEvidence(order: Order): { ok: boolean; reason?: string } {
+  /*
+   * Stamped by the delivery path itself when it reached DELIVERED on a prepaid
+   * method that nothing had confirmed payment for. It is a direct statement
+   * that the money is unaccounted for, so it is read before anything is
+   * inferred from what the order does or does not carry.
+   */
+  if (order.paymentUnresolvedAt) {
+    return {
+      ok: false,
+      reason: 'Delivered without a confirmed payment — the money was never accounted for.'
+    };
+  }
+
+  // Cash is the one case where delivery IS the payment event. The rider is
+  // holding it, and `recordOrderEarnings` posts it to their cash account rather
+  // than the platform's bank for exactly that reason.
+  if (order.paymentMethod === 'CASH_ON_DELIVERY') return { ok: true };
+
+  if (order.paymentMethod === 'WALLET') {
+    const paid = Array.from(memoryStore.walletTransactions.values() as Iterable<any>).some(
+      t => t?.orderId === order.id
+    );
+    return paid
+      ? { ok: true }
+      : { ok: false, reason: 'Paid from wallet, but no wallet transaction records it.' };
+  }
+
+  if (!order.razorpayPaymentId) {
+    return {
+      ok: false,
+      reason:
+        'Marked paid, but no payment reference was ever recorded — the money may never have arrived.'
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * The single question every payout path should ask: may this order turn into
+ * money owed to somebody?
+ *
+ * Both halves, in one call, so a caller cannot check one and forget the other.
+ */
+export function settlementEvidence(order: Order): { ok: boolean; reason?: string } {
+  const delivery = deliveryEvidence(order);
+  if (!delivery.ok) return delivery;
+  return paymentEvidence(order);
+}
+
+/** Thrown rather than returned, so a caller cannot ignore it by accident. */
+export class EarningsNotDue extends Error {
+  readonly orderId: string;
+  constructor(orderId: string, reason: string) {
+    super(reason);
+    this.name = 'EarningsNotDue';
+    this.orderId = orderId;
+  }
+}
+
+/**
  * Posts what an order earned everybody.
  *
  * Called when an order reaches DELIVERED. Safe to call again — and it will be,
  * because the sweeper and the status route both reach it.
+ *
+ * Refuses an order that cannot show the delivery happened. It throws instead of
+ * returning quietly: money that silently fails to post is owed to somebody who
+ * is not being told, which is the same defect as paying for a trip that never
+ * ran, only quieter. Both callers already log and carry on, and the refusal is
+ * counted for the administrator by `heldEarnings()`.
+ *
+ * `override` exists for the case a person has checked and decided it is real —
+ * an order from before this rule, or a delivery confirmed off-app. It records
+ * who decided, because that is the question an auditor asks.
  */
-export function recordOrderEarnings(order: Order): void {
+export function recordOrderEarnings(
+  order: Order,
+  override?: { byUserId: string; note: string }
+): void {
   if (!order?.id) return;
+
+  const evidence = settlementEvidence(order);
+  if (!evidence.ok && !override) {
+    throw new EarningsNotDue(order.id, evidence.reason!);
+  }
 
   const split = splitForOrder(order);
   if (split.grossPaise <= 0) return;
@@ -224,14 +349,27 @@ export function earningsPosted(orderId: string): boolean {
  *
  * Idempotent, so it is safe to run at boot and safe to run again.
  */
-export function backfillEarnings(): { scanned: number; posted: number } {
+export function backfillEarnings(): { scanned: number; posted: number; held: number } {
   let scanned = 0;
   let posted = 0;
+  let held = 0;
 
   for (const order of memoryStore.orders.values() as Iterable<Order>) {
     if (order.status !== 'DELIVERED') continue;
     scanned++;
     if (earningsPosted(order.id)) continue;
+
+    /*
+     * Counted, not shouted about. An order with no evidence of collection is
+     * held at every boot, and logging it as a failure each time trains whoever
+     * reads these logs to ignore the line. It is reported once, to a person, by
+     * `heldEarnings()`.
+     */
+    if (!settlementEvidence(order).ok) {
+      held++;
+      continue;
+    }
+
     try {
       recordOrderEarnings(order);
       posted++;
@@ -251,7 +389,42 @@ export function backfillEarnings(): { scanned: number; posted: number } {
     }
   }
 
-  return { scanned, posted };
+  return { scanned, posted, held };
+}
+
+/**
+ * Orders that say they were delivered but cannot show it, so nobody has been
+ * paid for them.
+ *
+ * This is the half of the gate that makes refusing safe. Money that stops
+ * moving and says nothing is indistinguishable from money that was never owed,
+ * and the people it belongs to are the last to find out. Every refusal ends up
+ * in front of an administrator here, with the reason and a way to release it.
+ */
+export function heldEarnings(): Array<{
+  orderId: string;
+  orderNumber?: string;
+  restaurantId: string;
+  riderId?: string;
+  deliveredAt?: string;
+  reason: string;
+}> {
+  const rows: ReturnType<typeof heldEarnings> = [];
+  for (const order of memoryStore.orders.values() as Iterable<Order>) {
+    if (order.status !== 'DELIVERED') continue;
+    if (earningsPosted(order.id)) continue;
+    const evidence = settlementEvidence(order);
+    if (evidence.ok) continue;
+    rows.push({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      restaurantId: order.restaurantId,
+      riderId: order.riderId,
+      deliveredAt: order.deliveredAt,
+      reason: evidence.reason!
+    });
+  }
+  return rows.sort((a, b) => (b.deliveredAt || '').localeCompare(a.deliveredAt || ''));
 }
 
 /**
