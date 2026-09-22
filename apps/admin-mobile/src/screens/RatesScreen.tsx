@@ -97,12 +97,16 @@ export const RatesScreen: React.FC = () => {
   const platform = useResource<any>(() => api.get('/admin/pricing/config').then(r => r.data), [], {
     enabled: canView
   });
+  const membership = useResource<any>(() => api.get('/admin/rates/membership').then(r => r.data), [], {
+    enabled: canView
+  });
   const bonuses = useResource<{ incentives: Incentive[]; note: string }>(
     () => api.get('/admin/rates/incentives').then(r => r.data),
     [],
     { enabled: canView }
   );
 
+  const [planEdits, setPlanEdits] = useState<Record<string, Record<string, string>>>({});
   const [platformEdits, setPlatformEdits] = useState<Record<string, string>>({});
   const [platformNote, setPlatformNote] = useState('');
 
@@ -193,6 +197,7 @@ export const RatesScreen: React.FC = () => {
           options={[
             { key: 'restaurants', label: 'Per restaurant' },
             { key: 'platform', label: 'Rider pay & defaults' },
+            { key: 'gold', label: 'Gold plans' },
             { key: 'bonuses', label: 'Rider bonuses' }
           ]}
           value={tab}
@@ -411,6 +416,149 @@ export const RatesScreen: React.FC = () => {
           </>
         )}
 
+        {/* ----------------------------- Gold plans ----------------------------- */}
+        {tab === 'gold' && (
+          <>
+            <Card style={s.explainer}>
+              <View style={s.head}>
+                <Info size={16} color={c.text.secondary} />
+                <Text style={s.explainerTitle}>What Gold costs and what it gives</Text>
+              </View>
+              <Text style={s.explainerBody}>
+                What a customer is promised is written from these numbers, so the wording can never say more
+                than the plan actually does.
+              </Text>
+              <Text style={s.explainerBody}>
+                A discount cap of zero means no ceiling — one large order can then cost you more than the plan
+                sold for.
+              </Text>
+            </Card>
+
+            {membership.loading && !membership.data ? (
+              <Loading label="Reading your plans…" />
+            ) : (
+              <>
+                {(membership.data?.plans || []).map((plan: any) => {
+                  const edit = planEdits[plan.id] || {};
+                  const field = (key: string, fallback: number) =>
+                    edit[key] !== undefined ? edit[key] : String(fallback);
+                  const set = (key: string, v: string) =>
+                    setPlanEdits(p => ({
+                      ...p,
+                      [plan.id]: { ...(p[plan.id] || {}), [key]: v.replace(/[^0-9.]/g, '') }
+                    }));
+
+                  return (
+                    <Card key={plan.id} style={s.row}>
+                      <View style={s.rowHead}>
+                        <Text style={s.rowName}>{plan.name}</Text>
+                        <Badge
+                          label={plan.isActive ? 'On sale' : 'Hidden'}
+                          tone={plan.isActive ? 'success' : 'neutral'}
+                        />
+                      </View>
+
+                      {/* What the customer will actually be told. */}
+                      {(plan.benefits || []).map((benefit: string) => (
+                        <Text key={benefit} style={s.explainerBody}>
+                          • {benefit}
+                        </Text>
+                      ))}
+
+                      <Divider style={{ marginVertical: 12 }} />
+
+                      <PlanField label="Price" suffix="Rs" value={field('price', plan.price)} onChange={v => set('price', v)} />
+                      <PlanField
+                        label="Lasts"
+                        suffix="days"
+                        value={field('durationDays', plan.durationDays)}
+                        onChange={v => set('durationDays', v)}
+                      />
+                      <PlanField
+                        label="Discount on food"
+                        suffix="%"
+                        value={field('extraDiscountPercent', plan.extraDiscountPercent)}
+                        onChange={v => set('extraDiscountPercent', v)}
+                      />
+                      <PlanField
+                        label="Most it can take off one order"
+                        suffix="Rs"
+                        value={field('maxDiscountPerOrder', plan.maxDiscountPerOrder)}
+                        onChange={v => set('maxDiscountPerOrder', v)}
+                        hint="0 means no ceiling."
+                      />
+                      <PlanField
+                        label="Free delivery above"
+                        suffix="Rs"
+                        value={field('freeDeliveryMinOrder', plan.freeDeliveryMinOrder)}
+                        onChange={v => set('freeDeliveryMinOrder', v)}
+                        hint="0 means free delivery on every order."
+                      />
+
+                      {canEdit && (
+                        <Button
+                          label={plan.isActive ? 'Stop selling this plan' : 'Put this plan on sale'}
+                          variant="ghost"
+                          onPress={() =>
+                            setPlanEdits(p => ({
+                              ...p,
+                              [plan.id]: { ...(p[plan.id] || {}), isActive: plan.isActive ? '0' : '1' }
+                            }))
+                          }
+                          style={{ marginTop: 4 }}
+                        />
+                      )}
+                    </Card>
+                  );
+                })}
+
+                {!!error && <Text style={s.error}>{error}</Text>}
+
+                {canEdit && Object.keys(planEdits).length > 0 && (
+                  <Button
+                    label={busy ? 'Saving…' : 'Save the plans'}
+                    onPress={async () => {
+                      setBusy(true);
+                      setError(null);
+                      try {
+                        const plans = (membership.data?.plans || []).map((plan: any) => {
+                          const edit = planEdits[plan.id] || {};
+                          const pick = (key: string, fallback: number) =>
+                            edit[key] !== undefined && edit[key] !== '' ? Number(edit[key]) : fallback;
+                          return {
+                            id: plan.id,
+                            name: plan.name,
+                            price: pick('price', plan.price),
+                            durationDays: pick('durationDays', plan.durationDays),
+                            extraDiscountPercent: pick('extraDiscountPercent', plan.extraDiscountPercent),
+                            maxDiscountPerOrder: pick('maxDiscountPerOrder', plan.maxDiscountPerOrder),
+                            freeDeliveryMinOrder: pick('freeDeliveryMinOrder', plan.freeDeliveryMinOrder),
+                            isActive:
+                              edit.isActive !== undefined ? edit.isActive === '1' : Boolean(plan.isActive)
+                          };
+                        });
+                        await api.put('/admin/rates/membership', { plans });
+                        setPlanEdits({});
+                        await membership.reload();
+                      } catch (err: any) {
+                        setError(err?.message || 'Those plans could not be saved.');
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy}
+                  />
+                )}
+
+                <Text style={s.footnote}>
+                  Changing a price changes what the next person pays. Anyone who already holds a plan keeps
+                  what they bought.
+                </Text>
+              </>
+            )}
+          </>
+        )}
+
         {tab === 'bonuses' && (
           <>
             <Card style={s.explainer}>
@@ -573,6 +721,23 @@ const Figure: React.FC<{ label: string; value: string }> = ({ label, value }) =>
   <View style={s.figure}>
     <Text style={s.figureValue}>{value}</Text>
     <Text style={s.figureLabel}>{label}</Text>
+  </View>
+);
+
+const PlanField: React.FC<{
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  suffix?: string;
+  hint?: string;
+}> = ({ label, value, onChange, suffix, hint }) => (
+  <View style={{ marginBottom: 10 }}>
+    <Text style={s.fieldLabel}>{label}</Text>
+    <View style={s.fieldRow}>
+      <TextInput style={s.fieldInput} value={value} onChangeText={onChange} keyboardType="numeric" />
+      {!!suffix && <Text style={s.fieldSuffix}>{suffix}</Text>}
+    </View>
+    {!!hint && <Text style={s.fieldHint}>{hint}</Text>}
   </View>
 );
 

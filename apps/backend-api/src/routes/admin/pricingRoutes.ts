@@ -23,6 +23,7 @@ import {
   policyGaps
 } from '../../modules/payments/paymentPolicies.ts';
 import { runPaymentsHealthCheck } from '../../modules/payments/paymentsHealth.ts';
+import { listPlans, savePlans } from '../../modules/membership/membershipService.ts';
 import { incentiveSettings, setIncentiveSettings } from '../../modules/payments/incentiveConfig.ts';
 import {
   effectiveCharges,
@@ -589,6 +590,120 @@ pricingRoutes.put(
         data: { incentives: after },
         message:
           'Saved. Bonuses already earned are not taken back \u2014 turning one off stops it being awarded from now on.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  GOLD MEMBERSHIP PLANS                                              *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/rates/membership
+ *
+ * What Gold costs and what it gives.
+ *
+ * `savePlans` has existed in the membership service since it was written and
+ * was called by nothing — the plans were editable in principle and unreachable
+ * in practice, so the prices, the discount and the free-delivery floor were all
+ * effectively hardcoded. The owner asked for the opposite: *"admin can really
+ * set how much what they can really get from gold membership."*
+ *
+ * The benefit text is generated from the numbers and returned with them, so an
+ * administrator can see exactly what a customer will be promised before they
+ * save.
+ */
+pricingRoutes.get(
+  '/rates/membership',
+  requirePermission('finance.config.edit', 'finance.reports.view'),
+  (_req, res) => {
+    res.json({
+      success: true,
+      data: {
+        plans: listPlans(true),
+        note:
+          'What a customer is promised is written from these numbers, so the wording can never say more than the plan does.'
+      }
+    });
+  }
+);
+
+const PlanSchema = z.object({
+  plans: z
+    .array(
+      z.object({
+        id: z.string().trim().min(3).max(60),
+        name: z.string().trim().min(2).max(60),
+        price: z.number().min(0).max(100000),
+        durationDays: z.number().int().min(1).max(3650),
+        extraDiscountPercent: z.number().min(0).max(50),
+        /** Zero means uncapped, which is how a cheap plan becomes a liability. */
+        maxDiscountPerOrder: z.number().min(0).max(10000),
+        freeDeliveryMinOrder: z.number().min(0).max(10000),
+        isActive: z.boolean()
+      })
+    )
+    .min(1)
+    .max(10)
+});
+
+/**
+ * PUT /api/admin/rates/membership
+ *
+ * Replaces the whole set, so a plan removed here is really removed.
+ *
+ * Customers who already hold a plan keep what they bought: a membership records
+ * the plan id it was sold under, and the benefit is read from that. Changing a
+ * price changes what the NEXT person pays. Retroactively altering what somebody
+ * already paid for would be the platform reaching into a sale it had already
+ * made.
+ */
+pricingRoutes.put(
+  '/rates/membership',
+  requirePermission('finance.config.edit'),
+  validate({ body: PlanSchema }),
+  async (req, res, next) => {
+    try {
+      const before = listPlans(true);
+
+      /*
+       * An uncapped percentage is allowed but warned about, not refused.
+       *
+       * It is a legitimate choice — a launch offer, a plan meant to be
+       * loss-leading — and refusing it would be this file deciding the owner's
+       * pricing for them. But it is also how one large basket costs more than
+       * the membership sold for, so it is said out loud rather than discovered.
+       */
+      const uncapped = req.body.plans.filter(
+        (p: any) => p.extraDiscountPercent > 0 && p.maxDiscountPerOrder === 0
+      );
+
+      const saved = savePlans(req.body.plans);
+
+      recordAudit(req, {
+        action: 'MEMBERSHIP_PLANS_UPDATED',
+        entityType: 'SETTING',
+        entityId: 'membership:plans',
+        summary:
+          'Gold plans changed: ' +
+          saved
+            .filter(p => p.isActive)
+            .map(p => `${p.name} Rs ${p.price}/${p.durationDays}d`)
+            .join(', '),
+        before: { plans: before } as any,
+        after: { plans: saved } as any
+      });
+
+      res.json({
+        success: true,
+        data: { plans: listPlans(true) },
+        message:
+          uncapped.length > 0
+            ? `Saved. ${uncapped.length} plan${uncapped.length === 1 ? ' has' : 's have'} no discount ceiling — one large order can cost you more than the plan sold for.`
+            : 'Saved. Customers who already hold a plan keep what they bought.'
       });
     } catch (err) {
       next(err);
