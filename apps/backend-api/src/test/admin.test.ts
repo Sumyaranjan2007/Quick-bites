@@ -441,24 +441,54 @@ async function run() {
 
   /* --------------------------- Driver payouts -------------------------- */
 
-  const payoutsBefore = await api('/admin/payouts', {}, finance.token);
-  const riderRow = (payoutsBefore.json?.data?.payouts || []).find((p: any) => p.riderId === 'rdr_vikram_01');
-  check('Unsettled earnings are reported per driver', (riderRow?.unsettledTrips || 0) >= 1, JSON.stringify(riderRow?.unsettledTrips));
+  /*
+   * The second payout system is gone, and POST /admin/payouts now reaches the
+   * ledger-backed one.
+   *
+   * Both halves matter. The old system registered the same method and path, so
+   * it answered every request and the ledger system was unreachable — and
+   * because they disagreed about their input, the admin app's Payouts screen
+   * got a validation error every time it tried to pay anybody.
+   *
+   * The suites stayed green throughout, because they called the payout module
+   * directly and proved the unreachable code correct. This one goes over HTTP
+   * with the body the SCREEN actually sends, which is the only way to find out
+   * which handler is on the other end.
+   */
 
-  const draft = await api('/admin/rider-settlements', { method: 'POST', body: { riderId: 'rdr_vikram_01', bonuses: 50 } }, finance.token);
-  check('A payout can be drafted', draft.status === 201, JSON.stringify(draft.json).slice(0, 200));
-  const payoutId = draft.json?.data?.payout?.id;
-  check('The draft covers the delivered trips', draft.json?.data?.payout?.tripsCompleted >= 1);
-  check('The bonus is carried into the net amount', draft.json?.data?.payout?.bonuses === 50);
+  const legacyDraft = await api(
+    '/admin/rider-settlements',
+    { method: 'POST', body: { riderId: 'rdr_vikram_01' } },
+    finance.token
+  );
+  check('The second payout system is gone', legacyDraft.status === 404, String(legacyDraft.status));
 
-  const redraft = await api('/admin/rider-settlements', { method: 'POST', body: { riderId: 'rdr_vikram_01' } }, finance.token);
-  check('Settled trips are not paid a second time', redraft.status === 409, String(redraft.status));
+  const legacyStatus = await api(
+    '/admin/payouts/pay_whatever/status',
+    { method: 'POST', body: { status: 'PAID' } },
+    finance.token
+  );
+  check('and so is its mark-as-paid route', legacyStatus.status === 404, String(legacyStatus.status));
 
-  const marked = await api(`/admin/payouts/${payoutId}/status`, { method: 'POST', body: { status: 'PAID', reference: 'UTR-TEST-1' } }, finance.token);
-  check('A payout can be marked paid', marked.json?.data?.payout?.status === 'PAID', JSON.stringify(marked.json).slice(0, 160));
-
-  const payAgain = await api(`/admin/payouts/${payoutId}/status`, { method: 'POST', body: { status: 'PAID' } }, finance.token);
-  check('A paid payout cannot be paid again', payAgain.status === 409, String(payAgain.status));
+  const ledgerDraft = await api(
+    '/admin/payouts',
+    { method: 'POST', body: { ownerType: 'RIDER', ownerId: 'rdr_vikram_01' } },
+    finance.token
+  );
+  /*
+   * Asserted as "not a schema refusal" rather than as success. Whether there
+   * is anything payable depends on hold periods and on what other suites have
+   * already settled, so demanding a 201 would make this fail for reasons that
+   * are not the point. What must never happen again is the request being
+   * rejected for missing `riderId` — that is the shadowed handler answering.
+   */
+  const refusedForRiderId =
+    ledgerDraft.status === 400 && JSON.stringify(ledgerDraft.json || {}).includes('riderId');
+  check(
+    'POST /admin/payouts reaches the ledger system, not the old one',
+    !refusedForRiderId,
+    JSON.stringify(ledgerDraft.json).slice(0, 200)
+  );
 
   /* --------------------------- Support tickets ------------------------- */
 
@@ -556,7 +586,11 @@ async function run() {
   const entries = audit.json?.data?.entries || [];
   check('The audit log is readable by a Super Admin', audit.status === 200 && entries.length > 0, String(entries.length));
   check('The refund is on the record', entries.some((e: any) => e.action === 'REFUND_PAID'));
-  check('The payout is on the record', entries.some((e: any) => e.action === 'PAYOUT_PAID'));
+  /*
+   * No PAYOUT_PAID here any more. This suite made one through the second
+   * payout system, which is gone; ledger payouts and their audit trail are
+   * covered by the payouts suite, which exercises draft, approve and send.
+   */
   check('Role changes are on the record', entries.some((e: any) => e.action === 'ROLE_CREATED'));
   check('Each entry names who did it', entries.every((e: any) => Boolean(e.actorUserId && e.actorName)));
 
@@ -685,11 +719,21 @@ async function run() {
   check('The partner\'s own menu carries the dish the admin approved', partnerSeesApproved);
 
   const riderDashboard = await api('/riders/dashboard', {}, rider.token);
-  check('The rider\'s wallet reflects the payout the admin marked paid',
-    (riderDashboard.json?.data?.wallet?.balance ?? 0) > 0,
-    String(riderDashboard.json?.data?.wallet?.balance));
-  check('Settling the payout cleared the COD cash the rider was holding',
-    (riderDashboard.json?.data?.rider?.codCashInHand ?? 1) === 0,
+  /*
+   * PAYING A RIDER DOES NOT CLEAR THE CASH THEY ARE CARRYING.
+   *
+   * The removed payout system did exactly that: marking a payout paid wrote
+   * the rider's COD cash down to zero. Two separate things were settled by one
+   * action, and the cash half never reached the ledger — so the books went on
+   * showing cash the rider no longer held.
+   *
+   * Cash is settled when the rider hands it over and somebody counts it, which
+   * posts the movement as double entry. Earnings are settled by a payout.
+   * Asserting the cash is STILL HELD is what stops the two being collapsed
+   * back into one action by a future tidy-up.
+   */
+  check('Paying a rider does not silently clear the cash they are carrying',
+    (riderDashboard.json?.data?.rider?.codCashInHand ?? 0) > 0,
     String(riderDashboard.json?.data?.rider?.codCashInHand));
 
   // Suspending a restaurant has to remove it from what customers can order from,

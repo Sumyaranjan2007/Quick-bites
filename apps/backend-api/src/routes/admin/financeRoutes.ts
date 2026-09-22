@@ -534,224 +534,30 @@ financeRoutes.get('/wallet-audit', requirePermission('finance.revenue.view'), as
   }
 });
 
-financeRoutes.get('/payouts', requirePermission('finance.payouts.view'), async (req, res, next) => {
-  try {
-    const { q } = req.query as Record<string, string>;
-    const riders = await riderRepository.findAll();
-
-    let rows = await Promise.all(
-      riders.map(async rider => {
-        const unsettled = await unsettledFor(rider.id);
-        const allTrips = (await orderRepository.listByRiderId(rider.id)).filter(o => o.status === 'DELIVERED');
-        const pending = Math.round(unsettled.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100;
-        return {
-          riderId: rider.id,
-          riderName: rider.fullName,
-          driverCode: rider.driverCode,
-          phone: rider.phone,
-          isOnline: rider.isOnline,
-          kycStatus: rider.kycStatus,
-          lifetimeTrips: allTrips.length,
-          lifetimeEarnings:
-            Math.round(allTrips.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100,
-          unsettledTrips: unsettled.length,
-          pendingAmount: pending,
-          // Cash the rider is holding from COD orders is netted off what they
-          // are owed; paying the full trip fee while they still hold the cash
-          // would pay them twice.
-          codCashInHand: rider.codCashInHand || 0,
-          netPayable: Math.round((pending - (rider.codCashInHand || 0)) * 100) / 100,
-          paidToDate: await payoutRepository.paidTotal(rider.id),
-          payouts: await payoutRepository.list({ riderId: rider.id })
-        };
-      })
-    );
-
-    if (q) rows = rows.filter(r => matchesQuery(q, r.riderName, r.driverCode, r.phone));
-    rows.sort((a, b) => b.pendingAmount - a.pendingAmount);
-
-    res.json({
-      success: true,
-      data: {
-        payouts: rows,
-        totals: {
-          pending: Math.round(rows.reduce((t, r) => t + r.pendingAmount, 0) * 100) / 100,
-          paid: Math.round(rows.reduce((t, r) => t + r.paidToDate, 0) * 100) / 100,
-          codOutstanding: Math.round(rows.reduce((t, r) => t + r.codCashInHand, 0) * 100) / 100
-        }
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-const PayoutDraftSchema = z.object({
-  riderId: z.string().min(1),
-  bonuses: z.number().min(0).max(100000).optional(),
-  deductions: z.number().min(0).max(100000).optional(),
-  note: z.string().trim().max(300).optional()
-});
-
-/**
- * POST /api/admin/rider-settlements
+/*
+ * THE SECOND PAYOUT SYSTEM USED TO LIVE HERE, AND IT IS GONE.
  *
- * Drafts a settlement covering everything the rider has completed and not yet
- * been paid for. The trips are stamped with the payout id in the same step, so
- * a second draft cannot pick up the same work.
+ * It drafted a rider settlement, credited the rider's WALLET, and adjusted a
+ * `codCashInHand` counter on the rider record — writing nothing to the ledger
+ * at any point. That gave the platform two answers to "what is this rider
+ * owed" and two answers to "how much of our cash are they carrying", and the
+ * two drifted apart the moment a payout carried a deduction: the counter came
+ * down, the ledger did not, and the books went on claiming cash that had
+ * already been handed back. The audit still balanced, because nothing was
+ * posted at all — a balanced set of books with a wrong number in it.
  *
- * -------------------------------------------------------------------------
- * WHY THIS IS NOT AT /payouts ANY MORE
- * -------------------------------------------------------------------------
- * It was, and so was the ledger-backed payout system in `payoutRoutes`. Two
- * handlers, one method and path, in two files that are each correct on their
- * own. Express runs the first one it finds and this router is mounted earlier,
- * so this handler answered every request and the other was unreachable.
+ * It also registered `POST /payouts`, which shadowed the ledger-backed system
+ * in `payoutRoutes` and stopped the admin app paying anybody at all.
  *
- * They did not agree on their input. This one requires `riderId`; the other
- * expects `ownerType` and `ownerId`, which is what the admin app's Payouts
- * screen and the web console both send. So drafting a payout failed validation
- * every time — the platform could not pay anybody from its main payouts
- * screen, while every suite stayed green because the tests called the
- * shadowed module directly and proved the unreachable code correct.
+ * Everything it did is done properly by `modules/payments/payouts.ts`, where
+ * the amount comes from the ledger rather than from a figure somebody typed,
+ * a second administrator approves anything large, the daily cap is enforced at
+ * execution, and every state change posts double-entry rows. Removed rather
+ * than fixed, because the defect was not the arithmetic — it was having two
+ * systems for one job.
  *
- * `/payouts` now belongs to the ledger system, which is the one with
- * maker-checker, the payout cap and the rails. This keeps its own path.
- * `src/test/routes.test.ts` fails if anything shadows a route again.
+ * Driver payouts are made from the Payouts section of the admin app.
  */
-financeRoutes.post(
-  '/rider-settlements',
-  requirePermission('finance.payouts.manage'),
-  validate({ body: PayoutDraftSchema }),
-  async (req, res, next) => {
-    try {
-      const rider = await riderRepository.findById(req.body.riderId);
-      if (!rider) throw new AppError('Delivery partner not found.', 404, 'RIDER_NOT_FOUND');
-
-      const trips = await unsettledFor(rider.id);
-      if (trips.length === 0) {
-        throw new AppError('This partner has no unsettled trips.', 409, 'NOTHING_TO_SETTLE');
-      }
-
-      const tripEarnings = Math.round(trips.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100;
-      const incentives = Array.from(memoryStore.riderIncentives.values())
-        .filter((i: any) => i.riderId === rider.id && !i.payoutId)
-        .reduce((t: number, i: any) => t + (Number(i.amount) || 0), 0);
-      const bonuses = Number(req.body.bonuses) || 0;
-      const deductions = Number(req.body.deductions) || rider.codCashInHand || 0;
-      const netAmount = Math.round((tripEarnings + incentives + bonuses - deductions) * 100) / 100;
-
-      const periodStart = trips.reduce(
-        (earliest, o) => (new Date(o.deliveredAt || o.createdAt) < new Date(earliest) ? o.deliveredAt || o.createdAt : earliest),
-        trips[0].deliveredAt || trips[0].createdAt
-      );
-
-      const payout = await payoutRepository.create({
-        riderId: rider.id,
-        riderName: rider.fullName,
-        driverCode: rider.driverCode,
-        periodStart,
-        periodEnd: new Date().toISOString(),
-        tripsCompleted: trips.length,
-        tripEarnings,
-        incentives: Math.round(incentives * 100) / 100,
-        bonuses,
-        deductions,
-        netAmount,
-        note: req.body.note
-      });
-
-      for (const trip of trips) {
-        trip.payoutId = payout.id;
-        memoryStore.orders.set(trip.id, trip);
-      }
-      triggerAutoSave();
-
-      recordAudit(req, {
-        action: 'PAYOUT_DRAFTED',
-        entityType: 'PAYOUT',
-        entityId: payout.id,
-        summary: `Drafted a payout of Rs ${netAmount} for ${rider.fullName} covering ${trips.length} trip(s)`,
-        after: payout
-      });
-
-      res.status(201).json({ success: true, data: { payout } });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-const PayoutStatusSchema = z.object({
-  status: z.enum(['PROCESSING', 'PAID', 'FAILED']),
-  reference: z.string().trim().max(120).optional(),
-  note: z.string().trim().max(300).optional()
-});
-
-/**
- * POST /api/admin/payouts/:id/status
- *
- * Marking a payout PAID credits the rider's wallet and clears the COD cash that
- * was deducted from it, because that cash has now been settled against earnings.
- * A FAILED payout releases its trips so the next draft picks them up again.
- */
-financeRoutes.post(
-  '/payouts/:id/status',
-  requirePermission('finance.payouts.manage'),
-  validate({ body: PayoutStatusSchema }),
-  async (req, res, next) => {
-    try {
-      const payout = await payoutRepository.findById(req.params.id);
-      if (!payout) throw new AppError('Payout not found.', 404, 'PAYOUT_NOT_FOUND');
-      if (payout.status === 'PAID') {
-        throw new AppError('This payout has already been paid.', 409, 'ALREADY_PAID');
-      }
-
-      const { status, reference, note } = req.body;
-      const rider = await riderRepository.findById(payout.riderId);
-
-      if (status === 'PAID' && rider) {
-        if (payout.netAmount > 0) {
-          await walletRepository.credit(
-            rider.userId,
-            payout.netAmount,
-            `Payout ${payout.id} for ${payout.tripsCompleted} trip(s)`
-          );
-        }
-        if (payout.deductions > 0) {
-          await riderRepository.adjustCashInHand(rider.id, -payout.deductions);
-        }
-      }
-
-      if (status === 'FAILED') {
-        for (const order of memoryStore.orders.values()) {
-          if (order.payoutId === payout.id) {
-            delete order.payoutId;
-            memoryStore.orders.set(order.id, order);
-          }
-        }
-        triggerAutoSave();
-      }
-
-      const updated = await payoutRepository.setStatus(payout.id, status, { userId: req.user!.id }, { reference, note });
-
-      recordAudit(req, {
-        action: `PAYOUT_${status}`,
-        entityType: 'PAYOUT',
-        entityId: payout.id,
-        summary: `Payout of Rs ${payout.netAmount} to ${payout.riderName} marked ${status}${
-          reference ? ` (ref ${reference})` : ''
-        }`,
-        before: { status: payout.status },
-        after: { status }
-      });
-
-      res.json({ success: true, data: { payout: updated } });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
 
 /** GET /api/admin/reports/financial — a period summary for export. */
 financeRoutes.get('/reports/financial', requirePermission('finance.reports.view'), async (req, res, next) => {

@@ -25,14 +25,13 @@ import { query } from '../lib/api';
 
 const c = tokens.colors;
 
-type Tab = 'revenue' | 'payments' | 'payouts' | 'settlements';
+type Tab = 'revenue' | 'payments' | 'settlements';
 
 export const FinanceScreen: React.FC = () => {
   const { can } = useSession();
   const tabs: Array<{ key: Tab; label: string }> = [
     ...(can('finance.revenue.view') ? [{ key: 'revenue' as Tab, label: 'Revenue' }] : []),
     ...(can('finance.payments.view') ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
-    ...(can('finance.payouts.view') ? [{ key: 'payouts' as Tab, label: 'Driver payouts' }] : []),
     ...(can('finance.settlements.view')
       ? [{ key: 'settlements' as Tab, label: 'Restaurant settlements' }]
       : [])
@@ -48,7 +47,6 @@ export const FinanceScreen: React.FC = () => {
       </View>
       {tab === 'revenue' ? <RevenueTab /> : null}
       {tab === 'payments' ? <PaymentsTab /> : null}
-      {tab === 'payouts' ? <PayoutsTab /> : null}
       {tab === 'settlements' ? <SettlementsTab /> : null}
     </View>
   );
@@ -223,184 +221,15 @@ const PayCell: React.FC<{ label: string; value: string }> = ({ label, value }) =
   </View>
 );
 
-/* --------------------------------- Payouts -------------------------------- */
-
-const PayoutsTab: React.FC = () => {
-  const { api, can } = useSession();
-  const [search, setSearch] = useState('');
-  const [submitted, setSubmitted] = useState('');
-  const [openRider, setOpenRider] = useState<any | null>(null);
-  const resource = useResource(() => api.get<any>(`/admin/payouts${query({ q: submitted })}`), [submitted]);
-
-  const rows = resource.data?.payouts || [];
-  const totals = resource.data?.totals;
-
-  return (
-    <View style={{ flex: 1 }}>
-      <View style={s.controls}>
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Partner name or ID" onSubmit={() => setSubmitted(search.trim())} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={s.list}
-        refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
-      >
-        {totals ? (
-          <View style={s.grid}>
-            <StatTile label="Owed to partners" value={formatCompactMoney(totals.pending)} tone="warning" icon={<Wallet size={16} color={c.state.warning} />} />
-            <StatTile label="Paid to date" value={formatCompactMoney(totals.paid)} tone="success" />
-            <StatTile label="COD cash with riders" value={formatCompactMoney(totals.codOutstanding)} tone="info" wide />
-          </View>
-        ) : null}
-
-        {resource.loading && rows.length === 0 ? <Loading /> : null}
-        {!resource.loading && rows.length === 0 ? (
-          <EmptyState title="No delivery partners" message={resource.error || undefined} />
-        ) : null}
-
-        {rows.map((row: any) => (
-          <Card key={row.riderId} onPress={() => setOpenRider(row)}>
-            <View style={s.rowTop}>
-              <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
-                <Text style={s.title} numberOfLines={1}>
-                  {row.riderName}
-                </Text>
-                <Text style={s.sub} numberOfLines={1}>
-                  {row.driverCode} · {row.lifetimeTrips} trips delivered
-                </Text>
-              </View>
-              {row.pendingAmount > 0 ? <Badge label="Due" tone="warning" /> : <Badge label="Settled" tone="success" />}
-            </View>
-            <View style={s.paymentGrid}>
-              <PayCell label="Unsettled" value={formatMoney(row.pendingAmount)} />
-              <PayCell label="COD held" value={formatMoney(row.codCashInHand)} />
-              <PayCell label="Net payable" value={formatMoney(row.netPayable)} />
-              <PayCell label="Paid" value={formatMoney(row.paidToDate)} />
-            </View>
-          </Card>
-        ))}
-      </ScrollView>
-
-      <PayoutSheet rider={openRider} onClose={() => setOpenRider(null)} onChanged={resource.reload} canManage={can('finance.payouts.manage')} />
-    </View>
-  );
-};
-
-const PayoutSheet: React.FC<{ rider: any | null; onClose: () => void; onChanged: () => void; canManage: boolean }> = ({
-  rider,
-  onClose,
-  onChanged,
-  canManage
-}) => {
-  const { api } = useSession();
-  const [bonuses, setBonuses] = useState('');
-  const [reference, setReference] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const draft = async () => {
-    setBusy(true);
-    try {
-      const result = await api.post<any>('/admin/rider-settlements', {
-        riderId: rider.riderId,
-        ...(bonuses ? { bonuses: Number(bonuses) } : {})
-      });
-      setBonuses('');
-      onChanged();
-      Alert.alert(
-        'Payout drafted',
-        `${formatMoney(result.payout.netAmount)} covering ${result.payout.tripsCompleted} trip(s). Mark it paid once the transfer has gone out.`
-      );
-    } catch (err: any) {
-      Alert.alert('Could not draft the payout', err?.message || 'Nothing was created.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const markPaid = async (payoutId: string) => {
-    setBusy(true);
-    try {
-      await api.post(`/admin/payouts/${payoutId}/status`, { status: 'PAID', ...(reference ? { reference } : {}) });
-      setReference('');
-      onChanged();
-      Alert.alert('Marked paid', "The amount has been credited to the partner's Quick Bites wallet.");
-    } catch (err: any) {
-      Alert.alert('Could not mark it paid', err?.message || 'Nothing was changed.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Sheet visible={Boolean(rider)} onClose={onClose} title={rider?.riderName || 'Payout'} subtitle={rider?.driverCode}>
-      {rider ? (
-        <>
-          <Card>
-            <Text style={s.cardHeading}>What is owed</Text>
-            <KeyValue label="Unsettled trips" value={rider.unsettledTrips} tone="strong" />
-            <KeyValue label="Trip earnings" value={formatMoney(rider.pendingAmount)} tone="money" />
-            <KeyValue label="COD cash the partner holds" value={`− ${formatMoney(rider.codCashInHand)}`} />
-            <Divider />
-            <KeyValue label="Net payable now" value={formatMoney(rider.netPayable)} tone="money" />
-            <KeyValue label="Paid to date" value={formatMoney(rider.paidToDate)} />
-          </Card>
-
-          {canManage ? (
-            <Card>
-              <Text style={s.cardHeading}>Draft a settlement</Text>
-              <Text style={s.muted}>
-                Covers every delivered trip not already settled. Cash the partner is holding from COD orders is netted
-                off automatically.
-              </Text>
-              <View style={{ height: tokens.space[4] }} />
-              <Field label="Bonus (₹, optional)" value={bonuses} onChangeText={setBonuses} keyboardType="numeric" placeholder="0" />
-              <Button
-                label={rider.unsettledTrips > 0 ? `Draft payout for ${rider.unsettledTrips} trip(s)` : 'Nothing to settle'}
-                disabled={rider.unsettledTrips === 0}
-                loading={busy}
-                onPress={draft}
-              />
-            </Card>
-          ) : null}
-
-          <Card>
-            <Text style={s.cardHeading}>Settlement history</Text>
-            {(rider.payouts || []).length === 0 ? <Text style={s.muted}>No payouts yet.</Text> : null}
-            {(rider.payouts || []).map((payout: any) => (
-              <View key={payout.id} style={s.payoutRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.title}>{formatMoney(payout.netAmount)}</Text>
-                  <Text style={s.sub}>
-                    {payout.tripsCompleted} trips · {formatDateTime(payout.createdAt)}
-                  </Text>
-                  <Text style={s.payoutBreakdown}>
-                    {formatMoney(payout.tripEarnings)} fees
-                    {payout.incentives ? ` + ${formatMoney(payout.incentives)} incentives` : ''}
-                    {payout.bonuses ? ` + ${formatMoney(payout.bonuses)} bonus` : ''}
-                    {payout.deductions ? ` − ${formatMoney(payout.deductions)} COD` : ''}
-                  </Text>
-                  {payout.reference ? <Text style={s.sub}>Ref {payout.reference}</Text> : null}
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <Badge label={payout.status} />
-                  {canManage && payout.status !== 'PAID' ? (
-                    <Button label="Mark paid" size="sm" loading={busy} onPress={() => markPaid(payout.id)} />
-                  ) : null}
-                </View>
-              </View>
-            ))}
-            {canManage ? (
-              <>
-                <Divider />
-                <Field label="Bank reference (optional)" value={reference} onChangeText={setReference} placeholder="UTR number" />
-              </>
-            ) : null}
-          </Card>
-        </>
-      ) : null}
-    </Sheet>
-  );
-};
+/*
+ * The "Driver payouts" tab was removed.
+ *
+ * It drafted rider settlements through a second payout system that wrote
+ * nothing to the ledger, so the platform held two disagreeing answers to what
+ * a rider was owed and how much of our cash they were carrying. Driver
+ * payouts are made from the Payouts section, where the amount is computed
+ * from the ledger rather than typed, and every state change is recorded.
+ */
 
 const s = StyleSheet.create({
   tabs: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
