@@ -959,6 +959,93 @@ async function run() {
     JSON.stringify(corrected.json?.data?.identity || {}).slice(0, 160)
   );
 
+  // ---------------------------------------------------------------------
+  console.log('\n-- The packaging charge a partner declares');
+
+  /*
+   * The partner declares what packaging costs THEM. An administrator approves
+   * it and may add a markup; the customer pays the sum. This half is the
+   * declaration, and the payments session reads exactly two fields from it.
+   */
+  /*
+   * Derived from what the restaurant already charges, not a literal.
+   *
+   * An earlier version submitted 25, which happens to be the seeded figure —
+   * so the server correctly answered "nothing changed" and the check failed
+   * for a reason that had nothing to do with packaging. A fixture that
+   * collides with the value under test proves nothing either way.
+   */
+  const currentPack = Number(
+    (memoryStore.restaurants.get(RESTAURANT) as any)?.partnerPackagingFee ??
+      (memoryStore.restaurants.get(RESTAURANT) as any)?.packagingFee ??
+      0
+  );
+  const declaredPack = currentPack + 7;
+
+  const packSubmit = await api(
+    `/restaurants/${RESTAURANT}/profile`,
+    { method: 'PUT', body: { partnerPackagingFee: declaredPack } },
+    partner.token
+  );
+  check('A partner can declare a packaging charge', packSubmit.status === 201,
+    `status ${packSubmit.status}`);
+
+  const packEditId = packSubmit.json?.data?.edit?.id;
+  await api(
+    `/admin/profile-edits/${packEditId}/review`,
+    { method: 'POST', body: { approve: ['partnerPackagingFee'], reject: [] } },
+    ops.token
+  );
+
+  const afterFirst = memoryStore.restaurants.get(RESTAURANT) as any;
+  check('and once approved it reaches the restaurant', afterFirst?.partnerPackagingFee === declaredPack,
+    String(afterFirst?.partnerPackagingFee));
+  check(
+    'stamped with when they submitted it',
+    typeof afterFirst?.partnerPackagingSubmittedAt === 'string',
+    afterFirst?.partnerPackagingSubmittedAt
+  );
+
+  /*
+   * THE STAMP MUST MOVE ON EVERY CHANGE, not just the first.
+   *
+   * The payments session compares it against its own approval timestamp to
+   * tell a figure it has already approved from one that has moved since. If
+   * this only stamped once, a partner could raise their packaging fee after
+   * approval and the admin queue would still show it as settled.
+   */
+  const firstStamp = afterFirst.partnerPackagingSubmittedAt;
+  await new Promise(r => setTimeout(r, 15));
+
+  const raised = await api(
+    `/restaurants/${RESTAURANT}/profile`,
+    { method: 'PUT', body: { partnerPackagingFee: declaredPack + 9 } },
+    partner.token
+  );
+  await api(
+    `/admin/profile-edits/${raised.json?.data?.edit?.id}/review`,
+    { method: 'POST', body: { approve: ['partnerPackagingFee'], reject: [] } },
+    ops.token
+  );
+
+  const afterSecond = memoryStore.restaurants.get(RESTAURANT) as any;
+  check('A raised charge replaces the old one', afterSecond?.partnerPackagingFee === declaredPack + 9,
+    String(afterSecond?.partnerPackagingFee));
+  check(
+    'and the submission stamp MOVES, so a reviewed figure cannot look settled after it changes',
+    afterSecond?.partnerPackagingSubmittedAt !== firstStamp,
+    `${firstStamp} -> ${afterSecond?.partnerPackagingSubmittedAt}`
+  );
+
+  // A typo is refused rather than put on every bill until somebody complains.
+  const typoFee = await api(
+    `/restaurants/${RESTAURANT}/profile`,
+    { method: 'PUT', body: { partnerPackagingFee: 2500 } },
+    partner.token
+  );
+  check('An implausible packaging charge is refused', typoFee.status === 400,
+    `status ${typoFee.status}`);
+
   server.close();
 
   console.log('\n====================================================');

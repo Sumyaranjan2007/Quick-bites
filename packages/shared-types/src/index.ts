@@ -148,6 +148,29 @@ export interface Restaurant {
   gstin?: string;
   isPureVeg: boolean;
   packagingFee: number;
+  /**
+   * What the partner says their packaging costs them, in rupees.
+   *
+   * THEIR figure, and only theirs. An administrator approves it and may set a
+   * markup on top, and the customer pays the sum — but this number is never
+   * edited by the platform, because it is the partner's own declaration and
+   * overwriting it would destroy the only record of what they actually asked
+   * for.
+   *
+   * Absent on every restaurant that has not declared one, which falls back to
+   * `packagingFee` and then to the platform default. Reading absent as zero
+   * would quietly make packaging free for every existing restaurant.
+   */
+  partnerPackagingFee?: number;
+  /**
+   * When they last changed that figure.
+   *
+   * Stamped on EVERY change, not just the first, so an administrator can tell
+   * a declaration they have already approved from one that has moved since.
+   * Without it, a partner could raise their packaging fee after approval and
+   * nothing would mark it as needing another look.
+   */
+  partnerPackagingSubmittedAt?: string;
   status: RestaurantStatus;
   kycStatus: KycStatus;
   ratingAverage: number;
@@ -275,6 +298,9 @@ export const EDITABLE_PROFILE_FIELDS = [
   'coordinates',
   'cuisineTags',
   'costForTwo',
+  // What the partner says packaging costs them. Reviewed like everything else
+  // here, because it reaches a customer's bill.
+  'partnerPackagingFee',
   'bannerUrl',
   'galleryUrls',
   'openingHours'
@@ -292,6 +318,7 @@ export interface EditableProfile {
   coordinates: Coordinates;
   cuisineTags: string[];
   costForTwo: number;
+  partnerPackagingFee: number;
   bannerUrl: string;
   galleryUrls: string[];
   openingHours: OpeningHours;

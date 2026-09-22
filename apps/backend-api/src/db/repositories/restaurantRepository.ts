@@ -159,6 +159,21 @@ export const restaurantRepository = {
       if (!(EDITABLE_PROFILE_FIELDS as readonly string[]).includes(key)) continue;
       if (value === undefined) continue;
       (existing as Record<string, unknown>)[key] = value;
+
+      /*
+       * Stamped on EVERY change to the declared packaging figure, not just
+       * the first.
+       *
+       * The payments session compares this against its own approval
+       * timestamp to tell a figure it has already approved from one that has
+       * moved since. Without it, a partner could raise their packaging fee
+       * after approval and nothing anywhere would mark it as needing another
+       * look — the admin queue would show it as settled.
+       */
+      if (key === 'partnerPackagingFee') {
+        (existing as Record<string, unknown>).partnerPackagingSubmittedAt =
+          new Date().toISOString();
+      }
     }
 
     memoryStore.restaurants.set(id, existing);

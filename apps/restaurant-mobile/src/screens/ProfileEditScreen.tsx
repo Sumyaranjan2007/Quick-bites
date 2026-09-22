@@ -69,6 +69,7 @@ const FIELD_WORD: Record<string, string> = {
   coordinates: 'Map pin',
   cuisineTags: 'Cuisines',
   costForTwo: 'Cost for two',
+  partnerPackagingFee: 'Packaging charge',
   bannerUrl: 'Cover photo',
   galleryUrls: 'Photos',
   openingHours: 'Opening hours'
@@ -83,6 +84,7 @@ interface Draft {
   pincode: string;
   cuisineTags: string;
   costForTwo: string;
+  packagingFee: string;
   bannerUrl: string;
   galleryUrls: string[];
   week: Week;
@@ -98,6 +100,8 @@ function toDraft(published: EditableProfileView): Draft {
     pincode: published.pincode ?? '',
     cuisineTags: (published.cuisineTags ?? []).join(', '),
     costForTwo: published.costForTwo ? String(published.costForTwo) : '',
+    packagingFee:
+      published.partnerPackagingFee !== undefined ? String(published.partnerPackagingFee) : '',
     bannerUrl: published.bannerUrl ?? '',
     galleryUrls: published.galleryUrls ?? [],
     // An ABSENT week is not a closed one. A restaurant that has never declared
@@ -228,6 +232,11 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
       changes.openingHours = toWirePayload(draft.week) as any;
     }
     if (draft.costForTwo.trim()) changes.costForTwo = Number(draft.costForTwo);
+    // Sent only when they have typed something. An empty box means "I have
+    // not set this", not "packaging is free".
+    if (draft.packagingFee.trim()) {
+      changes.partnerPackagingFee = Number(draft.packagingFee);
+    }
     if (draft.bannerUrl) changes.bannerUrl = draft.bannerUrl;
 
     const res = await submitProfileChanges(restaurantId, changes);
@@ -411,6 +420,25 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
           keyboardType="number-pad"
           hint="Roughly what two people spend. Shown on your card."
           error={refusalFor('costForTwo')}
+        />
+        {/*
+          WHAT THE PARTNER EARNS, and the hint says so.
+
+          The customer may be charged more than this: Quick Bites can add its
+          own margin on top, and the bill shows one packaging line which is the
+          sum. A partner who sees a higher number on a customer's bill and is
+          paid this one will raise a support ticket every single time, and they
+          would be right to — so the app never shows them the customer-facing
+          total, only their own figure, and says plainly that it is what they
+          receive.
+        */}
+        <Field
+          label="Packaging charge"
+          value={draft.packagingFee}
+          onChangeText={v => set('packagingFee', v.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          hint="What your packaging costs, per order. This is the amount you receive. Our team reviews it before it applies."
+          error={refusalFor('partnerPackagingFee')}
         />
       </Card>
 

@@ -211,6 +211,20 @@ export function validateProfileChanges(input: unknown): ProfileValidationResult 
     }
   }
 
+  if ('partnerPackagingFee' in raw) {
+    const v = Number(raw.partnerPackagingFee);
+    if (!Number.isFinite(v) || v < 0) {
+      errors.push('Your packaging charge must be zero or more.');
+    } else if (v > 200) {
+      // Not a rule about what packaging can cost; a rule about what a typo
+      // looks like. Somebody meaning 25 and typing 250 would otherwise put it
+      // on every bill until a customer complained.
+      errors.push('That packaging charge looks wrong. Check it before submitting.');
+    } else {
+      value.partnerPackagingFee = Math.round(v);
+    }
+  }
+
   if ('costForTwo' in raw) {
     const v = Number(raw.costForTwo);
     if (!Number.isFinite(v) || v <= 0) {
@@ -291,6 +305,11 @@ export function readEditableProfile(
     },
     cuisineTags: restaurant.cuisineTags,
     costForTwo: restaurant.costForTwo ?? 0,
+    // Their declared figure, falling back to what the restaurant already
+    // charges. Absent is not zero: reading it that way would make packaging
+    // free for every restaurant that has not used this field yet.
+    partnerPackagingFee:
+      (restaurant as any).partnerPackagingFee ?? restaurant.packagingFee ?? 0,
     bannerUrl: restaurant.bannerUrl ?? '',
     galleryUrls: restaurant.galleryUrls ?? [],
     openingHours: restaurant.openingHours

@@ -477,6 +477,8 @@ export interface EditableProfileView {
   coordinates?: { latitude: number; longitude: number };
   cuisineTags?: string[];
   costForTwo?: number;
+  /** What the partner says packaging costs them. Reviewed before it applies. */
+  partnerPackagingFee?: number;
   bannerUrl?: string;
   galleryUrls?: string[];
   openingHours?: OpeningHoursView;
