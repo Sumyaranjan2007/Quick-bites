@@ -263,7 +263,7 @@ export function fetchCancellationReasons() {
 // ---------------------------------------------------------------------------
 
 export function fetchMenu(restaurantId: string) {
-  return request<{ menu: any }>(`/restaurants/${restaurantId}/menu`);
+  return request<{ menu: any }>(`/restaurants/${restaurantId}/menu/manage`);
 }
 
 export function setDishStock(restaurantId: string, dishId: string, isAvailable: boolean) {

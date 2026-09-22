@@ -1046,6 +1046,74 @@ async function run() {
   check('An implausible packaging charge is refused', typoFee.status === 400,
     `status ${typoFee.status}`);
 
+  // ---------------------------------------------------------------------
+  console.log('\n-- The markup reaches customers and never the kitchen');
+
+  /*
+   * `inflateMenuForCustomer` existed and NOTHING CALLED IT. It appeared only
+   * in its own unit tests, so every customer was still being shown and charged
+   * the restaurant's raw price and the platform earned nothing on food.
+   *
+   * That is the shape of defect this project keeps producing: a function that
+   * is correct, tested, and unreachable. So these checks go through the HTTP
+   * routes the apps actually call, not the function.
+   */
+  const charges = await api(
+    `/admin/rates/restaurants/${RESTAURANT}`,
+    { method: 'PUT', body: { foodMarkupPercent: 20 } },
+    admin.token
+  );
+  check('An admin can set a food markup', charges.status === 200 || charges.status === 201,
+    `status ${charges.status} ${JSON.stringify(charges.json?.error || {}).slice(0, 120)}`);
+
+  const partnerMenu = await api(`/restaurants/${RESTAURANT}/menu/manage`, {}, partner.token);
+  const customerMenu = await api(`/restaurants/${RESTAURANT}/menu`);
+
+  const firstOf = (m: any) => (m?.data?.menu?.categories || [])[0]?.items?.[0];
+  const partnerDish = firstOf(partnerMenu.json);
+  const customerDish = firstOf(customerMenu.json);
+
+  check('The partner can read their own menu', Boolean(partnerDish), JSON.stringify(partnerMenu.status));
+  check('and a customer can read the public one', Boolean(customerDish), JSON.stringify(customerMenu.status));
+
+  check(
+    'The customer price is MARKED UP',
+    Number(customerDish?.price) > Number(partnerDish?.price),
+    `customer ${customerDish?.price} vs partner ${partnerDish?.price}`
+  );
+  check(
+    'and the partner still sees their OWN price, not ours',
+    Number(partnerDish?.price) === Math.round(Number(partnerDish?.price)) &&
+      Number(partnerDish?.price) < Number(customerDish?.price),
+    `partner sees ${partnerDish?.price}`
+  );
+
+  /*
+   * The markup is a VIEW. If it ever wrote back, the kitchen's own menu would
+   * become the marked-up one and the next read would mark up the markup.
+   */
+  const secondRead = await api(`/restaurants/${RESTAURANT}/menu`);
+  check(
+    'Reading twice does not compound the markup',
+    Number(firstOf(secondRead.json)?.price) === Number(customerDish?.price),
+    `${customerDish?.price} then ${firstOf(secondRead.json)?.price}`
+  );
+
+  const partnerAfter = await api(`/restaurants/${RESTAURANT}/menu/manage`, {}, partner.token);
+  check(
+    'and the stored menu is untouched',
+    Number(firstOf(partnerAfter.json)?.price) === Number(partnerDish?.price),
+    `${partnerDish?.price} then ${firstOf(partnerAfter.json)?.price}`
+  );
+
+  // A customer must not be able to reach the kitchen's own prices.
+  const trespassMenu = await api(`/restaurants/${RESTAURANT}/menu/manage`, {}, buyer.token);
+  check(
+    'A customer cannot read the uninflated menu',
+    trespassMenu.status === 403 || trespassMenu.status === 401,
+    `status ${trespassMenu.status}`
+  );
+
   server.close();
 
   console.log('\n====================================================');

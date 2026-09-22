@@ -24,6 +24,7 @@ import {
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { profileEditRepository } from '../db/repositories/profileEditRepository.ts';
 import { couponRepository } from '../db/repositories/couponRepository.ts';
+import { inflateMenuForCustomer } from '../modules/payments/restaurantCharges.ts';
 import { bestOfferFor, platformPromotion } from '../modules/restaurants/restaurantOffers.ts';
 import {
   buildImagery,
@@ -365,7 +366,10 @@ restaurantRouter.get('/:id', async (req, res) => {
     if (!restaurant) {
       return res.status(404).json({ success: false, error: 'Restaurant not found' });
     }
-    const menu = await menuRepository.findByRestaurantId(restaurant.id);
+    const menu = inflateMenuForCustomer(
+      await menuRepository.findByRestaurantId(restaurant.id),
+      restaurant.id
+    );
     return res.json({ success: true, data: { restaurant, menu } });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
@@ -375,7 +379,13 @@ restaurantRouter.get('/:id', async (req, res) => {
 // GET /api/restaurants/:id/menu
 restaurantRouter.get('/:id/menu', async (req, res) => {
   try {
-    const menu = await menuRepository.findByRestaurantId(req.params.id);
+    // Marked up for the customer. This is a VIEW: `inflateMenuForCustomer`
+    // never writes, so the kitchen's stored menu cannot drift upward on
+    // every read.
+    const menu = inflateMenuForCustomer(
+      await menuRepository.findByRestaurantId(req.params.id),
+      req.params.id
+    );
     if (!menu) {
       return res.status(404).json({ success: false, error: 'Menu not found' });
     }
@@ -424,6 +434,36 @@ async function assertOwnsRestaurant(req: any, restaurantId: string) {
   }
   return restaurant;
 }
+
+/**
+ * GET /api/restaurants/:id/menu/manage — the menu as the KITCHEN set it.
+ *
+ * No markup. These are the prices the restaurant chose and the prices they are
+ * paid on, and they are the only ones a partner should ever be shown. What a
+ * customer pays may be higher; anything the platform adds is the platform's
+ * and never reaches the restaurant.
+ *
+ * A separate endpoint rather than a flag on the customer one, because a query
+ * parameter deciding whether a price is marked up is one somebody eventually
+ * sends by accident — and a partner seeing our margin on their own dish is a
+ * support ticket on every settlement. Here, who you are decides.
+ */
+restaurantRouter.get(
+  '/:id/menu/manage',
+  authMiddleware('restaurant_owner'),
+  async (req, res, next) => {
+    try {
+      const restaurant = await assertOwnsRestaurant(req, req.params.id);
+      const menu = await menuRepository.findByRestaurantId(restaurant.id);
+      res.json({
+        success: true,
+        data: { menu: menu || { restaurantId: restaurant.id, categories: [] } }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 const MenuItemSchema = z.object({
   name: z.string().min(1, 'name is required').max(120),
