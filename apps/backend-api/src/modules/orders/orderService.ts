@@ -10,7 +10,7 @@ import { effectiveCharges } from '../payments/restaurantCharges.ts';
 import { recordOrderEarnings } from '../payments/earnings.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
-import { isGoldActive, goldDiscountPercent } from '../membership/membershipService.ts';
+import { isGoldActive, goldDiscountPercent, goldDiscountCap, goldFreeDeliveryMinOrder } from '../membership/membershipService.ts';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
 import { couponRepository } from '../../db/repositories/couponRepository.ts';
@@ -218,6 +218,8 @@ export const orderService = {
       // nothing actually meant.
       isGold: isGoldActive(customer),
       membershipDiscountPercent: goldDiscountPercent(customer),
+      membershipMaxDiscount: goldDiscountCap(customer),
+      memberFreeDeliveryMinOrder: goldFreeDeliveryMinOrder(customer),
       coupon: validatedCoupon,
       tipAmount: clampTip(input.tipAmount),
       // The rates an administrator has set, and this kitchen's own commission
@@ -437,6 +439,8 @@ export const orderService = {
       // nothing actually meant.
       isGold: isGoldActive(customer),
       membershipDiscountPercent: goldDiscountPercent(customer),
+      membershipMaxDiscount: goldDiscountCap(customer),
+      memberFreeDeliveryMinOrder: goldFreeDeliveryMinOrder(customer),
       coupon: validatedCoupon,
       tipAmount: clampTip(input.tipAmount),
       // The rates an administrator has set, and this kitchen's own commission

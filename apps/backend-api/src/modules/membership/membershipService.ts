@@ -38,6 +38,21 @@ export interface MembershipPlan {
    * what Gold is worth without a release.
    */
   extraDiscountPercent: number;
+  /**
+   * The most that percentage may take off one order.
+   *
+   * Zero means uncapped, which is what this was before and is how a Rs 99
+   * membership pays for itself on a single large order. A cap is the whole
+   * difference between a discount and an unbounded liability.
+   */
+  maxDiscountPerOrder: number;
+  /**
+   * Food total a member needs to reach for delivery to be free.
+   *
+   * Per plan rather than platform-wide, so a dearer plan can be genuinely
+   * better rather than only longer.
+   */
+  freeDeliveryMinOrder: number;
   isActive: boolean;
 }
 
@@ -58,7 +73,9 @@ const DEFAULT_PLANS: MembershipPlan[] = [
     price: 99,
     durationDays: 30,
     extraDiscountPercent: 5,
-    benefits: ['Free delivery on every order', '5% off every order', 'Priority support'],
+    maxDiscountPerOrder: 75,
+    freeDeliveryMinOrder: 199,
+    benefits: [],
     isActive: true
   },
   {
@@ -67,7 +84,9 @@ const DEFAULT_PLANS: MembershipPlan[] = [
     price: 249,
     durationDays: 90,
     extraDiscountPercent: 5,
-    benefits: ['Free delivery on every order', '5% off every order', 'Priority support', 'Save ₹48'],
+    maxDiscountPerOrder: 100,
+    freeDeliveryMinOrder: 149,
+    benefits: [],
     isActive: true
   },
   {
@@ -76,7 +95,9 @@ const DEFAULT_PLANS: MembershipPlan[] = [
     price: 799,
     durationDays: 365,
     extraDiscountPercent: 7,
-    benefits: ['Free delivery on every order', '7% off every order', 'Priority support', 'Save ₹389'],
+    maxDiscountPerOrder: 150,
+    freeDeliveryMinOrder: 99,
+    benefits: [],
     isActive: true
   }
 ];
@@ -84,7 +105,8 @@ const DEFAULT_PLANS: MembershipPlan[] = [
 export function listPlans(includeInactive = false): MembershipPlan[] {
   const stored = memoryStore.settings.get(SETTINGS_KEY) as MembershipPlan[] | undefined;
   const plans = Array.isArray(stored) && stored.length ? stored : DEFAULT_PLANS;
-  return includeInactive ? plans : plans.filter(p => p.isActive);
+  const withText = plans.map(p => ({ ...p, benefits: planBenefits(p) }));
+  return includeInactive ? withText : withText.filter(p => p.isActive);
 }
 
 export function findPlan(planId: string): MembershipPlan | null {
@@ -95,6 +117,52 @@ export function findPlan(planId: string): MembershipPlan | null {
 export function savePlans(plans: MembershipPlan[]): MembershipPlan[] {
   memoryStore.settings.set(SETTINGS_KEY, plans);
   return plans;
+}
+
+/**
+ * What a plan is worth, written from its own numbers.
+ *
+ * Generated rather than typed, and that is the point. The shipped text said
+ * **"Free delivery on every order"** while the code has always required a Rs 199
+ * food total — so the platform was promising something it did not do, on the
+ * screen where somebody hands over money. A benefit list that is derived cannot
+ * drift away from the thing it describes.
+ */
+export function planBenefits(plan: MembershipPlan): string[] {
+  const lines: string[] = [];
+
+  lines.push(
+    plan.freeDeliveryMinOrder > 0
+      ? `Free delivery on orders over Rs ${plan.freeDeliveryMinOrder}`
+      : 'Free delivery on every order'
+  );
+
+  if (plan.extraDiscountPercent > 0) {
+    lines.push(
+      plan.maxDiscountPerOrder > 0
+        ? `${plan.extraDiscountPercent}% off the food, up to Rs ${plan.maxDiscountPerOrder} an order`
+        : `${plan.extraDiscountPercent}% off the food on every order`
+    );
+  }
+
+  lines.push(`Rs ${plan.price} for ${plan.durationDays} days`);
+  return lines;
+}
+
+/** The most this customer's plan may take off one order, or 0 for uncapped. */
+export function goldDiscountCap(user: Pick<UserProfile, 'isGold' | 'goldExpiresAt' | 'goldPlanId'>): number {
+  if (!isGoldActive(user)) return 0;
+  const plan = user.goldPlanId ? findPlan(user.goldPlanId) : null;
+  return plan?.maxDiscountPerOrder ?? 0;
+}
+
+/** The food total this customer needs for free delivery. */
+export function goldFreeDeliveryMinOrder(
+  user: Pick<UserProfile, 'isGold' | 'goldExpiresAt' | 'goldPlanId'>
+): number | undefined {
+  if (!isGoldActive(user)) return undefined;
+  const plan = user.goldPlanId ? findPlan(user.goldPlanId) : null;
+  return plan?.freeDeliveryMinOrder;
 }
 
 /* -------------------------------------------------------------------------- *

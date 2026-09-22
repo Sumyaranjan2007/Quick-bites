@@ -77,6 +77,9 @@ interface PayoutRow {
   draftedByUserId: string;
   draftedAt: string;
   approvedByUserId?: string;
+  /** Where the money goes, resolved from the approved account. */
+  destinationLine?: string;
+  destination?: { kind: string; label: string; holderName: string } | null;
 }
 
 interface DepositRow {
@@ -562,6 +565,9 @@ export const PayoutsScreen: React.FC = () => {
                       <View style={{ flex: 1 }}>
                         <Text style={s.dueName}>{payout.ownerName}</Text>
                         <Text style={s.dueType}>via {railFor(payout.rail)?.displayName || payout.rail}</Text>
+                      {!!payout.destinationLine && (
+                        <Text style={s.destination}>{payout.destinationLine}</Text>
+                      )}
                       </View>
                       <Text style={s.dueAmount}>{rupees(payout.amount)}</Text>
                     </View>
@@ -610,6 +616,7 @@ export const PayoutsScreen: React.FC = () => {
                     <Badge label={payout.state} tone={STATE_TONE[payout.state] || 'neutral'} />
                   </View>
                 </View>
+                {!!payout.destinationLine && <Text style={s.destination}>{payout.destinationLine}</Text>}
                 {!!payout.reference && <Text style={s.reference}>Reference: {payout.reference}</Text>}
                 {!!payout.claimUrl && <Text style={s.reference}>Link: {payout.claimUrl}</Text>}
                 {!!payout.failureReason && <Text style={s.errorText}>{payout.failureReason}</Text>}
@@ -999,6 +1006,7 @@ const s = StyleSheet.create({
   payoutCard: { marginBottom: 10 },
   payoutHead: { flexDirection: 'row', alignItems: 'flex-start' },
   reference: { color: c.text.secondary, fontSize: 12, marginTop: 6 },
+  destination: { color: c.text.secondary, fontSize: 12, marginTop: 4, fontWeight: '600' },
   uncertain: { color: c.state.warning, fontSize: 12, lineHeight: 17, marginTop: 8 },
 
   confirmBox: { backgroundColor: c.bg.sunken, borderRadius: 10, padding: 12, marginBottom: 12 },

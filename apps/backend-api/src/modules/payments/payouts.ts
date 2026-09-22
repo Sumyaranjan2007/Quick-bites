@@ -509,9 +509,39 @@ export async function executePayout(input: {
 
 /** What a screen shows. Rupees alongside paise, because people read rupees. */
 export function payoutView(payout: PayoutRecord) {
+  /*
+   * Where the money actually went, in words.
+   *
+   * The owner asked for this directly: *"it will show where the transaction is
+   * happening, by whom, to which bank — if it's UPI it will show which UPI it
+   * is sending to."*
+   *
+   * Resolved at read time from the payee's account rather than copied onto the
+   * payout, because the payout already stores the one thing that must never
+   * change — the amount — and a second copied field is a second thing to keep
+   * in step. The last four digits and the UPI id are all that is kept anywhere
+   * on this platform; the full account number was discarded at verification.
+   */
+  const account = payableAccountFor(payout.ownerType, payout.ownerId);
+  const destination = account
+    ? account.method === 'VPA'
+      ? { kind: 'UPI' as const, label: account.vpa || 'UPI', holderName: account.holderName }
+      : {
+          kind: 'BANK' as const,
+          label: account.accountLast4 ? `Account ending ${account.accountLast4}` : 'Bank account',
+          ifsc: account.ifsc,
+          holderName: account.holderName
+        }
+    : null;
+
   return {
     ...payout,
-    amount: toRupees(payout.amountPaise)
+    amount: toRupees(payout.amountPaise),
+    destination,
+    /** One line a person can read out on a phone call. */
+    destinationLine: destination
+      ? `${formatPaise(payout.amountPaise)} to ${destination.holderName} — ${destination.label}`
+      : 'No approved account on file for this payee.'
   };
 }
 

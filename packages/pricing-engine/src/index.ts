@@ -95,6 +95,18 @@ export interface PricingInput {
   membershipDiscountPercent?: number;
 
   /**
+   * The most a membership may take off this one order. Zero or absent means
+   * uncapped, which is what it was before caps existed.
+   *
+   * A percentage with no ceiling is not a discount, it is an open liability:
+   * one large order can cost the platform more than the membership sold for.
+   */
+  membershipMaxDiscount?: number;
+
+  /** The food total a member needs for free delivery, if their plan sets one. */
+  memberFreeDeliveryMinOrder?: number;
+
+  /**
    * The rates in force, from the versioned pricing configuration.
    *
    * Optional, and falling back to `DEFAULT_PRICING_RATES` — the numbers that
@@ -202,7 +214,11 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     const extraKm = Math.ceil(input.distanceKm - rates.deliveryBaseKm);
     deliveryFee += extraKm * rates.deliveryPerKmBeyond;
   }
-  if (input.isGold && itemsTotal >= rates.memberFreeDeliveryMinOrder) {
+  const freeDeliveryFloor =
+    typeof input.memberFreeDeliveryMinOrder === 'number' && Number.isFinite(input.memberFreeDeliveryMinOrder)
+      ? input.memberFreeDeliveryMinOrder
+      : rates.memberFreeDeliveryMinOrder;
+  if (input.isGold && itemsTotal >= freeDeliveryFloor) {
     deliveryFee = 0.00;
   }
 
@@ -244,7 +260,14 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   // also has a voucher should get both, and the floor below keeps the total
   // from going negative.
   const membershipPercent = Math.min(50, Math.max(0, input.membershipDiscountPercent || 0));
-  const membershipDiscount = Math.round(itemsTotal * membershipPercent) / 100;
+  const uncappedMembership = Math.round(itemsTotal * membershipPercent) / 100;
+  // Capped where the plan sets one. This is the difference between a discount
+  // and an unbounded liability on a large basket.
+  const membershipCap =
+    typeof input.membershipMaxDiscount === 'number' && input.membershipMaxDiscount > 0
+      ? input.membershipMaxDiscount
+      : Infinity;
+  const membershipDiscount = Math.round(Math.min(uncappedMembership, membershipCap) * 100) / 100;
 
   // 7. Tip — rounded and floored at zero, so a negative figure cannot be used
   //    to reduce the bill. It is added after the discount rather than before,
