@@ -687,3 +687,22 @@ export function fetchPaymentPolicies() {
 export function fetchPaymentPolicy(id: string) {
   return request<{ policy: PolicyView }>(`/policies/payments/${id}`);
 }
+
+/**
+ * What this restaurant is ACTUALLY paid for packaging.
+ *
+ * Not the same as what they declared: an administrator can approve a different
+ * figure, and the customer may be charged more still — anything the platform
+ * adds on top is the platform's. Showing a partner their own declaration while
+ * a different number reaches their account is how a support ticket gets raised
+ * on every settlement.
+ */
+export function fetchPackagingEarnings() {
+  return request<{
+    declared: number;
+    youEarn: number;
+    adjusted: boolean;
+    message: string;
+    note: string;
+  }>('/earnings/packaging');
+}

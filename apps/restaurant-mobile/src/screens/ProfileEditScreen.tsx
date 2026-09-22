@@ -21,6 +21,7 @@ import {
   submitProfileChanges,
   fetchProfileEdits,
   setHoursOverride,
+  fetchPackagingEarnings,
   type EditableProfileView,
   type ProfileResponse,
   type ProfileRules
@@ -121,6 +122,13 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
   const [photoBusy, setPhotoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [packaging, setPackaging] = useState<{
+    declared: number;
+    youEarn: number;
+    adjusted: boolean;
+    message: string;
+    note: string;
+  } | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
@@ -143,6 +151,13 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
       // exact confusion this screen exists to prevent.
       setDraft(toDraft(p.data.published));
       if (h.ok && h.data) setHistory(h.data.edits);
+
+      // Not awaited with the rest: the profile must render even if this
+      // one call fails, because everything else on the screen still works
+      // without it.
+      void fetchPackagingEarnings().then(r => {
+        if (r.ok && r.data) setPackaging(r.data);
+      });
 
       setLoading(false);
       setRefreshing(false);
@@ -437,9 +452,27 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
           value={draft.packagingFee}
           onChangeText={v => set('packagingFee', v.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
-          hint="What your packaging costs, per order. This is the amount you receive. Our team reviews it before it applies."
+          hint="What your packaging costs, per order. Our team reviews it before it applies."
           error={refusalFor('partnerPackagingFee')}
         />
+        {/*
+          THE NUMBER THAT ACTUALLY REACHES THEM, from the server.
+
+          An administrator can approve a figure different from the one the
+          partner asked for, and the customer may be charged more still. A
+          screen that shows only the declaration is honest about what was
+          asked and silent about what is paid — which is the version a partner
+          discovers on their first settlement.
+
+          The sentence is rendered verbatim because the server already handles
+          both cases, so this screen has no opinion to get wrong.
+        */}
+        {!!packaging && (
+          <View style={packaging.adjusted ? styles.payNoteAdjusted : styles.payNote}>
+            <Text style={styles.payNoteText}>{packaging.message}</Text>
+            <Text style={styles.payNoteSub}>{packaging.note}</Text>
+          </View>
+        )}
       </Card>
 
       <Card>
@@ -643,6 +676,28 @@ const styles = StyleSheet.create({
 
   refusal: { color: c.danger, fontSize: 12, marginTop: 6, lineHeight: 17 },
   hoursEmpty: { color: c.textMuted, fontSize: 12.5, marginTop: spacing.md, lineHeight: 18 },
+  payNote: {
+    backgroundColor: c.successSoft,
+    borderWidth: 1,
+    borderColor: '#BFE5D2',
+    borderRadius: radii.sm,
+    padding: spacing.md,
+    gap: 4,
+    marginTop: 2
+  },
+  // Styled differently when the figure was changed, so a partner notices
+  // rather than having to read every line to find out.
+  payNoteAdjusted: {
+    backgroundColor: '#FFF9EE',
+    borderWidth: 1,
+    borderColor: '#EAD3A8',
+    borderRadius: radii.sm,
+    padding: spacing.md,
+    gap: 4,
+    marginTop: 2
+  },
+  payNoteText: { color: c.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  payNoteSub: { color: c.textSoft, fontSize: 12, lineHeight: 17 },
 
   hoursRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   hoursText: { flex: 1, color: c.textSoft, fontSize: 13, lineHeight: 18 },
