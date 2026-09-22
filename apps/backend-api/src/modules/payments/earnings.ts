@@ -47,13 +47,27 @@ export interface OrderSplit {
   platformFeePaise: number;
   gstOnFoodPaise: number;
   tipPaise: number;
+  /** What we added to the food price and kept. Never reaches the kitchen. */
+  foodMarkupPaise: number;
 }
 
 export function splitForOrder(order: Order, rates: PricingRates = getActiveRates()): OrderSplit {
   const bill: any = order.bill || {};
 
   const grossPaise = toPaise(Number(bill.totalAmount) || 0);
-  const itemsPaise = toPaise(Number(bill.itemsTotal) || 0);
+  /*
+   * The RESTAURANT's own food total, not the marked-up one the customer paid.
+   *
+   * Same rule as packaging, one line down: anything an administrator added on
+   * top is the platform's, and paying it out here would hand the kitchen our
+   * margin. Orders placed before food could be marked up carry no such field
+   * and fall back to the customer figure, which is what was true then.
+   */
+  const itemsPaise = Number.isFinite(Number(bill.partnerItemsTotal))
+    ? toPaise(Number(bill.partnerItemsTotal))
+    : toPaise(Number(bill.itemsTotal) || 0);
+  /** What the customer actually paid for the food. Used for our own margin. */
+  const customerItemsPaise = toPaise(Number(bill.itemsTotal) || 0);
   const packagingPaise = toPaise(Number(bill.packagingFee) || 0);
   const platformFeePaise = toPaise(Number(bill.platformFee) || 0);
   const gstOnFoodPaise = toPaise(Number(bill.gstAmount) || 0);
@@ -110,7 +124,8 @@ export function splitForOrder(order: Order, rates: PricingRates = getActiveRates
     tcsPaise,
     platformFeePaise,
     gstOnFoodPaise,
-    tipPaise
+    tipPaise,
+    foodMarkupPaise: Math.max(0, customerItemsPaise - itemsPaise)
   };
 }
 

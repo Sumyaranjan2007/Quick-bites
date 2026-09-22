@@ -77,6 +77,19 @@ export interface RestaurantCharges {
    */
   packagingMarkup: number;
 
+  /**
+   * A percentage added to every dish price for this restaurant, kept by us.
+   *
+   * The restaurant sets its menu prices and is paid on those. This inflates
+   * what the CUSTOMER sees and pays; the difference never reaches the kitchen
+   * and never enters their commission base, because taking commission on our
+   * own markup would charge a restaurant for money it never received.
+   *
+   * Zero means the customer pays exactly what the restaurant set, which is the
+   * default and the honest one for a restaurant nobody has reviewed.
+   */
+  foodMarkupPercent: number;
+
   /** Charged to the customer in full. No part of it reaches the restaurant. */
   platformFee: number | null;
 
@@ -125,6 +138,8 @@ export interface EffectiveCharges {
   packagingMargin: number;
   /** True when an administrator has set the partner's figure themselves. */
   partnerFeeAdjusted: boolean;
+  /** Added to every dish price and kept by us. */
+  foodMarkupPercent: number;
   platformFee: number;
   gstFoodPercent: number;
   commissionPercent: number;
@@ -218,6 +233,7 @@ export function effectiveCharges(
     customerPackagingFee: customerPackaging,
     packagingMargin: markup,
     partnerFeeAdjusted,
+    foodMarkupPercent: Math.max(0, own?.foodMarkupPercent ?? 0),
     platformFee: pick('platformFee', rates.platformFeeBase),
     gstFoodPercent: pick('gstFoodPercent', rates.gstFoodPercent),
     commissionPercent: pick('commissionPercent', rates.defaultCommissionPercent),
@@ -236,6 +252,7 @@ export function effectiveCharges(
 const BOUNDS: Record<string, { min: number; max: number; unit: string; label: string }> = {
   partnerApprovedFee: { min: 0, max: 200, unit: 'Rs', label: 'Packaging the restaurant earns' },
   packagingMarkup: { min: 0, max: 200, unit: 'Rs', label: 'Packaging markup we keep' },
+  foodMarkupPercent: { min: 0, max: 100, unit: '%', label: 'Food price markup we keep' },
   platformFee: { min: 0, max: 100, unit: 'Rs', label: 'Platform fee' },
   gstFoodPercent: { min: 0, max: 28, unit: '%', label: 'GST on food' },
   commissionPercent: { min: 0, max: 40, unit: '%', label: 'Our commission' },
@@ -284,6 +301,7 @@ export function setCharges(
     restaurantId,
     partnerApprovedFee: existing?.partnerApprovedFee ?? null,
     packagingMarkup: existing?.packagingMarkup ?? 0,
+    foodMarkupPercent: existing?.foodMarkupPercent ?? 0,
     platformFee: existing?.platformFee ?? null,
     gstFoodPercent: existing?.gstFoodPercent ?? null,
     commissionPercent: existing?.commissionPercent ?? null,
@@ -331,6 +349,7 @@ export function setCharges(
  */
 export function platformMarginPaiseFor(order: any): {
   commissionPaise: number;
+  foodMarkupPaise: number;
   packagingMarginPaise: number;
   platformFeePaise: number;
   extraChargePaise: number;
@@ -340,6 +359,14 @@ export function platformMarginPaiseFor(order: any): {
   const bill: any = order?.bill || {};
 
   const commissionPaise = toPaise(Number(bill.commissionAmount) || 0);
+
+  // What we added to the food price. Frozen on the bill as two totals, so this
+  // stays right for an order priced before the last rate change.
+  const customerItems = Number(bill.itemsTotal) || 0;
+  const partnerItems = Number.isFinite(Number(bill.partnerItemsTotal))
+    ? Number(bill.partnerItemsTotal)
+    : customerItems;
+  const foodMarkupPaise = Math.max(0, toPaise(customerItems - partnerItems));
   const platformFeePaise = toPaise(Number(bill.platformFee) || 0);
   const extraChargePaise = toPaise(Number(bill.extraCharge) || 0);
 
@@ -362,12 +389,18 @@ export function platformMarginPaiseFor(order: any): {
 
   return {
     commissionPaise,
+    foodMarkupPaise,
     packagingMarginPaise,
     platformFeePaise,
     extraChargePaise,
     deliveryMarginPaise,
     totalPaise:
-      commissionPaise + packagingMarginPaise + platformFeePaise + extraChargePaise + deliveryMarginPaise
+      commissionPaise +
+      foodMarkupPaise +
+      packagingMarginPaise +
+      platformFeePaise +
+      extraChargePaise +
+      deliveryMarginPaise
   };
 }
 
@@ -384,6 +417,76 @@ export function chargesView(charges: EffectiveCharges) {
     approvalNote: charges.partnerFeeAdjusted
       ? `They asked for Rs ${charges.partnerDeclaredFee}; you set Rs ${charges.partnerPackagingFee}.`
       : `Paying what they asked for: Rs ${charges.partnerDeclaredFee}.`
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ *  FOOD PRICE MARKUP                                                  *
+ * ------------------------------------------------------------------ */
+
+/**
+ * What a customer sees for a dish the restaurant priced at `price`.
+ *
+ * -------------------------------------------------------------------------
+ * ROUNDED PER DISH, NOT PER BASKET
+ * -------------------------------------------------------------------------
+ * Rounding the whole basket would make the sum of the prices on screen differ
+ * from the total at checkout by a rupee or two, and a customer who notices that
+ * once never trusts the bill again. Each dish is inflated and rounded on its
+ * own, so the line the customer read is the line they are charged.
+ *
+ * Rounded to whole rupees, because a menu showing Rs 137.50 for a dish the
+ * kitchen priced at Rs 125 looks like a mistake rather than a price.
+ */
+export function customerDishPrice(price: number, foodMarkupPercent: number): number {
+  const raw = Number(price) || 0;
+  const markup = Math.max(0, Number(foodMarkupPercent) || 0);
+  if (markup === 0) return Math.round(raw * 100) / 100;
+  return Math.round(raw * (1 + markup / 100));
+}
+
+/**
+ * A whole menu, priced as the customer should see it.
+ *
+ * Exposed so every surface that shows a price to a CUSTOMER — the menu, search,
+ * the cart — applies the same function rather than each doing its own
+ * arithmetic. Four surfaces inflating independently is four chances for the
+ * dish price and the checkout total to disagree.
+ *
+ * **Never call this for a partner or an admin menu.** They must see the
+ * restaurant's own prices; showing a partner the inflated figure while paying
+ * them the original is how they conclude the platform is stealing.
+ */
+export function inflateMenuForCustomer<T extends { categories?: any[] }>(
+  menu: T | null,
+  restaurantId: string
+): T | null {
+  if (!menu) return menu;
+  const markup = effectiveCharges(restaurantId).foodMarkupPercent;
+  if (markup === 0) return menu;
+
+  return {
+    ...menu,
+    categories: (menu.categories || []).map((category: any) => ({
+      ...category,
+      items: (category.items || []).map((item: any) => ({
+        ...item,
+        price: customerDishPrice(item.price, markup),
+        /** What the kitchen set. Present so a bill can be explained later. */
+        partnerPrice: Number(item.price) || 0,
+        optionGroups: (item.optionGroups || []).map((group: any) => ({
+          ...group,
+          options: (group.options || []).map((option: any) => ({
+            ...option,
+            // An add-on is part of the dish price, so it is marked up with it.
+            // Leaving add-ons raw would let a customer dodge the markup by
+            // ordering a cheap base with expensive extras.
+            priceDelta: customerDishPrice(option.priceDelta, markup),
+            partnerPriceDelta: Number(option.priceDelta) || 0
+          }))
+        }))
+      }))
+    }))
   };
 }
 

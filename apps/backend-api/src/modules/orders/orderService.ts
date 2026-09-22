@@ -6,7 +6,7 @@ import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates } from '../payments/pricingConfig.ts';
-import { effectiveCharges } from '../payments/restaurantCharges.ts';
+import { effectiveCharges, customerDishPrice } from '../payments/restaurantCharges.ts';
 import { recordOrderEarnings } from '../payments/earnings.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
@@ -115,11 +115,13 @@ export const orderService = {
       for (const dish of cat.items) allDishes.set(dish.id, dish);
     }
 
+    let partnerItemsTotal = 0;
     const pricedItems: Array<{
       dishId: string;
       name: string;
       unitPrice: number;
       quantity: number;
+      partnerUnitPrice: number;
       addonsTotal: number;
       totalPrice: number;
       isAvailable: boolean;
@@ -138,13 +140,32 @@ export const orderService = {
           if (opt) addonsTotal += opt.priceDelta;
         }
       }
+      /*
+       * Two prices per line, and the customer pays the second.
+       *
+       * The kitchen set the dish price; an administrator may add a percentage
+       * on top for this restaurant, and that addition is ours. Both are kept:
+       * the inflated one is what the customer is charged and what their receipt
+       * must show, and the raw one is what the settlement is computed from.
+       *
+       * Priced HERE from the stored menu rather than trusted from the request,
+       * as it always was. A client that can name its own price eventually will.
+       */
+      const foodMarkup = effectiveCharges(restaurant.id).foodMarkupPercent;
+      const customerUnitPrice = customerDishPrice(dish.price, foodMarkup);
+      const customerAddons = customerDishPrice(addonsTotal, foodMarkup);
+
+      partnerItemsTotal +=
+        Math.round((dish.price + addonsTotal) * reqItem.quantity * 100) / 100;
+
       pricedItems.push({
         dishId: dish.id,
         name: dish.name,
-        unitPrice: dish.price,
+        unitPrice: customerUnitPrice,
+        partnerUnitPrice: dish.price,
         quantity: reqItem.quantity,
-        addonsTotal,
-        totalPrice: Math.round((dish.price + addonsTotal) * reqItem.quantity * 100) / 100,
+        addonsTotal: customerAddons,
+        totalPrice: Math.round((customerUnitPrice + customerAddons) * reqItem.quantity * 100) / 100,
         // Reported rather than refused: the cart should be able to show which
         // line went out of stock while it was open, not just fail to price.
         isAvailable: Boolean(dish.isAvailable)
@@ -207,6 +228,7 @@ export const orderService = {
        */
       packagingFee: charges.customerPackagingFee,
       partnerPackagingFee: charges.partnerPackagingFee,
+      partnerItemsTotal,
       gstFoodPercent: charges.gstFoodPercent,
       platformFeeBase: charges.platformFee,
       deliveryBaseFee: charges.deliveryBaseFee,
@@ -328,10 +350,12 @@ export const orderService = {
       }
     }
 
+    let partnerItemsTotal = 0;
     const orderItems: Array<{
       dishId: string;
       name: string;
       unitPrice: number;
+      partnerUnitPrice: number;
       quantity: number;
       isVeg: boolean;
       addonsTotal: number;
@@ -370,14 +394,29 @@ export const orderService = {
         }
       }
 
-      const itemTotal = (dish.price + addonsTotal) * reqItem.quantity;
+      /*
+       * The same two prices as the quote path, and they must agree with it.
+       *
+       * A quote that inflates and an order that does not would show a customer
+       * one total on the cart screen and charge another at checkout — the exact
+       * complaint this markup is most likely to produce if it is applied in one
+       * place and not the other.
+       */
+      const foodMarkup = effectiveCharges(restaurant.id).foodMarkupPercent;
+      const customerUnitPrice = customerDishPrice(dish.price, foodMarkup);
+      const customerAddons = customerDishPrice(addonsTotal, foodMarkup);
+
+      partnerItemsTotal += Math.round((dish.price + addonsTotal) * reqItem.quantity * 100) / 100;
+
+      const itemTotal = (customerUnitPrice + customerAddons) * reqItem.quantity;
       orderItems.push({
         dishId: dish.id,
         name: dish.name,
-        unitPrice: dish.price,
+        unitPrice: customerUnitPrice,
+        partnerUnitPrice: dish.price,
         quantity: reqItem.quantity,
         isVeg: Boolean(dish.isVeg),
-        addonsTotal,
+        addonsTotal: customerAddons,
         selectedOptions: selectedOptionsDetails,
         totalPrice: Math.round(itemTotal * 100) / 100
       });
@@ -428,6 +467,7 @@ export const orderService = {
        */
       packagingFee: charges.customerPackagingFee,
       partnerPackagingFee: charges.partnerPackagingFee,
+      partnerItemsTotal,
       gstFoodPercent: charges.gstFoodPercent,
       platformFeeBase: charges.platformFee,
       deliveryBaseFee: charges.deliveryBaseFee,

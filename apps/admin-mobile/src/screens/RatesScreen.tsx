@@ -34,6 +34,7 @@ interface ChargeRow {
   packagingMargin: number;
   partnerFeeAdjusted: boolean;
   approvalNote: string;
+  foodMarkupPercent: number;
   platformFee: number;
   gstFoodPercent: number;
   commissionPercent: number;
@@ -138,6 +139,7 @@ export const RatesScreen: React.FC = () => {
     setForm({
       partnerApprovedFee: String(row.partnerPackagingFee),
       packagingMarkup: String(row.packagingMarkup),
+      foodMarkupPercent: String(row.foodMarkupPercent),
       platformFee: String(row.platformFee),
       gstFoodPercent: String(row.gstFoodPercent),
       commissionPercent: String(row.commissionPercent),
@@ -168,6 +170,7 @@ export const RatesScreen: React.FC = () => {
       await api.put(`/admin/rates/restaurants/${editing.restaurantId}`, {
         partnerApprovedFee: num('partnerApprovedFee'),
         packagingMarkup: num('packagingMarkup'),
+        foodMarkupPercent: num('foodMarkupPercent'),
         platformFee: num('platformFee'),
         gstFoodPercent: num('gstFoodPercent'),
         commissionPercent: num('commissionPercent'),
@@ -278,6 +281,7 @@ export const RatesScreen: React.FC = () => {
                     <Divider style={{ marginVertical: 10 }} />
 
                     <View style={s.figures}>
+                      <Figure label="Food markup" value={`+${row.foodMarkupPercent}%`} />
                       <Figure label="Commission" value={`${row.commissionPercent}%`} />
                       <Figure label="Platform fee" value={rupees(row.platformFee)} />
                       <Figure label="GST" value={`${row.gstFoodPercent}%`} />
@@ -693,6 +697,24 @@ export const RatesScreen: React.FC = () => {
           onChange={v => setForm(f => ({ ...f, packagingMarkup: v }))}
           suffix="Rs"
           hint="Added to what the customer pays, and kept in full. None of it reaches the restaurant."
+        />
+        {/*
+          Food markup, beside packaging because it is the same decision applied
+          to a different line: the kitchen sets a price, we add on top, and the
+          addition is ours. Kept as a percentage rather than an amount because a
+          flat markup on a Rs 80 dosa and a Rs 900 biryani is two very different
+          decisions wearing one number.
+        */}
+        <Field
+          label="Food price markup"
+          value={form.foodMarkupPercent}
+          onChange={v => setForm(f => ({ ...f, foodMarkupPercent: v }))}
+          suffix="%"
+          hint={
+            num('foodMarkupPercent') > 0
+              ? `Every dish costs the customer ${num('foodMarkupPercent')}% more than this kitchen set. A Rs 200 dish shows as Rs ${Math.round(200 * (1 + num('foodMarkupPercent') / 100))}. The restaurant is still paid on Rs 200, and we keep the rest.`
+              : 'The customer pays exactly what the kitchen priced. Raise it to earn on every dish.'
+          }
         />
         <Field
           label="Platform fee"

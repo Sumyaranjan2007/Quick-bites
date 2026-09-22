@@ -359,6 +359,8 @@ const ChargesSchema = z.object({
   partnerApprovedFee: z.number().min(0).max(200).nullable().optional(),
   /** What WE add on top and keep. */
   packagingMarkup: z.number().min(0).max(200).optional(),
+  /** A percentage added to every dish price for this restaurant, kept by us. */
+  foodMarkupPercent: z.number().min(0).max(100).optional(),
   platformFee: z.number().min(0).max(100).nullable().optional(),
   gstFoodPercent: z.number().min(0).max(28).nullable().optional(),
   commissionPercent: z.number().min(0).max(40).nullable().optional(),

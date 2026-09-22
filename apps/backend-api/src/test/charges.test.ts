@@ -21,7 +21,9 @@ import {
   effectiveCharges,
   setCharges,
   platformMarginPaiseFor,
-  resetRestaurantChargesForTesting
+  resetRestaurantChargesForTesting,
+  customerDishPrice,
+  inflateMenuForCustomer
 } from '../modules/payments/restaurantCharges.ts';
 import { splitForOrder, recordOrderEarnings } from '../modules/payments/earnings.ts';
 import {
@@ -82,6 +84,7 @@ async function run() {
   memoryStore.restaurants.clear();
   memoryStore.orders.clear();
   memoryStore.riders.clear();
+  memoryStore.menus.clear();
 
   memoryStore.restaurants.set(RESTAURANT, {
     id: RESTAURANT,
@@ -503,6 +506,215 @@ async function run() {
       rates: getActiveRates()
     });
     assert.equal(above.deliveryFee, 0);
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  FOOD PRICE MARKUP                                                *
+   * ---------------------------------------------------------------- */
+
+  await check('A dish is marked up per dish, and rounded to whole rupees', () => {
+    /*
+     * Rounded per dish rather than per basket. Rounding the whole basket makes
+     * the sum of the prices on screen differ from the checkout total by a rupee
+     * or two, and a customer who notices that once never trusts the bill again.
+     */
+    assert.equal(customerDishPrice(200, 20), 240);
+    assert.equal(customerDishPrice(125, 10), 138, '137.5 rounds to a price, not a fraction');
+    assert.equal(customerDishPrice(200, 0), 200, 'no markup changed the price');
+    assert.equal(customerDishPrice(0, 20), 0);
+  });
+
+  await check('THE RULE: the customer pays the inflated price, the kitchen earns its own', () => {
+    // Every rate this check depends on is set here rather than inherited from
+    // an earlier one. A test that reads whatever the previous test left behind
+    // fails for reasons that have nothing to do with what it is testing —
+    // which is exactly what happened on the first run of this check.
+    setCharges(
+      RESTAURANT,
+      { foodMarkupPercent: 20, packagingMarkup: 0, partnerApprovedFee: null, commissionPercent: 15 },
+      ADMIN
+    );
+    const charges = effectiveCharges(RESTAURANT);
+    assert.equal(charges.foodMarkupPercent, 20);
+
+    // One dish the kitchen priced at Rs 500. The customer sees Rs 600.
+    const customerPrice = customerDishPrice(500, charges.foodMarkupPercent);
+    assert.equal(customerPrice, 600);
+
+    const bill = calculateOrderPricing({
+      items: [{ unitPrice: customerPrice, quantity: 1 }],
+      partnerItemsTotal: 500,
+      packagingFee: charges.customerPackagingFee,
+      partnerPackagingFee: charges.partnerPackagingFee,
+      commissionPercent: charges.commissionPercent,
+      rates: getActiveRates()
+    });
+
+    assert.equal(bill.itemsTotal, 600, 'the customer was not charged the marked-up price');
+    assert.equal(bill.partnerItemsTotal, 500, 'the kitchen figure did not survive onto the bill');
+
+    /*
+     * Commission on 500, NOT on 600.
+     *
+     * Taking it on the inflated figure would charge the kitchen for money that
+     * never reached them — and they would be right to dispute every settlement.
+     */
+    assert.equal(bill.commissionAmount, 75, '15% of 500; commission was taken on our own markup');
+    assert.equal(bill.tdsAmount, 5, '1% of 500; tax was withheld against supplies they did not make');
+
+    // 500 − 75 − 5 + 15 packaging = 435. The markup is not in it.
+    assert.equal(bill.restaurantNetPayout, 435, 'the kitchen was paid our markup');
+  });
+
+  await check('And the LEDGER pays the kitchen 435, not 535', () => {
+    const order: any = {
+      id: 'ord_foodmarkup_1',
+      orderNumber: 'QB-900002',
+      restaurantId: RESTAURANT,
+      riderId: 'rdr_charge_1',
+      customerId: 'usr_cust_charge',
+      status: 'DELIVERED',
+      paymentStatus: 'PAID',
+      paymentMethod: 'RAZORPAY_SANDBOX',
+      riderPayout: 37,
+      deliveredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+      updatedAt: new Date().toISOString(),
+      bill: {
+        itemsTotal: 600,
+        partnerItemsTotal: 500,
+        gstAmount: 30,
+        packagingFee: 15,
+        partnerPackagingFee: 15,
+        deliveryFee: 40,
+        platformFee: 5.9,
+        couponDiscount: 0,
+        tipAmount: 0,
+        totalAmount: 690.9,
+        commissionPercent: 15,
+        commissionAmount: 75,
+        tdsAmount: 5
+      }
+    };
+
+    const split = splitForOrder(order);
+    assert.equal(split.partnerPaise, toPaise(435), 'the split handed over the food markup');
+    assert.equal(split.foodMarkupPaise, toPaise(100), 'the markup was not counted as ours');
+
+    memoryStore.orders.set(order.id, order);
+    recordOrderEarnings(order);
+    assert.equal(ledger.audit().balanced, true);
+  });
+
+  await check('The food markup is reported as platform revenue', () => {
+    const margin = platformMarginPaiseFor(memoryStore.orders.get('ord_foodmarkup_1'));
+    assert.equal(margin.foodMarkupPaise, toPaise(100));
+    assert.equal(margin.commissionPaise, toPaise(75));
+    // 100 markup + 75 commission + 5.90 fee + (40 delivery − 37 rider) = 183.90
+    assert.equal(margin.totalPaise, toPaise(183.9));
+  });
+
+  await check('An order placed before markups existed is read as no markup', () => {
+    // Every order already in the database. Falling back to zero would
+    // retroactively cut every one of those settlements by the whole food total.
+    const legacy: any = {
+      bill: { itemsTotal: 500, packagingFee: 20, commissionAmount: 75, tdsAmount: 5 },
+      riderPayout: 37
+    };
+    assert.equal(splitForOrder(legacy).partnerPaise, toPaise(440), '500 + 20 − 75 − 5');
+    assert.equal(splitForOrder(legacy).foodMarkupPaise, 0);
+  });
+
+  await check('A whole menu is inflated consistently, add-ons included', () => {
+    /*
+     * Add-ons are marked up with the dish. Leaving them raw would let a
+     * customer dodge the markup by ordering a cheap base with expensive extras,
+     * which is the kind of hole somebody finds within a week.
+     */
+    memoryStore.menus.set(RESTAURANT, {
+      id: 'menu_1',
+      restaurantId: RESTAURANT,
+      categories: [
+        {
+          id: 'cat_1',
+          name: 'Mains',
+          items: [
+            {
+              id: 'dish_1',
+              name: 'Biryani',
+              price: 300,
+              optionGroups: [{ id: 'g1', options: [{ id: 'o1', priceDelta: 50 }] }]
+            }
+          ]
+        }
+      ]
+    });
+
+    // Held before the call so we can prove the stored object was not touched at
+    // all, not merely that its numbers came out the same. A version that
+    // reassigned the stored categories left every value identical and passed.
+    const storedCategories = memoryStore.menus.get(RESTAURANT).categories;
+    const storedItems = storedCategories[0].items;
+
+    const shown: any = inflateMenuForCustomer(memoryStore.menus.get(RESTAURANT), RESTAURANT);
+    const dish = shown.categories[0].items[0];
+
+    assert.equal(dish.price, 360, '300 plus 20%');
+    assert.equal(dish.partnerPrice, 300, 'the kitchen figure was lost');
+    assert.equal(dish.optionGroups[0].options[0].priceDelta, 60, 'an add-on escaped the markup');
+
+    /*
+     * The stored menu is untouched. Inflation is a VIEW, not a write.
+     *
+     * Compared as a whole rather than one price, because a version that copied
+     * the categories and mutated something deeper passed the single-field
+     * check. If this ever writes back, the kitchen's own menu silently becomes
+     * the marked-up one and the markup compounds on every read.
+     */
+    const stored = memoryStore.menus.get(RESTAURANT);
+    assert.notEqual(shown, stored, 'the same object was handed back');
+    assert.equal(stored.categories, storedCategories, 'the stored categories were replaced');
+    assert.equal(stored.categories[0].items, storedItems, 'the stored items were replaced');
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(stored)),
+      {
+        id: 'menu_1',
+        restaurantId: RESTAURANT,
+        categories: [
+          {
+            id: 'cat_1',
+            name: 'Mains',
+            items: [
+              {
+                id: 'dish_1',
+                name: 'Biryani',
+                price: 300,
+                optionGroups: [{ id: 'g1', options: [{ id: 'o1', priceDelta: 50 }] }]
+              }
+            ]
+          }
+        ]
+      },
+      'inflating the menu wrote back to the stored one'
+    );
+  });
+
+  await check('With no markup set, the menu is returned untouched and unwrapped', () => {
+    setCharges(RESTAURANT, { foodMarkupPercent: 0 }, ADMIN);
+    const stored = memoryStore.menus.get(RESTAURANT);
+    const shown: any = inflateMenuForCustomer(stored, RESTAURANT);
+
+    assert.equal(shown.categories[0].items[0].price, 300);
+    /*
+     * The SAME object, not a rebuilt copy.
+     *
+     * Asserting identity rather than equality pins the early return. A version
+     * that rebuilt the whole menu with a zero markup produced identical prices
+     * and passed — while quietly adding fields and allocating a new object on
+     * every menu read, for every restaurant, forever.
+     */
+    assert.equal(shown, stored, 'a menu with no markup was rebuilt rather than returned');
+
+    setCharges(RESTAURANT, { foodMarkupPercent: 20 }, ADMIN);
   });
 
   /* ---------------------------------------------------------------- *

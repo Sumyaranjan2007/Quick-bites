@@ -49,6 +49,19 @@ export interface PricingInput {
    * on its own behalf, and it would be invisible — the bill would still add up.
    */
   partnerPackagingFee?: number;
+  /**
+   * The food total at the RESTAURANT's own prices, before any markup.
+   *
+   * `items` carry what the customer pays. This is what the kitchen set, and it
+   * is the base for their payout, our commission and the tax withheld from
+   * them. Absent means no markup, so the two are the same — which is what was
+   * true before food could be marked up.
+   *
+   * Commission is taken on THIS, never on the marked-up total. Charging a
+   * restaurant commission on our own markup would bill them for money they
+   * never received, and they would be right to dispute every settlement.
+   */
+  partnerItemsTotal?: number;
   /** This restaurant's own GST rate, where it has one. */
   gstFoodPercent?: number;
   /** This restaurant's own platform fee, before GST on the fee. */
@@ -132,6 +145,8 @@ export interface PricingInput {
 export interface CalculatedBill {
   itemsTotal: number;
   gstAmount: number;
+  /** The food total at the restaurant's own prices. What they earn on. */
+  partnerItemsTotal: number;
   /** What the customer paid for packaging. */
   packagingFee: number;
   /**
@@ -292,21 +307,34 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     typeof input.commissionPercent === 'number' && Number.isFinite(input.commissionPercent)
       ? Math.min(50, Math.max(0, input.commissionPercent))
       : rates.defaultCommissionPercent;
-  const commission = Math.round(itemsTotal * (commissionPercent / 100) * 100) / 100;
-  const tds = Math.round(itemsTotal * (rates.tdsPercent / 100) * 100) / 100;
+  /*
+   * Both taken on the RESTAURANT's own food total, not the marked-up one.
+   *
+   * Commission on our own markup would charge a kitchen for money that never
+   * reached them. TDS on it would withhold tax against supplies they did not
+   * make, and it is remitted under their PAN, so it would be wrong in a way
+   * that shows up on their tax return rather than on a screen.
+   */
+  const partnerItemsTotal =
+    typeof input.partnerItemsTotal === 'number' && Number.isFinite(input.partnerItemsTotal)
+      ? input.partnerItemsTotal
+      : itemsTotal;
+  const commission = Math.round(partnerItemsTotal * (commissionPercent / 100) * 100) / 100;
+  const tds = Math.round(partnerItemsTotal * (rates.tdsPercent / 100) * 100) / 100;
   /*
    * The restaurant gets its OWN packaging figure, never the marked-up one.
    *
-   * This line used to add , which was correct only while the two
+   * This line used to add the CUSTOMER packaging figure, which was correct only while the two
    * were the same number. With a markup it would have paid the restaurant the
    * platform's own revenue, and nothing would have looked wrong: the bill still
    * balances, the ledger still balances, and the money simply leaves.
    */
   const restaurantNetPayout =
-    Math.round((itemsTotal - commission - tds + partnerPackagingFee) * 100) / 100;
+    Math.round((partnerItemsTotal - commission - tds + partnerPackagingFee) * 100) / 100;
 
   return {
     itemsTotal,
+    partnerItemsTotal,
     gstAmount,
     packagingFee,
     partnerPackagingFee,
