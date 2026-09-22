@@ -101,6 +101,43 @@ export function nativeMapUnavailableReason(): string | null {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Coordinate order                                                          */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * THE ONE PLACE THE TWO COORDINATE ORDERS MEET.
+ *
+ * Mapbox orders coordinates [longitude, latitude]. react-native-maps used
+ * {latitude, longitude}, and so does every screen, every API response and
+ * every stored address in this project.
+ *
+ * Getting it backwards does not raise an error anywhere. A Bengaluru address
+ * transposed becomes a point in the Indian Ocean, and the map, the distance
+ * and the delivery fee are all computed from it perfectly happily. The symptom
+ * is a wrong fee or a map centred at sea, and it reads as a data problem
+ * rather than an axis order - which is why it is worth two named functions
+ * instead of an inline array literal repeated in four places.
+ *
+ * Named for the direction they convert, not for what they take. `toMapbox` and
+ * `fromMapbox` cannot be used the wrong way round without the name saying so
+ * at the call site.
+ */
+export function toMapbox(p: LatLng): [number, number] {
+  return [p.longitude, p.latitude];
+}
+
+export function fromMapbox(c: unknown): LatLng | null {
+  // Guarded rather than trusted: this reads a value out of a native event,
+  // and a malformed one must leave the pin where it is rather than move it to
+  // [NaN, NaN] - which renders as the map jumping to the middle of nowhere.
+  if (!Array.isArray(c) || c.length < 2) return null;
+  const [lon, lat] = c;
+  if (typeof lon !== 'number' || typeof lat !== 'number') return null;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return { latitude: lat, longitude: lon };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Provider-neutral components                                               */
 /* -------------------------------------------------------------------------- */
 
@@ -167,20 +204,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       pitchEnabled: false,
       onMapIdle: onSettle
         ? (state: any) => {
-            const c = state?.properties?.center;
-            if (Array.isArray(c) && c.length === 2) {
-              // Mapbox orders coordinates [longitude, latitude]; every caller
-              // here thinks in {latitude, longitude}. Converting at the seam
-              // rather than in four screens is the whole point of the seam -
-              // a transposed pair puts a customer's front door in the sea and
-              // looks like a data problem rather than an axis order.
-              onSettle({ latitude: c[1], longitude: c[0] });
-            }
+            const point = fromMapbox(state?.properties?.center);
+            if (point) onSettle(point);
           }
         : undefined
     },
     React.createElement(Camera, {
-      centerCoordinate: [centre.longitude, centre.latitude],
+      centerCoordinate: toMapbox(centre),
       zoomLevel: zoomForSpan(spanMetres),
       animationDuration: 350
     }),
@@ -201,7 +231,7 @@ export const MapPin: React.FC<MapPinProps> = ({ id, at, children }) => {
   const { MarkerView } = Mapbox;
   return React.createElement(
     MarkerView,
-    { id, coordinate: [at.longitude, at.latitude], allowOverlap: true },
+    { id, coordinate: toMapbox(at), allowOverlap: true },
     children
   );
 };
@@ -229,7 +259,7 @@ export const MapRoute: React.FC<MapRouteProps> = ({ id, points, colour, width = 
     properties: {},
     geometry: {
       type: 'LineString' as const,
-      coordinates: points.map(p => [p.longitude, p.latitude])
+      coordinates: points.map(toMapbox)
     }
   };
 
