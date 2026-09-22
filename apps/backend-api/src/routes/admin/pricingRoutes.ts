@@ -355,7 +355,10 @@ pricingRoutes.get(
 
 const ChargesSchema = z.object({
   /** `null` puts a field back to following the platform default. */
-  customerPackagingFee: z.number().min(0).max(200).nullable().optional(),
+  /** What the partner EARNS. `null` accepts whatever they declared. */
+  partnerApprovedFee: z.number().min(0).max(200).nullable().optional(),
+  /** What WE add on top and keep. */
+  packagingMarkup: z.number().min(0).max(200).optional(),
   platformFee: z.number().min(0).max(100).nullable().optional(),
   gstFoodPercent: z.number().min(0).max(28).nullable().optional(),
   commissionPercent: z.number().min(0).max(40).nullable().optional(),
@@ -390,8 +393,10 @@ pricingRoutes.put(
         entityType: 'RESTAURANT',
         entityId: req.params.restaurantId,
         summary:
-          `Charges changed. Customer packaging ${before.customerPackagingFee} \u2192 ${after.customerPackagingFee}, ` +
-          `commission ${before.commissionPercent}% \u2192 ${after.commissionPercent}%` +
+          `Packaging \u2014 restaurant earns ${before.partnerPackagingFee} \u2192 ${after.partnerPackagingFee}, ` +
+          `we keep ${before.packagingMarkup} \u2192 ${after.packagingMarkup}, ` +
+          `customer pays ${before.customerPackagingFee} \u2192 ${after.customerPackagingFee}. ` +
+          `Commission ${before.commissionPercent}% \u2192 ${after.commissionPercent}%` +
           (note ? ` \u2014 ${note}` : ''),
         before: before as any,
         after: after as any

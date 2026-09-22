@@ -55,12 +55,27 @@ export interface RestaurantCharges {
   restaurantId: string;
 
   /**
-   * What the customer is charged for packaging.
+   * What the partner is APPROVED to earn for packaging.
    *
-   * `null` means charge exactly what the partner declared — no markup. A number
-   * means charge that, and the difference above the partner's figure is ours.
+   * `null` means accept whatever they declared — no review needed for the
+   * ordinary case. A number means an administrator has decided a different
+   * figure, which is the lever the owner asked for: a partner declaring Rs 40
+   * when Rs 25 is right must be correctable, and before this existed their
+   * declared figure was simply final.
    */
-  customerPackagingFee: number | null;
+  partnerApprovedFee: number | null;
+
+  /**
+   * What the platform adds on top, and keeps.
+   *
+   * Stored explicitly rather than derived from a customer-facing total. That
+   * direction matters: with the markup its own number, raising what a partner
+   * earns cannot silently change what we keep, and raising our margin cannot
+   * silently cut their pay. The old shape stored the customer total, which made
+   * a partner's raise look like a margin cut and hid which of the two had
+   * actually moved.
+   */
+  packagingMarkup: number;
 
   /** Charged to the customer in full. No part of it reaches the restaurant. */
   platformFee: number | null;
@@ -92,12 +107,24 @@ export interface RestaurantCharges {
 /** Every figure that actually applies to one restaurant's next order. */
 export interface EffectiveCharges {
   restaurantId: string;
-  /** Reaches the partner. */
+  /** What the partner asked for. Their number, untouched. */
+  partnerDeclaredFee: number;
+  /** What the partner actually earns. Theirs, after any admin adjustment. */
   partnerPackagingFee: number;
-  /** Charged to the customer. */
+  /** What the platform adds and keeps. */
+  packagingMarkup: number;
+  /**
+   * What the customer pays: approved + markup.
+   *
+   * Computed, never stored. A third stored number is a third thing to keep in
+   * step with two others, and the moment it is not, a screen confidently
+   * reports a total the customer was never charged.
+   */
   customerPackagingFee: number;
-  /** `customerPackagingFee - partnerPackagingFee`. Computed, never stored. */
+  /** Same as `packagingMarkup`. Kept for screens that read the old name. */
   packagingMargin: number;
+  /** True when an administrator has set the partner's figure themselves. */
+  partnerFeeAdjusted: boolean;
   platformFee: number;
   gstFoodPercent: number;
   commissionPercent: number;
@@ -149,16 +176,29 @@ export function effectiveCharges(
   rates: PricingRates = getActiveRates()
 ): EffectiveCharges {
   const own = row(restaurantId);
-  const partnerPackaging = partnerPackagingFee(restaurantId, rates);
+  const declared = partnerPackagingFee(restaurantId, rates);
 
-  // No markup configured means charge what the partner asked for. Not the
-  // platform default — the partner's own figure is the honest floor, and
-  // defaulting to anything else would mark up every restaurant that has never
-  // been looked at.
-  const customerPackaging =
-    own?.customerPackagingFee !== null && own?.customerPackagingFee !== undefined
-      ? own.customerPackagingFee
-      : partnerPackaging;
+  /*
+   * What the partner earns.
+   *
+   * An administrator's figure where they have set one, otherwise whatever the
+   * partner declared. Defaulting to their own number means a restaurant nobody
+   * has reviewed is paid exactly what it asked for — the only honest default,
+   * since the alternative silently pays them something they never agreed to.
+   */
+  const partnerFeeAdjusted =
+    own?.partnerApprovedFee !== null && own?.partnerApprovedFee !== undefined;
+  const partnerPackaging = partnerFeeAdjusted ? own!.partnerApprovedFee! : declared;
+
+  /*
+   * What we add on top, and what the customer therefore pays.
+   *
+   * No markup configured means no markup. Not the platform default — marking
+   * up every restaurant nobody has looked at would be charging customers for a
+   * decision nobody took.
+   */
+  const markup = Math.max(0, own?.packagingMarkup ?? 0);
+  const customerPackaging = Math.round((partnerPackaging + markup) * 100) / 100;
 
   const overridden: string[] = [];
   const pick = (key: keyof RestaurantCharges, fallback: number): number => {
@@ -172,13 +212,12 @@ export function effectiveCharges(
 
   const charges: EffectiveCharges = {
     restaurantId,
+    partnerDeclaredFee: declared,
     partnerPackagingFee: partnerPackaging,
+    packagingMarkup: markup,
     customerPackagingFee: customerPackaging,
-    // Never negative. An administrator who sets the customer charge BELOW the
-    // partner's figure is subsidising that restaurant out of platform revenue,
-    // which is allowed — but it is not a negative margin on the packaging line,
-    // it is a discount, and it is reported as one.
-    packagingMargin: Math.round((customerPackaging - partnerPackaging) * 100) / 100,
+    packagingMargin: markup,
+    partnerFeeAdjusted,
     platformFee: pick('platformFee', rates.platformFeeBase),
     gstFoodPercent: pick('gstFoodPercent', rates.gstFoodPercent),
     commissionPercent: pick('commissionPercent', rates.defaultCommissionPercent),
@@ -188,15 +227,15 @@ export function effectiveCharges(
     overridden
   };
 
-  if (own?.customerPackagingFee !== null && own?.customerPackagingFee !== undefined) {
-    overridden.push('customerPackagingFee');
-  }
+  if (partnerFeeAdjusted) overridden.push('partnerApprovedFee');
+  if (markup > 0) overridden.push('packagingMarkup');
 
   return charges;
 }
 
 const BOUNDS: Record<string, { min: number; max: number; unit: string; label: string }> = {
-  customerPackagingFee: { min: 0, max: 200, unit: 'Rs', label: 'Packaging charged to the customer' },
+  partnerApprovedFee: { min: 0, max: 200, unit: 'Rs', label: 'Packaging the restaurant earns' },
+  packagingMarkup: { min: 0, max: 200, unit: 'Rs', label: 'Packaging markup we keep' },
   platformFee: { min: 0, max: 100, unit: 'Rs', label: 'Platform fee' },
   gstFoodPercent: { min: 0, max: 28, unit: '%', label: 'GST on food' },
   commissionPercent: { min: 0, max: 40, unit: '%', label: 'Our commission' },
@@ -243,7 +282,8 @@ export function setCharges(
   const existing = row(restaurantId);
   const next: RestaurantCharges = {
     restaurantId,
-    customerPackagingFee: existing?.customerPackagingFee ?? null,
+    partnerApprovedFee: existing?.partnerApprovedFee ?? null,
+    packagingMarkup: existing?.packagingMarkup ?? 0,
     platformFee: existing?.platformFee ?? null,
     gstFoodPercent: existing?.gstFoodPercent ?? null,
     commissionPercent: existing?.commissionPercent ?? null,
@@ -310,6 +350,9 @@ export function platformMarginPaiseFor(order: any): {
   const partnerPackaging = Number.isFinite(Number(bill.partnerPackagingFee))
     ? Number(bill.partnerPackagingFee)
     : customerPackaging;
+  // Floored at zero: an administrator charging less than the partner earns is
+  // funding a discount out of platform revenue, which is a real thing they may
+  // do, but it is not a negative margin on the packaging line.
   const packagingMarginPaise = Math.max(0, toPaise(customerPackaging - partnerPackaging));
 
   // What was charged for delivery, less what the rider was paid for it.
@@ -334,11 +377,13 @@ export function chargesView(charges: EffectiveCharges) {
     ...charges,
     /** Said in words, because the point of the screen is that this is ours. */
     marginNote:
-      charges.packagingMargin > 0
-        ? `The customer pays Rs ${charges.customerPackagingFee} for packaging, the restaurant earns Rs ${charges.partnerPackagingFee}, and Rs ${charges.packagingMargin} is ours.`
-        : charges.packagingMargin < 0
-        ? `You are charging Rs ${Math.abs(charges.packagingMargin)} less than this restaurant asked for. The difference comes out of platform revenue.`
-        : 'The customer pays exactly what the restaurant asked for. Nothing is added.'
+      charges.packagingMarkup > 0
+        ? `Customer pays Rs ${charges.customerPackagingFee}. Restaurant earns Rs ${charges.partnerPackagingFee}. You keep Rs ${charges.packagingMarkup}.`
+        : 'Customer pays Rs ' + charges.customerPackagingFee + '. All of it goes to the restaurant — you have added no markup.',
+    /** Named separately because it is a different decision from the markup. */
+    approvalNote: charges.partnerFeeAdjusted
+      ? `They asked for Rs ${charges.partnerDeclaredFee}; you set Rs ${charges.partnerPackagingFee}.`
+      : `Paying what they asked for: Rs ${charges.partnerDeclaredFee}.`
   };
 }
 

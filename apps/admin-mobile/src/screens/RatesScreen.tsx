@@ -23,9 +23,17 @@ interface ChargeRow {
   restaurantId: string;
   name: string;
   partnerDeclared: boolean;
+  /** What they asked for. */
+  partnerDeclaredFee: number;
+  /** What they are paid. */
   partnerPackagingFee: number;
+  /** What we add and keep. */
+  packagingMarkup: number;
+  /** Approved + markup. */
   customerPackagingFee: number;
   packagingMargin: number;
+  partnerFeeAdjusted: boolean;
+  approvalNote: string;
   platformFee: number;
   gstFoodPercent: number;
   commissionPercent: number;
@@ -128,7 +136,8 @@ export const RatesScreen: React.FC = () => {
   const open = (row: ChargeRow) => {
     setEditing(row);
     setForm({
-      customerPackagingFee: String(row.customerPackagingFee),
+      partnerApprovedFee: String(row.partnerPackagingFee),
+      packagingMarkup: String(row.packagingMarkup),
       platformFee: String(row.platformFee),
       gstFoodPercent: String(row.gstFoodPercent),
       commissionPercent: String(row.commissionPercent),
@@ -146,7 +155,10 @@ export const RatesScreen: React.FC = () => {
     return Number.isFinite(value) ? value : 0;
   };
 
-  const liveMargin = editing ? Math.round((num('customerPackagingFee') - editing.partnerPackagingFee) * 100) / 100 : 0;
+  // Live, as they type, so the three numbers are never in doubt.
+  const liveApproved = num('partnerApprovedFee');
+  const liveMarkup = num('packagingMarkup');
+  const liveCustomer = Math.round((liveApproved + liveMarkup) * 100) / 100;
 
   const save = async () => {
     if (!editing) return;
@@ -154,7 +166,8 @@ export const RatesScreen: React.FC = () => {
     setError(null);
     try {
       await api.put(`/admin/rates/restaurants/${editing.restaurantId}`, {
-        customerPackagingFee: num('customerPackagingFee'),
+        partnerApprovedFee: num('partnerApprovedFee'),
+        packagingMarkup: num('packagingMarkup'),
         platformFee: num('platformFee'),
         gstFoodPercent: num('gstFoodPercent'),
         commissionPercent: num('commissionPercent'),
@@ -249,10 +262,8 @@ export const RatesScreen: React.FC = () => {
                   <Card style={s.row}>
                     <View style={s.rowHead}>
                       <Text style={s.rowName}>{row.name}</Text>
-                      {row.packagingMargin > 0 ? (
-                        <Badge label={`+${rupees(row.packagingMargin)} ours`} tone="success" />
-                      ) : row.packagingMargin < 0 ? (
-                        <Badge label={`${rupees(row.packagingMargin)} subsidy`} tone="warning" />
+                      {row.packagingMarkup > 0 ? (
+                        <Badge label={`+${rupees(row.packagingMarkup)} ours`} tone="success" />
                       ) : (
                         <Badge label="No markup" tone="neutral" />
                       )}
@@ -260,6 +271,9 @@ export const RatesScreen: React.FC = () => {
 
                     {/* The sentence is the point of the row. */}
                     <Text style={s.marginNote}>{row.marginNote}</Text>
+                    {row.partnerFeeAdjusted && (
+                      <Text style={s.adjustedNote}>{row.approvalNote}</Text>
+                    )}
 
                     <Divider style={{ marginVertical: 10 }} />
 
@@ -620,42 +634,65 @@ export const RatesScreen: React.FC = () => {
         subtitle="What a customer pays for an order from here"
       >
         {/* Packaging first and on its own, because it is the one with two figures. */}
+        {/*
+          The three numbers, live, as they are typed.
+
+          Two of them are decisions and the third is arithmetic. Showing all
+          three at once is what stops the two decisions being confused: it is
+          otherwise very easy to raise what a restaurant earns while believing
+          you raised your own margin.
+        */}
         <View style={s.compareBox}>
           <View style={s.compareRow}>
-            <Text style={s.compareLabel}>This restaurant asked for</Text>
-            <Text style={s.compareValue}>{rupees(editing?.partnerPackagingFee || 0)}</Text>
+            <Text style={s.compareLabel}>They asked for</Text>
+            <Text style={s.compareValue}>{rupees(editing?.partnerDeclaredFee || 0)}</Text>
           </View>
           <View style={s.compareRow}>
-            <Text style={s.compareLabel}>The customer will pay</Text>
-            <Text style={s.compareValue}>{rupees(num('customerPackagingFee'))}</Text>
+            <Text style={s.compareLabel}>The restaurant earns</Text>
+            <Text style={s.compareValue}>{rupees(liveApproved)}</Text>
           </View>
-          <Divider style={{ marginVertical: 8 }} />
           <View style={s.compareRow}>
             <Text style={[s.compareLabel, { fontWeight: '700', color: c.text.primary }]}>You keep</Text>
             <Text
-              style={[
-                s.compareValue,
-                { fontSize: 16 },
-                liveMargin > 0 && { color: c.state.success },
-                liveMargin < 0 && { color: c.state.warning }
-              ]}
+              style={[s.compareValue, { fontSize: 16 }, liveMarkup > 0 && { color: c.state.success }]}
             >
-              {rupees(liveMargin)}
+              {rupees(liveMarkup)}
             </Text>
           </View>
-          {liveMargin < 0 && (
+          <Divider style={{ marginVertical: 8 }} />
+          <View style={s.compareRow}>
+            <Text style={[s.compareLabel, { fontWeight: '700', color: c.text.primary }]}>
+              The customer pays
+            </Text>
+            <Text style={[s.compareValue, { fontSize: 16 }]}>{rupees(liveCustomer)}</Text>
+          </View>
+
+          {liveApproved < (editing?.partnerDeclaredFee || 0) && (
+            /*
+             * Paying a restaurant less than they asked for is allowed and is
+             * one of the two levers the owner wanted. It is also the kind of
+             * thing that should never happen by accident, so it is stated.
+             */
             <Text style={s.subsidy}>
-              You are charging less than this restaurant asked for. The difference comes out of your own
-              revenue — which is allowed, it is just a discount you are funding.
+              You are paying {rupees((editing?.partnerDeclaredFee || 0) - liveApproved)} less than this
+              restaurant asked for. They will see the figure you set, not their own.
             </Text>
           )}
         </View>
 
         <Field
-          label="Packaging charged to the customer"
-          value={form.customerPackagingFee}
-          onChange={v => setForm(f => ({ ...f, customerPackagingFee: v }))}
+          label="Packaging the restaurant earns"
+          value={form.partnerApprovedFee}
+          onChange={v => setForm(f => ({ ...f, partnerApprovedFee: v }))}
           suffix="Rs"
+          hint={`They asked for ${rupees(editing?.partnerDeclaredFee || 0)}. This is what actually reaches them.`}
+        />
+        <Field
+          label="Your markup on top"
+          value={form.packagingMarkup}
+          onChange={v => setForm(f => ({ ...f, packagingMarkup: v }))}
+          suffix="Rs"
+          hint="Added to what the customer pays, and kept in full. None of it reaches the restaurant."
         />
         <Field
           label="Platform fee"
@@ -787,6 +824,7 @@ const s = StyleSheet.create({
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   rowName: { color: c.text.primary, fontSize: 15, fontWeight: '700', flex: 1 },
   marginNote: { color: c.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  adjustedNote: { color: c.state.warning, fontSize: 11, lineHeight: 16, marginTop: 4 },
 
   figures: { flexDirection: 'row', flexWrap: 'wrap' },
   figure: { width: '50%', paddingVertical: 4 },

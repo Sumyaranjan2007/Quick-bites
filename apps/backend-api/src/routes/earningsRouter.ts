@@ -27,6 +27,8 @@ import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { resolvePayee, parsePreference } from '../modules/payments/payeeIdentity.ts';
+import { effectiveCharges } from '../modules/payments/restaurantCharges.ts';
+import { AppError } from '../utils/AppError.ts';
 import { statementFor, statementView } from '../modules/payments/statements.ts';
 import {
   raiseRequest,
@@ -149,6 +151,57 @@ earningsRouter.delete('/payout-requests/:id', authMiddleware(), async (req, res,
     const payee = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as ?? req.body?.as));
     const request = withdrawRequest(req.params.id, payee.ownerId);
     res.json({ success: true, data: { request: requestView(request) }, message: 'Withdrawn.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/earnings/packaging
+ *
+ * What this restaurant will actually be paid for packaging.
+ *
+ * -------------------------------------------------------------------------
+ * THE PARTNER IS SHOWN THEIR FIGURE, NEVER THE CUSTOMER'S
+ * -------------------------------------------------------------------------
+ * The customer may pay more: an administrator can add a markup, and that markup
+ * is the platform's. A partner who sees the marked-up figure on a bill and is
+ * paid less will raise a support ticket every single time, and they would be
+ * right to — so the app shows what reaches them.
+ *
+ * It also says plainly when an administrator has set a figure DIFFERENT from
+ * the one they declared. Being quietly paid less than you asked for, with the
+ * screen still showing your own number, is how a partner concludes the platform
+ * is stealing from them.
+ */
+earningsRouter.get('/packaging', authMiddleware(), async (req, res, next) => {
+  try {
+    const payee = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as ?? req.body?.as));
+    if (payee.ownerType !== 'RESTAURANT') {
+      throw new AppError('Only a restaurant charges for packaging.', 400, 'NOT_A_RESTAURANT');
+    }
+
+    const charges = effectiveCharges(payee.ownerId);
+
+    res.json({
+      success: true,
+      data: {
+        /** What they asked for. */
+        declared: charges.partnerDeclaredFee,
+        /** What they will be paid. The number that matters to them. */
+        youEarn: charges.partnerPackagingFee,
+        adjusted: charges.partnerFeeAdjusted,
+        message: charges.partnerFeeAdjusted
+          ? `You asked for Rs ${charges.partnerDeclaredFee} and are being paid Rs ${charges.partnerPackagingFee} for packaging. Raise it from Help if that is wrong.`
+          : `You are paid Rs ${charges.partnerPackagingFee} for packaging on every order \u2014 exactly what you asked for.`,
+        /**
+         * Said out loud rather than left to be discovered from a customer's
+         * bill, which is where a partner would otherwise find it.
+         */
+        note:
+          'What a customer pays for packaging may be higher. Anything Quick Bites adds on top is ours and does not change what you earn.'
+      }
+    });
   } catch (err) {
     next(err);
   }

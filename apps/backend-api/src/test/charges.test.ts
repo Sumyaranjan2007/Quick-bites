@@ -98,7 +98,8 @@ async function run() {
     const charges = effectiveCharges(RESTAURANT);
     assert.equal(charges.partnerPackagingFee, 15);
     assert.equal(charges.customerPackagingFee, 15, 'a restaurant nobody has looked at was marked up');
-    assert.equal(charges.packagingMargin, 0);
+    assert.equal(charges.packagingMarkup, 0);
+    assert.equal(charges.partnerFeeAdjusted, false);
   });
 
   await check('A restaurant that has never declared one falls back to the platform default', () => {
@@ -110,10 +111,10 @@ async function run() {
   });
 
   await check('An administrator can charge more than the partner asked for', () => {
-    const charges = setCharges(RESTAURANT, { customerPackagingFee: 30 }, ADMIN, 'Standard markup');
-    assert.equal(charges.partnerPackagingFee, 15);
-    assert.equal(charges.customerPackagingFee, 30);
-    assert.equal(charges.packagingMargin, 15);
+    const charges = setCharges(RESTAURANT, { packagingMarkup: 15 }, ADMIN, 'Standard markup');
+    assert.equal(charges.partnerPackagingFee, 15, 'the markup changed what the partner earns');
+    assert.equal(charges.packagingMarkup, 15);
+    assert.equal(charges.customerPackagingFee, 30, 'approved + markup');
   });
 
   await check('THE RULE: the customer pays 30, the partner earns 15, and 15 is ours', () => {
@@ -152,6 +153,59 @@ async function run() {
       15,
       'the markup never reached the customer'
     );
+  });
+
+  await check('THE SECOND LEVER: an administrator can change what the partner EARNS', () => {
+    /*
+     * The owner asked for two levers, not one: *"there will be both features —
+     * that we can increase theirs and ours."*
+     *
+     * Before this, a partner's declared figure was final and the only editable
+     * number was the customer-facing total. That is not an oversight, it is a
+     * hole: a partner could set their own earnings by declaring whatever they
+     * liked, and the platform's only recourse was to raise the customer price
+     * to compensate — which punishes the customer for the partner's number.
+     */
+    const charges = setCharges(RESTAURANT, { partnerApprovedFee: 25 }, ADMIN, 'Rs 40 was too high');
+
+    assert.equal(charges.partnerDeclaredFee, 15, 'their own declaration was overwritten');
+    assert.equal(charges.partnerPackagingFee, 25, 'the approved figure did not take effect');
+    assert.equal(charges.partnerFeeAdjusted, true);
+
+    // And it moved the customer's total, because the markup is unchanged.
+    assert.equal(charges.customerPackagingFee, 40, '25 approved + 15 markup');
+
+    // Put it back for the tests below.
+    setCharges(RESTAURANT, { partnerApprovedFee: null }, ADMIN, 'Back to their own figure');
+    assert.equal(effectiveCharges(RESTAURANT).partnerPackagingFee, 15);
+    assert.equal(effectiveCharges(RESTAURANT).partnerFeeAdjusted, false);
+  });
+
+  await check('The two levers move independently', () => {
+    /*
+     * The property the stored-total model could not give you. With a customer
+     * total stored, raising what a partner earns silently ate the margin; here
+     * each number changes exactly one thing.
+     */
+    setCharges(RESTAURANT, { partnerApprovedFee: 20, packagingMarkup: 15 }, ADMIN);
+    const before = effectiveCharges(RESTAURANT);
+    assert.equal(before.partnerPackagingFee, 20);
+    assert.equal(before.packagingMarkup, 15);
+    assert.equal(before.customerPackagingFee, 35);
+
+    // Raise only the partner's share.
+    setCharges(RESTAURANT, { partnerApprovedFee: 30 }, ADMIN);
+    const raised = effectiveCharges(RESTAURANT);
+    assert.equal(raised.packagingMarkup, 15, 'raising their pay changed our margin');
+    assert.equal(raised.customerPackagingFee, 45);
+
+    // Raise only ours.
+    setCharges(RESTAURANT, { packagingMarkup: 25 }, ADMIN);
+    const marked = effectiveCharges(RESTAURANT);
+    assert.equal(marked.partnerPackagingFee, 30, 'raising our margin changed their pay');
+    assert.equal(marked.customerPackagingFee, 55);
+
+    setCharges(RESTAURANT, { partnerApprovedFee: null, packagingMarkup: 15 }, ADMIN);
   });
 
   await check('And the LEDGER pays the partner the same 435, not 450', () => {
