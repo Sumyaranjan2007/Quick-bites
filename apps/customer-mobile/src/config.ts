@@ -10,4 +10,4 @@
  * which is what a tester uses against a local API. This is only the default a
  * fresh install starts from.
  */
-export const DEFAULT_API_URL = 'https://quick-bites-production-9f45.up.railway.app/api';
+export const DEFAULT_API_URL = 'https://quick-bites-production.up.railway.app/api';
