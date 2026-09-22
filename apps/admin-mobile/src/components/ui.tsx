@@ -121,8 +121,15 @@ export const SectionRail: React.FC<{
   items: RailItem[];
   active: string;
   onSelect: (key: string) => void;
-}> = ({ items, active, onSelect }) => (
-  <View style={s.railWrap}>
+  /**
+   * 'group' renders the upper tier: the six groups, styled so the two rows
+   * read as a hierarchy rather than as two equal strips of chips. Same
+   * component rather than a second one, because two rails that drift apart in
+   * appearance is how a two-tier nav starts looking like an accident.
+   */
+  variant?: 'section' | 'group';
+}> = ({ items, active, onSelect, variant = 'section' }) => (
+  <View style={[s.railWrap, variant === 'group' && s.railWrapGroup]}>
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
@@ -134,12 +141,23 @@ export const SectionRail: React.FC<{
         return (
           <TouchableOpacity
             key={item.key}
-            style={[s.railItem, isActive && s.railItemActive]}
+            style={[
+              s.railItem,
+              variant === 'group' && s.railItemGroup,
+              isActive && (variant === 'group' ? s.railItemGroupActive : s.railItemActive)
+            ]}
             onPress={() => onSelect(item.key)}
             activeOpacity={0.8}
           >
             {item.icon}
-            <Text style={[s.railLabel, isActive && s.railLabelActive]} numberOfLines={1}>
+            <Text
+              style={[
+                s.railLabel,
+                variant === 'group' && s.railLabelGroup,
+                isActive && s.railLabelActive
+              ]}
+              numberOfLines={1}
+            >
               {item.label}
             </Text>
             {item.badge ? (
@@ -689,6 +707,13 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent'
   },
   railItemActive: { backgroundColor: c.brand.amberSoft },
+  // The group tier: no background fill, an underline on the active one. The
+  // section tier keeps the filled chip, so at a glance the two rows are
+  // obviously a heading and its contents rather than two sets of buttons.
+  railWrapGroup: { borderBottomWidth: 0 },
+  railItemGroup: { paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  railItemGroupActive: { borderBottomColor: c.brand.amberText, backgroundColor: 'transparent' },
+  railLabelGroup: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
   railLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: tokens.font.weight.semibold },
   railLabelActive: { color: c.brand.amberText, fontWeight: tokens.font.weight.bold },
   railBadge: {

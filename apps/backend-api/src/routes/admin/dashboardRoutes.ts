@@ -206,6 +206,35 @@ dashboardRoutes.get('/live', requirePermission('analytics.dashboard.view'), asyn
         pendingMenuRequests: Array.from(memoryStore.menuRequests.values()).filter(
           (r: any) => r.status === 'PENDING'
         ).length,
+
+        /*
+         * THE MONEY QUEUES.
+         *
+         * Three things that wait for an administrator and had no way of saying
+         * so. A bank account nobody applies is a partner who cannot be paid; a
+         * payout request nobody sees is a partner asking for their money into
+         * silence; a cash deposit nobody confirms is a rider whose figure
+         * never comes down.
+         *
+         * Counted here rather than on each screen so the navigation can show
+         * where attention is needed WITHOUT the administrator opening every
+         * section to find out - which is the only reason a badge exists.
+         *
+         * Every count is deliberately permissive about shape: these
+         * collections are written by another part of the system and a field
+         * renamed there must make a badge wrong, never make this endpoint
+         * throw and take every other badge down with it.
+         */
+        payeeAccountsAwaitingReview: Array.from(memoryStore.payeeAccounts.values()).filter(
+          (a: any) => !a.appliedAt && a.status !== 'REJECTED'
+        ).length,
+        openPayoutRequests: Array.from(memoryStore.payoutRequests.values()).filter(
+          (r: any) => r.status === 'PENDING' || r.status === 'REQUESTED'
+        ).length,
+        cashDepositsAwaitingConfirmation: Array.from(memoryStore.cashDeposits.values()).filter(
+          (d: any) => d.status === 'PENDING' || d.status === 'DECLARED'
+        ).length,
+
         generatedAt: new Date().toISOString()
       }
     });

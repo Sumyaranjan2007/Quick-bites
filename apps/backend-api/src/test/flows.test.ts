@@ -382,6 +382,42 @@ async function run() {
      */
     console.log('\n-- Support: a complaint reaching a human and getting answered');
 
+    /*
+     * ======================================================================
+     * ADMIN ATTENTION BADGES.
+     * ======================================================================
+     *
+     * The navigation shows a count on each section so an administrator can see
+     * where work is waiting WITHOUT opening every section to look. That only
+     * works if the counts are real. A badge wired to a field the server never
+     * sends reads as zero, which is indistinguishable from "nothing to do" -
+     * the exact failure the badge exists to prevent, wearing a reassuring face.
+     *
+     * So every field the navigation reads is asserted present and numeric, and
+     * one of them is then proved to MOVE when the underlying thing changes.
+     * Presence alone would pass against a hardcoded zero.
+     */
+    console.log('\n-- Admin badges: counts that are real');
+
+    const liveCounts = async () => (await api('/admin/live', {}, admin.token)).json?.data || {};
+    const before = await liveCounts();
+
+    const BADGE_FIELDS = [
+      'liveOrders',
+      'pendingKyc',
+      'openRefunds',
+      'openTickets',
+      'openSos',
+      'pendingProfileEdits',
+      'pendingMenuRequests',
+      'payeeAccountsAwaitingReview',
+      'openPayoutRequests',
+      'cashDepositsAwaitingConfirmation'
+    ];
+    const absent = BADGE_FIELDS.filter(f => typeof before[f] !== 'number');
+    check('Every section the navigation badges has a real count', absent.length === 0,
+      `missing or not numeric: ${absent.join(', ')}`);
+
     const raised = await api('/support/tickets', {
       method: 'POST',
       body: {
@@ -396,6 +432,16 @@ async function run() {
     const ticketId = raised.json?.data?.ticket?.id ?? raised.json?.data?.id;
     check('...and it comes back with an id they can be told', !!ticketId,
       JSON.stringify(raised.json).slice(0, 200));
+
+    /*
+     * The badge moved. This is the half that presence cannot prove: a count
+     * hardcoded to zero, or read from the wrong collection, passes the check
+     * above and never changes here.
+     */
+    const after = await liveCounts();
+    check('...and raising a ticket moves the support badge',
+      after.openTickets === before.openTickets + 1,
+      `was ${before.openTickets}, now ${after.openTickets}`);
 
     // The check that matters: it reaches somebody who can act on it.
     const queue = await api('/admin/support/tickets', {}, admin.token);

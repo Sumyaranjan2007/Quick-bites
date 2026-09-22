@@ -61,8 +61,28 @@ const c = tokens.colors;
  * Adding a screen without naming its permission would put a section in the menu
  * that leads straight to a refusal.
  */
+type SectionGroup = 'today' | 'money' | 'people' | 'catalogue' | 'help' | 'system';
+
+/*
+ * The groups, in the order an administrator works through a day.
+ *
+ * Today first because it is what is happening right now; System last because
+ * it is touched once a month. Money before People because when something is
+ * wrong it is usually money, and a person hunting a payout should not scroll
+ * past three sections of user management to find it.
+ */
+const GROUPS: Array<{ key: SectionGroup; label: string }> = [
+  { key: 'today', label: 'Today' },
+  { key: 'money', label: 'Money' },
+  { key: 'people', label: 'People' },
+  { key: 'catalogue', label: 'Catalogue' },
+  { key: 'help', label: 'Help' },
+  { key: 'system', label: 'System' }
+];
+
 const SECTIONS: Array<{
   key: string;
+  group: SectionGroup;
   label: string;
   title: string;
   subtitle: string;
@@ -73,6 +93,7 @@ const SECTIONS: Array<{
 }> = [
   {
     key: 'dashboard',
+    group: 'today',
     label: 'Dashboard',
     title: 'Platform overview',
     subtitle: 'Everything happening across Quick Bites',
@@ -82,6 +103,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'orders',
+    group: 'today',
     label: 'Orders',
     title: 'All orders',
     subtitle: 'Every order placed on the platform',
@@ -91,6 +113,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'deliveries',
+    group: 'today',
     label: 'Live',
     title: 'Live deliveries',
     subtitle: 'Trips in flight right now',
@@ -101,6 +124,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'people',
+    group: 'people',
     label: 'People',
     title: 'Customers, drivers & restaurants',
     subtitle: 'Everyone on the platform',
@@ -110,6 +134,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'refunds',
+    group: 'help',
     label: 'Refunds',
     title: 'Returns & refunds',
     subtitle: 'Cases raised against an order',
@@ -120,6 +145,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'catalog',
+    group: 'catalogue',
     label: 'Menus',
     title: 'Menus & categories',
     subtitle: 'What customers can order',
@@ -130,6 +156,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'finance',
+    group: 'money',
     label: 'Finance',
     title: 'Payments, revenue & payouts',
     subtitle: 'Where the money moves',
@@ -139,6 +166,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'rates',
+    group: 'money',
     label: 'Rates',
     title: 'Rates & fees',
     subtitle: 'What the platform charges, keeps and pays out',
@@ -148,24 +176,29 @@ const SECTIONS: Array<{
   },
   {
     key: 'payouts',
+    group: 'money',
     label: 'Pay',
     title: 'Payouts',
     subtitle: 'Who is owed what, and sending it',
     permissions: ['finance.payouts.view', 'finance.settlements.view', 'finance.payouts.manage'],
     icon: active => <Banknote size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    badge: counts => (counts?.openPayoutRequests || 0) + (counts?.cashDepositsAwaitingConfirmation || 0) || undefined,
     render: () => <PayoutsScreen />
   },
   {
     key: 'payees',
+    group: 'money',
     label: 'Bank',
     title: 'Payout accounts',
     subtitle: 'Who can be paid, and the names that need a person',
     permissions: ['finance.payouts.manage', 'finance.settlements.manage', 'finance.payouts.view'],
     icon: active => <Landmark size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    badge: counts => counts?.payeeAccountsAwaitingReview,
     render: () => <PayeeAccountsScreen />
   },
   {
     key: 'marketing',
+    group: 'catalogue',
     label: 'Marketing',
     title: 'Coupons & reviews',
     subtitle: 'Campaigns and what customers said',
@@ -175,6 +208,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'support',
+    group: 'help',
     label: 'Support',
     title: 'Complaints & safety',
     subtitle: 'Raised from the apps',
@@ -185,6 +219,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'documents',
+    group: 'people',
     label: 'KYC',
     title: 'Partner documents',
     subtitle: 'Licences and registrations to review',
@@ -198,6 +233,7 @@ const SECTIONS: Array<{
     // changes are one job done by one person, and a review queue nobody can
     // find is a review queue nobody empties.
     key: 'profileChanges',
+    group: 'people',
     label: 'Profiles',
     title: 'Profile changes',
     subtitle: 'What partners have asked to change about how they appear',
@@ -208,6 +244,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'access',
+    group: 'system',
     label: 'Access',
     title: 'Roles & audit',
     subtitle: 'Who can do what, and what they did',
@@ -217,6 +254,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'settings',
+    group: 'system',
     label: 'Switches',
     title: 'Platform switches',
     subtitle: 'Take something offline without a deployment',
@@ -226,6 +264,7 @@ const SECTIONS: Array<{
   },
   {
     key: 'profile',
+    group: 'system',
     label: 'You',
     title: 'Your account',
     subtitle: 'Profile, password and permissions',
@@ -267,12 +306,65 @@ const Console: React.FC = () => {
 
   const current = visible.find(section => section.key === active) || visible[0];
 
-  const railItems: RailItem[] = visible.map(section => ({
+  /*
+   * NAVIGATION IN TWO TIERS, because one tier had stopped working.
+   *
+   * Every section lived in a single horizontal rail. At seventeen of them that
+   * is a strip a person scrolls sideways through, reading labels, to find the
+   * one they want - and the ones past the fold are the ones nobody visits. The
+   * owner asked for this to be easier to understand, and the honest problem was
+   * not the labels, it was that finding anything required remembering where it
+   * was.
+   *
+   * Groups on top, sections within. At most four or five in a row, nothing
+   * hidden past a fold.
+   */
+  const groups = useMemo(
+    () => GROUPS.filter(g => visible.some(s => s.group === g.key)),
+    [visible]
+  );
+
+  /*
+   * The group follows the section rather than being stored separately.
+   *
+   * Dashboard cards navigate straight to a section by key, and so does the
+   * badge on a group. If the active group were its own state, either of those
+   * would land on a section while the wrong group was highlighted - the nav
+   * disagreeing with the screen, which is worse than no nav at all.
+   */
+  const activeGroup = current?.group || groups[0]?.key;
+
+  const inGroup = visible.filter(section => section.group === activeGroup);
+
+  /*
+   * A group's badge is the sum of its sections' badges, so attention is
+   * visible without opening every group to look for it. That is the whole
+   * point of grouping - it must not hide the thing a person came to find.
+   */
+  const groupItems: RailItem[] = groups.map(group => {
+    const total = visible
+      .filter(section => section.group === group.key)
+      .reduce((sum, section) => sum + (section.badge?.(counts.data) || 0), 0);
+    return {
+      key: group.key,
+      label: group.label,
+      icon: null,
+      badge: total || undefined
+    };
+  });
+
+  const railItems: RailItem[] = inGroup.map(section => ({
     key: section.key,
     label: section.label,
     icon: section.icon(section.key === current?.key),
     badge: section.badge?.(counts.data)
   }));
+
+  /** Selecting a group opens its first section, since a group is not a screen. */
+  const selectGroup = (key: string) => {
+    const first = visible.find(section => section.group === key);
+    if (first) setActive(first.key);
+  };
 
   return (
     <Screen>
@@ -291,6 +383,7 @@ const Console: React.FC = () => {
         }
       />
 
+      <SectionRail items={groupItems} active={activeGroup || ''} onSelect={selectGroup} variant="group" />
       <SectionRail items={railItems} active={current?.key || ''} onSelect={setActive} />
 
       <View style={st.body}>
