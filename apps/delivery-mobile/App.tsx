@@ -515,10 +515,45 @@ function DeliveryApp() {
       Alert.alert('Pickup confirmed', 'Head to the customer. Your live location is now being shared with them.');
       return true;
     } catch (err: any) {
-      if (!handleApiError(err)) Alert.alert('Code not accepted', err.message);
+      if (!handleApiError(err)) Alert.alert(handoverFailureTitle(err.code), err.message);
       return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  /*
+   * THE TITLE HAS TO MATCH THE REASON.
+   *
+   * Both handovers showed "Code not accepted" for every failure, including the
+   * ones that have nothing to do with the code. A rider at the counter holding
+   * the right code, whose kitchen had not pressed Ready, was told the code was
+   * not accepted - so they retyped it, the restaurant read it out again, and
+   * the order stranded. The owner reported exactly that.
+   *
+   * The server now sends a code with each refusal. The message under the title
+   * is always the server's own words; only the heading is chosen here, because
+   * a heading that contradicts the sentence beneath it is worse than no
+   * heading at all.
+   */
+  const handoverFailureTitle = (code?: string): string => {
+    switch (code) {
+      case 'KITCHEN_NOT_READY':
+        return 'The food is not ready yet';
+      case 'NOT_COLLECTED':
+        return 'Collect the order first';
+      case 'ALREADY_DELIVERED':
+        return 'Already delivered';
+      case 'NOT_YOUR_DELIVERY':
+        return 'This trip is not yours';
+      case 'INVALID_PICKUP_CODE':
+      case 'INVALID_OTP':
+        return 'Code not accepted';
+      default:
+        // An unrecognised code still shows the server's sentence. Inventing a
+        // heading for a refusal this build has never seen is how the wrong one
+        // gets attached to the next new reason.
+        return 'Could not complete that';
     }
   };
 
@@ -543,7 +578,7 @@ function DeliveryApp() {
       );
       return true;
     } catch (err: any) {
-      if (!handleApiError(err)) Alert.alert('Code not accepted', err.message);
+      if (!handleApiError(err)) Alert.alert(handoverFailureTitle(err.code), err.message);
       return false;
     } finally {
       setBusy(false);

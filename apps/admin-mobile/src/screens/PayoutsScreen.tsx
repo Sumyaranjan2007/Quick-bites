@@ -167,6 +167,32 @@ export const PayoutsScreen: React.FC = () => {
     enabled: canView
   });
 
+  /*
+   * What people have actually ASKED for.
+   *
+   * The endpoint existed and nothing called it, so a partner or rider raising
+   * "ask to be paid" reached the server and stopped there — recorded, and
+   * invisible to the only person who could act on it. Everyone owed money is
+   * already under Owed whether or not they asked; this is the list of people
+   * who are waiting for an answer, which is a different question.
+   */
+  const requests = useResource<{
+    requests: Array<{
+      id: string;
+      ownerType: 'RESTAURANT' | 'RIDER';
+      ownerId: string;
+      ownerName: string;
+      raisedAt: string;
+      note?: string;
+      status: string;
+      payableAtRequest: number;
+      payableNow: number;
+      payableNowPaise: number;
+      movedSinceRequest: boolean;
+      blockedReason: string | null;
+    }>;
+  }>(() => api.get('/admin/payouts/requests').then(r => r.data), [], { enabled: canView });
+
   const [tab, setTab] = useState('overview');
   const [drafting, setDrafting] = useState<DueRow | null>(null);
   const [rail, setRail] = useState<string>('');
@@ -330,6 +356,10 @@ export const PayoutsScreen: React.FC = () => {
             {
               key: 'sending',
               label: `To send${pendingApproval.length + readyToSend.length ? ` (${pendingApproval.length + readyToSend.length})` : ''}`
+            },
+            {
+              key: 'asked',
+              label: `Asked${requests.data?.requests.length ? ` (${requests.data.requests.length})` : ''}`
             },
             { key: 'history', label: 'Sent' },
             {
@@ -597,6 +627,58 @@ export const PayoutsScreen: React.FC = () => {
             )}
           </>
         )}
+
+        {/* ------------------------- Asked to be paid ------------------------- */}
+        {tab === 'asked' &&
+          ((requests.data?.requests.length || 0) === 0 ? (
+            <EmptyState
+              title="Nobody is waiting on an answer"
+              message="When a restaurant or rider asks to be paid, they appear here with what they are owed right now. Everyone owed money is under Owed whether or not they have asked."
+              icon={<Send size={28} color={c.text.muted} />}
+            />
+          ) : (
+            (requests.data?.requests || []).map(request => (
+              <Card key={request.id} style={s.payoutCard}>
+                <View style={s.payoutHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.dueName}>{request.ownerName}</Text>
+                    <Text style={s.dueType}>
+                      {request.ownerType === 'RESTAURANT' ? 'Restaurant' : 'Rider'} · asked{' '}
+                      {timeAgo(request.raisedAt)}
+                    </Text>
+                  </View>
+                  <Text style={s.dueAmount}>{rupees(request.payableNow)}</Text>
+                </View>
+
+                {/*
+                  * Both figures whenever they differ.
+                  *
+                  * What they were owed when they asked is not what they are owed
+                  * now — a refund may have landed in between. The gap between the
+                  * two numbers is exactly what a partner telephones about, and
+                  * showing only the current one leaves whoever answers with no
+                  * idea why the caller is quoting something else.
+                  */}
+                {request.movedSinceRequest && (
+                  <Text style={s.askedMoved}>
+                    They asked for {rupees(request.payableAtRequest)}. It is {rupees(request.payableNow)}{' '}
+                    now — orders have been refunded or settled since.
+                  </Text>
+                )}
+
+                {!!request.note && <Text style={s.askedNote}>“{request.note}”</Text>}
+
+                {request.blockedReason ? (
+                  <Text style={s.askedBlocked}>{request.blockedReason}</Text>
+                ) : (
+                  <Text style={s.askedReady}>
+                    Ready to pay. Draft it from Owed, where the amount comes from the ledger rather
+                    than from what they asked for.
+                  </Text>
+                )}
+              </Card>
+            ))
+          ))}
 
         {tab === 'history' &&
           (rest.length === 0 ? (
@@ -995,7 +1077,11 @@ const s = StyleSheet.create({
   dueHead: { flexDirection: 'row', alignItems: 'flex-start' },
   dueName: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
   dueType: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
-  dueAmount: { color: c.text.primary, fontSize: 17, fontWeight: '800' },
+askedMoved: { color: c.state.warning, fontSize: 12, marginTop: 10, lineHeight: 17 },
+  askedNote: { color: c.text.secondary, fontSize: 13, marginTop: 10, fontStyle: 'italic' as const },
+  askedBlocked: { color: c.state.danger, fontSize: 12, marginTop: 10, lineHeight: 17 },
+  askedReady: { color: c.text.secondary, fontSize: 12, marginTop: 10, lineHeight: 17 },
+    dueAmount: { color: c.text.primary, fontSize: 17, fontWeight: '800' },
   dueHeld: { color: c.text.muted, fontSize: 11, marginTop: 2 },
 
   blockRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10 },

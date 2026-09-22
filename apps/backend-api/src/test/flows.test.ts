@@ -556,6 +556,66 @@ async function run() {
     memoryStoreRef.restaurants.set(restaurant.id, thisRestaurant);
     check('...and stops being offered again when it is set back',
       !(await riderSees(cooking.id)));
+    /*
+     * ======================================================================
+     * A REFUSAL MUST SAY WHICH REFUSAL IT WAS.
+     * ======================================================================
+     *
+     * The owner reported the restaurant-side code coming back invalid and the
+     * order then stranding. It was not the code. Every pickup failure was
+     * reported as INVALID_PICKUP_CODE, including "the kitchen has not pressed
+     * Ready" - so a rider holding the correct code was told it was wrong, and
+     * the one instruction that would have unstuck them was the only thing the
+     * message did not say.
+     *
+     * Run here because this is the one place the rider is free AND the
+     * restaurant offers trips before the food is ready - which is the only
+     * combination that can produce a pre-ready pickup at all. That is also
+     * why the bug is intermittent for the owner: it needs a rider who arrives
+     * before the kitchen finishes.
+     *
+     * Asserted on the error CODE, not the status. Both refusals are 4xx, so a
+     * status assertion cannot tell them apart - which is the defect itself,
+     * one level up.
+     */
+    const claimEarly = await api(`/riders/orders/${cooking.id}/claim`, { method: 'POST', body: {} }, rider.token);
+    check('A rider can claim a trip the restaurant offers early', claimEarly.status === 200,
+      `status ${claimEarly.status} ${JSON.stringify(claimEarly.json).slice(0, 160)}`);
+
+    const earlyView = await partnerView(cooking.id);
+    const earlyPickup = await api(`/riders/orders/${cooking.id}/verify-pickup`, {
+      method: 'POST', body: { pickupCode: earlyView?.pickupCode }
+    }, rider.token);
+    check('Collecting before the kitchen is ready is refused',
+      earlyPickup.status >= 400, `status ${earlyPickup.status}`);
+    check('...and says the KITCHEN is not ready, not that the code is wrong',
+      earlyPickup.json?.error?.code === 'KITCHEN_NOT_READY',
+      `code ${JSON.stringify(earlyPickup.json?.error?.code)} message ${JSON.stringify(earlyPickup.json?.error?.message)}`);
+
+    const wrongCode = await api(`/riders/orders/${cooking.id}/verify-pickup`, {
+      method: 'POST', body: { pickupCode: earlyView?.pickupCode === '0000' ? '1111' : '0000' }
+    }, rider.token);
+    check('...while a genuinely wrong code still says the code is wrong',
+      wrongCode.json?.error?.code === 'INVALID_PICKUP_CODE',
+      `code ${JSON.stringify(wrongCode.json?.error?.code)}`);
+
+    /*
+     * And once the kitchen IS ready, the same code the rider already had is
+     * accepted. Without this the two checks above would pass against a route
+     * that refuses every pickup for any reason whatsoever.
+     */
+    for (const next of ['PREPARING', 'READY_FOR_PICKUP']) {
+      await api(`/orders/${cooking.id}/status`, {
+        method: 'PUT', body: { status: next, preparationMinutes: 20 }
+      }, partner.token);
+    }
+    const nowAllowed = await api(`/riders/orders/${cooking.id}/verify-pickup`, {
+      method: 'POST', body: { pickupCode: earlyView?.pickupCode }
+    }, rider.token);
+    check('...and the SAME code works once the kitchen taps Ready',
+      nowAllowed.status === 200,
+      `status ${nowAllowed.status} ${JSON.stringify(nowAllowed.json).slice(0, 200)}`);
+
 
     const closed = await api(`/admin/support/tickets/${ticketId}/status`, {
       method: 'POST',

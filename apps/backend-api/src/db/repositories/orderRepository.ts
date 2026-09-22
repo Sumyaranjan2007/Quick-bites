@@ -268,11 +268,35 @@ export const orderRepository = {
     return order;
   },
 
-  async verifyPickup(id: string, pickupCode: string): Promise<{ success: boolean; order?: Order; error?: string }> {
+  /*
+   * EVERY REFUSAL HERE NOW SAYS WHICH REFUSAL IT WAS.
+   *
+   * This returned only a message, and the route turned every one of them into
+   * `INVALID_PICKUP_CODE`. So a rider standing at the counter with the right
+   * code, whose kitchen had simply not pressed "Ready" yet, was told their
+   * code was invalid. They retype it, the restaurant reads it out again, and
+   * both of them conclude the app is broken - when the real instruction was
+   * "ask the kitchen to press Ready".
+   *
+   * Reported by the owner as an invalid code on the restaurant side that then
+   * strands the whole delivery, and they were describing this exactly.
+   *
+   * The `code` is what the rider app titles the message from, so the two
+   * cannot drift: a new refusal added here without a code shows as a generic
+   * failure rather than silently borrowing the wrong name.
+   */
+  async verifyPickup(
+    id: string,
+    pickupCode: string
+  ): Promise<{ success: boolean; order?: Order; error?: string; code?: string }> {
     const order = memoryStore.orders.get(id);
-    if (!order) return { success: false, error: 'Order not found' };
+    if (!order) return { success: false, error: 'Order not found', code: 'ORDER_NOT_FOUND' };
     if (order.pickupCode !== pickupCode.trim()) {
-      return { success: false, error: 'Invalid pickup verification code' };
+      return {
+        success: false,
+        error: 'That code does not match this order. Check the code on the restaurant screen.',
+        code: 'INVALID_PICKUP_CODE'
+      };
     }
 
     /*
@@ -299,7 +323,8 @@ export const orderRepository = {
     if (!kitchenIsDone) {
       return {
         success: false,
-        error: 'This order is still being prepared. The kitchen has not marked it ready yet.'
+        error: 'The kitchen has not marked this order ready yet. Ask them to tap Ready.',
+        code: 'KITCHEN_NOT_READY'
       };
     }
 
@@ -352,25 +377,37 @@ export const orderRepository = {
    * exactly what OUT_FOR_DELIVERY means, and it is the only status this may be
    * entered from.
    */
-  async verifyDeliveryOtp(id: string, otp: string): Promise<{ success: boolean; order?: Order; error?: string }> {
+  async verifyDeliveryOtp(
+    id: string,
+    otp: string
+  ): Promise<{ success: boolean; order?: Order; error?: string; code?: string }> {
     const order = memoryStore.orders.get(id);
-    if (!order) return { success: false, error: 'Order not found' };
+    if (!order) return { success: false, error: 'Order not found', code: 'ORDER_NOT_FOUND' };
 
     // Answered before the OTP is examined, so a rider who taps twice on a bad
     // connection is told what actually happened rather than 'invalid code'.
     if (order.status === 'DELIVERED') {
-      return { success: false, error: 'This order is already marked delivered.' };
+      return {
+        success: false,
+        error: 'This order is already marked delivered.',
+        code: 'ALREADY_DELIVERED'
+      };
     }
     if (order.status !== 'OUT_FOR_DELIVERY') {
       return {
         success: false,
         error:
-          'This order has not been collected yet. Confirm pickup at the restaurant before entering the doorstep code.'
+          'This order has not been collected yet. Confirm pickup at the restaurant before entering the doorstep code.',
+        code: 'NOT_COLLECTED'
       };
     }
 
     if (order.deliveryOtp !== otp.trim()) {
-      return { success: false, error: 'Invalid doorstep delivery OTP' };
+      return {
+        success: false,
+        error: 'That code does not match. Ask the customer to read it from their order screen.',
+        code: 'INVALID_OTP'
+      };
     }
 
     order.status = 'DELIVERED';

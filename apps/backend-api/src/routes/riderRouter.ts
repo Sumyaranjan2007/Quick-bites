@@ -995,7 +995,24 @@ riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchem
 
     const result = await orderRepository.verifyPickup(req.params.id, pickupCode);
     if (!result.success) {
-      throw new AppError(result.error || 'Invalid pickup code.', 400, 'INVALID_PICKUP_CODE');
+      /*
+       * The refusal's OWN code, not INVALID_PICKUP_CODE for everything.
+       *
+       * Every failure here used to be reported as an invalid code, so a rider
+       * holding the right code whose kitchen had not pressed Ready was told
+       * the code was wrong. They retype it, the restaurant reads it out
+       * again, and the order strands - which is what the owner reported.
+       *
+       * 409 for a state problem, 400 for a bad code: the rider app titles the
+       * message from that difference, so "ask the kitchen to tap Ready" stops
+       * arriving under a heading that says the code was rejected.
+       */
+      const code = result.code || 'INVALID_PICKUP_CODE';
+      throw new AppError(
+        result.error || 'Invalid pickup code.',
+        code === 'INVALID_PICKUP_CODE' ? 400 : 409,
+        code
+      );
     }
 
     emitOrderStatusUpdate(result.order!.id, {
@@ -1036,7 +1053,14 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
 
     const result = await orderRepository.verifyDeliveryOtp(req.params.id, deliveryOtp);
     if (!result.success) {
-      throw new AppError(result.error || 'Invalid delivery OTP.', 400, 'INVALID_OTP');
+      // Same reasoning as the pickup route above: the reason travels with the
+      // refusal instead of every failure claiming the code was wrong.
+      const code = result.code || 'INVALID_OTP';
+      throw new AppError(
+        result.error || 'Invalid delivery OTP.',
+        code === 'INVALID_OTP' ? 400 : 409,
+        code
+      );
     }
 
     // The payout is computed server-side from the order. It used to be taken from the
