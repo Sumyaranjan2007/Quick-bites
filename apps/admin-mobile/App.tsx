@@ -167,8 +167,8 @@ const SECTIONS: Array<{
   {
     key: 'rates',
     group: 'money',
-    label: 'Rates',
-    title: 'Rates & fees',
+    label: 'Inflation',
+    title: 'Inflation & what we keep',
     subtitle: 'What the platform charges, keeps and pays out',
     permissions: ['finance.config.edit'],
     icon: active => <Percent size={16} color={active ? c.brand.amberText : c.text.secondary} />,

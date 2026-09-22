@@ -242,6 +242,25 @@ const BusinessIdentitySchema = z.object({
     .trim()
     .regex(/^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/, 'A Udyam number looks like UDYAM-KR-29-0052148.')
     .optional(),
+  /*
+   * A GSTIN is fifteen characters with a fixed shape: two state digits, a PAN,
+   * an entity digit, a Z, and a checksum character. Validated because this one
+   * is load-bearing — while it is empty the platform refuses to put GST on any
+   * bill for its own fees, and a typo here would turn that refusal off while
+   * printing a registration no customer or auditor could verify.
+   *
+   * An empty string is allowed and means "not registered", which is how the
+   * gate is turned back off.
+   */
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine(
+      v => v === '' || /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z\d]$/.test(v),
+      'A GSTIN looks like 29ABCDE1234F1Z5. Leave it empty if the business is not registered.'
+    )
+    .optional(),
   enterpriseType: z.enum(['Micro', 'Small', 'Medium']).optional(),
   majorActivity: z.string().trim().max(60).optional(),
   addressLine: z.string().trim().max(200).optional(),

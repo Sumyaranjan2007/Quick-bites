@@ -32,6 +32,17 @@ export interface BusinessIdentity {
   tradingName: string;
   /** Udyam is MSME registration. It is NOT a tax registration — see below. */
   udyamNumber: string;
+  /**
+   * GST registration, when there is one. Empty until the business registers.
+   *
+   * Load-bearing rather than informational: while this is empty the platform
+   * refuses to put a GST line on any bill for its own fees. Charging GST is
+   * collecting tax on the government's behalf, and an invoice showing it
+   * without a registration behind it is a false invoice whatever the money is
+   * later called. When it is set, it is printed beside the line, because a
+   * customer is entitled to see who is collecting the tax they are paying.
+   */
+  gstin: string;
   enterpriseType: string;
   majorActivity: string;
   addressLine: string;
@@ -64,6 +75,9 @@ const SEED: BusinessIdentity = {
   legalName: 'QUICK BITES',
   tradingName: 'Quick Bites',
   udyamNumber: 'UDYAM-KR-29-0052148',
+  // Empty on purpose. The business is not GST registered yet, and until it is
+  // no bill may show GST on the platform's own charges.
+  gstin: '',
   enterpriseType: 'Micro',
   majorActivity: 'Services',
   addressLine: 'Harohalli',
@@ -78,6 +92,17 @@ const SEED: BusinessIdentity = {
   commencedOn: '15/09/2026',
   registeredOn: '21/09/2026'
 };
+
+/**
+ * The GST registration, or empty.
+ *
+ * Its own export so a caller asking "may we charge GST" does not have to know
+ * the shape of the identity record, and so the question has exactly one answer
+ * everywhere it is asked.
+ */
+export function platformGstin(): string {
+  return (businessIdentity().gstin || '').trim();
+}
 
 export function businessIdentity(): BusinessIdentity {
   const stored = memoryStore.settings.get(KEY) as BusinessIdentity | undefined;

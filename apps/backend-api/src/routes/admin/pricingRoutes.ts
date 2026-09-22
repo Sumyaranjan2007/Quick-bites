@@ -363,6 +363,9 @@ const ChargesSchema = z.object({
   foodMarkupPercent: z.number().min(0).max(100).optional(),
   platformFee: z.number().min(0).max(100).nullable().optional(),
   gstFoodPercent: z.number().min(0).max(28).nullable().optional(),
+  // Refused by setCharges unless a GSTIN is stored. Accepted here so the
+  // refusal names the reason rather than the field being silently unknown.
+  platformGstPercent: z.number().min(0).max(28).nullable().optional(),
   commissionPercent: z.number().min(0).max(40).nullable().optional(),
   deliveryBaseFee: z.number().min(0).max(200).nullable().optional(),
   extraCharge: z.number().min(0).max(200).optional(),

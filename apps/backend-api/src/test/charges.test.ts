@@ -33,6 +33,7 @@ import {
   heldEarnings,
   backfillEarnings
 } from '../modules/payments/earnings.ts';
+import { saveBusinessIdentity } from '../modules/platform/businessIdentity.ts';
 import {
   addAccount,
   reviewAccount,
@@ -1076,6 +1077,62 @@ async function run() {
       false,
       'still listed as held after being released'
     );
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  GST ON OUR OWN CHARGES                                           *
+   * ---------------------------------------------------------------- *
+   *
+   * Charging GST is collecting tax on the government's behalf. A bill showing
+   * a GST line for a business with no registration is a false invoice however
+   * the money is accounted for afterwards, and the exposure for issuing one is
+   * criminal rather than a penalty. So the gate is at the point the number is
+   * set, not on the screen that sets it — the screen is a convenience and this
+   * is the control.
+   */
+
+  await check('GST on our fees cannot be charged without a registration', () => {
+    saveBusinessIdentity({ gstin: '' });
+
+    let code = '';
+    try {
+      setCharges(RESTAURANT, { platformGstPercent: 18 }, ADMIN);
+    } catch (err: any) {
+      code = err?.code || '';
+    }
+    assert.equal(code, 'PLATFORM_GSTIN_REQUIRED', 'an unregistered business could charge GST');
+    assert.equal(
+      effectiveCharges(RESTAURANT).platformGstPercent,
+      null,
+      'the refused figure was stored anyway'
+    );
+  });
+
+  await check('Turning it off is always allowed, registration or not', () => {
+    // The half that stops this being a guard which refuses everything. A rule
+    // that also blocks setting the charge to nothing would trap a business
+    // that had registered and then deregistered.
+    saveBusinessIdentity({ gstin: '' });
+    setCharges(RESTAURANT, { platformGstPercent: 0 }, ADMIN);
+    assert.equal(effectiveCharges(RESTAURANT).platformGstPercent, 0);
+  });
+
+  await check('With a registration it can be charged, and the bill can name it', () => {
+    saveBusinessIdentity({ gstin: '29ABCDE1234F1Z5' });
+    setCharges(RESTAURANT, { platformGstPercent: 18 }, ADMIN);
+
+    const charges = effectiveCharges(RESTAURANT);
+    assert.equal(charges.platformGstPercent, 18);
+    assert.equal(
+      charges.platformGstin,
+      '29ABCDE1234F1Z5',
+      'the customer cannot see who is collecting the tax they are paying'
+    );
+
+    // Left as the owner has it today, so nothing after this inherits a
+    // registration the business does not have.
+    setCharges(RESTAURANT, { platformGstPercent: null }, ADMIN);
+    saveBusinessIdentity({ gstin: '' });
   });
 
   await check('The books balance after everything above', () => {

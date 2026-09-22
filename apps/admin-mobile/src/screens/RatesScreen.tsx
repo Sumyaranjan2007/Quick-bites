@@ -35,6 +35,8 @@ interface ChargeRow {
   partnerFeeAdjusted: boolean;
   approvalNote: string;
   foodMarkupPercent: number;
+  platformGstPercent: number | null;
+  platformGstin: string;
   platformFee: number;
   gstFoodPercent: number;
   commissionPercent: number;
@@ -142,6 +144,7 @@ export const RatesScreen: React.FC = () => {
       foodMarkupPercent: String(row.foodMarkupPercent),
       platformFee: String(row.platformFee),
       gstFoodPercent: String(row.gstFoodPercent),
+      platformGstPercent: row.platformGstPercent === null ? '' : String(row.platformGstPercent),
       commissionPercent: String(row.commissionPercent),
       deliveryBaseFee: String(row.deliveryBaseFee),
       extraCharge: String(row.extraCharge),
@@ -171,6 +174,7 @@ export const RatesScreen: React.FC = () => {
         partnerApprovedFee: num('partnerApprovedFee'),
         packagingMarkup: num('packagingMarkup'),
         foodMarkupPercent: num('foodMarkupPercent'),
+        platformGstPercent: form.platformGstPercent.trim() === '' ? null : num('platformGstPercent'),
         platformFee: num('platformFee'),
         gstFoodPercent: num('gstFoodPercent'),
         commissionPercent: num('commissionPercent'),
@@ -287,6 +291,21 @@ export const RatesScreen: React.FC = () => {
                       <Figure label="GST" value={`${row.gstFoodPercent}%`} />
                       <Figure label="Delivery from" value={rupees(row.deliveryBaseFee)} />
                     </View>
+
+                    {/*
+                      A restaurant nobody has set a markup on earns the platform
+                      nothing but commission, and it does so silently — the row
+                      looks exactly like a configured one. Inflation is set per
+                      restaurant by the owner's own decision, so every new
+                      restaurant starts at zero and stays there until somebody
+                      notices. This is the noticing.
+                    */}
+                    {row.foodMarkupPercent === 0 && row.packagingMarkup === 0 && (
+                      <Text style={s.noMarkup}>
+                        No markup set. We earn commission on this restaurant and nothing else —
+                        tap to set one.
+                      </Text>
+                    )}
 
                     {row.extraCharge > 0 && (
                       <Text style={s.extra}>
@@ -721,7 +740,26 @@ export const RatesScreen: React.FC = () => {
           value={form.platformFee}
           onChange={v => setForm(f => ({ ...f, platformFee: v }))}
           suffix="Rs"
-          hint="Charged to the customer, kept in full. GST is added to it on the bill."
+          hint="Charged to the customer, kept in full."
+        />
+        {/*
+          GST on OUR charges, which is a different thing from the GST on the
+          restaurant's food. Theirs is their tax on their supply and passes
+          through; this one is ours, and it can only exist if we are registered.
+        */}
+        <Field
+          label="GST on our charges"
+          value={form.platformGstPercent}
+          onChange={v => setForm(f => ({ ...f, platformGstPercent: v }))}
+          suffix="%"
+          editable={Boolean(editing?.platformGstin)}
+          hint={
+            !editing?.platformGstin
+              ? 'Locked. Add the platform GSTIN in Settings first — a bill showing GST without a registration behind it is a false invoice, and that is a criminal matter rather than a fine.'
+              : num('platformGstPercent') > 0
+                ? `Charged on our fee and markup only, never on the kitchen's food, and shown against ${editing.platformGstin}.`
+                : `Leave empty to show no GST line at all. Registered as ${editing.platformGstin}.`
+          }
         />
         <Field
           label="Our commission on the food"
@@ -806,25 +844,41 @@ const Field: React.FC<{
   onChange: (v: string) => void;
   suffix?: string;
   hint?: string;
-}> = ({ label, value, onChange, suffix, hint }) => (
+  /**
+   * Defaults to editable. A locked field stays VISIBLE and explains itself in
+   * its hint rather than disappearing: a number that is missing tells an
+   * administrator nothing, while a number they cannot type tells them there is
+   * something to go and do first.
+   */
+  editable?: boolean;
+}> = ({ label, value, onChange, suffix, hint, editable = true }) => (
   <View style={{ marginBottom: 14 }}>
     <Text style={s.fieldLabel}>{label}</Text>
-    <View style={s.fieldRow}>
+    <View style={[s.fieldRow, !editable && s.fieldRowLocked]}>
       <TextInput
         style={s.fieldInput}
         value={value ?? ''}
         onChangeText={onChange}
+        editable={editable}
         keyboardType={suffix ? 'numeric' : 'default'}
         placeholderTextColor={c.text.muted}
       />
       {!!suffix && <Text style={s.fieldSuffix}>{suffix}</Text>}
     </View>
-    {!!hint && <Text style={s.fieldHint}>{hint}</Text>}
+    {!!hint && <Text style={[s.fieldHint, !editable && s.fieldHintLocked]}>{hint}</Text>}
   </View>
 );
 
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
+  fieldRowLocked: { opacity: 0.55 },
+  noMarkup: {
+    color: c.state.warning,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 10
+  },
+  fieldHintLocked: { color: c.state.warning },
 
   explainer: { marginBottom: 12 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },

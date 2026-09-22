@@ -44,6 +44,7 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { getActiveRates } from './pricingConfig.ts';
 import { toPaise, toRupees } from './money.ts';
+import { platformGstin } from '../platform/businessIdentity.ts';
 
 /**
  * What an administrator may set for one restaurant.
@@ -93,8 +94,25 @@ export interface RestaurantCharges {
   /** Charged to the customer in full. No part of it reaches the restaurant. */
   platformFee: number | null;
 
-  /** GST on the food line, as a percentage. */
+  /**
+   * GST on the food line — the RESTAURANT's own tax on their own supply.
+   *
+   * A pass-through. It is charged on the customer's bill against the kitchen's
+   * food, and it is remitted; no part of it is platform revenue.
+   */
   gstFoodPercent: number | null;
+
+  /**
+   * GST on what the PLATFORM charges — our fee, our markup, our delivery.
+   *
+   * Null or zero means no such line appears, which is the default and stays
+   * the default until a GSTIN is stored. That gate is not a nicety. A bill that
+   * prints "GST" on money which is not remitted to the government is a false
+   * invoice, and the exposure for issuing one is criminal rather than a
+   * penalty — so the number cannot be set at all until there is a registration
+   * to put beside it, and the bill line carries that GSTIN when it appears.
+   */
+  platformGstPercent: number | null;
 
   /** What the platform keeps of the food total. */
   commissionPercent: number | null;
@@ -142,6 +160,18 @@ export interface EffectiveCharges {
   foodMarkupPercent: number;
   platformFee: number;
   gstFoodPercent: number;
+  /**
+   * GST on the platform's OWN charges, or null when none is charged.
+   *
+   * Null rather than zero on purpose: "we do not charge this" and "we charge
+   * nought per cent" read the same on a screen and differently in a ledger.
+   */
+  platformGstPercent: number | null;
+  /**
+   * The registration the platform GST line is charged under, when there is
+   * one. Empty means no GST line may appear at all.
+   */
+  platformGstin: string;
   commissionPercent: number;
   deliveryBaseFee: number;
   extraCharge: number;
@@ -236,6 +266,8 @@ export function effectiveCharges(
     foodMarkupPercent: Math.max(0, own?.foodMarkupPercent ?? 0),
     platformFee: pick('platformFee', rates.platformFeeBase),
     gstFoodPercent: pick('gstFoodPercent', rates.gstFoodPercent),
+    platformGstPercent: own?.platformGstPercent ?? null,
+    platformGstin: platformGstin(),
     commissionPercent: pick('commissionPercent', rates.defaultCommissionPercent),
     deliveryBaseFee: pick('deliveryBaseFee', rates.deliveryBaseFee),
     extraCharge: own?.extraCharge ?? 0,
@@ -254,7 +286,8 @@ const BOUNDS: Record<string, { min: number; max: number; unit: string; label: st
   packagingMarkup: { min: 0, max: 200, unit: 'Rs', label: 'Packaging markup we keep' },
   foodMarkupPercent: { min: 0, max: 100, unit: '%', label: 'Food price markup we keep' },
   platformFee: { min: 0, max: 100, unit: 'Rs', label: 'Platform fee' },
-  gstFoodPercent: { min: 0, max: 28, unit: '%', label: 'GST on food' },
+  gstFoodPercent: { min: 0, max: 28, unit: '%', label: 'GST the restaurant charges on its food' },
+  platformGstPercent: { min: 0, max: 28, unit: '%', label: 'GST on our charges (needs a GSTIN)' },
   commissionPercent: { min: 0, max: 40, unit: '%', label: 'Our commission' },
   deliveryBaseFee: { min: 0, max: 200, unit: 'Rs', label: 'Delivery base fee' },
   extraCharge: { min: 0, max: 200, unit: 'Rs', label: 'Extra charge' }
@@ -304,6 +337,7 @@ export function setCharges(
     foodMarkupPercent: existing?.foodMarkupPercent ?? 0,
     platformFee: existing?.platformFee ?? null,
     gstFoodPercent: existing?.gstFoodPercent ?? null,
+    platformGstPercent: existing?.platformGstPercent ?? null,
     commissionPercent: existing?.commissionPercent ?? null,
     deliveryBaseFee: existing?.deliveryBaseFee ?? null,
     extraCharge: existing?.extraCharge ?? 0,
@@ -313,6 +347,24 @@ export function setCharges(
     updatedByUserId: actorUserId,
     ...(note ? { note } : {})
   };
+
+  /*
+   * THE GSTIN GATE.
+   *
+   * Charging GST means collecting tax on the government's behalf, and a bill
+   * showing a GST line against a business with no registration is a false
+   * invoice however the money is later accounted for. Refused at the point the
+   * number is set rather than hidden on the screen that sets it, because the
+   * screen is a convenience and this is the control.
+   */
+  if ((next.platformGstPercent ?? 0) > 0 && !platformGstin()) {
+    throw new AppError(
+      'Add the platform GSTIN in Settings before charging GST on our own fees. ' +
+        'A bill showing GST without a registration behind it is a false invoice.',
+      400,
+      'PLATFORM_GSTIN_REQUIRED'
+    );
+  }
 
   // A charge with no name is a charge a customer cannot query, and the first
   // thing they do about one is stop ordering.
