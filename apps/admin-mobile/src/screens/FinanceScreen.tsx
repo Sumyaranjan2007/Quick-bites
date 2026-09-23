@@ -359,12 +359,12 @@ const SettlementsTab: React.FC = () => {
               * would mean leaving the row, and a step you have to remember is
               * one that gets skipped on a busy payday.
               */}
-            {row.destination ? (
+            {row.willPayInto ? (
               <Text style={s.sub} numberOfLines={1}>
-                Pays to {row.destination.holderName} ·{' '}
-                {row.destination.method === 'VPA'
-                  ? row.destination.vpa
-                  : `ending ${row.destination.accountLast4 || '----'}`}
+                Pays to {row.willPayInto.holderName} ·{' '}
+                {row.willPayInto.method === 'VPA'
+                  ? row.willPayInto.vpa
+                  : `ending ${row.willPayInto.accountLast4 || '----'}`}
               </Text>
             ) : row.pendingAmount > 0 ? (
               <Text style={[s.sub, { color: c.state.warning }]} numberOfLines={2}>

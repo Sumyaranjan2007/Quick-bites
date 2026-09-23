@@ -595,7 +595,7 @@ payoutRoutes.get(
               // whole row. A request is answered by pressing Pay, so this is
               // one of the screens that must not offer to send money without
               // showing where it goes.
-              destination: due.destination
+              willPayInto: due.willPayInto
             };
           })
         }

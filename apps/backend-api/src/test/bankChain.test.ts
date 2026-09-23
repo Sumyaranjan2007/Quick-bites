@@ -404,10 +404,10 @@ try {
   const theirRow = (settlements.json?.data?.settlements || [])
     .find((r: any) => r.restaurantId === restaurantId);
   check('THE SETTLEMENT ROW SHOWS WHERE THE MONEY GOES',
-    theirRow?.destination?.accountLast4 === '5500',
-    JSON.stringify(theirRow?.destination));
+    theirRow?.willPayInto?.accountLast4 === '5500',
+    JSON.stringify(theirRow?.willPayInto));
   check('so paying and seeing the destination is one screen, not two',
-    theirRow?.destination?.holderName === 'Spice Garden Foods');
+    theirRow?.willPayInto?.holderName === 'Spice Garden Foods');
 } finally {
   server.close();
 }

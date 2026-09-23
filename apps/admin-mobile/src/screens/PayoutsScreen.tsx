@@ -30,8 +30,14 @@ interface DueRow {
   cashInHand: number;
   hasVerifiedAccount: boolean;
   blockedReason: string | null;
-  /** Where the money would land. Null when nothing is connected. */
-  destination: {
+  /**
+   * Where the money WILL land. Null when nothing is connected.
+   *
+   * Not `destination`: PayoutRow below has one of those, meaning where money
+   * WENT. Same screen, adjacent rows, opposite meanings -- so they are named
+   * apart, and a shared renderer cannot quietly take the wrong one.
+   */
+  willPayInto: {
     method: 'BANK' | 'VPA';
     holderName: string;
     accountLast4?: string;
@@ -49,7 +55,7 @@ interface DueRow {
  * leaving the row, and a step somebody has to remember to take is a step that
  * gets skipped on a busy payday.
  */
-const Destination: React.FC<{ destination: DueRow['destination'] }> = ({ destination }) => {
+const WillPayInto: React.FC<{ willPayInto: DueRow['willPayInto'] }> = ({ willPayInto: destination }) => {
   if (!destination) return null;
   return (
     <View style={s.blockRow}>
@@ -223,7 +229,7 @@ export const PayoutsScreen: React.FC = () => {
       payableNowPaise: number;
       movedSinceRequest: boolean;
       blockedReason: string | null;
-      destination: DueRow['destination'];
+      willPayInto: DueRow['willPayInto'];
     }>;
   }>(() => api.get('/admin/payouts/requests').then(r => r.data), [], { enabled: canView });
 
@@ -563,7 +569,7 @@ export const PayoutsScreen: React.FC = () => {
                   </View>
                 )}
 
-                <Destination destination={row.destination} />
+                <WillPayInto willPayInto={row.willPayInto} />
 
                 {canPay && !row.blockedReason && row.payable > 0 && (
                   <Button
@@ -704,7 +710,7 @@ export const PayoutsScreen: React.FC = () => {
 
                 {!!request.note && <Text style={s.askedNote}>“{request.note}”</Text>}
 
-                <Destination destination={request.destination} />
+                <WillPayInto willPayInto={request.willPayInto} />
 
                 {request.blockedReason ? (
                   <Text style={s.askedBlocked}>{request.blockedReason}</Text>

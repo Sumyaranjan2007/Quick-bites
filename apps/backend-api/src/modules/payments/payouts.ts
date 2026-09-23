@@ -113,7 +113,15 @@ export interface DueRow {
   /** Whether there is a verified account to pay into. */
   hasVerifiedAccount: boolean;
   /**
-   * WHERE the money goes, on the row that offers to send it.
+   * WHERE the money WILL go, on the row that offers to send it.
+   *
+   * Named `willPayInto` rather than `destination` because a sent payout record
+   * carries its own `destination` -- where money WENT -- and the two are
+   * rendered on adjacent rows of the same screen. Two identically named fields
+   * meaning opposite things stay apart only while nothing brings them together;
+   * one shared row renderer, one helper taking `{ destination }`, one union of
+   * the row types, and they merge silently. The failure would be a sent payout
+   * showing an unsent one's account, both real, neither looking wrong.
    *
    * Carried on the due itself rather than fetched by each screen, so Pay,
    * Settlements and the requests list cannot disagree about a destination while
@@ -122,7 +130,7 @@ export interface DueRow {
    * Nobody should press Send having seen only a name and a number. The account
    * is the one part of a payout that cannot be undone afterwards.
    */
-  destination: {
+  willPayInto: {
     method: 'BANK' | 'VPA';
     holderName: string;
     accountLast4?: string;
@@ -215,7 +223,7 @@ export function duesFor(
     outstandingPaise: Math.max(0, payablePaise + heldPaise),
     cashInHandPaise,
     hasVerifiedAccount,
-    destination: account_
+    willPayInto: account_
       ? {
           method: account_.method,
           holderName: account_.holderName,
@@ -548,6 +556,12 @@ export function payoutView(payout: PayoutRecord) {
    * change — the amount — and a second copied field is a second thing to keep
    * in step. The last four digits and the UPI id are all that is kept anywhere
    * on this platform; the full account number was discarded at verification.
+   */
+  /*
+   * Where this payout WENT. Its counterpart on an unpaid row is `willPayInto`
+   * on DueRow, which is where money will go -- deliberately a different name,
+   * because the two are rendered on adjacent rows of the same screen and a
+   * shared renderer must not be able to compile against the wrong one.
    */
   const account = payableAccountFor(payout.ownerType, payout.ownerId);
   const destination = account

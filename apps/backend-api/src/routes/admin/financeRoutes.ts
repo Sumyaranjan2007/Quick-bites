@@ -662,7 +662,7 @@ financeRoutes.get('/settlements', requirePermission('finance.settlements.view'),
            * restaurant row, so there is no second copy to disagree after an
            * administrator connects a different account.
            */
-          destination: (() => {
+          willPayInto: (() => {
             const account = connectedAccountFor('RESTAURANT', restaurant.id);
             return account
               ? {
