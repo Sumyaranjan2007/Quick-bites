@@ -195,6 +195,36 @@ holding cash is shown but not payable, with the existing reason text.
 becoming money owed without proof it happened, and it was written to replace a
 scan for `DELIVERED` that paid for orders that had not been collected.
 
+**Task 3.1 — Pay and Settlements tell two different stories about one partner.**
+Raised by Session A while building §2.4, deliberately not patched, and it is the
+right call to make it a plan item rather than a one-line fix.
+
+Pay renders `blockedReason` from the due, computed in `payouts.ts`, which knows
+about **three** things: the hold period, the cash-in-hand rule and the minimum
+payout amount. Settlements renders `payoutBlockedReason`, which is
+`accountBlockReason` and knows about **one**: the account.
+
+So for a restaurant with a connected account whose earnings are still inside the
+hold period, Pay explains why nothing is moving and **Settlements says nothing at
+all**. Same partner, same moment, two screens, two answers — and the silent one
+reads as "everything is fine, so why has this not been paid".
+
+This is the §4.4.2 problem in a different currency: two places deriving the same
+fact from different sources will eventually disagree, and the one people believe
+is whichever screen they happened to open.
+
+**Why it is not a one-liner.** The settlement figure comes from
+`unsettledOrdersFor`, not from the ledger dues, so the two screens do not share a
+source to unify. Making them agree means deciding which source is authoritative
+for "can this partner be paid right now" and routing both through it.
+
+**The check that fails:** one restaurant, connected account, earnings inside the
+hold period. Assert Pay and Settlements return the **same non-empty reason
+string**. Asserting each screen returns *a* reason passes today, because one of
+them returns null and null is not a reason.
+
+Until it is done, do not add a third screen that computes this independently.
+
 ---
 
 ## 4. Admin — COD return
@@ -844,6 +874,32 @@ Every rule below exists because the thing it prevents happened on this project.
 unpushed while both sessions reported everything fixed and the owner tested a
 build containing none of it. A clean `git status` is exactly what that looks
 like.
+
+### 11.2a A check must be able to say it failed, in the channel the runner reads
+
+Session A's wording, 23 Sep, and it sits above the list below rather than in it.
+The shapes in §11.2 are ways a check can **pass when it should fail**. This is
+the case where the check's verdict never reaches the thing deciding.
+
+Two instances on one afternoon, both found by accident:
+
+- **A test that hangs.** Under a mutation it did not fail — it stopped, and the
+  runner killed it with no output and no failing line. A failure you can read is
+  evidence; silence is nothing. Every deliberately-hung fixture needs its own
+  deadline and must print the elapsed time.
+- **A suite that printed `ALL CHECKS PASSED` and exited 127.** `process.exit()`
+  racing libuv's teardown on Windows with a hung promise still open. The runner
+  reads exit codes, so a suite where everything passed would have been reported
+  as a failure with a log saying the opposite.
+
+Both are the same root: **a channel that cannot express failure.** They are also
+the mirror of the `| tail` mistake earlier in this project, where a failed build
+was reported as success — there the text was trusted over the exit code, here
+the exit code would have been trusted over correct text. The rule covers both
+directions: the verdict must travel in the channel the decider actually reads,
+and grepping output will not tell you when it did not.
+
+Worth a sweep: any suite here that can leave a handle open can do this.
 
 ### 11.2 A passing check is not evidence
 
