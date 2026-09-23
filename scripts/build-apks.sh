@@ -138,6 +138,29 @@ done
 
 mkdir -p "$OUT_DIR"
 
+#
+# METRO'S TRANSFORM CACHE IS CLEARED BEFORE EVERY RELEASE BUILD.
+#
+# It shipped a stale screen. The admin APK carried the CURRENT App.tsx and the
+# PREVIOUS RatesScreen.tsx from the same commit - so the section was correctly
+# named "Inflation", the tabs were there, and the GST field and the
+# no-markup warning inside it simply did not exist. The nav label being right
+# is what would have stopped anybody noticing.
+#
+# `expo prebuild --clean` does not prevent this. It wipes android/, and the
+# transform cache lives in the OS temp directory keyed by project, so a clean
+# prebuild is not a clean bundle. The build ran four and a half hours after
+# the code it was missing, and did it twice on two consecutive builds.
+#
+# Cheap insurance: a cold transform costs a couple of minutes on a build that
+# already takes ten, and the alternative is an artifact that disagrees with
+# the source in a way nothing else here would catch.
+#
+echo ""
+echo "Clearing Metro's transform cache (it has shipped a stale screen before)"
+rm -rf "${TMPDIR:-/tmp}"/metro-cache "${TMPDIR:-/tmp}"/metro-file-map-* 2>/dev/null || true
+rm -rf /tmp/metro-cache /tmp/metro-file-map-* 2>/dev/null || true
+
 for entry in "${APPS[@]}"; do
   app="${entry%%:*}"
   artifact="${entry##*:}"

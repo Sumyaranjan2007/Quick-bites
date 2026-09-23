@@ -702,54 +702,59 @@ app open, before reporting it done.
 phone, app force-stopped, order placed. This is the only check that would have
 failed today, and it is the only one that counts.
 
-**Task 8.3a — REVIEW FINDING, 23 Sep. Two un-timed calls to Google now sit
-inside order placement.** Found reviewing `23ceaa0`, not by a failing test.
+**Task 8.3a — WITHDRAWN as written, 23 Sep. The finding was wrong; half of it
+was worth doing anyway.**
 
-`fcmTransport.ts` makes two bare `fetch()` calls — the OAuth token at line 124
-and the send at line 199 — with **no `signal`, no `AbortController` and no
-timeout**. Node 22's fetch is undici, whose `headersTimeout` defaults to five
-minutes. A connection that blackholes rather than refuses therefore hangs for
-up to five minutes.
+> **What was claimed.** That `fcmTransport.ts` makes two bare `fetch()` calls
+> with no timeout — true, at `:124` and `:199`, with undici's five-minute
+> default — and that both are **awaited inside `placeOrder`**, so a blackholed
+> connection to Google would leave a customer on a spinner for minutes on an
+> order that had in fact been placed, inviting a second tap.
+>
+> **Why it is wrong.** `sendPushNotification` does `void this.deliver(record)`
+> at `fcmDispatcher.ts:74` and returns the record immediately. Every fetch
+> lives inside `deliver`, behind that `void`. So `await notifyOrderPlaced(...)`
+> in `placeOrder` awaits building a history record and writing a log line, not
+> the network. The comment directly above the `void` says so, and says why.
+>
+> **How the review reached the wrong conclusion.** Two files were read
+> carefully — `fcmTransport.ts` and the call sites in `orderService.ts` — and
+> the one line joining them was not. The `await` at the call site was taken as
+> evidence about what it awaited.
 
-Both are awaited inside `placeOrder` (`orderService.ts:611` and `:612`), once
-for the customer and now once for the kitchen.
+**Session A settled it with a check rather than a reading**, which is the part
+worth keeping. `kitchenPush.test.ts` replaces `deliver` with a promise that
+never settles — what a blackholed connection actually looks like — and asserts
+the order is placed and the response returns inside two seconds. It passes in
+4ms with delivery hung, and mutating `void` to `await` fails it with
+*"placing the order took 4019ms with delivery hung"*. So the defect described
+above is now impossible to reintroduce silently, which is a better outcome than
+the finding being right would have been.
 
-**`fcmDispatcher`'s try/catch does not help.** It catches a rejection. A hang
-is not a rejection — it is silence, and it is awaited.
+**The timeouts went in anyway, and should have.** 5s on both calls. A hang does
+not stall an order, but an un-timed request holds a socket and its buffers for
+five minutes, once per device token, on every order. The trigger is a slow
+outage — precisely when a platform can least afford a resource leak.
 
-**The file already states the rule it is now breaking.** Twelve lines above, at
-`orderService.ts:594–606`, is the note explaining why payment initiation was
-moved out of this path: *a third-party network call inside order placement means
-Razorpay being slow or unreachable takes down the ability to place an order.*
-That reasoning is exactly as true of Google.
+### Two failure shapes this produced, both new
 
-**What the owner would see.** The order is created and persisted before this
-block, and `emitOrderCreated` fires first, so the kitchen tablet rings. Only the
-customer's app is left spinning — on an order that has in fact been placed. The
-obvious next move for a customer is to press it again. The owner has already
-reported *"when customers make an order the restaurant receives two orders"*
-once on this project. `isDuplicate` suggests there is protection; a request that
-hangs for minutes is still the condition that exercises it.
+**A test that HANGS is worse than a test that fails.** Session A's first version
+of the check did not fail under the `await` mutation — it stopped, and the
+runner killed it with no output and no failing line. A failure you can read is
+evidence; silence is nothing. The check now carries its own deadline and fails
+in four seconds with the elapsed time in the message.
 
-Not a regression Session A introduced — the customer push was already awaited
-here. They doubled the exposure and surfaced it.
+**A suite can print every check passing and exit non-zero.** `kitchenPush`
+printed `ALL CHECKS PASSED` and exited **127** — `process.exit()` racing
+libuv's teardown on Windows while the deliberately-hung promise was still open.
+The runner reads exit codes, so a suite where everything passed would have been
+reported as a failure, with a log saying the opposite.
 
-**The fix, smallest first:**
-
-1. `signal: AbortSignal.timeout(5000)` on both fetches. One line each, and it
-   bounds the damage whatever else is decided.
-2. Stop awaiting the pushes in the placement path. The order is already saved
-   and the response does not carry the push result, so nothing downstream needs
-   it. Fire them after the response, with the rejection handled — an unhandled
-   rejection escaping here is what took the process down last time (`:600`).
-
-Do 1 regardless. Do 2 unless there is a reason to keep the ordering.
-
-**The check that fails:** a fake transport that never resolves, and an assertion
-that `placeOrder` still returns within a couple of seconds. Asserting the push
-was sent passes with an unbounded timeout, because the push does eventually get
-sent — the defect is *when*.
-
+Any suite that leaves a handle open can do this, and **grepping the output would
+never show it**. It is the mirror of the `| tail` mistake from earlier in this
+project: there, a failure was read as success; here, a success would have been
+read as failure. Both come from trusting text over the exit code. Defer the exit
+by a tick, as the other suites here already do.
 **Task 8.4 — remove ask-to-be-paid, keep the statement.** `SettlementsScreen.tsx`
 (nav at `App.tsx:425`) keeps everything read-only. The request control goes.
 
