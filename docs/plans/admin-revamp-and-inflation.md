@@ -1487,7 +1487,7 @@ the clean result is worth recording so nobody repeats it:**
 
 ### 11.2 A passing check is not evidence
 
-Six shapes of false pass have been found on this project, all in checks written
+Seven shapes of false pass have been found on this project, all in checks written
 by whoever wrote the code:
 
 - A guard that refuses everything passes every refusal assertion.
@@ -1530,7 +1530,33 @@ by whoever wrote the code:
   > idiom at all. A blanket ban would cause churn and remove correct code; the
   > question is always which of the two it is.
 
-The check that survives all six is one where the value **moves**. For this plan
+- **An async body in a synchronous runner — a check that cannot fail at all.**
+  Found 24 Sep, in the leak check from §6.1.6b(ii), by mutating the route to
+  actually leak: **it passed again**. The runner calls `fn()` and reads the
+  result; an `async` body returns a promise nothing awaits, `PASS` prints
+  immediately, and every assertion inside is unreachable.
+
+  **This is the worst shape on the list**, and it is worth saying why. The other
+  shapes produce a check that *can* pass wrongly — a bad fixture, a weak
+  predicate, a comparison with itself. This one produces a check that **cannot
+  fail**, and its output is byte-identical to a real pass. There is no wrong
+  number to notice and no assertion to re-read.
+
+  **Guarded by a mechanism, not a rule.** The `fn`-style runners now detect a
+  thenable and report it as a failure naming the mistake, so anyone who writes
+  one gets told. Writing "do not do this" in a comment would have been advisory
+  prose for a claim that needs enforcement — §11.2b applied to itself.
+
+  **Swept and independently confirmed.** Every `check(…, async …)` in the tree
+  is preceded by `await` or `return`, and every call to the three `rejects()`
+  helpers that `return check(…)` is awaited. This was the only instance.
+
+  > It was in the check Session B asked for, written by the person who was
+  > being careful about exactly this, and it was found only because the route
+  > was mutated rather than the check re-read. That is the argument for the
+  > habit: **ask what mutation would make this fail, and then make it.**
+
+The check that survives all seven is one where the value **moves**. For this plan
 specifically:
 
 - Per-item price: assert the customer's total **rose** and the restaurant's
