@@ -233,10 +233,52 @@ export function goldDeliveryDiscountPercent(
    * anomalous is how a data problem turns into a bill nobody can explain, and
    * because it is the smallest thing that keeps a promise already made.
    */
-  const cheapest = listPlans()
-    .slice()
-    .sort((a, b) => a.price - b.price)[0];
-  return cheapest?.deliveryDiscountPercent;
+  return planlessBenefitPercent();
+}
+
+/**
+ * The delivery discount a Gold member with no plan id falls back to.
+ *
+ * Cheapest ACTIVE plan, and if none is active, cheapest of all of them.
+ *
+ * That second clause is not defensive padding. `listPlans()` is active-only, so
+ * deactivating every plan made it return an empty array, `cheapest` undefined,
+ * and the benefit silently zero -- which is exactly the failure this fallback
+ * exists to prevent, arriving through the fallback itself. And it is the likely
+ * path, not a contrived one: hiding the old plans while setting up new ones is
+ * the obvious way to restructure a ladder, and the owner has just restructured
+ * theirs.
+ *
+ * Note the asymmetry, which is deliberate. A member WITH a plan id keeps that
+ * plan's benefit even after it is retired, because findPlan reads
+ * listPlans(true) -- they bought it. Only the plan-less case needs a floor.
+ */
+function planlessBenefitPercent(): number | undefined {
+  const byPrice = (plans: MembershipPlan[]) => plans.slice().sort((a, b) => a.price - b.price)[0];
+  const cheapestActive = byPrice(listPlans());
+  if (cheapestActive) return cheapestActive.deliveryDiscountPercent;
+
+  const cheapestEver = byPrice(listPlans(true));
+  return cheapestEver?.deliveryDiscountPercent;
+}
+
+/**
+ * How many members are relying on that fallback, and what they are getting.
+ *
+ * Surfaced rather than left to work quietly, because a fallback nobody can see
+ * becomes permanent: the underlying data problem never gets fixed, and every
+ * future change to plans has to remember this branch exists. A number on the
+ * Gold tab is what turns it back into something somebody can close.
+ */
+export function goldMembersWithoutPlan(): { count: number; gettingPercent: number | undefined } {
+  let count = 0;
+  for (const user of memoryStore.users.values() as any) {
+    const u = user as Pick<UserProfile, 'isGold' | 'goldExpiresAt' | 'goldPlanId'>;
+    if (!isGoldActive(u)) continue;
+    if (u.goldPlanId && findPlan(u.goldPlanId)) continue;
+    count++;
+  }
+  return { count, gettingPercent: planlessBenefitPercent() };
 }
 
 export function goldFreeDeliveryMinOrder(

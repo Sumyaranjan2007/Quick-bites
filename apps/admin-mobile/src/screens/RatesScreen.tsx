@@ -471,6 +471,36 @@ export const RatesScreen: React.FC = () => {
               </Text>
             </Card>
 
+            {/*
+              * Members who are not on any of these plans.
+              *
+              * A Gold account with no plan recorded still gets a benefit -- it
+              * falls back to the cheapest plan rather than silently losing what
+              * it was promised. That is the right behaviour and it is also
+              * invisible, and a fallback nobody can see becomes permanent. This
+              * card is what keeps it something somebody can close.
+              */}
+            {(membership.data?.membersWithoutPlan?.count || 0) > 0 && (
+              <Card style={s.explainer}>
+                <View style={s.head}>
+                  <TriangleAlert size={16} color={c.state.warning} />
+                  <Text style={s.explainerTitle}>
+                    {membership.data.membersWithoutPlan.count} Gold{' '}
+                    {membership.data.membersWithoutPlan.count === 1 ? 'member is' : 'members are'} not on a plan
+                  </Text>
+                </View>
+                <Text style={s.explainerBody}>
+                  Their account says Gold but records no plan — usually because it was granted by hand. They
+                  are getting {membership.data.membersWithoutPlan.gettingPercent ?? 0}% off delivery, from the
+                  cheapest plan, so nobody loses a benefit they were told they had.
+                </Text>
+                <Text style={s.explainerBody}>
+                  Put them on a real plan when you can. Until then every change you make here has to work
+                  around them.
+                </Text>
+              </Card>
+            )}
+
             {membership.loading && !membership.data ? (
               <Loading label="Reading your plans…" />
             ) : (

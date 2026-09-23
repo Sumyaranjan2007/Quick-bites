@@ -23,7 +23,11 @@ import {
   policyGaps
 } from '../../modules/payments/paymentPolicies.ts';
 import { runPaymentsHealthCheck } from '../../modules/payments/paymentsHealth.ts';
-import { listPlans, savePlans } from '../../modules/membership/membershipService.ts';
+import {
+  listPlans,
+  savePlans,
+  goldMembersWithoutPlan
+} from '../../modules/membership/membershipService.ts';
 import { incentiveSettings, setIncentiveSettings } from '../../modules/payments/incentiveConfig.ts';
 import {
   effectiveCharges,
@@ -634,6 +638,16 @@ pricingRoutes.get(
       success: true,
       data: {
         plans: listPlans(true),
+        /*
+         * The members who are not on any of these plans.
+         *
+         * A Gold account with no plan id falls back to the cheapest plan's
+         * delivery benefit rather than losing it, which is the right call and
+         * also invisible -- a fallback nobody can see becomes permanent, and the
+         * data problem underneath it never gets fixed. This is the number that
+         * keeps it closable.
+         */
+        membersWithoutPlan: goldMembersWithoutPlan(),
         note:
           'What a customer is promised is written from these numbers, so the wording can never say more than the plan does.'
       }

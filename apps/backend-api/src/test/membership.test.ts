@@ -9,12 +9,15 @@
  */
 import assert from 'node:assert';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
+import { memoryStore } from '../db/client.ts';
 import {
   isGoldActive,
   goldDiscountPercent,
   listPlans,
   findPlan,
-  savePlans
+  savePlans,
+  goldDeliveryDiscountPercent,
+  goldMembersWithoutPlan
 } from '../modules/membership/membershipService.ts';
 
 console.log('====================================================');
@@ -154,6 +157,101 @@ check('A dearer plan is visibly better on the same basket', () => {
   assert.equal(gold.deliveryFee, 54);
   assert.equal(goldMax.deliveryFee, 36, '40% off Rs 60');
   assert.equal(goldMax.membershipDeliverySaving, 24);
+});
+
+/*
+ * The plan-less member, and the edge that undid the branch protecting them.
+ *
+ * A Gold account with no plan id is not hypothetical: the seeded customer is
+ * one, and so is anybody an administrator grants Gold by hand. Under the old
+ * free-delivery rule the engine checked `isGold` alone, so they had a benefit.
+ * Reading it off a plan they do not have would take it away silently -- no
+ * error, no screen, just a delivery fee that used to be lower.
+ */
+check('A member with no plan keeps a delivery benefit', () => {
+  const pct = goldDeliveryDiscountPercent({ isGold: true, goldExpiresAt: future(5) });
+  const cheapest = listPlans().slice().sort((a, b) => a.price - b.price)[0];
+  assert.equal(pct, cheapest.deliveryDiscountPercent, 'they fall back to the cheapest ACTIVE plan');
+  assert.ok(pct! > 0, 'a fallback worth nothing is the same as no fallback');
+});
+
+check('and keeps it even when every plan is deactivated', () => {
+  const before = listPlans(true);
+  try {
+    savePlans(before.map(p => ({ ...p, isActive: false })));
+
+    /*
+     * listPlans() is active-only, so this returned undefined before it was
+     * floored -- the benefit vanishing through the very branch that exists to
+     * stop it vanishing. And it is the likely path rather than a contrived one:
+     * hiding the old plans while setting up new ones is how a ladder gets
+     * restructured, which the owner has just done.
+     */
+    const pct = goldDeliveryDiscountPercent({ isGold: true, goldExpiresAt: future(5) });
+    assert.notEqual(pct, undefined, 'deactivating every plan silently removed the benefit');
+    assert.equal(pct, before.slice().sort((a, b) => a.price - b.price)[0].deliveryDiscountPercent);
+  } finally {
+    savePlans(before);
+  }
+});
+
+check('A member who BOUGHT a retired plan keeps that plan, not the fallback', () => {
+  const before = listPlans(true);
+  const dearest = before.slice().sort((a, b) => b.price - a.price)[0];
+  try {
+    savePlans(before.map(p => (p.id === dearest.id ? { ...p, isActive: false } : p)));
+
+    // They paid for it. findPlan reads listPlans(true) deliberately, so
+    // retiring a plan changes what the NEXT person can buy and nothing else.
+    const pct = goldDeliveryDiscountPercent({
+      isGold: true,
+      goldExpiresAt: future(5),
+      goldPlanId: dearest.id
+    });
+    assert.equal(pct, dearest.deliveryDiscountPercent, 'a bought benefit was withdrawn when the plan was hidden');
+  } finally {
+    savePlans(before);
+  }
+});
+
+check('The plan-less members are counted, so the anomaly can be closed', () => {
+  /*
+   * The count is asserted to MOVE rather than to be some fixture's value. This
+   * suite seeds nothing, so a bare `count >= 1` failed honestly -- and had it
+   * been written against a seeded number it would have passed while measuring
+   * somebody else's data rather than this function.
+   *
+   * Two users are added: one Gold with no plan, who must be counted, and one
+   * Gold on a real plan, who must not. A counter that simply counts Gold
+   * accounts passes the first half and fails the second.
+   */
+  const before = goldMembersWithoutPlan();
+  const realPlan = listPlans()[0];
+
+  memoryStore.users.set('usr_test_planless', {
+    id: 'usr_test_planless',
+    isGold: true,
+    goldExpiresAt: future(30)
+  } as any);
+  memoryStore.users.set('usr_test_onplan', {
+    id: 'usr_test_onplan',
+    isGold: true,
+    goldExpiresAt: future(30),
+    goldPlanId: realPlan.id
+  } as any);
+
+  try {
+    const after = goldMembersWithoutPlan();
+    assert.equal(after.count, before.count + 1, 'only the member with no plan should be counted');
+    assert.equal(
+      after.gettingPercent,
+      listPlans().slice().sort((a, b) => a.price - b.price)[0].deliveryDiscountPercent,
+      'the number reported must be the benefit they are actually getting'
+    );
+  } finally {
+    memoryStore.users.delete('usr_test_planless');
+    memoryStore.users.delete('usr_test_onplan');
+  }
 });
 
 check('The ladder is the one the owner set', () => {
