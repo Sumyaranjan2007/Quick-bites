@@ -1247,7 +1247,28 @@ the exit code would have been trusted over correct text. The rule covers both
 directions: the verdict must travel in the channel the decider actually reads,
 and grepping output will not tell you when it did not.
 
-Worth a sweep: any suite here that can leave a handle open can do this.
+**The sweep was done on 24 Sep, across all 40 suites. It came back clean, and
+the clean result is worth recording so nobody repeats it:**
+
+- **Every suite on disk is registered in the runner.** 40 files, 40 entries,
+  no orphans. An unregistered suite is the largest false pass available — a
+  whole file of assertions that never runs — and there are none. The runner
+  also prints `[MISSING]` when it names a suite that is not there, so the
+  failure is loud in the other direction too.
+- **Exit hygiene is clean.** Every suite that exits on the *success* path
+  defers it, and every suite holding a server or socket closes it first —
+  including all three that hold listening handles (`sockets`,
+  `sockets.security`, `resilience`). The many suites calling `process.exit(1)`
+  inside a `.catch()` are not this shape: that is a failure path, and an
+  immediate exit there is correct.
+
+> **A false alarm on the way, recorded because the correction is the lesson.**
+> `sockets.test.ts` was first flagged here as exiting immediately with an open
+> server. It does neither — it disconnects every client, awaits
+> `closeSocketServer()`, closes the HTTP server and defers the exit by 100ms.
+> The grep that flagged it had truncated the `setTimeout` wrapper out of its
+> context window. Same shape as §11.2b in miniature: a tool's output was read
+> as a fact about the code without opening the file.
 
 ### 11.2 A passing check is not evidence
 
@@ -1275,6 +1296,24 @@ by whoever wrote the code:
   when the thing it exists to detect is happening**. The idiom reads as
   defensive, which is why it survives review. Assert the value is present, then
   assert what it equals — two statements, not one.
+
+  > **The nuance, from sweeping all 40 suites on 24 Sep.** `!x || ...` is not
+  > wrong by itself. It is wrong when **absence is the failure**. When absence
+  > is the *success state* it is correct — `regression.test.ts:664` asks
+  > whether a restaurant still has pending menu requests, and a restaurant that
+  > has dropped out of the pending list entirely is the pass, so `!settled ||`
+  > says what it means.
+  >
+  > **But that line still has a hole**, and it is the one to look for whenever
+  > this idiom appears: nothing asserts the request succeeded. `afterBulk.status`
+  > is never checked, so a 500 from `/admin/menu-requests/grouped` also produces
+  > an absent `settled` and also passes. The sibling check two lines above does
+  > assert `bulk.status === 200`.
+  >
+  > **Rule:** where absence is the success state, assert the *response* before
+  > reasoning about the absence. Where absence is the failure, do not use the
+  > idiom at all. A blanket ban would cause churn and remove correct code; the
+  > question is always which of the two it is.
 
 The check that survives all six is one where the value **moves**. For this plan
 specifically:
