@@ -92,7 +92,7 @@ export const PayeeAccountsScreen: React.FC = () => {
     { enabled: canSeeCoverage }
   );
 
-  const [tab, setTab] = useState('waiting');
+  const [tab, setTab] = useState('restaurants');
   const [deciding, setDeciding] = useState<QueueRow | null>(null);
   const [decision, setDecision] = useState<'APPROVE' | 'REJECT'>('APPROVE');
   const [note, setNote] = useState('');
@@ -131,7 +131,19 @@ export const PayeeAccountsScreen: React.FC = () => {
    */
   const waiting = all.filter(r => !r.appliedAt && r.validationStatus !== 'INVALID');
   const settled = all.filter(r => r.appliedAt || r.validationStatus === 'INVALID');
-  const rows = tab === 'waiting' ? waiting : settled;
+
+  /*
+   * Split the queue by who is waiting, not just by whether anybody is.
+   *
+   * A single "Waiting (7)" badge cannot say whether seven restaurants are
+   * unpaid or seven riders are, and those are different mornings. The counts
+   * live on the segments themselves for the same reason.
+   */
+  const restaurants = waiting.filter(r => r.ownerType === 'RESTAURANT');
+  const riders = waiting.filter(r => r.ownerType === 'RIDER');
+  const approved = settled.slice().sort((a, b) => (b.appliedAt || '').localeCompare(a.appliedAt || ''));
+
+  const rows = tab === 'restaurants' ? restaurants : tab === 'riders' ? riders : approved;
   const thresholds = queue.data?.thresholds;
 
   const renderCoverage = (label: string, group?: CoverageGroup) => {
@@ -179,7 +191,12 @@ export const PayeeAccountsScreen: React.FC = () => {
           />
         }
       >
-        {!!queue.error && (
+        {/*
+          * Only when there is something on screen for it to qualify. With an
+          * empty list the empty state says the same thing and offers a retry,
+          * and two red messages about one failure read as two failures.
+          */}
+        {!!queue.error && rows.length > 0 && (
           <Card style={s.errorCard}>
             <Text style={s.errorText}>{queue.error}</Text>
           </Card>
@@ -199,8 +216,9 @@ export const PayeeAccountsScreen: React.FC = () => {
 
         <Segmented
           options={[
-            { key: 'waiting', label: `Waiting${waiting.length ? ` (${waiting.length})` : ''}` },
-            { key: 'applied', label: 'Decided' },
+            { key: 'restaurants', label: `Restaurants${restaurants.length ? ` (${restaurants.length})` : ''}` },
+            { key: 'riders', label: `Riders${riders.length ? ` (${riders.length})` : ''}` },
+            { key: 'approved', label: 'Approved' },
             { key: 'coverage', label: 'Who can be paid' }
           ]}
           value={tab}
@@ -211,21 +229,62 @@ export const PayeeAccountsScreen: React.FC = () => {
           !allowed ? (
             <NoAccess permission="finance.payouts.manage" />
           ) : rows.length === 0 ? (
-            <EmptyState
-              title={tab === 'waiting' ? 'Nothing waiting for you' : 'Nothing decided yet'}
-              message={
-                tab === 'waiting'
-                  ? 'Every account anybody has given us has been applied or refused. Nobody is waiting to be paid because of a bank detail.'
-                  : 'No account has been applied or refused yet. Anything submitted appears under Waiting.'
-              }
-              icon={<UserCheck size={28} color={c.text.muted} />}
-            />
+            /*
+             * Three different nothings, three different sentences.
+             *
+             * This screen was reported as broken — "nothing is coming up" —
+             * while it was working correctly and the platform simply had no
+             * accounts on file. A request that failed and a queue that is
+             * genuinely clear both rendered as the same blank card, so there
+             * was no way to tell a fault from a quiet morning without opening
+             * the server. Saying which nothing this is costs four lines.
+             */
+            queue.error ? (
+              <EmptyState
+                title="Could not reach the server"
+                message={`${queue.error} Nothing here is a statement about your accounts — this screen could not ask.`}
+                icon={<AlertTriangle size={28} color={c.state.danger} />}
+                action={<Button label="Try again" variant="secondary" onPress={() => void queue.reload()} />}
+              />
+            ) : all.length === 0 ? (
+              <EmptyState
+                title="No bank accounts yet"
+                message={
+                  'No restaurant or rider has added one. They add it from their own app, under ' +
+                  'Payout account — it appears here the moment they do, and nobody can be paid ' +
+                  'until you apply it.'
+                }
+                icon={<Landmark size={28} color={c.text.muted} />}
+              />
+            ) : (
+              <EmptyState
+                title={
+                  tab === 'restaurants'
+                    ? 'No restaurant is waiting'
+                    : tab === 'riders'
+                      ? 'No rider is waiting'
+                      : 'Nothing decided yet'
+                }
+                message={
+                  tab === 'approved'
+                    ? `No account has been applied or refused yet. ${waiting.length} ${waiting.length === 1 ? 'is' : 'are'} waiting for you.`
+                    : `Nothing waiting here. ${approved.length} ${approved.length === 1 ? 'account has' : 'accounts have'} already been decided.`
+                }
+                icon={<UserCheck size={28} color={c.text.muted} />}
+              />
+            )
           ) : (
             <>
               <SectionTitle
-                title={tab === 'waiting' ? 'Waiting for you to apply' : 'Already decided'}
+                title={
+                  tab === 'restaurants'
+                    ? 'Restaurants waiting for you to apply'
+                    : tab === 'riders'
+                      ? 'Riders waiting for you to apply'
+                      : 'Already decided'
+                }
                 subtitle={
-                  tab === 'waiting'
+                  tab !== 'approved'
                     ? 'No account receives money until you apply it — whatever the bank check said. Check the name against the account, then apply.'
                     : thresholds
                       ? `Applied accounts receive the money. Refused ones cannot be applied: the bank said they do not exist.`
