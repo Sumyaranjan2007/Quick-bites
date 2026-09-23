@@ -675,6 +675,48 @@ add-on. Assert the customer pays ₹300 and `partnerItemsTotal` is ₹250. Asser
 only the dish line passes while the add-on is wrong, because the add-on is a
 separate term.
 
+**Task 6.1.3c — REVIEW FINDING, 24 Sep: the continuity property does not
+actually hold, and the test that checks it cannot see that.**
+
+§6.1.3a argued for the implied ratio on the grounds that *"a dish typed at
+exactly its percentage behaves the same as the percentage"*. Session A built it
+and cited that reasoning. **It is false for most numbers**, because the two
+paths round differently:
+
+| | |
+| --- | --- |
+| percentage path (`restaurantCharges.ts:528`, `:595`) | `Math.round(x * (1 + p/100))` → **whole rupees** |
+| typed ratio path (`:590`) | `Math.round(x * ratio * 100) / 100` → **paise** |
+
+Computed, not read:
+
+```
+base 320, extra 180, 25%  ->  percentage 225     typed-ratio 225      same
+base 200, extra  50, 20%  ->  percentage  60     typed-ratio  60      same
+base  55, extra  12, 18%  ->  percentage  14     typed-ratio  14.18   DIFFER
+base 149, extra  37, 15%  ->  percentage  43     typed-ratio  42.46   DIFFER
+```
+
+**The suite passes because its fixture is one of the coinciding cases.** The
+three-totals check uses ₹320 / ₹180 / 25%, which agrees exactly. That is §11.2's
+second shape — *a fixture that cannot reach the case* — and it is the reason
+this needed computing rather than reading.
+
+The whole-rupee rounding is **pre-existing and deliberate**, not something
+`90355f6` introduced: `git show 90355f6^` has the identical line. Customers
+seeing ₹240 rather than ₹239.87 is a reasonable product decision. The defect is
+having **two conventions for one concept** now that a second path exists.
+
+**Fix: round every DERIVED price the same way, whatever its source** — make the
+ratio path `Math.round(extras * ratio)`. A typed price itself is still honoured
+exactly, because a human typed it and rounding ₹239.50 to ₹240 would overrule
+them. The rule is: *typed values are obeyed, derived values are rounded.*
+
+**The check that fails:** assert continuity on a number that does not coincide —
+₹55 typed to ₹65 (18%) with a ₹12 add-on must charge the same as a ₹55 dish at
+18% with a ₹12 add-on. Pick the awkward number deliberately; the clean ones
+prove nothing.
+
 **Task 6.1.3b — orphan keys.** Dish ids are `dish_` + `crypto.randomUUID()`
 (`menuRepository.ts:61`) and `updateItem` preserves the id (`:84`), so keys are
 stable and never reused. Keying `itemPrices` on a dish id is safe — no risk of a
