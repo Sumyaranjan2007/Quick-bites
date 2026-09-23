@@ -15,21 +15,42 @@ export function getHealth(req: Request, res: Response): void {
     environment: config.NODE_ENV,
     demoMode: config.DEMO_MODE,
     services: {
+      /*
+       * WHAT IS ACTUALLY CONNECTED, not what somebody once planned to connect.
+       *
+       * These read 'Supabase PostgreSQL + PostGIS' and 'MongoDB Atlas M0' as
+       * fixed strings, with status 'UP' regardless of whether anything was
+       * reachable. They named products this deployment does not use: the store
+       * is whatever DATABASE_URL points at, and MONGODB_URI is read by no code
+       * outside the config file.
+       *
+       * That is not cosmetic. Reading these labels cost an afternoon - the
+       * owner was told to copy Supabase and Mongo credentials into a new
+       * deployment to fix a crash caused by a missing DATABASE_URL, because
+       * the endpoint said those were the databases. An endpoint that names the
+       * wrong dependency is worse than one that names none, because it is
+       * believed.
+       *
+       * So each entry now reports whether its variable is set and says plainly
+       * when a service is not in use. 'UP' is reserved for the store, which is
+       * the one thing this process genuinely cannot run without - reaching
+       * this code at all means it connected at boot.
+       */
       database: {
         status: 'UP',
-        provider: 'Supabase PostgreSQL + PostGIS'
+        provider: process.env.DATABASE_URL ? 'PostgreSQL (DATABASE_URL)' : 'local JSON snapshot',
+        durable: Boolean(process.env.DATABASE_URL)
       },
       cache: {
         status: 'UP',
         provider: config.UPSTASH_REDIS_REST_URL ? 'Upstash Redis' : 'In-Memory Token Bucket'
       },
-      catalog: {
-        status: 'UP',
-        provider: 'MongoDB Atlas M0'
-      },
       search: {
-        status: 'UP',
-        provider: 'Meilisearch Cloud'
+        configured: Boolean(config.MEILISEARCH_HOST && config.MEILISEARCH_API_KEY),
+        provider:
+          config.MEILISEARCH_HOST && config.MEILISEARCH_API_KEY
+            ? 'Meilisearch'
+            : 'built-in matching (no Meilisearch configured)'
       },
       /**
        * Whether this deployment can answer questions about places.
