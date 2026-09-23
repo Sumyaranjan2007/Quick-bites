@@ -241,6 +241,50 @@ try {
   check('with wording that does not claim it changes rider pay',
     !/rider pay|rider earn(s|ings) (rise|increase)/i.test(body));
 
+  // ----------------------------------------------------------------
+  console.log('\n-- A Gold plan saved through the admin route keeps its delivery benefit');
+
+  /*
+   * The same risk as the RATE_BOUNDS one above, one layer out, and it lives
+   * here because this suite has the assembled app and membership.test.ts does
+   * not.
+   *
+   * membership.test.ts covers savePlans directly, which cannot see this: zod
+   * STRIPS keys the route schema does not declare, so a field missing from
+   * PlanSchema is dropped between the request and the service. The call
+   * succeeds, the screen confirms, and the plan quietly loses its delivery
+   * discount. Nothing in the codebase exercised that route until now.
+   */
+  const planList = await api('/admin/rates/membership', {}, admin.token);
+  const plans = planList.json?.data?.plans || [];
+  check('The admin route serves the plans', planList.status === 200 && plans.length >= 3,
+    `status ${planList.status}`);
+
+  const edited = plans.map((p: any, i: number) =>
+    i === 0 ? { ...p, deliveryDiscountPercent: 37 } : p
+  );
+  const saveRes = await api('/admin/rates/membership', {
+    method: 'PUT',
+    body: { plans: edited.map(({ benefits, ...rest }: any) => rest) }
+  }, admin.token);
+  check('and accepts a change to the delivery discount', saveRes.status === 200,
+    `status ${saveRes.status}: ${JSON.stringify(saveRes.json).slice(0, 250)}`);
+
+  const reread = await api('/admin/rates/membership', {}, admin.token);
+  const savedPlan = (reread.json?.data?.plans || []).find((p: any) => p.id === plans[0]?.id);
+  check('THE DELIVERY DISCOUNT SURVIVES THE ROUND TRIP',
+    savedPlan?.deliveryDiscountPercent === 37,
+    `came back as ${savedPlan?.deliveryDiscountPercent}`);
+  check('and the benefit line follows it',
+    (savedPlan?.benefits || []).some((b: string) => b.includes('37%')),
+    JSON.stringify(savedPlan?.benefits));
+
+  // Put the ladder back, so nothing after this runs against an edited plan.
+  await api('/admin/rates/membership', {
+    method: 'PUT',
+    body: { plans: plans.map(({ benefits, ...rest }: any) => rest) }
+  }, admin.token);
+
   // Turning it off must always be possible, whatever else is true.
   createVersion({ riderDeliveryMarkupPercent: 0 }, { userId: 'usr_admin_01' }, 'Turning the markup off again.');
   check('It can be turned off again', getActiveRates().riderDeliveryMarkupPercent === 0);

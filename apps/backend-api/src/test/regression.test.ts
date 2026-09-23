@@ -660,6 +660,22 @@ async function run() {
   check('The rejected dish is not', !liveNames.includes('Typo Dosa'));
 
   const afterBulk = await api('/admin/menu-requests/grouped', {}, superAdmin.token);
+
+  /*
+   * The status is asserted FIRST, and that is the whole point of this line.
+   *
+   * The check below reads `!settled || settled.pendingCount === 0`, and here
+   * that idiom is correct: a restaurant that has dropped out of the pending
+   * list entirely IS the success state, so absence means what the check wants.
+   *
+   * But a 500 from this endpoint produces an absent `settled` too, and passes
+   * for the wrong reason. Without this line the check cannot tell "the queue is
+   * clear" from "the queue could not be read" -- and the sibling check above it
+   * already asserts bulk.status, so the omission was an inconsistency rather
+   * than a decision.
+   */
+  check('The pending queue can be read back', afterBulk.status === 200, String(afterBulk.status));
+
   const settled = (afterBulk.json?.data?.groups || []).find((g: any) => g.restaurantId === freshRestaurantId);
   check('The restaurant no longer has anything pending', !settled || settled.pendingCount === 0, String(settled?.pendingCount));
 

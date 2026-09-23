@@ -618,22 +618,37 @@ async function run() {
     assert.equal(uncapped.membershipDiscount, 250);
   });
 
-  await check('A member only gets free delivery above their own plan floor', () => {
+  /*
+   * The plan floor still decides whether the member's benefit applies; it no
+   * longer decides whether delivery is free. This asserted `above.deliveryFee
+   * === 0` under the old model, and the figure moved with the behaviour rather
+   * than the assertion being loosened to a "greater than" that would pass for
+   * any discount at all.
+   *
+   * By hand: no distance on this basket, so the fee is the Rs 30 base, and 25%
+   * off is Rs 22.50.
+   */
+  await check('A member only gets their delivery discount above their own plan floor', () => {
     const below = calculateOrderPricing({
       items: [{ unitPrice: 150, quantity: 1 }],
       isGold: true,
       memberFreeDeliveryMinOrder: 199,
+      memberDeliveryDiscountPercent: 25,
       rates: getActiveRates()
     });
-    assert.ok(below.deliveryFee > 0, 'delivery was free below the plan floor');
+    assert.equal(below.deliveryFee, 30, 'below the floor the member pays the full fee');
+    assert.equal(below.membershipDeliverySaving, 0, 'and saves nothing');
 
     const above = calculateOrderPricing({
       items: [{ unitPrice: 250, quantity: 1 }],
       isGold: true,
       memberFreeDeliveryMinOrder: 199,
+      memberDeliveryDiscountPercent: 25,
       rates: getActiveRates()
     });
-    assert.equal(above.deliveryFee, 0);
+    assert.equal(above.deliveryFee, 22.5, '25% off Rs 30');
+    assert.equal(above.membershipDeliverySaving, 7.5);
+    assert.notEqual(above.deliveryFee, 0, 'clearing the floor no longer makes delivery free');
   });
 
   /* ---------------------------------------------------------------- *

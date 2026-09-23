@@ -524,14 +524,37 @@ check('The rates handed to the engine are the rates it applies', () => {
   assert.notEqual(asDefault.totalAmount, asChanged.totalAmount, 'the customer was charged the same either way');
 });
 
-check('A member’s free-delivery threshold follows its rate', () => {
-  const basket = { items: [{ unitPrice: 150, quantity: 1 }], isGold: true, distanceKm: 1 };
-  assert.equal(calculateOrderPricing(basket).deliveryFee, 30, 'Rs 150 is below the Rs 199 default threshold');
+/*
+ * The threshold still gates the member's benefit -- it just no longer decides
+ * whether delivery is FREE. It decides whether the discount applies at all.
+ *
+ * This check previously asserted the fee dropped to zero once the threshold was
+ * lowered. That was correct about the old model and is the wrong question now,
+ * so the assertion follows the behaviour rather than being softened to tolerate
+ * it. Rs 30 is the base fee, and a 1km trip stays inside the 3km base distance,
+ * so the undiscounted fee is Rs 30 and 40% off is Rs 18.
+ */
+check('A member’s delivery discount is gated by the threshold', () => {
+  const basket = {
+    items: [{ unitPrice: 150, quantity: 1 }],
+    isGold: true,
+    distanceKm: 1,
+    memberDeliveryDiscountPercent: 40
+  };
+
   assert.equal(
-    calculateOrderPricing({ ...basket, rates: { ...DEFAULT_RATES, memberFreeDeliveryMinOrder: 100 } }).deliveryFee,
-    0,
-    'lowering the threshold did not make delivery free'
+    calculateOrderPricing(basket).deliveryFee,
+    30,
+    'Rs 150 is below the Rs 199 default threshold, so the discount does not apply yet'
   );
+
+  const applied = calculateOrderPricing({
+    ...basket,
+    rates: { ...DEFAULT_RATES, memberFreeDeliveryMinOrder: 100 }
+  });
+  assert.equal(applied.deliveryFee, 18, '40% off Rs 30 once the basket clears the threshold');
+  assert.equal(applied.membershipDeliverySaving, 12, 'and the saving is recorded');
+  assert.notEqual(applied.deliveryFee, 0, 'clearing the threshold no longer makes delivery free');
 });
 
 /* ------------------------------------------------------------------ *

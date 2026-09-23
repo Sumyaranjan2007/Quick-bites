@@ -47,10 +47,23 @@ export interface MembershipPlan {
    */
   maxDiscountPerOrder: number;
   /**
-   * Food total a member needs to reach for delivery to be free.
+   * Percentage taken off the DELIVERY FEE for this member.
    *
-   * Per plan rather than platform-wide, so a dearer plan can be genuinely
-   * better rather than only longer.
+   * This replaced free delivery, and it is a model change rather than a number
+   * change. Free delivery above a threshold is all-or-nothing: a member one
+   * rupee short of the floor pays the whole fee, and a member one rupee over
+   * pays none of it, which is a cliff the customer feels as arbitrary. A
+   * percentage is what the owner asked for and it scales with what the plan
+   * costs -- which is what makes a dearer plan visibly better.
+   */
+  deliveryDiscountPercent: number;
+  /**
+   * Food total at which the delivery discount starts applying. Zero means
+   * always.
+   *
+   * Kept, but it no longer decides whether delivery is FREE -- it decides
+   * whether the discount applies at all. Per plan rather than platform-wide, so
+   * a dearer plan can be genuinely better rather than only longer.
    */
   freeDeliveryMinOrder: number;
   isActive: boolean;
@@ -66,37 +79,51 @@ const SETTINGS_KEY = 'membership:plans';
  * Every number here is editable from the admin app — these are a starting
  * point, not a decision baked into the source.
  */
+/*
+ * The ladder the owner set on 23 Sep.
+ *
+ * The IDS ARE UNCHANGED although two of the names and one of the durations are
+ * not. `plan_gold_yearly` now lasts 60 days, which reads oddly -- and renaming
+ * it would orphan every subscription already pointing at it, turning a
+ * cosmetic improvement into somebody losing a membership they paid for. The id
+ * is a key; the name is what a customer sees, and only the name is changed.
+ */
 const DEFAULT_PLANS: MembershipPlan[] = [
   {
     id: 'plan_gold_monthly',
-    name: 'Gold Monthly',
+    name: 'Gold',
     price: 99,
     durationDays: 30,
+    deliveryDiscountPercent: 10,
     extraDiscountPercent: 5,
     maxDiscountPerOrder: 75,
-    freeDeliveryMinOrder: 199,
+    // Zero: the delivery discount applies from the first rupee. The floor was
+    // how free delivery was made affordable; a percentage does not need one.
+    freeDeliveryMinOrder: 0,
     benefits: [],
     isActive: true
   },
   {
     id: 'plan_gold_quarterly',
-    name: 'Gold 3 Months',
+    name: 'Gold+',
     price: 249,
-    durationDays: 90,
+    durationDays: 30,
+    deliveryDiscountPercent: 25,
     extraDiscountPercent: 5,
     maxDiscountPerOrder: 100,
-    freeDeliveryMinOrder: 149,
+    freeDeliveryMinOrder: 0,
     benefits: [],
     isActive: true
   },
   {
     id: 'plan_gold_yearly',
-    name: 'Gold Yearly',
+    name: 'Gold Max',
     price: 799,
-    durationDays: 365,
+    durationDays: 60,
+    deliveryDiscountPercent: 40,
     extraDiscountPercent: 7,
     maxDiscountPerOrder: 150,
-    freeDeliveryMinOrder: 99,
+    freeDeliveryMinOrder: 0,
     benefits: [],
     isActive: true
   }
@@ -131,11 +158,30 @@ export function savePlans(plans: MembershipPlan[]): MembershipPlan[] {
 export function planBenefits(plan: MembershipPlan): string[] {
   const lines: string[] = [];
 
-  lines.push(
-    plan.freeDeliveryMinOrder > 0
-      ? `Free delivery on orders over Rs ${plan.freeDeliveryMinOrder}`
-      : 'Free delivery on every order'
-  );
+  /*
+   * The delivery line, derived from the discount rather than written out.
+   *
+   * This said "Free delivery" until the benefit became a percentage. A plan
+   * that promises free delivery and then charges 60% of it is a refund and a
+   * complaint, on the screen where somebody hands over money -- and the text
+   * would have been wrong from the moment the model changed, with nothing to
+   * catch it, because prose does not type-check.
+   *
+   * 100% is still written as free, because that is what a customer calls it.
+   */
+  if (plan.deliveryDiscountPercent >= 100) {
+    lines.push(
+      plan.freeDeliveryMinOrder > 0
+        ? `Free delivery on orders over Rs ${plan.freeDeliveryMinOrder}`
+        : 'Free delivery on every order'
+    );
+  } else if (plan.deliveryDiscountPercent > 0) {
+    lines.push(
+      plan.freeDeliveryMinOrder > 0
+        ? `${plan.deliveryDiscountPercent}% off delivery on orders over Rs ${plan.freeDeliveryMinOrder}`
+        : `${plan.deliveryDiscountPercent}% off delivery on every order`
+    );
+  }
 
   if (plan.extraDiscountPercent > 0) {
     lines.push(
@@ -157,6 +203,42 @@ export function goldDiscountCap(user: Pick<UserProfile, 'isGold' | 'goldExpiresA
 }
 
 /** The food total this customer needs for free delivery. */
+/**
+ * The percentage this member's plan takes off the delivery fee, or undefined
+ * when they are not a member.
+ *
+ * Undefined rather than 0 deliberately: 0 is a real setting an administrator
+ * may choose, and collapsing "no plan" into "a plan worth nothing" would make
+ * a misconfigured plan indistinguishable from no membership at all.
+ */
+export function goldDeliveryDiscountPercent(
+  user: Pick<UserProfile, 'isGold' | 'goldExpiresAt' | 'goldPlanId'>
+): number | undefined {
+  if (!isGoldActive(user)) return undefined;
+  const plan = user.goldPlanId ? findPlan(user.goldPlanId) : null;
+  if (plan) return plan.deliveryDiscountPercent;
+
+  /*
+   * A MEMBER WITH NO PLAN ID still gets a benefit, and this branch is not
+   * theoretical: the seeded customer is exactly that, and so is anybody an
+   * administrator has granted Gold by hand.
+   *
+   * Under the old rule the engine checked `isGold` alone, so those members got
+   * free delivery. Reading the benefit off a plan they do not have would take
+   * it away from them silently -- no error, no screen, just a delivery fee that
+   * used to be lower. They would find out by paying it.
+   *
+   * So they fall back to the CHEAPEST active plan. Cheapest rather than best
+   * because inventing the most generous benefit for a record that is already
+   * anomalous is how a data problem turns into a bill nobody can explain, and
+   * because it is the smallest thing that keeps a promise already made.
+   */
+  const cheapest = listPlans()
+    .slice()
+    .sort((a, b) => a.price - b.price)[0];
+  return cheapest?.deliveryDiscountPercent;
+}
+
 export function goldFreeDeliveryMinOrder(
   user: Pick<UserProfile, 'isGold' | 'goldExpiresAt' | 'goldPlanId'>
 ): number | undefined {

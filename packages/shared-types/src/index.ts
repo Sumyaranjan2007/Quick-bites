@@ -511,6 +511,8 @@ export interface OrderBillBreakdown {
    * zero would claim those orders had no partner-side delivery fee at all.
    */
   partnerDeliveryFee?: number;
+  /** What the membership took off the delivery fee. Absent on older orders. */
+  membershipDeliverySaving?: number;
   platformFee: number;
   couponDiscount: number;
   /**
@@ -1608,7 +1610,15 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   deliveryBaseFee: 30,
   deliveryBaseKm: 3,
   deliveryPerKmBeyond: 10,
-  // pricing-engine: `if (input.isGold && itemsTotal >= 199.00) deliveryFee = 0`
+  /*
+   * The food total at which a member's DELIVERY DISCOUNT starts applying.
+   *
+   * It used to gate free delivery outright -- the engine read
+   * `if (input.isGold && itemsTotal >= 199) deliveryFee = 0`. That branch is
+   * gone: the benefit is a percentage per plan now, and this only decides
+   * whether the percentage applies. The default plans set their own floor of
+   * zero, so this is the fallback for a member whose plan does not say.
+   */
   memberFreeDeliveryMinOrder: 199,
   // pricing-engine: "Platform Fee: Fixed Rs 5.00 (+ 18% GST = Rs 5.90)"
   platformFeeBase: 5,

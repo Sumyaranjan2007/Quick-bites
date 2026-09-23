@@ -53,17 +53,30 @@ async function runOrderTests() {
   if (order.bill.gstAmount !== 25.00) {
     throw new Error(`GST mismatch: expected 25.00 (5%), got ${order.bill.gstAmount}`);
   }
-  if (order.bill.deliveryFee !== 0.00) {
-    throw new Error(`Delivery fee mismatch: expected 0.00 for Gold member, got ${order.bill.deliveryFee}`);
+  /*
+   * A Gold member now pays a DISCOUNTED delivery fee, not a free one.
+   *
+   * This asserted 0.00 and was correct until the benefit stopped being free
+   * delivery. By hand: the fee on this trip is Rs 30, this customer is a member
+   * with no plan id on their record, so they fall back to the cheapest active
+   * plan at 10% -- Rs 27. The expected figure moved with the behaviour instead
+   * of the assertion being loosened to "less than 30", which would pass for a
+   * discount of any size including the whole fee.
+   */
+  if (order.bill.deliveryFee !== 27.00) {
+    throw new Error(`Delivery fee mismatch: expected 27.00 for a Gold member (10% off Rs 30), got ${order.bill.deliveryFee}`);
+  }
+  if (order.bill.membershipDeliverySaving !== 3.00) {
+    throw new Error(`Membership delivery saving mismatch: expected 3.00, got ${order.bill.membershipDeliverySaving}`);
   }
   if (order.bill.couponDiscount !== 100.00) {
     throw new Error(`Coupon discount mismatch: expected 100.00 cap, got ${order.bill.couponDiscount}`);
   }
-  // Total: 500 + 25 (GST) + 25 (packaging) + 0 (delivery) + 5.90 (platform fee) - 100 = 455.90
-  if (order.bill.totalAmount !== 455.90) {
-    throw new Error(`Total amount mismatch: expected 455.90, got ${order.bill.totalAmount}`);
+  // Total: 500 + 25 (GST) + 25 (packaging) + 27 (delivery, 10% off) + 5.90 (platform fee) - 100 = 482.90
+  if (order.bill.totalAmount !== 482.90) {
+    throw new Error(`Total amount mismatch: expected 482.90, got ${order.bill.totalAmount}`);
   }
-  console.log('[PASS] Step 3: Bill breakdown verified (Items: Rs 500, GST: Rs 25, Gold Free Del, Coupon: -Rs 100, Total: Rs 455.90)');
+  console.log('[PASS] Step 3: Bill breakdown verified (Items: Rs 500, GST: Rs 25, Gold 10% off delivery, Coupon: -Rs 100, Total: Rs 482.90)');
 
   // 4. Test Idempotency Double-Click Protection (Rule 45)
   console.log('Step 4: Testing idempotency key duplicate rejection...');

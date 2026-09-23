@@ -115,11 +115,122 @@ const basket = {
   distanceKm: 6
 };
 
-check('A member pays no delivery fee; a lapsed member pays it', () => {
-  const live = calculateOrderPricing({ ...basket, isGold: true });
+/*
+ * This check used to assert a member's delivery fee was EXACTLY ZERO, and it
+ * was right until the benefit stopped being free delivery. The owner replaced
+ * it with a percentage per plan, so the assertion moved with the behaviour
+ * rather than being relaxed to accommodate it.
+ *
+ * The numbers are worked out by hand rather than read off the code: this basket
+ * travels 6km, the base fee of Rs 30 covers 3km, and the 3 whole kilometres
+ * beyond cost Rs 10 each -- Rs 60. Ten percent off is Rs 54 and forty percent
+ * off is Rs 36. Asserting the exact figure is the point; "it went down" would
+ * pass for any discount, including one that gave the whole fee away.
+ */
+check('A member pays a discounted delivery fee, not a free one', () => {
+  const live = calculateOrderPricing({
+    ...basket,
+    isGold: true,
+    memberDeliveryDiscountPercent: 10,
+    memberFreeDeliveryMinOrder: 0
+  });
   const lapsed = calculateOrderPricing({ ...basket, isGold: false });
-  assert.equal(live.deliveryFee, 0);
-  assert.ok(lapsed.deliveryFee > 0, 'a lapsed member must be charged delivery again');
+
+  assert.equal(lapsed.deliveryFee, 60, 'Rs 30 base plus 3 whole km beyond at Rs 10');
+  assert.equal(live.deliveryFee, 54, '10% off Rs 60');
+  assert.equal(live.membershipDeliverySaving, 6, 'and the saving is stated, not just implied');
+
+  // The old rule is gone, and this is the line that says so. A member paying
+  // nothing would mean the zeroing branch had survived.
+  assert.notEqual(live.deliveryFee, 0, 'free delivery is no longer the benefit');
+  assert.ok(lapsed.deliveryFee > live.deliveryFee, 'a lapsed member pays the full fee');
+});
+
+check('A dearer plan is visibly better on the same basket', () => {
+  const common = { ...basket, isGold: true, memberFreeDeliveryMinOrder: 0 };
+  const gold = calculateOrderPricing({ ...common, memberDeliveryDiscountPercent: 10 });
+  const goldMax = calculateOrderPricing({ ...common, memberDeliveryDiscountPercent: 40 });
+
+  assert.equal(gold.deliveryFee, 54);
+  assert.equal(goldMax.deliveryFee, 36, '40% off Rs 60');
+  assert.equal(goldMax.membershipDeliverySaving, 24);
+});
+
+check('The ladder is the one the owner set', () => {
+  const plans = listPlans();
+  const byPrice = plans.slice().sort((a, b) => a.price - b.price);
+
+  assert.deepEqual(
+    byPrice.map(p => [p.price, p.durationDays, p.deliveryDiscountPercent, p.extraDiscountPercent, p.maxDiscountPerOrder]),
+    [
+      [99, 30, 10, 5, 75],
+      [249, 30, 25, 5, 100],
+      [799, 60, 40, 7, 150]
+    ],
+    'the three plans no longer match the ladder that was agreed'
+  );
+});
+
+/*
+ * The benefit lines are DERIVED, and this is the check that keeps them honest.
+ *
+ * The shipped text once promised "Free delivery on every order" while the code
+ * required a Rs 199 basket, on the screen where somebody hands over money. The
+ * same sentence would have become false again the moment the benefit turned
+ * into a percentage -- and nothing type-checks prose.
+ */
+check('What a plan promises is what a plan does', () => {
+  for (const plan of listPlans()) {
+    const delivery = plan.benefits.find(b => /delivery/i.test(b)) || '';
+
+    if (plan.deliveryDiscountPercent >= 100) {
+      assert.match(delivery, /free delivery/i, `${plan.name} gives 100% off and should say free`);
+    } else {
+      assert.doesNotMatch(
+        delivery,
+        /free delivery/i,
+        `${plan.name} promises free delivery but only takes ${plan.deliveryDiscountPercent}% off`
+      );
+      assert.ok(
+        delivery.includes(`${plan.deliveryDiscountPercent}%`),
+        `${plan.name} does not state its own delivery percentage: "${delivery}"`
+      );
+    }
+
+    assert.ok(
+      plan.benefits.some(b => b.includes(String(plan.price)) && b.includes(String(plan.durationDays))),
+      `${plan.name} does not state its own price and duration`
+    );
+  }
+});
+
+check('An administrator can change the delivery benefit, and it takes', () => {
+  const before = listPlans(true);
+  const target = before[0];
+
+  /*
+   * Saved through savePlans and read back from a FRESH listing, not from the
+   * object that was handed in. A field missing from the route's schema is
+   * stripped by zod without complaint -- the call succeeds, the screen
+   * confirms, and the plan quietly loses its benefit. That is the same shape as
+   * the rate that vanished from RATE_BOUNDS, and it is why this reads the value
+   * back rather than trusting the setter.
+   */
+  savePlans(before.map(p => (p.id === target.id ? { ...p, deliveryDiscountPercent: 33 } : p)));
+
+  const after = listPlans(true).find(p => p.id === target.id)!;
+  assert.equal(after.deliveryDiscountPercent, 33, 'the change did not survive being saved');
+  assert.ok(
+    after.benefits.some(b => b.includes('33%')),
+    `the benefit line did not follow the change: ${JSON.stringify(after.benefits)}`
+  );
+
+  savePlans(before);
+  assert.equal(
+    listPlans(true).find(p => p.id === target.id)!.deliveryDiscountPercent,
+    target.deliveryDiscountPercent,
+    'the ladder was not restored'
+  );
 });
 
 check('The membership discount comes off the food total', () => {

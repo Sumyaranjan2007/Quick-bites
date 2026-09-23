@@ -118,6 +118,15 @@ export interface PricingInput {
 
   /** The food total a member needs for free delivery, if their plan sets one. */
   memberFreeDeliveryMinOrder?: number;
+  /**
+   * The percentage this member's plan takes off the delivery fee.
+   *
+   * Absent means no membership benefit on delivery, which is also what a
+   * non-member gets. It replaced free-delivery-above-a-floor; the floor is
+   * still honoured and now gates the DISCOUNT rather than deciding whether
+   * delivery is free.
+   */
+  memberDeliveryDiscountPercent?: number;
 
   /**
    * The rates in force, from the versioned pricing configuration.
@@ -180,6 +189,16 @@ export interface CalculatedBill {
    * for — which is how a subscription stops feeling worth renewing.
    */
   membershipDiscount: number;
+  /**
+   * What the membership took off the DELIVERY fee, as its own figure.
+   *
+   * Separate from membershipDiscount, which is the food discount. Reported
+   * rather than left implicit in a smaller deliveryFee, because a member who
+   * cannot see what their plan saved them on an order cannot tell whether it
+   * was worth buying -- and because it is the only place the delivery benefit
+   * is recorded once the fee has already been reduced.
+   */
+  membershipDeliverySaving: number;
   /** Paid on top of everything else, and passed to the rider in full. */
   tipAmount: number;
   totalAmount: number;
@@ -263,8 +282,33 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     typeof input.memberFreeDeliveryMinOrder === 'number' && Number.isFinite(input.memberFreeDeliveryMinOrder)
       ? input.memberFreeDeliveryMinOrder
       : rates.memberFreeDeliveryMinOrder;
-  if (input.isGold && itemsTotal >= freeDeliveryFloor) {
-    deliveryFee = 0.00;
+  /*
+   * The member's benefit, as a PERCENTAGE off the delivery fee.
+   *
+   * This was `deliveryFee = 0.00`, all-or-nothing above a floor. The owner
+   * replaced it with a percentage per plan, and it is a better shape as well as
+   * what they asked for: free-above-a-threshold is a cliff, where a member one
+   * rupee short pays the whole fee and one rupee over pays none of it.
+   *
+   * The floor is kept and repurposed. It no longer decides whether delivery is
+   * free -- it decides whether the discount applies at all, and zero means
+   * always.
+   *
+   * Applied AFTER the platform markup above, so the member's percentage comes
+   * off the price they would otherwise have paid rather than off a pre-markup
+   * number they were never going to be charged.
+   */
+  const memberDeliveryDiscountPercent =
+    typeof input.memberDeliveryDiscountPercent === 'number' &&
+    Number.isFinite(input.memberDeliveryDiscountPercent)
+      ? Math.min(100, Math.max(0, input.memberDeliveryDiscountPercent))
+      : 0;
+
+  let membershipDeliverySaving = 0;
+  if (input.isGold && itemsTotal >= freeDeliveryFloor && memberDeliveryDiscountPercent > 0) {
+    const discounted = Math.round(deliveryFee * (1 - memberDeliveryDiscountPercent / 100) * 100) / 100;
+    membershipDeliverySaving = Math.round((deliveryFee - discounted) * 100) / 100;
+    deliveryFee = discounted;
   }
 
   // 5. Platform Fee: the flat fee plus GST on it. Rs 5.00 + 18% = Rs 5.90.
@@ -375,6 +419,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     platformFee,
     couponDiscount,
     membershipDiscount,
+    membershipDeliverySaving,
     tipAmount,
     totalAmount,
     restaurantNetPayout,

@@ -649,6 +649,14 @@ const PlanSchema = z.object({
         name: z.string().trim().min(2).max(60),
         price: z.number().min(0).max(100000),
         durationDays: z.number().int().min(1).max(3650),
+        /**
+         * The delivery benefit. Its absence here would have been silent: zod
+         * strips keys it does not know, so an administrator saving a plan would
+         * have got a success and a plan whose delivery discount had quietly
+         * become undefined -- the same shape as the rate that vanished from
+         * RATE_BOUNDS and reported success while changing nothing.
+         */
+        deliveryDiscountPercent: z.number().min(0).max(100),
         extraDiscountPercent: z.number().min(0).max(50),
         /** Zero means uncapped, which is how a cheap plan becomes a liability. */
         maxDiscountPerOrder: z.number().min(0).max(10000),

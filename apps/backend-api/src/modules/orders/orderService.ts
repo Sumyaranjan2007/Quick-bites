@@ -10,7 +10,13 @@ import { effectiveCharges, customerDishPrice } from '../payments/restaurantCharg
 import { completeDelivery } from './deliveryCompletion.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
-import { isGoldActive, goldDiscountPercent, goldDiscountCap, goldFreeDeliveryMinOrder } from '../membership/membershipService.ts';
+import {
+  isGoldActive,
+  goldDiscountPercent,
+  goldDiscountCap,
+  goldFreeDeliveryMinOrder,
+  goldDeliveryDiscountPercent
+} from '../membership/membershipService.ts';
 import { validateTransition } from './orderStateMachine.ts';
 import { couponService } from './couponService.ts';
 import { couponRepository } from '../../db/repositories/couponRepository.ts';
@@ -289,6 +295,7 @@ export const orderService = {
       membershipDiscountPercent: goldDiscountPercent(customer),
       membershipMaxDiscount: goldDiscountCap(customer),
       memberFreeDeliveryMinOrder: goldFreeDeliveryMinOrder(customer),
+      memberDeliveryDiscountPercent: goldDeliveryDiscountPercent(customer),
       coupon: validatedCoupon,
       tipAmount: clampTip(input.tipAmount),
       // The rates an administrator has set, and this kitchen's own commission
@@ -528,6 +535,7 @@ export const orderService = {
       membershipDiscountPercent: goldDiscountPercent(customer),
       membershipMaxDiscount: goldDiscountCap(customer),
       memberFreeDeliveryMinOrder: goldFreeDeliveryMinOrder(customer),
+      memberDeliveryDiscountPercent: goldDeliveryDiscountPercent(customer),
       coupon: validatedCoupon,
       tipAmount: clampTip(input.tipAmount),
       // The rates an administrator has set, and this kitchen's own commission
