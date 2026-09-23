@@ -64,9 +64,16 @@ The route exists, is mounted, and returns every account:
 under `apiRouter.ts:73`. Riders and partners both submit to
 `POST /payee-accounts/me`. The wiring is correct end to end.
 
-So the overwhelmingly likely cause is that **the live database is empty** — no
-rider or restaurant has ever submitted an account — and the screen renders an
-empty state that looks identical to a failure.
+So the overwhelmingly likely cause is that **no bank account has ever been
+submitted**, and the screen renders an empty state that looks identical to a
+failure.
+
+> **Corrected 23 Sep.** This first said "the live database is empty". It is
+> not. `GET /api/restaurants` on the deployment returns two real ACTIVE
+> restaurants with real owner ids. Only the payee-account table is empty.
+> Session A caught the overstatement. It matters beyond wording: §6.1 has real
+> menus to price against, and the owner was told something false about their
+> own platform.
 
 **Task 2.1.1 — reproduce before changing anything.** Sign in to the live admin
 and call `GET /admin/payee-accounts` directly. Three outcomes, three fixes:
@@ -456,67 +463,85 @@ it, not bypass it.
 loses ₹50 per dish and nothing on any screen would say so. Refuse it, naming both
 numbers.
 
-**Task 6.1.6 — a restaurant changing its own price clears the typed price on
-that item.** The owner's rule, decided 23 Sep: *"whenever price changed by the
-restaurant the inflation over that item will be removed and we can again apply
-on them"*.
+**Task 6.1.6 — a price change and its markup are decided together, in one
+step, at approval.** The owner, 23 Sep: *"we verify the price first then they
+can change the price of item… prices are set by them but from our permission
+they appear… so the inflation will work every time."*
 
-This is the right rule and it is safer than flagging. A typed price is
-absolute, so a kitchen raising ₹200 to ₹260 against a typed ₹240 means paying
-out more than we collect — and it stays wrong until somebody notices. Clearing
-the override makes that state unreachable rather than merely visible.
+> **Corrected 23 Sep.** This section previously assumed a restaurant could
+> reprice unilaterally, and specified an alert for margin silently lost. That
+> premise was wrong. The partner app calls
+> `POST /restaurants/:id/menu/requests` (`partnerApi.ts:292`), which creates a
+> `MenuChangeRequest` at `PENDING` and lands in the admin review queue. The only
+> menu write it makes directly is `toggle-stock`, which cannot change a price.
+> **No price reaches a customer without an administrator approving it.** The
+> alert, the gaming audit and the bulk re-pricing screen were all solving a
+> problem this platform does not have, and they are removed rather than kept
+> "just in case".
 
-After clearing, resolution falls through §6.1.2 normally: the restaurant's own
-`foodMarkupPercent` if one is set, otherwise their raw price. **The percentage
-is deliberately left alone.** It is relative, so it can never go stale against a
-new price the way an absolute figure can — 20% of ₹260 is still 20%. Only the
-typed number is the thing that rots.
+**So the markup never lapses, because it is never separated from the price.**
+A price change and the customer price that sits on top of it are one decision,
+taken once, by the person who was already being asked to approve it.
 
-**Task 6.1.6a — the removal goes in `menuRepository.updateItem`, not in a
-route.** Five call sites can change an item's price today:
-`restaurantRouter.ts:506`, `catalogRoutes.ts:133`, `:378` and `:510`, plus the
-`addItem` paths. A rule written into one route leaves four ways to keep a stale
-override, and the whole point of 6.1.6 is that the dangerous state is
-unreachable. One choke point, or this is not done.
+**Task 6.1.6a — the approval screen asks both questions at once.** The menu
+request review (`catalogRoutes.ts:459` for one, `:328` for bulk) currently shows
+what the restaurant wants to charge. It must also show, for that dish:
 
-**Task 6.1.6b — clear on a price CHANGE, not on any edit.** `MenuItemSchema` is
-`.partial()`, so the body may carry `price` or not, and may carry the same price
-it already had. Compare the stored value to the incoming one. Renaming a dish,
-editing a description, swapping a photo or toggling availability must not wipe
-a markup — a partner fixing a typo should not cost the platform its margin on
-that dish.
+| | |
+| --- | --- |
+| They charge now | their current price |
+| They want to charge | the requested price |
+| Customer pays now | the typed price, or the percentage applied |
+| We keep now | the difference |
+| **Customer will pay** | editable, pre-filled to preserve what we keep |
+| **We will keep** | recomputed live as that field is typed |
 
-**Task 6.1.6c — the owner must be TOLD, every time.** This is the cost of the
-rule and it has to be paid. A partner repricing at 11pm silently removes the
-platform's margin on that dish, and every order after that earns commission
-only. Nothing anywhere would say so.
+Approving writes both values in one transaction. There is no window in which
+the new price is live and the markup is not, because they were never two
+separate saves.
 
-Raise it where the owner already looks: a count on the Inflation nav item, and a
-list at the top of the section — *"4 items lost their markup because the
-restaurant changed the price."* Each row shows the dish, what the customer used
-to pay, what the platform used to keep, and the restaurant's new price.
+**Task 6.1.6b — pre-fill by preserving the margin, and offer the alternative.**
+Default to holding the rupee margin: ₹200 → ₹260 with ₹40 kept becomes ₹300.
+Offer the percentage reading beside it (20% kept becomes ₹312) as one tap.
+Whichever is chosen, the number is visible and editable before approval — the
+platform proposes, the administrator decides.
 
-**Task 6.1.6d — re-applying must be one tap, with the arithmetic already done.**
-Each row offers a suggested new customer price that preserves what the platform
-was keeping — same margin in rupees, and same margin as a percentage, both
-offered — plus a free field. Re-pricing sixty dishes by hand with a calculator
-is a job nobody does, and markups that are never re-applied are the same as
-markups that were deleted.
+**Task 6.1.6c — the same refusal as §6.1.5 applies here.** A customer price
+below the restaurant's newly approved price is refused, naming both numbers.
+Approval is the moment this is easiest to get wrong, because the administrator
+is looking at a dish rather than at arithmetic.
 
-**Task 6.1.6e — record every removal, because there is an incentive here.** A
-partner who works out that nudging a price by ₹1 removes the platform's markup
-has a direct financial reason to keep nudging. Not a hypothetical: the rule is
-public to anyone who compares two bills.
+**Task 6.1.6d — bulk approval must not skip the markup.**
+`POST /admin/menu-requests/bulk-review` (`catalogRoutes.ts:328`) approves many
+requests in one action. Bulk-approving price changes without setting customer
+prices would recreate exactly the lapse this design prevents, on many dishes at
+once and with one tap.
 
-Write an audit entry on every clearing — dish, old price, new price, who
-changed it, when. Then surface a restaurant whose items repeatedly lose their
-markup. A pattern is obvious in a list and invisible one notification at a time.
+Bulk approval applies the margin-preserving default automatically and reports
+what it did — "12 prices approved, customer prices adjusted to hold your
+margin" — with the list. Silence here is the failure.
+
+**Task 6.1.6e — the direct-write routes are a backstop, not the main flow.**
+Two routes still write a price straight through, bypassing approval:
+`restaurantRouter.ts:506` (which the partner app does not call) and
+`catalogRoutes.ts:133` (an administrator editing a menu directly). An unused
+route is still a route.
+
+For those paths only, and inside `menuRepository.updateItem` so both are
+covered by one rule: a changed price clears a stale typed customer price, so
+resolution falls back to §6.1.2. This must compare stored against incoming
+rather than react to the field's presence — `MenuItemSchema` is `.partial()`,
+so a rename or a photo swap must not touch a markup.
+
+This backstop should essentially never fire. If it starts firing regularly,
+something is writing prices around the approval queue and that is the bug to
+find.
 
 **Note on orders already placed.** None are affected. The customer's price is
-computed at placement (`orderService.ts:154`) and stored on the order, so a
-price change mid-delivery cannot alter a bill that has already been agreed. A
-cart not yet checked out re-prices at checkout, which is existing behaviour and
-correct — the customer pays what the menu says when they pay.
+computed at placement (`orderService.ts:154`) and stored on the order, so an
+approval mid-delivery cannot alter a bill already agreed. A cart not yet
+checked out re-prices at checkout, which is existing behaviour and correct —
+the customer pays what the menu says when they pay.
 
 **Task 6.1.7 — the screen.** Restaurant list (same source as the main page,
 searchable) → tap a restaurant → its menu by category. Each row: dish name, what
