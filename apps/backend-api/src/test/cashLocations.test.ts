@@ -42,7 +42,7 @@ import { memoryStore } from '../db/client.ts';
 import { cashInHandPaise, officeCashPaise } from '../modules/payments/cashDeposits.ts';
 import { formatPaise } from '../modules/payments/money.ts';
 import { setCharges } from '../modules/payments/restaurantCharges.ts';
-import { backfillEarnings } from '../modules/payments/earnings.ts';
+import { completeDelivery } from '../modules/orders/deliveryCompletion.ts';
 
 const PORT = 5213;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -162,12 +162,15 @@ try {
    * The kitchen's half through the status route, and then the RIDER'S OWN
    * route to finish it.
    *
-   * That last step matters and is not interchangeable. Cash-in-hand is credited
-   * at riderRouter.ts:1093, inside POST /riders/orders/:id/verify-otp, and
-   * NOWHERE else -- a generic transition to DELIVERED moves the status and
-   * records no cash. The first version of this file drove the whole thing
-   * through the status route, and every cash assertion after it compared zero
-   * with zero and passed.
+   * The handover goes through the route a rider actually uses. It used to be
+   * the ONLY path that credited cash-in-hand, while being the only one that
+   * posted no earnings -- so the ordinary delivery put nothing in the ledger.
+   * Both paths now go through completeDelivery and record both consequences,
+   * and this suite exercises the one that happens at a real door.
+   *
+   * The first version of this file drove the whole thing through the status
+   * route instead. The rider held nothing, and every cash assertion after it
+   * compared zero with zero and passed.
    */
   for (const [status, token] of [
     ['CONFIRMED', partner.token],
@@ -193,29 +196,16 @@ try {
   }, rider.token);
 
   /*
-   * The sweep that posts the money -- and NOTHING RUNS IT AUTOMATICALLY.
+   * NO SWEEP, AND THAT IS THE POINT.
    *
-   * verifyDeliveryOtp writes DELIVERED through the repository and does not post
-   * earnings. The sweep that would catch it, backfillEarnings(), has exactly one
-   * caller in the whole of src: an admin route at payoutRoutes.ts:543 that a
-   * person has to press.
+   * This block used to call backfillEarnings() by hand -- a test standing in
+   * for a human, doing what no code did -- because the rider's own handover
+   * route recorded the cash and posted no earnings. Its removal is the proof
+   * that the two delivery paths now do the same two things.
    *
-   * This comment said "it runs at boot" when it was written, which was taken
-   * from the comment at orderRepository.ts:368 rather than from the call sites.
-   * It is not true, and both comments are wrong. The consequence is not a delay:
-   * an ordinary cash delivery posts NOTHING to the ledger -- no revenue, no
-   * partner payable -- until somebody opens the admin console and presses a
-   * button.
-   *
-   * So this line is the test standing in for a human. It is doing what no code
-   * currently does, which is why the suite can assert revenue at all, and that
-   * makes this call the load-bearing part of the file rather than a detail.
-   * When the two delivery paths are unified, this should come out and the
-   * assertions below should pass without it.
+   * If a sweep is ever needed here again, the paths have diverged and this
+   * comment is the place to start.
    */
-  const swept = backfillEarnings();
-  check('The delivery is swept into the ledger', swept.posted > 0,
-    JSON.stringify(swept));
 
   const delivered = memoryStore.orders.get(order.id) as any;
   check('It reaches DELIVERED through the handover the rider performs',
@@ -370,6 +360,37 @@ try {
   check('The same slip number does not bank the money twice',
     ledger.balanceOf('PLATFORM_BANK') === afterBank.bank,
     `status ${again.status}, bank is now ${formatPaise(ledger.balanceOf('PLATFORM_BANK'))}`);
+
+  // ----------------------------------------------------------------
+  console.log('\n-- One delivery cannot be recorded twice');
+
+  /*
+   * Both delivery paths now record both consequences, which creates a risk that
+   * did not exist while each did half the job: if they ever both run for one
+   * order, the cash must not be credited twice.
+   *
+   * Earnings deduplicate themselves -- recordOrderEarnings is keyed on the
+   * order id. Crediting cash-in-hand is a DELTA on the rider record and does
+   * not, which is why the order carries codCashRecordedAt. This calls the
+   * completion again directly and asserts nothing moves.
+   */
+  const beforeRepeat = {
+    riderCash: cashInHandPaise(riderId),
+    total: totalAcrossAllAccounts(),
+    revenue: revenueSnapshot()
+  };
+  const repeat = await completeDelivery(memoryStore.orders.get(order.id) as any);
+
+  check('A second completion credits no further cash', repeat.cashRecorded === 0,
+    `it recorded ${repeat.cashRecorded} again`);
+  check('and the rider is carrying exactly what they were',
+    cashInHandPaise(riderId) === beforeRepeat.riderCash,
+    `${formatPaise(beforeRepeat.riderCash)} became ${formatPaise(cashInHandPaise(riderId))}`);
+  check('and no money was created by repeating it',
+    totalAcrossAllAccounts() === beforeRepeat.total);
+  check('and revenue did not move either',
+    revenueSnapshot().commission === beforeRepeat.revenue.commission &&
+      revenueSnapshot().fees === beforeRepeat.revenue.fees);
 
   // ----------------------------------------------------------------
   console.log('\n-- What the Settlements screen reads');

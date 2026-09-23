@@ -7,7 +7,7 @@ import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 import { effectiveCharges, customerDishPrice } from '../payments/restaurantCharges.ts';
-import { recordOrderEarnings } from '../payments/earnings.ts';
+import { completeDelivery } from './deliveryCompletion.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
 import { isGoldActive, goldDiscountPercent, goldDiscountCap, goldFreeDeliveryMinOrder } from '../membership/membershipService.ts';
@@ -1118,19 +1118,16 @@ export const orderService = {
        * ledger problem must not un-deliver a delivered order. It is logged, and
        * `backfillEarnings` finds anything this misses.
        */
-      try {
-        recordOrderEarnings(updated);
-      } catch (error) {
-        console.log(
-          JSON.stringify({
-            level: 'ERROR',
-            timestamp: new Date().toISOString(),
-            event: 'ORDER_EARNINGS_POST_FAILED',
-            orderId: updated.id,
-            reason: error instanceof Error ? error.message : String(error)
-          })
-        );
-      }
+      /*
+       * Both consequences, through one function.
+       *
+       * This used to post earnings and nothing else, while the rider's own
+       * route recorded the cash and nothing else -- so an order closed from
+       * here left the rider holding platform cash that nothing had recorded,
+       * and cash-in-hand is what blocks their payout. They were paid in full
+       * while carrying our money.
+       */
+      await completeDelivery(updated);
     }
 
     return updated;

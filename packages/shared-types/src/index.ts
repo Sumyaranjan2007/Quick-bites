@@ -711,6 +711,17 @@ export interface Order {
    *  payout cannot pay for it a second time. */
   payoutId?: string;
   /**
+   * When the cash a rider collected at the door was added to what they are
+   * holding. Absent on every non-cash order, and on any cash order where it has
+   * not happened yet.
+   *
+   * A marker rather than a derived fact, because crediting cash-in-hand is a
+   * DELTA on the rider record and deltas are not idempotent. Earnings are keyed
+   * on the order id and can be posted twice harmlessly; this cannot, and the
+   * two delivery paths could otherwise both credit the same collection.
+   */
+  codCashRecordedAt?: string;
+  /**
    * Set when this order's restaurant share has been drafted into a settlement,
    * so the next settlement run cannot pay for the same trading twice.
    */

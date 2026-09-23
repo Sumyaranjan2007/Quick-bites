@@ -5,6 +5,7 @@ import {
   MANDATORY_RIDER_DOCUMENTS,
   RIDER_DOCUMENT_TYPES
 } from '../db/repositories/riderRepository.ts';
+import { completeDelivery } from '../modules/orders/deliveryCompletion.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { riderEarningsBalance } from '../modules/payments/earnings.ts';
@@ -1084,14 +1085,21 @@ riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), 
      */
     const wallet = await walletRepository.getByUserId(req.user!.id);
 
-    // Cash the rider is now holding is tracked on the server, so it survives the
-    // app being closed and can be offset against the next payout.
-    const cashCollected = result.order!.paymentMethod === 'CASH_ON_DELIVERY'
-      ? Number(result.order!.bill?.totalAmount) || 0
-      : 0;
-    if (cashCollected > 0) {
-      await riderRepository.adjustCashInHand(self.id, cashCollected);
-    }
+    /*
+     * Both consequences, through one function.
+     *
+     * This route recorded the cash and posted NO earnings, which made the
+     * ordinary delivery -- a rider tapping the customer's code at the door --
+     * the one case that put nothing in the ledger. No revenue, no partner
+     * payable, until somebody opened the admin console and pressed the sweep
+     * by hand. Every money screen read a fraction of the truth.
+     *
+     * The write that sets DELIVERED stays where it is, inside
+     * verifyDeliveryOtp, because the guard that stops an ORDER_PLACED order
+     * becoming DELIVERED on a correct code lives with it.
+     */
+    const completion = await completeDelivery(result.order!);
+    const cashCollected = completion.cashRecorded;
 
     emitOrderStatusUpdate(result.order!.id, {
       orderId: result.order!.id,
