@@ -371,15 +371,67 @@ it, not bypass it.
 loses ₹50 per dish and nothing on any screen would say so. Refuse it, naming both
 numbers.
 
-**Task 6.1.6 — what happens when the restaurant changes its price.** A typed
-price is absolute. If the kitchen raises ₹200 to ₹260 while the typed customer
-price is still ₹240, we are now paying more than we collect. The item must be
-flagged in the Inflation screen — "this restaurant raised its price above yours"
-— and, until an administrator retypes it, **fall back to rule 2**. Losing the
-markup is recoverable. Paying out more than we charge is not.
+**Task 6.1.6 — a restaurant changing its own price clears the typed price on
+that item.** The owner's rule, decided 23 Sep: *"whenever price changed by the
+restaurant the inflation over that item will be removed and we can again apply
+on them"*.
 
-This is the single most likely way this feature turns into lost money, and it
-will happen the first time a restaurant updates a menu.
+This is the right rule and it is safer than flagging. A typed price is
+absolute, so a kitchen raising ₹200 to ₹260 against a typed ₹240 means paying
+out more than we collect — and it stays wrong until somebody notices. Clearing
+the override makes that state unreachable rather than merely visible.
+
+After clearing, resolution falls through §6.1.2 normally: the restaurant's own
+`foodMarkupPercent` if one is set, otherwise their raw price. **The percentage
+is deliberately left alone.** It is relative, so it can never go stale against a
+new price the way an absolute figure can — 20% of ₹260 is still 20%. Only the
+typed number is the thing that rots.
+
+**Task 6.1.6a — the removal goes in `menuRepository.updateItem`, not in a
+route.** Five call sites can change an item's price today:
+`restaurantRouter.ts:506`, `catalogRoutes.ts:133`, `:378` and `:510`, plus the
+`addItem` paths. A rule written into one route leaves four ways to keep a stale
+override, and the whole point of 6.1.6 is that the dangerous state is
+unreachable. One choke point, or this is not done.
+
+**Task 6.1.6b — clear on a price CHANGE, not on any edit.** `MenuItemSchema` is
+`.partial()`, so the body may carry `price` or not, and may carry the same price
+it already had. Compare the stored value to the incoming one. Renaming a dish,
+editing a description, swapping a photo or toggling availability must not wipe
+a markup — a partner fixing a typo should not cost the platform its margin on
+that dish.
+
+**Task 6.1.6c — the owner must be TOLD, every time.** This is the cost of the
+rule and it has to be paid. A partner repricing at 11pm silently removes the
+platform's margin on that dish, and every order after that earns commission
+only. Nothing anywhere would say so.
+
+Raise it where the owner already looks: a count on the Inflation nav item, and a
+list at the top of the section — *"4 items lost their markup because the
+restaurant changed the price."* Each row shows the dish, what the customer used
+to pay, what the platform used to keep, and the restaurant's new price.
+
+**Task 6.1.6d — re-applying must be one tap, with the arithmetic already done.**
+Each row offers a suggested new customer price that preserves what the platform
+was keeping — same margin in rupees, and same margin as a percentage, both
+offered — plus a free field. Re-pricing sixty dishes by hand with a calculator
+is a job nobody does, and markups that are never re-applied are the same as
+markups that were deleted.
+
+**Task 6.1.6e — record every removal, because there is an incentive here.** A
+partner who works out that nudging a price by ₹1 removes the platform's markup
+has a direct financial reason to keep nudging. Not a hypothetical: the rule is
+public to anyone who compares two bills.
+
+Write an audit entry on every clearing — dish, old price, new price, who
+changed it, when. Then surface a restaurant whose items repeatedly lose their
+markup. A pattern is obvious in a list and invisible one notification at a time.
+
+**Note on orders already placed.** None are affected. The customer's price is
+computed at placement (`orderService.ts:154`) and stored on the order, so a
+price change mid-delivery cannot alter a bill that has already been agreed. A
+cart not yet checked out re-prices at checkout, which is existing behaviour and
+correct — the customer pays what the menu says when they pay.
 
 **Task 6.1.7 — the screen.** Restaurant list (same source as the main page,
 searchable) → tap a restaurant → its menu by category. Each row: dish name, what
