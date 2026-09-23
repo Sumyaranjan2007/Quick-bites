@@ -218,10 +218,18 @@ is whichever screen they happened to open.
 source to unify. Making them agree means deciding which source is authoritative
 for "can this partner be paid right now" and routing both through it.
 
-**The check that fails:** one restaurant, connected account, earnings inside the
+**The check that fails**, written out so it can be pasted the day the
+unification happens: one restaurant, connected account, earnings inside the
 hold period. Assert Pay and Settlements return the **same non-empty reason
 string**. Asserting each screen returns *a* reason passes today, because one of
 them returns null and null is not a reason.
+
+> **It does not go into the gate until then.** Session B suggested adding it red
+> so it would turn green when the work was done. Session A pushed back and was
+> right: a gate that is red for a known reason is a gate people learn to read
+> past, and the next real failure arrives into a suite that is already failing.
+> A known defect belongs in a plan with its assertion written out, not in a
+> permanently failing check.
 
 Until it is done, do not add a third screen that computes this independently.
 
@@ -336,6 +344,91 @@ is on the screen they happen to open.
 This is also the panel that answers "can I make payroll this week" before the
 payout run rather than after it, which is the same defect as §5.3 from the other
 direction.
+
+### 4.4a The two delivery paths each do half the money, and neither does both
+
+Raised by Session A from a suite that failed, then verified here by reading
+every call site. **This is the most serious thing found today** and it is on the
+order flow, so it belongs to Session B.
+
+There are two ways an order reaches `DELIVERED`, and they are mirror images:
+
+| | Credits rider cash | Posts earnings |
+| --- | --- | --- |
+| Rider taps through the OTP screen (`riderRouter.ts:1093–1098`) | **yes** | **no** |
+| Status update — partner or admin (`orderService.ts:1122`) | **no** | **yes** |
+
+Verified rather than inferred:
+
+- `riderRepository.adjustCashInHand` has **exactly one caller** in the entire
+  codebase: `riderRouter.ts:1093`.
+- `recordOrderEarnings` has three: `orderService.ts:1122` inside
+  `updateOrderStatus`, `earnings.ts:382` inside `backfillEarnings`, and
+  `payoutRoutes.ts:517`, an admin route.
+- The rider's OTP route writes `DELIVERED` through the repository directly. It
+  never calls `updateOrderStatus`, so it never reaches line 1122.
+
+**Correction to how this was first reported.** `backfillEarnings()` does **not**
+sweep at boot. Its only caller is `payoutRoutes.ts:543` — an admin route someone
+has to invoke. There is no boot-time call anywhere in `src`. So the safety net
+described in the comment at `orderRepository.ts:368` does not run on its own.
+
+#### What each half costs
+
+**The rider path loses the revenue.** The ordinary, correct, everyday cash
+delivery — rider taps the code at the door — credits the rider's cash-in-hand
+and **posts nothing to the ledger**. No `REVENUE_COMMISSION`, no
+`REVENUE_FEES`, no `PARTNER_PAYABLE`. Until an administrator happens to press
+the backfill button, the platform's own books say that order earned nothing.
+
+Every ledger-derived figure inherits this, including the pot panel in §4.4.2 and
+the "genuinely ours" line in it. The owner would read a revenue screen showing a
+fraction of the truth and have no reason to doubt it.
+
+**The status-update path loses the cash.** An order closed by an administrator —
+a dead tablet, a rider who handed over without marking it, which is exactly what
+the route at `admin/orderRoutes.ts:180` exists for — posts the earnings but
+never records that the rider is holding the notes.
+
+Cash-in-hand is what blocks a payout (`payouts.ts:196`). So that rider is
+**paid in full on payday while still carrying the platform's cash**, and no
+screen anywhere says so. §4's whole cash chain starts from a number that this
+path silently leaves at zero.
+
+#### The fix is a decision, not a line
+
+Both halves belong at the same moment: the food reached the customer. Pick one
+place where that is recorded and route every path through it.
+
+`updateOrderStatus` is the natural candidate — it already posts earnings, it
+already runs `validateTransition`, and the OTP route bypassing it is why these
+two behaviours drifted apart in the first place. The cash credit moves into it,
+keyed on `paymentMethod === 'CASH_ON_DELIVERY'`, and the rider route calls it
+instead of writing the repository directly.
+
+**The trap:** the OTP route's direct repository write exists for a reason. The
+comment at `orderRepository.ts:368` records that `verifyDeliveryOtp` once had no
+precondition at all, so an order at `ORDER_PLACED` became `DELIVERED` the moment
+a correct code arrived. The guard that now stops that lives in the repository.
+Moving the write must not move it out of reach of that guard — DELIVERED must
+still be enterable only from `OUT_FOR_DELIVERY`.
+
+Do not solve this by calling `backfillEarnings` at boot. That converts "revenue
+is missing" into "revenue appears whenever the process restarts", which is a
+worse bug because it looks fixed.
+
+#### The checks that fail
+
+Two, and both must be in the same test so neither path can be fixed alone:
+
+1. Cash order delivered **through the OTP screen** → assert `REVENUE_FEES` moved
+   **and** the rider's cash-in-hand rose.
+2. Cash order delivered **through the admin status route** → assert the same two
+   things.
+
+Today check 1 fails on revenue and check 2 fails on cash. Asserting only that
+the order reached DELIVERED passes on both paths right now, which is how this
+survived.
 
 ### 4.5 The office is not the bank. A third location is missing.
 
@@ -891,6 +984,16 @@ Two instances on one afternoon, both found by accident:
   racing libuv's teardown on Windows with a hung promise still open. The runner
   reads exit codes, so a suite where everything passed would have been reported
   as a failure with a log saying the opposite.
+
+- **A precondition that is merely asserted.** Session A's cash suite drove an
+  order to DELIVERED by a path that credits no cash, so the rider held nothing
+  and eleven checks passed by comparing zero with zero — including *"the office
+  is now holding it"*. Three failed, twenty-three passed, and the suite read as
+  mostly fine. A second run had the seeded restaurant on zero commission, so
+  every "revenue did not move" check compared nothing with nothing.
+
+  A precondition that fails as an ordinary check lets every dependent check pass
+  **vacuously**. It has to **halt the suite**, not add a line to the tally.
 
 Both are the same root: **a channel that cannot express failure.** They are also
 the mirror of the `| tail` mistake earlier in this project, where a failed build
