@@ -193,13 +193,25 @@ try {
   }, rider.token);
 
   /*
-   * The sweep that posts the money.
+   * The sweep that posts the money -- and NOTHING RUNS IT AUTOMATICALLY.
    *
    * verifyDeliveryOtp writes DELIVERED through the repository and does not post
-   * earnings itself; backfillEarnings() scans delivered orders and posts any it
-   * finds unposted, and it runs at boot. So this is the real mechanism, not a
-   * shortcut around one -- but it does mean a live deployment recognises the
-   * revenue on a cash order at the next restart rather than at the door.
+   * earnings. The sweep that would catch it, backfillEarnings(), has exactly one
+   * caller in the whole of src: an admin route at payoutRoutes.ts:543 that a
+   * person has to press.
+   *
+   * This comment said "it runs at boot" when it was written, which was taken
+   * from the comment at orderRepository.ts:368 rather than from the call sites.
+   * It is not true, and both comments are wrong. The consequence is not a delay:
+   * an ordinary cash delivery posts NOTHING to the ledger -- no revenue, no
+   * partner payable -- until somebody opens the admin console and presses a
+   * button.
+   *
+   * So this line is the test standing in for a human. It is doing what no code
+   * currently does, which is why the suite can assert revenue at all, and that
+   * makes this call the load-bearing part of the file rather than a detail.
+   * When the two delivery paths are unified, this should come out and the
+   * assertions below should pass without it.
    */
   const swept = backfillEarnings();
   check('The delivery is swept into the ledger', swept.posted > 0,
