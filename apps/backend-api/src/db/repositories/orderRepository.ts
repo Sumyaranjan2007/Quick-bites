@@ -365,9 +365,23 @@ export const orderRepository = {
    * path; the route calls the repository directly.
    *
    * That is not a display problem. DELIVERED is where money moves:
-   * `recordOrderEarnings` posts against it, and `backfillEarnings()` sweeps
-   * every DELIVERED order at boot and posts any it finds unposted. A trip that
-   * never happened would be paid for, and paid again on the next restart.
+   * `recordOrderEarnings` posts against it, and `backfillEarnings()` posts any
+   * DELIVERED order it finds unposted. A trip that never happened would be paid
+   * for, and paid again the next time that sweep ran.
+   *
+   * THIS COMMENT USED TO SAY THE SWEEP RUNS AT BOOT. It does not, and both
+   * sessions repeated it from here rather than from the call sites before
+   * anyone checked. `backfillEarnings` has exactly one caller in `src` —
+   * `payoutRoutes.ts:543`, an admin route somebody has to press. There is no
+   * boot-time call anywhere.
+   *
+   * That difference is not pedantry. "Revenue is behind until a restart" is a
+   * delay. The truth is that an ordinary cash delivery — the rider tapping the
+   * code at the door, which never reaches `updateOrderStatus` and so never
+   * reaches `recordOrderEarnings` — posts NOTHING to the ledger until a human
+   * presses that button. See the plan's §4.4a. Do not fix it by calling the
+   * sweep at boot: that turns missing revenue into revenue that appears on
+   * restart, which is worse because it looks fixed.
    *
    * The code itself is not a secret the rider cannot obtain - it is stripped
    * from rider responses, but the customer reads it out loud, which is the

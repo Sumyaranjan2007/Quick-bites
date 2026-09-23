@@ -182,10 +182,40 @@ The rider settlement section is gone from the navigation. The backend is intact:
 `financeRoutes.ts:489–597` computes rider dues from `settlementEvidence`, not
 from `status === 'DELIVERED'`.
 
+> **Corrected 23 Sep.** This section said the rider settlement backend was
+> "intact" at `financeRoutes.ts:489–597`. It was not. `unsettledFor(riderId)`
+> had **no callers anywhere** — dead code left behind when the second payout
+> system was removed, along with an orphaned docblock for a route that went with
+> it. An unused exported function draws no compiler warning, so it sat there
+> looking like working code, which is how this plan came to describe it as
+> working. Session A deleted both rather than reviving them. Correct call.
+
 Add a fifth Money item, `Settlements`, with two segments — Riders and
 Restaurants — because the restaurant half already has routes
 (`financeRoutes.ts:622–800`), and splitting them across two nav entries is what
 made one of them easy to lose.
+
+**It reads `/admin/payouts/dues`, the same source Pay reads.** Not the deleted
+order-scanning helper. `duesFor` derives what is owed from the **ledger**
+(`payouts.ts:165`, `ledger.query({ account })` on `RIDER_PAYABLE` /
+`PARTNER_PAYABLE`); the dead helper derived it by scanning orders. Reviving it
+would have given Pay and Settlements two sources for one number — Task 3.1
+again, on the rider side, created deliberately on the day it was argued against.
+One source, so a wrong figure is wrong in exactly one place.
+
+**Expect this screen to show zero, and do not "fix" it.** §4.4a means the
+ordinary cash delivery posts nothing to the ledger, so `RIDER_PAYABLE` and
+`PARTNER_PAYABLE` are both empty for those orders. Pay and Settlements will
+therefore agree on zero owed — consistently wrong rather than inconsistently
+wrong, which is the better failure but still a failure.
+
+The temptation when a new screen reads zero is to switch it to the source that
+shows a number. That source is the order scan, and taking it would reintroduce
+the divergence this decision exists to prevent. **The zero is a symptom of
+§4.4a, not of the screen.** It clears when the delivery paths are unified, and
+that is the check: after §4.4a, a cash order delivered through the rider's OTP
+screen must appear in both Pay and Settlements without anybody pressing the
+backfill button.
 
 Each rider row: name and phone, trips not yet settled, amount owed, cash still in
 hand, the connected bank account (§2.4), and when they were last paid. A rider
