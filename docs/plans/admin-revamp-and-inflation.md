@@ -1,7 +1,12 @@
 # Admin revamp, per-item inflation, and the three apps
 
 Written 23 Sep 2026 against commit `c953bd0`, from the owner's list of 23 Sep.
-**Session B wrote this and will not implement it. Session A implements.**
+
+**Session B writes and maintains this plan, and reviews the work against it.
+Session A writes all the code.** Restated by the owner on 23 Sep — *"you just
+make plans and let other ai write, and you analyse his work and mistake and
+improve it"* — after Session B edited a source file. Every task here belongs to
+Session A, including the ones earlier drafts assigned to B.
 
 Every root cause below was read out of the code today, not remembered. Where a
 cause is a guess it says so, and the first task is to prove it.
@@ -921,6 +926,150 @@ sees, then ask.
 
 ---
 
+## 8B. Customer app — the live map
+
+Asked for on 23 Sep: *"when its too far it shows outside and it dosnt fit in the
+box… when partner accepts the order then also customer should be able to see the
+map and distance between him and the restaurant, and when driver is on its way
+after taking otp and verifying from the partner then the map will start showing
+the location of the driver in real time instead of partner. its like zomato."*
+
+Two separate pieces: a fit bug, and a second map phase that does not exist.
+
+### 8B.1 Why the rider falls outside the box
+
+`NativeRiderMap` (`LiveRiderMap.tsx:136–143`) picks a centre and a span:
+
+```
+centre     = midpoint of rider and destination
+spanMetres = max(400, straightLineDistance * 1.6)
+```
+
+and `MapCanvas` turns that into a zoom with `zoomForSpan`
+(`nativeMap.ts:173`): `log2(40075016.686 / span)`.
+
+**That formula has no idea how big the map is.** 40075016.686 m is the
+equatorial circumference, so the result is the zoom at which the span fills one
+256-pixel tile. The actual view is neither 256 pixels nor square — the tracking
+map is roughly 190px tall and full-screen wide. Four errors compound, and all
+four grow with distance, which is exactly the owner's symptom:
+
+1. **No viewport size.** The fitted span is wrong by the ratio of the real
+   width to 256px.
+2. **No aspect ratio.** The span is applied as though the box were square. Two
+   points separated north–south need to fit the *short* side, and the box is
+   much wider than it is tall, so a north–south separation overflows long
+   before an east–west one of the same distance.
+3. **No latitude correction.** Mercator metres-per-pixel scales with
+   `cos(latitude)`. Small in India, not zero.
+4. **`* 1.6` is a guess** standing in for padding, applied to a straight line
+   regardless of its bearing.
+
+**The drawn fallback map already does this correctly.** `fitZoom(rider,
+destination, W, H)` at `LiveRiderMap.tsx:197` takes the width and height. So the
+fallback fits and the real map does not — which is why this survived: whoever
+tested it on a machine without the native module saw correct behaviour.
+
+#### The fix
+
+**Stop computing a zoom. Let the map fit bounds.** `@rnmapbox/maps`'s `Camera`
+takes `bounds: { ne: [lon, lat], sw: [lon, lat], paddingTop/Bottom/Left/Right }`
+and handles viewport, aspect ratio and latitude itself.
+
+**Task 8B.1.1 — add fitting to the seam, not to the screen.** `MapCanvas` gains
+`fit?: LatLng[]`. Given two or more points it computes the bounding box and
+passes `bounds`; `centre`/`spanMetres` stay for callers that want a fixed view,
+such as the address picker. The provider stays behind `nativeMap.ts`, which is
+the whole point of that file.
+
+A single point in `fit` is a centre, not a box. A zero-area box (two identical
+coordinates) must not be passed as bounds — Mapbox zooms to maximum and the map
+appears blank. Fall back to `centre` + a floor span.
+
+**Task 8B.1.2 — padding is in pixels and must clear the pin art.** A pin drawn
+40px tall anchored at its point still clips at the top edge when its coordinate
+is exactly on the boundary. Pad by more than the tallest marker, not by a
+percentage of the span.
+
+**Task 8B.1.3 — the check that fails.** Place the two points 8 km apart
+**north–south** and assert both are inside the viewport. East–west passes today
+and north–south does not, so a test using an arbitrary pair proves nothing.
+Assert the projected pixel positions, not that a map rendered.
+
+### 8B.2 The second phase: the restaurant, before the rider has it
+
+Today there is one map and it needs a rider (`LiveRiderMap.tsx:169`). With no
+rider it renders a line of text: *"Live location starts once your rider picks
+the order up."* The owner wants a map there instead.
+
+| Phase | From | Shows |
+| --- | --- | --- |
+| **A** | the partner accepts | customer pin + **restaurant** pin, and the distance between them |
+| **B** | the rider has collected | customer pin + **rider**, live |
+
+Before the partner accepts, nothing changes. The map appears on acceptance.
+
+**Task 8B.2.1 — the switch key is `pickedUpAt`, not the order status.** It is
+already in the tracking payload (`orderRouter.ts:254`), and `isCarrying` in
+`riderTrip.ts` uses the same field server-side, so the screen and the server
+cannot disagree about which phase an order is in.
+
+Do **not** key it on `OUT_FOR_DELIVERY`. The two-track model exists because
+rider progress and food status are different things, and keying a screen on the
+food's status is the coupling that produced the original "everything marks
+itself done" bug. That is §11.6 — the two-track model is on the do-not-touch
+list, and this is what touching it would look like.
+
+**Task 8B.2.2 — BACKEND: the payload has no restaurant location.** The tracking
+response (`orderRouter.ts:235–256`) carries `riderCoordinates` and
+`destinationCoordinates` and nothing for the restaurant. Restaurants do have
+`coordinates` (`shared-types:141`). Add `restaurantCoordinates`.
+
+Phase A cannot be built without this, and it is the only backend change the
+whole of §8B needs.
+
+**Task 8B.2.3 — the server stops sending the rider's position before pickup.**
+Right now `riderCoordinates` goes out whenever it exists, including while the
+rider is still riding to the restaurant on a trip the customer's food is not
+part of yet.
+
+Hiding it in the screen is not hiding it: the coordinates are in the JSON that
+any customer can read. `pickedUpAt` is the gate the owner described, so apply it
+where it is enforceable — `riderCoordinates: order.pickedUpAt ? ... : null`.
+
+The rider's *stage* keeps showing as words ("Your rider is at the restaurant"),
+which is what the customer actually needs and discloses nothing precise.
+
+**Task 8B.2.4 — one distance helper, and say which kind it is.** Phase A shows
+customer-to-restaurant. Use the same function the rest of the app uses, and
+label it — a straight line and a road distance differ by about the 1.3 factor
+the deployment is configured with, and a screen saying "2.1 km" next to one
+saying "2.7 km" for the same pair is a support ticket.
+
+**Task 8B.2.5 — the component is about to outgrow its name.** It is
+`LiveRiderMap` and it will render a map with no rider in it. Rename to
+`LiveOrderMap` in the same commit.
+
+This plan already cost twenty minutes to a file called `RatesScreen.tsx` behind
+a section called Inflation. A name that lies is cheap to fix on the day it
+starts lying and expensive later.
+
+### 8B.3 What must not regress
+
+- **No ETA changes.** Not asked for, and `estimateArrival` is recomputed per
+  poll on purpose (`orderRouter.ts:250`).
+- **The socket path stays.** Rider pings arrive over the socket and merge into
+  tracking state (`OrderTrackingScreen.tsx:131–142`), including the comment
+  about a ping arriving before the first fetch. Phase A must not break that
+  merge.
+- **The drawn fallback keeps working.** Every map in this app degrades to a
+  drawn OpenStreetMap view with no token and no native module
+  (`nativeMap.ts:15–32`). Phase A needs the same fallback, not a blank card.
+- **The map is not the tracker.** The step list above it is driven by the
+  order's own status. Nothing in §8B may write to it.
+
+---
+
 ## 9. Policies
 
 **Task 9.1 — the promise must match the system.** The owner's wording: money
@@ -955,7 +1104,8 @@ Each step is verifiable before the next depends on it.
 | 6 | §6.2 rider percentage | Smallest pricing change. Proves the pricing path still holds before the big one. |
 | 7 | §6.3 Gold plans | Second pricing change, self-contained. |
 | 8 | §6.1 per-item pricing | Largest. Touches the customer's bill and the partner's payout. Last, on a tree where everything else is green. |
-| 9 | §7 rider app, §8.4–8.6 partner app, §9 policies | Removals and read-only. Safe once the money is right. |
+| 8b | **§4.4a the two delivery paths** | Promoted. It is the most serious defect open, it makes §3's Settlements read zero, and it makes every ledger figure understate. Do it before §6.1 adds a second price to reason about. |
+| 9 | §7 rider app, §8.4–8.6 partner app, §8B customer map, §9 policies | Removals, read-only, and the map. Safe once the money is right. |
 | 10 | Gate, verify, **and stop** | See below. |
 
 ### Step 10 is held. The owner decides when an APK is built.
