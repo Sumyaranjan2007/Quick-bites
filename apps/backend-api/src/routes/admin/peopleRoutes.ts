@@ -23,6 +23,59 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { setRiderOfferPoolMembership } from '../../sockets/socketServer.ts';
 import type { Order } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
+import {
+  connectedAccountFor,
+  accountBlockReason,
+  publicView as payeePublicView
+} from '../../modules/payments/payeeAccounts.ts';
+import type { PayeeOwnerType } from '@quick-bites/shared-types';
+
+/**
+ * Where this partner's money goes, for their profile panel.
+ *
+ * The owner's words: the bank details "will be added to their profile which is
+ * available in the admin portal so they can pay everything as settlement". This
+ * is that -- read by id from the one account record, never copied onto the
+ * rider or restaurant row, so there is exactly one place an account number
+ * lives and no second copy to go stale after somebody changes it.
+ *
+ * It answers two questions separately and never collapses them:
+ *
+ *   IS AN ACCOUNT CONNECTED -- what an administrator decided, from appliedAt.
+ *   CAN MONEY ACTUALLY MOVE -- the payout gate, which is stricter.
+ *
+ * Collapsed into one flag, an account somebody deliberately approved could read
+ * as "no account connected", which is the same sentence shown for a partner who
+ * never submitted anything. Those need opposite actions from whoever is looking.
+ */
+async function payoutDestination(ownerType: PayeeOwnerType, ownerId: string) {
+  const account = connectedAccountFor(ownerType, ownerId);
+  const blockedReason = accountBlockReason(ownerType, ownerId);
+
+  if (!account) {
+    return {
+      connected: false,
+      account: null,
+      appliedByName: null,
+      payableNow: false,
+      // Never a bare "none". The reason a payout will fail belongs on the
+      // screen somebody is already looking at when they ask why.
+      reason: blockedReason || 'No account connected. This partner cannot be paid.'
+    };
+  }
+
+  const admin = account.appliedByAdminId
+    ? ((memoryStore.users.get(account.appliedByAdminId) as any) ?? null)
+    : null;
+
+  return {
+    connected: true,
+    account: payeePublicView(account),
+    appliedByName: admin?.fullName || admin?.email || null,
+    payableNow: blockedReason === null,
+    reason: blockedReason
+  };
+}
 
 export const peopleRoutes = Router();
 
@@ -313,6 +366,7 @@ peopleRoutes.get('/drivers/:id', requirePermission('users.drivers.view'), async 
           blockReason: (memoryStore.users.get(rider.userId) as any)?.blockReason || ''
         },
         documents: await kycRepository.findByEntity('RIDER', rider.id),
+        payoutDestination: await payoutDestination('RIDER', rider.id),
         wallet: await walletRepository.getByUserId(rider.userId),
         payouts: await payoutRepository.list({ riderId: rider.id }),
         trips: orders.map(summariseOrder),
@@ -474,6 +528,7 @@ peopleRoutes.get('/restaurants/:id', requirePermission('users.restaurants.view')
           : null,
         menu: memoryStore.menus.get(restaurant.id) || null,
         documents: await kycRepository.findByEntity('RESTAURANT', restaurant.id),
+        payoutDestination: await payoutDestination('RESTAURANT', restaurant.id),
         orders: orders.slice(0, 50).map(summariseOrder),
         stats: {
           orders: orders.length,

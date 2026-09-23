@@ -322,6 +322,92 @@ try {
     nextFlushDelayMs(t0, t0 + 1900) === 100, String(nextFlushDelayMs(t0, t0 + 1900)));
   check('and a write can NEVER be deferred past the ceiling',
     nextFlushDelayMs(t0, t0 + 2000) === 0 && nextFlushDelayMs(t0, t0 + 999_999) === 0);
+
+  // ----------------------------------------------------------------
+  console.log('\n-- The whole chain the owner described, for a restaurant');
+
+  /*
+   * Their words: the bank option "should really be connected to the admin bank
+   * section and all details will appear there after verification it will be
+   * added to their profile which is available in the admin portal so they can
+   * pay everything as settlement".
+   *
+   * So: submit from the partner app, appear in the admin queue, an
+   * administrator verifies, it attaches to that partner's PROFILE, and the row
+   * they settle from shows where the money goes. Asserted as one movement,
+   * because each half passing separately is what lets a partner be connected on
+   * one screen and absent on the next.
+   */
+  const restaurantId = pd?.youAre?.resolvedTo?.ownerId;
+  check('The partner resolves to a restaurant to attach an account to', !!restaurantId);
+
+  const profileBefore = await api(`/admin/restaurants/${restaurantId}`, {}, admin.token);
+  const destBefore = profileBefore.json?.data?.payoutDestination;
+  check('Their profile starts with no account connected', destBefore?.connected === false,
+    JSON.stringify(destBefore));
+  check('and says so in words rather than showing a blank',
+    typeof destBefore?.reason === 'string' && destBefore.reason.length > 10,
+    destBefore?.reason);
+  check('and is explicitly not payable', destBefore?.payableNow === false);
+
+  const partnerSubmit = await api('/payee-accounts/me', {
+    method: 'POST',
+    body: {
+      method: 'BANK',
+      holderName: 'Spice Garden Foods',
+      accountNumber: '918273645500',
+      accountNumberConfirm: '918273645500',
+      ifsc: 'ICIC0004321'
+    }
+  }, partner.token);
+  const partnerAccountId = partnerSubmit.json?.data?.account?.id;
+  check('A partner can submit a bank account', partnerSubmit.status === 201 && !!partnerAccountId,
+    `status ${partnerSubmit.status}: ${JSON.stringify(partnerSubmit.json).slice(0, 200)}`);
+
+  const queue = await adminAccounts(admin.token);
+  check('It appears in the admin bank queue', queue.accounts.some(a => a.id === partnerAccountId));
+
+  // Still not on the profile: submitting is not connecting. This is the step the
+  // owner asked for -- "after verification" -- and the profile must not jump
+  // ahead of their tap.
+  const profileMid = await api(`/admin/restaurants/${restaurantId}`, {}, admin.token);
+  check('Submitting alone does NOT connect it to the profile',
+    profileMid.json?.data?.payoutDestination?.connected === false);
+
+  const verify = await api(`/admin/payee-accounts/${partnerAccountId}/review`, {
+    method: 'POST',
+    body: { decision: 'APPROVE', note: 'Checked against the cancelled cheque.' }
+  }, admin.token);
+  check('An administrator verifies it', verify.status === 200,
+    `status ${verify.status}: ${JSON.stringify(verify.json).slice(0, 200)}`);
+
+  const profileAfter = await api(`/admin/restaurants/${restaurantId}`, {}, admin.token);
+  const destAfter = profileAfter.json?.data?.payoutDestination;
+  check('THE ACCOUNT IS NOW ON THEIR PROFILE', destAfter?.connected === true,
+    JSON.stringify(destAfter));
+  check('with the holder name and the last four to check against a document',
+    destAfter?.account?.holderName === 'Spice Garden Foods' &&
+      destAfter?.account?.accountLast4 === '5500',
+    JSON.stringify(destAfter?.account));
+  check('and it records WHO connected it, not just that somebody did',
+    !!destAfter?.account?.appliedAt && !!destAfter?.appliedByName,
+    JSON.stringify({ at: destAfter?.account?.appliedAt, by: destAfter?.appliedByName }));
+  check('and the profile now says they can be paid', destAfter?.payableNow === true,
+    destAfter?.reason);
+
+  // A profile must never print a full account number. It is the screen most
+  // likely to be shown to somebody standing beside the desk.
+  check('The profile does not carry the full account number',
+    !JSON.stringify(profileAfter.json).includes('918273645500'));
+
+  const settlements = await api('/admin/settlements', {}, admin.token);
+  const theirRow = (settlements.json?.data?.settlements || [])
+    .find((r: any) => r.restaurantId === restaurantId);
+  check('THE SETTLEMENT ROW SHOWS WHERE THE MONEY GOES',
+    theirRow?.destination?.accountLast4 === '5500',
+    JSON.stringify(theirRow?.destination));
+  check('so paying and seeing the destination is one screen, not two',
+    theirRow?.destination?.holderName === 'Spice Garden Foods');
 } finally {
   server.close();
 }

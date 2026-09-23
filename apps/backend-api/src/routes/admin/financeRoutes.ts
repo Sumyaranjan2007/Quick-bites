@@ -22,6 +22,7 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { sendRefund } from '../../modules/payments/refunds.ts';
 import { toPaise } from '../../modules/payments/money.ts';
 import { settlementEvidence } from '../../modules/payments/earnings.ts';
+import { connectedAccountFor, accountBlockReason } from '../../modules/payments/payeeAccounts.ts';
 import type { Order, RefundRequest } from '@quick-bites/shared-types';
 
 export const financeRoutes = Router();
@@ -649,6 +650,31 @@ financeRoutes.get('/settlements', requirePermission('finance.settlements.view'),
           commissionPending: Math.round(shares.reduce((t, s) => t + s.commission, 0) * 100) / 100,
           pendingAmount: pending,
           paidToDate: await settlementRepository.paidTotal(restaurant.id),
+          /*
+           * Where a settlement would actually land.
+           *
+           * The owner's words: the verified account is added to their profile
+           * "so they can pay everything as settlement". This is the other half
+           * of that -- it is no use knowing the destination on the profile
+           * screen if the screen you settle from does not show it.
+           *
+           * Read from the one account record by id. Nothing is copied onto the
+           * restaurant row, so there is no second copy to disagree after an
+           * administrator connects a different account.
+           */
+          destination: (() => {
+            const account = connectedAccountFor('RESTAURANT', restaurant.id);
+            return account
+              ? {
+                  method: account.method,
+                  holderName: account.holderName,
+                  accountLast4: account.accountLast4,
+                  ifsc: account.ifsc,
+                  vpa: account.vpa
+                }
+              : null;
+          })(),
+          payoutBlockedReason: accountBlockReason('RESTAURANT', restaurant.id),
           settlements: await settlementRepository.list({ restaurantId: restaurant.id })
         };
       })

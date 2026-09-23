@@ -165,6 +165,30 @@ export function payableAccountFor(ownerType: PayeeOwnerType, ownerId: string): P
 }
 
 /**
+ * The account an administrator has connected, for DISPLAY.
+ *
+ * Deliberately NOT `payableAccountFor`, and the difference matters.
+ * `payableAccountFor` is the money gate: it additionally requires
+ * `validationStatus === 'VERIFIED'`, because that is what a payout must not
+ * skip. This one asks a different question -- what did a person decide? -- and
+ * answers it from `appliedAt` alone.
+ *
+ * Today the two always agree, because approving sets both in one step. If they
+ * ever stop agreeing, a screen built on the money gate would show "no account
+ * connected" for an account an administrator had deliberately connected, and
+ * the person reading it would have no way to tell that from a partner who never
+ * submitted one. So the profile shows what was done, and reports separately
+ * whether money can actually move -- two facts, never collapsed into one.
+ */
+export function connectedAccountFor(
+  ownerType: PayeeOwnerType,
+  ownerId: string
+): PayeeAccount | null {
+  const applied = listFor(ownerType, ownerId).filter(a => Boolean(a.appliedAt));
+  return applied.find(a => a.isDefault) || applied[0] || null;
+}
+
+/**
  * Why this payee cannot be paid, in words an administrator can act on.
  *
  * Exists because "no verified account" is the wrong sentence for an account the

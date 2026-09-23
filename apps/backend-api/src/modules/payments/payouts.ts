@@ -112,6 +112,23 @@ export interface DueRow {
   cashInHandPaise: number;
   /** Whether there is a verified account to pay into. */
   hasVerifiedAccount: boolean;
+  /**
+   * WHERE the money goes, on the row that offers to send it.
+   *
+   * Carried on the due itself rather than fetched by each screen, so Pay,
+   * Settlements and the requests list cannot disagree about a destination while
+   * all three show the same amount. Null when nothing is connected.
+   *
+   * Nobody should press Send having seen only a name and a number. The account
+   * is the one part of a payout that cannot be undone afterwards.
+   */
+  destination: {
+    method: 'BANK' | 'VPA';
+    holderName: string;
+    accountLast4?: string;
+    ifsc?: string;
+    vpa?: string;
+  } | null;
   /** Why this row cannot be paid right now, in words. */
   blockedReason: string | null;
   /** Ledger entries making up the payable figure. */
@@ -198,6 +215,15 @@ export function duesFor(
     outstandingPaise: Math.max(0, payablePaise + heldPaise),
     cashInHandPaise,
     hasVerifiedAccount,
+    destination: account_
+      ? {
+          method: account_.method,
+          holderName: account_.holderName,
+          accountLast4: account_.accountLast4,
+          ifsc: account_.ifsc,
+          vpa: account_.vpa
+        }
+      : null,
     blockedReason,
     ledgerIds
   };

@@ -590,7 +590,12 @@ payoutRoutes.get(
               payableNow: toRupees(due.payablePaise),
               payableNowPaise: due.payablePaise,
               movedSinceRequest: due.payablePaise !== request.payableAtRequestPaise,
-              blockedReason: due.blockedReason
+              blockedReason: due.blockedReason,
+              // Picked explicitly here, unlike the dues list which spreads the
+              // whole row. A request is answered by pressing Pay, so this is
+              // one of the screens that must not offer to send money without
+              // showing where it goes.
+              destination: due.destination
             };
           })
         }
