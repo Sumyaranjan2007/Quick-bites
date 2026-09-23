@@ -843,6 +843,48 @@ sentence becomes false the moment 6.3.1 lands, and a plan that promises free
 delivery and then charges 60% of it is a refund and a complaint. The line is
 derived from the fields, never written out separately.
 
+### 6.3a A Gold member with no plan id — policy, confirmed
+
+Found by Session A building §6.3. The seeded customer is `isGold` with no
+`goldPlanId`, and so is anybody the owner grants Gold by hand. Under the old
+rule the engine checked `isGold` alone, so those members had free delivery.
+Reading the benefit off a plan they do not have would have removed it silently —
+no error, no screen, just a delivery fee that used to be lower, discovered by
+paying it.
+
+**The fallback is the cheapest ACTIVE plan, and that is the right call.**
+Cheapest rather than best, because inventing the most generous benefit for a
+record that is already anomalous is how a data problem becomes a bill nobody can
+explain. It is the smallest thing that keeps a promise already made, and
+withdrawing a benefit somebody was told they had is the worse error.
+
+Verified: `listPlans()` defaults to active-only (`membershipService.ts:132`), so
+the comment and the code agree.
+
+**Task 6.3a.1 — the anomaly must be countable.** A silent fallback that works
+forever means the underlying data problem is never fixed, and every future
+change to plans has to remember this branch exists. Surface a count where the
+owner already looks — the Gold tab in Inflation: *"3 members have Gold with no
+plan. They are getting the ₹99 benefits."*
+
+A fallback nobody can see is a fallback that becomes permanent.
+
+**Task 6.3a.2 — the all-inactive edge undoes the whole branch.** If every plan
+is deactivated at once, `listPlans()` returns `[]`, `cheapest` is `undefined`,
+and the benefit silently disappears — **which is exactly the failure this
+fallback exists to prevent**, arriving through the fallback itself.
+
+Not hypothetical: the owner has just restructured all three plans, and hiding
+the old ones while setting up the new ones is the obvious way to do that.
+
+Floor it. When no plan is active, hand-granted members keep the last known
+benefit rather than dropping to zero, and the count from 6.3a.1 says so.
+
+> Note the asymmetry, which is correct and worth keeping: a member **with** a
+> plan id keeps their benefit even after that plan is retired, because
+> `findPlan` uses `listPlans(true)` — they bought it. Only the plan-less
+> fallback is exposed to this.
+
 ### 6.4 What the customer sees
 
 **Task 6.4.1** — the customer sees only the final price. Never the restaurant's
@@ -1348,6 +1390,16 @@ writing, or does not make the claim.
 A comment that goes stale is worse than no comment, because it is read as
 current by everyone who arrives later — which is exactly what happened here,
 twice, to people who were being careful.
+
+**The rule extends to tool output, not only to prose.** A fifth incident on
+24 Sep: `sockets.test.ts` was flagged as exiting with an open handle on the
+strength of a grep whose context window had truncated the `setTimeout` wrapper
+out of the result. There was no wrong comment to blame — only a window.
+
+That makes it a sharper example than the four above, because it shows what the
+rule is actually about: **any secondhand account of the code is not the code.**
+A comment, a plan section, a grep result, a test name, another session's
+summary. Open the file.
 
 ### 11.3 The three numbers that must never converge
 
