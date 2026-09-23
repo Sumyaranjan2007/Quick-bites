@@ -48,6 +48,22 @@ counter without a ledger entry is removed, not patched.
 their own figures and never ours. Commission and TDS compute on the
 restaurant's own price. GST is gated on actually being registered.
 
+**Inflation section.** Per restaurant, with no global default: eleven editable
+fields, a live worked example that recomputes what the customer pays as the
+number is typed, and a warning on any restaurant with no markup set, because a
+new one starting at zero earns the platform nothing and nothing else would say
+so. Tabs for rider pay, Gold plans and bonuses.
+
+> The file is still called `RatesScreen.tsx` while the product calls it
+> Inflation. That mismatch cost the author of this document twenty minutes
+> checking whether the section existed at all. Renaming it is the first commit
+> after the build.
+
+**Payouts are weekly.** All three partner-facing promises read
+`payoutCadenceDays` through one helper, so they cannot drift from each other
+again. The payday screen states the ceiling before the run rather than after
+half the partners have gone unpaid.
+
 **Admin.** Two-tier navigation with attention badges that are proved to move,
 not merely to exist. Banks list every account with apply and reject. Payout
 requests have a screen. The legal compliance gap has a screen.
@@ -67,7 +83,7 @@ and this is the list that answers whether that is true.
 
 | Item | Owner | Why it blocks |
 | --- | --- | --- |
-| Weekly payout cadence | A | Policy copy promises partners "payments run daily" in three places. The owner decided weekly. A policy describing a different system from the one running is the document a partner quotes back at you. |
+| ~~Weekly payout cadence~~ | A | **Done, `32b2dfa`.** Nothing now blocks the build. |
 
 ### 2.2 Not blocking, but the owner must be told
 
@@ -77,6 +93,8 @@ and this is the list that answers whether that is true.
 | Rider search radius widening | B | Dispatch offers all eligible trips nearest-first and never auto-cancels. Functionally adequate; the plan's progressive widening is not built. |
 | Five badge counts unproved | B | `pendingKyc`, `openRefunds`, `openSos`, `pendingProfileEdits`, `pendingMenuRequests` are asserted present but never proved to move. They are correct only because nobody guessed their status values wrong. That is luck, not a check. |
 | Payout statements, financial reports, staff password reset | A | Routes exist, no screen calls them. An administrator cannot reset a locked-out colleague's password. |
+| Rider earnings still seven screens | A | Cash in hand, statement and ask-to-be-paid all work. The rider sees seven screens where the plan says three. Cosmetic, not a money defect. |
+| **RazorpayX has no live keys** | A | Every payout path is built and tested and **no real money can move**. A payout marked sent with no gateway behind it is the thing to know before trusting the screen, not after. |
 
 ### 2.3 Owner actions nobody else can do
 
@@ -189,7 +207,13 @@ person who also wrote the code:
 - **A branch no test touches in either direction** — 35 suites passed before
   and after a wallet change that was wrong.
 
-The check that survives all four is one where the value **moves**. "Is a
+- **An assertion on the wording rather than the value behind it** — "the policy
+  says weekly" passes against a hardcoded string. Asserting the wording
+  *changes when the rate changes* caught a rate the editor silently dropped
+  from its allowlist: the screen confirmed a change that never happened, and
+  the owner would have set weekly and been paying daily.
+
+The check that survives all five is one where the value **moves**. "Is a
 number" passed against a badge hardcoded to zero.
 
 ### 4.3 Test the code in the file, not the code you typed
