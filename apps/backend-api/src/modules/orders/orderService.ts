@@ -6,7 +6,11 @@ import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates } from '../payments/pricingConfig.ts';
-import { effectiveCharges, customerDishPrice } from '../payments/restaurantCharges.ts';
+import {
+  effectiveCharges,
+  customerDishPrice,
+  customerAddonsPrice
+} from '../payments/restaurantCharges.ts';
 import { completeDelivery } from './deliveryCompletion.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
@@ -204,9 +208,8 @@ export const orderService = {
        * Priced HERE from the stored menu rather than trusted from the request,
        * as it always was. A client that can name its own price eventually will.
        */
-      const foodMarkup = effectiveCharges(restaurant.id).foodMarkupPercent;
-      const customerUnitPrice = customerDishPrice(dish.price, foodMarkup);
-      const customerAddons = customerDishPrice(addonsTotal, foodMarkup);
+      const customerUnitPrice = customerDishPrice(restaurant.id, dish.id, dish.price);
+      const customerAddons = customerAddonsPrice(restaurant.id, dish.id, dish.price, addonsTotal);
 
       partnerItemsTotal +=
         Math.round((dish.price + addonsTotal) * reqItem.quantity * 100) / 100;
@@ -456,9 +459,8 @@ export const orderService = {
        * complaint this markup is most likely to produce if it is applied in one
        * place and not the other.
        */
-      const foodMarkup = effectiveCharges(restaurant.id).foodMarkupPercent;
-      const customerUnitPrice = customerDishPrice(dish.price, foodMarkup);
-      const customerAddons = customerDishPrice(addonsTotal, foodMarkup);
+      const customerUnitPrice = customerDishPrice(restaurant.id, dish.id, dish.price);
+      const customerAddons = customerAddonsPrice(restaurant.id, dish.id, dish.price, addonsTotal);
 
       partnerItemsTotal += Math.round((dish.price + addonsTotal) * reqItem.quantity * 100) / 100;
 

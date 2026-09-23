@@ -661,10 +661,24 @@ async function run() {
      * the sum of the prices on screen differ from the checkout total by a rupee
      * or two, and a customer who notices that once never trusts the bill again.
      */
-    assert.equal(customerDishPrice(200, 20), 240);
-    assert.equal(customerDishPrice(125, 10), 138, '137.5 rounds to a price, not a fraction');
-    assert.equal(customerDishPrice(200, 0), 200, 'no markup changed the price');
-    assert.equal(customerDishPrice(0, 20), 0);
+    // The signature changed when per-item prices arrived: the percentage is no
+    // longer passed in, it is looked up from the restaurant, so that a caller
+    // cannot accidentally price a dish against the wrong restaurant's markup.
+    // UNPRICED_DISH has no typed price, so these exercise the percentage path.
+    const UNPRICED_DISH = 'dish_no_typed_price_for_this_test';
+    setCharges(RESTAURANT, { foodMarkupPercent: 20, itemPrices: {} }, ADMIN);
+    assert.equal(customerDishPrice(RESTAURANT, UNPRICED_DISH, 200), 240);
+    assert.equal(customerDishPrice(RESTAURANT, UNPRICED_DISH, 0), 0);
+
+    setCharges(RESTAURANT, { foodMarkupPercent: 10 }, ADMIN);
+    assert.equal(
+      customerDishPrice(RESTAURANT, UNPRICED_DISH, 125),
+      138,
+      '137.5 rounds to a price, not a fraction'
+    );
+
+    setCharges(RESTAURANT, { foodMarkupPercent: 0 }, ADMIN);
+    assert.equal(customerDishPrice(RESTAURANT, UNPRICED_DISH, 200), 200, 'no markup changed the price');
   });
 
   await check('THE RULE: the customer pays the inflated price, the kitchen earns its own', () => {
@@ -681,7 +695,7 @@ async function run() {
     assert.equal(charges.foodMarkupPercent, 20);
 
     // One dish the kitchen priced at Rs 500. The customer sees Rs 600.
-    const customerPrice = customerDishPrice(500, charges.foodMarkupPercent);
+    const customerPrice = customerDishPrice(RESTAURANT, 'dish_unpriced_for_the_rule_check', 500);
     assert.equal(customerPrice, 600);
 
     const bill = calculateOrderPricing({

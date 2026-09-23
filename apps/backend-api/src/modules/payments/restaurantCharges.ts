@@ -129,6 +129,23 @@ export interface RestaurantCharges {
   extraCharge: number;
   extraChargeLabel: string;
 
+  /**
+   * The CUSTOMER'S price for individual dishes, keyed by menu item id, in
+   * rupees.
+   *
+   * Absent for a dish means follow `foodMarkupPercent`, which is the behaviour
+   * every restaurant has today and must stay the default -- otherwise this
+   * feature would force the owner to price every dish of every restaurant by
+   * hand before earning anything.
+   *
+   * Keyed on the dish id, which is safe: ids are `dish_` + randomUUID and
+   * `updateItem` preserves them, so a typed price cannot land on a different
+   * dish after a menu edit. A DELETED dish does leave its key behind -- harmless
+   * for pricing, but any count of "how many items are marked up" must be
+   * filtered against the live menu rather than taken from this map.
+   */
+  itemPrices?: Record<string, number>;
+
   updatedAt: string;
   updatedByUserId: string;
   /** Why, so somebody reading this in six months knows. */
@@ -315,6 +332,8 @@ export function setCharges(
   for (const [key, value] of Object.entries(changes)) {
     if (value === null || value === undefined) continue;
     if (key === 'extraChargeLabel' || key === 'note') continue;
+    // Not a single amount with bounds; validated by setItemPrice below.
+    if (key === 'itemPrices') continue;
 
     const bound = BOUNDS[key];
     if (!bound) throw new AppError(`There is no charge called ${key}.`, 400, 'UNKNOWN_CHARGE');
@@ -342,6 +361,7 @@ export function setCharges(
     deliveryBaseFee: existing?.deliveryBaseFee ?? null,
     extraCharge: existing?.extraCharge ?? 0,
     extraChargeLabel: existing?.extraChargeLabel ?? '',
+    itemPrices: existing?.itemPrices ?? {},
     ...changes,
     updatedAt: new Date().toISOString(),
     updatedByUserId: actorUserId,
@@ -490,11 +510,140 @@ export function chargesView(charges: EffectiveCharges) {
  * Rounded to whole rupees, because a menu showing Rs 137.50 for a dish the
  * kitchen priced at Rs 125 looks like a mistake rather than a price.
  */
-export function customerDishPrice(price: number, foodMarkupPercent: number): number {
-  const raw = Number(price) || 0;
-  const markup = Math.max(0, Number(foodMarkupPercent) || 0);
+export function customerDishPrice(
+  restaurantId: string,
+  itemId: string,
+  restaurantPrice: number
+): number {
+  const raw = Number(restaurantPrice) || 0;
+  const typed = typedPriceFor(restaurantId, itemId);
+
+  // 1. A price an administrator typed for this dish wins outright.
+  if (typed !== null) return typed;
+
+  // 2. Otherwise the restaurant-wide percentage, which is what every
+  //    restaurant has today and what an unmarked dish keeps.
+  const markup = Math.max(0, Number(effectiveCharges(restaurantId).foodMarkupPercent) || 0);
   if (markup === 0) return Math.round(raw * 100) / 100;
   return Math.round(raw * (1 + markup / 100));
+}
+
+/**
+ * The typed customer price for one dish, or null when there is none.
+ *
+ * Null rather than zero: zero is a price somebody could legitimately type for a
+ * free item, and collapsing "no typed price" into "typed as free" would give a
+ * dish away.
+ */
+export function typedPriceFor(restaurantId: string, itemId: string): number | null {
+  const stored = row(restaurantId)?.itemPrices?.[itemId];
+  if (stored === undefined || stored === null) return null;
+  const value = Number(stored);
+  return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) / 100 : null;
+}
+
+/**
+ * What the customer pays for a dish's ADD-ONS.
+ *
+ * -------------------------------------------------------------------------
+ * WHY THIS IS NOT customerDishPrice
+ * -------------------------------------------------------------------------
+ * Add-ons are marked up today, and a percentage scales naturally: a Rs 50 extra
+ * becomes Rs 60 at 20% and the restaurant is paid its own Rs 50.
+ *
+ * An absolute typed price does not scale, and there is no add-on id to look a
+ * price up by. Passing the add-ons total through customerDishPrice with the
+ * DISH'S id would find the dish's typed price and return it -- so a Rs 50 slice
+ * of cheese on a dish typed at Rs 240 would be charged Rs 240, and the dish and
+ * each of its extras would each cost the customer the dish's full price.
+ *
+ * Nothing on the bill would look wrong. It adds up. It would be found by a
+ * customer paying it.
+ *
+ * So a typed price is converted to the RATIO it implies -- Rs 200 typed at
+ * Rs 240 is 1.2 -- and the ratio is applied to the extras. That gives Rs 60,
+ * which is exactly what the percentage model produces, so a dish with no typed
+ * price and a dish typed at precisely its percentage behave identically. This
+ * feature changes what an administrator can EXPRESS, not what the arithmetic
+ * means.
+ */
+export function customerAddonsPrice(
+  restaurantId: string,
+  itemId: string,
+  restaurantPrice: number,
+  addonsTotal: number
+): number {
+  const extras = Number(addonsTotal) || 0;
+  if (extras <= 0) return 0;
+
+  const base = Number(restaurantPrice) || 0;
+  const typed = typedPriceFor(restaurantId, itemId);
+
+  /*
+   * The division is guarded. A zero-priced dish -- a free item, a promotional
+   * line -- would give Infinity or NaN, and NaN travels through a bill in
+   * silence until it surfaces as a blank on a screen three steps later. Such a
+   * dish falls back to the restaurant percentage, which is defined for it.
+   */
+  if (typed !== null && base > 0) {
+    const ratio = typed / base;
+    return Math.round(extras * ratio * 100) / 100;
+  }
+
+  const markup = Math.max(0, Number(effectiveCharges(restaurantId).foodMarkupPercent) || 0);
+  if (markup === 0) return Math.round(extras * 100) / 100;
+  return Math.round(extras * (1 + markup / 100));
+}
+
+/**
+ * Sets, or clears, the customer's price for one dish.
+ *
+ * Refuses a price BELOW the restaurant's own, naming both numbers. Typing Rs 150
+ * against a Rs 200 dish means paying the restaurant Rs 200 while charging Rs 150
+ * -- the platform losing Rs 50 a dish, with nothing on any screen to say so.
+ * Refused here rather than on the screen, because the screen is a convenience
+ * and this is the control.
+ *
+ * Passing null clears it, and resolution falls back to the restaurant
+ * percentage.
+ */
+export function setItemPrice(input: {
+  restaurantId: string;
+  itemId: string;
+  restaurantPrice: number;
+  customerPrice: number | null;
+  actorUserId: string;
+  note?: string;
+}): { customerPrice: number | null; marginPaise: number } {
+  const base = Number(input.restaurantPrice) || 0;
+  const existing = { ...(row(input.restaurantId)?.itemPrices ?? {}) };
+
+  if (input.customerPrice === null) {
+    delete existing[input.itemId];
+  } else {
+    const typed = Number(input.customerPrice);
+    if (!Number.isFinite(typed) || typed < 0) {
+      throw new AppError('Enter the price the customer should pay.', 400, 'INVALID_ITEM_PRICE');
+    }
+    if (typed < base) {
+      throw new AppError(
+        `The restaurant charges ${base.toFixed(2)} for this dish. Charging the customer ` +
+          `${typed.toFixed(2)} would pay out more than it collects, losing ` +
+          `${(base - typed).toFixed(2)} every time somebody orders it.`,
+        400,
+        'ITEM_PRICE_BELOW_COST'
+      );
+    }
+    existing[input.itemId] = Math.round(typed * 100) / 100;
+  }
+
+  setCharges(input.restaurantId, { itemPrices: existing }, input.actorUserId, input.note);
+
+  const resolved = typedPriceFor(input.restaurantId, input.itemId);
+  return {
+    customerPrice: resolved,
+    marginPaise: resolved === null ? 0 : Math.round((resolved - base) * 100)
+  };
 }
 
 /**
@@ -514,8 +663,30 @@ export function inflateMenuForCustomer<T extends { categories?: any[] }>(
   restaurantId: string
 ): T | null {
   if (!menu) return menu;
-  const markup = effectiveCharges(restaurantId).foodMarkupPercent;
-  if (markup === 0) return menu;
+
+  /*
+   * The short circuit now asks about BOTH kinds of markup.
+   *
+   * It used to return the menu untouched whenever foodMarkupPercent was 0,
+   * which was correct while a percentage was the only markup there was. With
+   * typed per-item prices it is not: a restaurant on 0% WITH typed prices would
+   * have shown the kitchen's raw prices on the menu and charged the typed ones
+   * at the till -- one total on the cart screen and another at the end, which is
+   * the complaint this feature is most likely to produce.
+   *
+   * Deleting the early return outright would have fixed that and introduced a
+   * second cost: a new menu object allocated on every read, for every
+   * restaurant, forever, including the great majority that mark nothing up.
+   * There is a test asserting object IDENTITY here precisely to pin that, and it
+   * failed honestly when the return was removed.
+   *
+   * So the condition is widened rather than dropped. Nothing marked up in
+   * either way means the same object comes back; anything marked up means the
+   * menu is priced.
+   */
+  const typedPrices = row(restaurantId)?.itemPrices ?? {};
+  const hasTypedPrices = Object.keys(typedPrices).length > 0;
+  if (effectiveCharges(restaurantId).foodMarkupPercent === 0 && !hasTypedPrices) return menu;
 
   return {
     ...menu,
@@ -523,7 +694,7 @@ export function inflateMenuForCustomer<T extends { categories?: any[] }>(
       ...category,
       items: (category.items || []).map((item: any) => ({
         ...item,
-        price: customerDishPrice(item.price, markup),
+        price: customerDishPrice(restaurantId, item.id, item.price),
         /** What the kitchen set. Present so a bill can be explained later. */
         partnerPrice: Number(item.price) || 0,
         optionGroups: (item.optionGroups || []).map((group: any) => ({
@@ -533,7 +704,9 @@ export function inflateMenuForCustomer<T extends { categories?: any[] }>(
             // An add-on is part of the dish price, so it is marked up with it.
             // Leaving add-ons raw would let a customer dodge the markup by
             // ordering a cheap base with expensive extras.
-            priceDelta: customerDishPrice(option.priceDelta, markup),
+            // Scaled by the ratio the dish's own price implies, so an extra on
+            // a dish typed at Rs 240 is not itself charged Rs 240.
+            priceDelta: customerAddonsPrice(restaurantId, item.id, item.price, option.priceDelta),
             partnerPriceDelta: Number(option.priceDelta) || 0
           }))
         }))
