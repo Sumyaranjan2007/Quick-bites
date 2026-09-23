@@ -103,6 +103,12 @@ to exactly what the owner asked for:
 | **Restaurants** | `ownerType === 'RESTAURANT'`, not yet applied |
 | **Riders** | `ownerType === 'RIDER'`, not yet applied |
 | **Approved** | `appliedAt` set, both types, newest first |
+| **Who can be paid** | Existing coverage view. Kept. |
+
+The fourth segment was not in the owner's list and stays anyway. It is the only
+screen that answers *why* a partner went unpaid, §2.4 leans on that question,
+and nobody asked for it to be removed. A list of three in a plan is not an
+instruction to delete a working fourth thing.
 
 Each pending row shows holder name, account last 4, IFSC or VPA, the owner's
 name and city, when it was submitted, and the advice string the route already
@@ -113,14 +119,23 @@ which queue is full.
 
 ### 2.3 Verify
 
-One button, `Verify & connect`. It calls the existing
-`POST /admin/payee-accounts/:id/review` with `decision: 'APPLY'`.
+One button, `Verify & connect` — the owner's word on the label. It calls the
+existing `POST /admin/payee-accounts/:id/review` with **`decision: 'APPROVE'`**.
 
-**Task 2.3.1 — check `APPLY` does not require RazorpayX.** Read
-`payeeAccounts.ts` around lines 490–560. If applying is gated on
-`isRazorpayXConfigured()` or on `validationStatus === 'VERIFIED'`, that gate must
-be removed for the manual path, because there are no live keys and the owner's
-tap is now the verification. If it is already ungated, change nothing.
+> **Corrected 23 Sep.** This section first said `'APPLY'`. The schema at
+> `payeeRoutes.ts:242` is `z.enum(['APPROVE','REJECT'])`, so `'APPLY'` would
+> have returned 400 on every tap. Session A caught it before implementing.
+> The lesson is narrow and worth keeping: a plan that names a value is asserting
+> something about code, and this one was written from the prose around the route
+> rather than from its schema. The button's *label* is the owner's word; the
+> *value* is the route's.
+
+**Task 2.3.1 — ANSWERED, no change needed.** Verified by Session A: creation
+does not refuse without RazorpayX — `payeeAccounts.ts:341` marks the account
+`UNVERIFIED` rather than failing, `UNVERIFIED` is in the decidable set at `:483`,
+and the approve-time gate at `:505` is itself guarded by
+`isRazorpayXConfigured()`, so with no keys it never fires. The manual path is
+already fully open. Nothing to remove.
 
 Two things the button must do that a confirmation dialog usually does not:
 
@@ -251,7 +266,8 @@ been counted.
 
 When the cash is handed over, `confirmDeposit` (line 244) posts
 `RIDER_CASH → PLATFORM_BANK` and touches no revenue account at all. The money
-changes *location*, not *ownership*.
+changes *location*, not *ownership*. The second half of that is right. **The
+location is wrong, and §4.5 fixes it.**
 
 **Task 4.4.1 — the admin cash return must post that movement and nothing else.**
 No `REVENUE_*` posting. No adjustment to any earnings total. If a cash return
@@ -268,6 +284,7 @@ and how much of it is mine?* Nothing on the platform answers it today. Add a
 | Line | Account |
 | --- | --- |
 | In our bank | `PLATFORM_BANK` |
+| In the office, not yet banked | `PLATFORM_CASH` (see §4.5) |
 | Still in riders' pockets | sum of `RIDER_CASH:*` |
 | Owed to restaurants | sum of `PARTNER_PAYABLE:*` |
 | Owed to riders | sum of `RIDER_PAYABLE:*` |
@@ -282,6 +299,74 @@ is on the screen they happen to open.
 This is also the panel that answers "can I make payroll this week" before the
 payout run rather than after it, which is the same defect as §5.3 from the other
 direction.
+
+### 4.5 The office is not the bank. A third location is missing.
+
+The owner described their real process on 23 Sep: *"the rider comes to my
+office and hands over the money… then we will deposit this money offline to
+bank and send all the money to restaurant + rider through settlement."*
+
+**There are three places that cash sits, and the ledger models two.** Between
+the rider handing over the notes and the owner walking them into a branch, the
+money is in the office. That can be days. `confirmDeposit` posts straight to
+`PLATFORM_BANK`, so for that entire window the platform believes it holds bank
+money it does not hold.
+
+This is a pre-existing defect, not something this plan introduces. It is also
+the exact mistake the codebase already names one step earlier, in
+`earnings.ts:281`: *recording cash in a rider's pocket as though it were in the
+bank is how a platform believes it holds cash it has never seen.* The same
+sentence applies to a drawer.
+
+It has teeth because of what the owner does next. `payouts.ts` checks
+`rail.available()` — whether RazorpayX is configured — and **never checks
+whether `PLATFORM_BANK` actually holds the money.** So a payout run funded by
+cash still sitting in the office would be marked sent and then bounce at the
+gateway for insufficient funds, with the platform's own books saying the money
+was there.
+
+**Task 4.5.1 — add `PLATFORM_CASH` to `LedgerAccountKind`**
+(`shared-types/src/index.ts:1441`): *money physically in the platform's
+possession that is not yet in a bank account.* Adding a union member is
+additive; existing entries and stored rows are untouched.
+
+**Task 4.5.2 — the cash return posts `RIDER_CASH → PLATFORM_CASH`.** Not
+`PLATFORM_BANK`. This changes the existing `confirmDeposit` posting at
+`cashDeposits.ts:244` as well as the new admin route, because both describe the
+same physical event.
+
+**Task 4.5.3 — a second, separate action: record a bank deposit.**
+`POST /admin/cash/bank-deposits`, posting `PLATFORM_CASH → PLATFORM_BANK`, with
+the amount, the date it was paid in, and a reference or slip number. This is the
+owner recording something that happened at a bank counter, not the system
+moving money.
+
+Refuse more than `PLATFORM_CASH` holds, naming the real figure — the same
+treatment as §4.2.2, for the same reason.
+
+**Task 4.5.4 — warn before a payout run when the bank is short.** A warning,
+not a block: the owner may hold capital in that account that the ledger knows
+nothing about, and blocking a legitimate payday on an incomplete picture is
+worse than the problem.
+
+The warning must name the likely cause rather than only the shortfall —
+"₹48,200 is sitting in the office and has not been banked" is actionable, and
+"insufficient balance" sends someone to check a bank statement that is correct.
+
+**Task 4.5.5 — the full chain, asserted end to end.** Four locations, one
+rupee, in one test:
+
+```
+COD at the door   ->  RIDER_CASH:<rider>
+handed to office  ->  PLATFORM_CASH
+banked            ->  PLATFORM_BANK
+settled           ->  PARTNER_PAYABLE / RIDER_PAYABLE discharged
+```
+
+At every step, assert that the total across all accounts is unchanged and that
+`REVENUE_COMMISSION` and `REVENUE_FEES` have not moved since delivery. Money
+appearing or vanishing between two locations is the failure this catches, and it
+is the one that would otherwise be found by a partner disputing a settlement.
 
 ---
 
