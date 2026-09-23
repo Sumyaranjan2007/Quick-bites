@@ -55,6 +55,7 @@ const SUITES = [
   'profileEdits',
   'identity',
   'notifications',
+  'kitchenPush',
   'offers',
   'sockets',
   'sockets.security',

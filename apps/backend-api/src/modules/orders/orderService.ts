@@ -31,6 +31,53 @@ import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 
+/**
+ * Tells the kitchen, on the phone in somebody's pocket.
+ *
+ * Wrapped in one helper rather than repeated at each call site because there
+ * are three places an order reaches a restaurant and one where it is taken
+ * away, and four copies of this drift. One of them already did: the customer
+ * is notified at all four and the kitchen at none.
+ *
+ * Two rules it exists to hold:
+ *
+ * 1. It resolves the restaurant's OWNER USER ID. Device tokens are keyed by
+ *    user, so passing a restaurant id matches no device and fails silently —
+ *    which looks exactly like the bug this is fixing, and would be found by a
+ *    kitchen missing an order rather than by a test.
+ *
+ * 2. It cannot fail an order. Placing food on a pass must not depend on a push
+ *    service, a missing restaurant row, or a partner who never opened the app.
+ *    Everything here is caught and logged.
+ *
+ * It does not touch `emitOrderCreated`. That socket is the in-app alarm, it
+ * works, and it is a separate channel for a tablet that is awake.
+ */
+async function tellTheKitchen(
+  restaurantId: string,
+  send: (ownerUserId: string) => Promise<unknown>
+): Promise<void> {
+  try {
+    const restaurant = await restaurantRepository.findById(restaurantId);
+    if (!restaurant?.ownerId) {
+      console.error(
+        JSON.stringify({
+          level: 'ERROR',
+          event: 'KITCHEN_PUSH_NO_OWNER',
+          restaurantId,
+          message: 'No owner user id for this restaurant, so the kitchen cannot be notified.'
+        })
+      );
+      return;
+    }
+    await send(restaurant.ownerId);
+  } catch (err: any) {
+    console.error(
+      JSON.stringify({ level: 'ERROR', event: 'KITCHEN_PUSH_FAILED', restaurantId, message: err?.message })
+    );
+  }
+}
+
 export interface CreateOrderInput {
   customerId: string;
   restaurantId: string;
@@ -562,6 +609,9 @@ export const orderService = {
     if (order.status === 'ORDER_PLACED') {
       emitOrderCreated(order.restaurantId, order);
       await fcmDispatcher.notifyOrderPlaced(order.customerId, order.id, order.orderNumber);
+      await tellTheKitchen(order.restaurantId, ownerUserId =>
+        fcmDispatcher.notifyRestaurantNewOrder(ownerUserId, order.id, order.orderNumber, order.items.length)
+      );
     }
 
     return {
@@ -851,6 +901,12 @@ export const orderService = {
       reasonText
     );
 
+    // The kitchen may already be cooking it. This is the one notification here
+    // where the delay is measured in wasted food.
+    await tellTheKitchen(updated.restaurantId, ownerUserId =>
+      fcmDispatcher.notifyRestaurantOrderCancelled(ownerUserId, updated.id, updated.orderNumber, reasonText)
+    );
+
     return { order: updated, refund };
   },
 
@@ -889,6 +945,9 @@ export const orderService = {
       updatedAt: order.updatedAt
     });
     await fcmDispatcher.notifyOrderPlaced(order.customerId, order.id, order.orderNumber);
+    await tellTheKitchen(order.restaurantId, ownerUserId =>
+      fcmDispatcher.notifyRestaurantNewOrder(ownerUserId, order.id, order.orderNumber, order.items.length)
+    );
 
     return order;
   },
@@ -932,6 +991,9 @@ export const orderService = {
       restaurantId: order.restaurantId
     });
     await fcmDispatcher.notifyOrderPlaced(order.customerId, order.id, order.orderNumber);
+    await tellTheKitchen(order.restaurantId, ownerUserId =>
+      fcmDispatcher.notifyRestaurantNewOrder(ownerUserId, order.id, order.orderNumber, order.items.length)
+    );
 
     return order;
   },

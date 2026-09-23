@@ -9,8 +9,43 @@ export interface PushNotificationPayload {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /**
+   * Which Android channel rings, declared by the method that knows who is
+   * being written to.
+   *
+   * This used to be derived from `data.type`, which cannot work: the channel
+   * belongs to the RECIPIENT'S APP, and two apps can both care about the same
+   * event. A customer's ORDER_PLACED and a kitchen's new order are the same
+   * moment and must ring in different places, or not ring at all.
+   */
+  androidChannelId?: string;
   sentAt: string;
 }
+
+/*
+ * The channel ids, spelled exactly as the apps create them.
+ *
+ * These were wrong in three different ways at once and nobody could have seen
+ * it from here: the server sent `new_orders`, the rider app creates
+ * `new-orders`, and the partner app creates `kitchen-orders`. A message naming
+ * a channel the app never created does not fall back to a quiet notification
+ * on Android 8 and above — it is dropped. So the loud alert that exists to wake
+ * a kitchen at 11pm was addressed to a channel that has never existed on any
+ * phone.
+ *
+ * If either app renames its channel, this must change with it. That is the
+ * cost of a contract expressed as two matching strings in two repositories,
+ * and it is why the constant is here with the reason attached rather than
+ * inline at the call site.
+ */
+const CHANNEL = {
+  /** apps/restaurant-mobile/src/lib/orderAlert.ts — MAX importance, new_order.wav. */
+  KITCHEN: 'kitchen-orders',
+  /** apps/delivery-mobile/src/lib/orderAlert.ts. */
+  RIDER: 'new-orders',
+  /** The customer app creates no channel of its own and does not need one. */
+  DEFAULT: 'default'
+} as const;
 
 class FcmNotificationDispatcher {
   private dispatchHistory: PushNotificationPayload[] = [];
@@ -76,11 +111,9 @@ class FcmNotificationDispatcher {
           title: record.title,
           body: record.body,
           data: { ...(record.data || {}), orderId: record.orderId, orderNumber: record.orderNumber },
-          // The partner and rider apps create their own channels so a new
-          // order can have its own sound. A message with no channel is
-          // delivered silently, which for a kitchen alert is the same as not
-          // delivering it.
-          androidChannelId: record.data?.type === 'ORDER_PLACED' ? 'new_orders' : 'default'
+          // Declared by the method that built the record, because only it
+          // knows which app is being written to. See CHANNEL above.
+          androidChannelId: record.androidChannelId || CHANNEL.DEFAULT
         }
       );
 
@@ -117,7 +150,126 @@ class FcmNotificationDispatcher {
       orderNumber,
       title: 'Still collecting?',
       body: `Order #${orderNumber} is waiting at ${restaurantName}. It will be offered to another rider shortly.`,
-      data: { type: 'NO_SHOW_WARNING', orderId, orderNumber }
+      data: { type: 'NO_SHOW_WARNING', orderId, orderNumber },
+      androidChannelId: CHANNEL.RIDER
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+   * THE KITCHEN
+   *
+   * Everything above this line writes to a customer, with one exception for a
+   * rider. Nothing has ever been sent to a restaurant.
+   *
+   * That was not a misconfiguration to debug. The partner app registers its
+   * token correctly and `deviceTokenRepository` has been storing those tokens
+   * with a role on them all along; there was simply no code that addressed
+   * them. A kitchen with the app closed has never been told anything.
+   *
+   * Every method here takes the restaurant owner's USER id. Not the restaurant
+   * id — device tokens are keyed by user, and a restaurant id passed here
+   * matches no device and fails silently, which is indistinguishable from the
+   * bug being fixed.
+   * ------------------------------------------------------------------- */
+
+  /**
+   * The one that matters: an order is waiting and the app is closed.
+   *
+   * This is a second, independent channel from the in-app alarm. The socket
+   * path rings a tablet that is awake and on the orders screen; this reaches a
+   * phone in somebody's pocket. Neither replaces the other, and adding this
+   * must not change the sound.
+   */
+  async notifyRestaurantNewOrder(
+    ownerUserId: string,
+    orderId: string,
+    orderNumber: string,
+    itemCount: number
+  ) {
+    return this.sendPushNotification({
+      userId: ownerUserId,
+      orderId,
+      orderNumber,
+      title: 'New order',
+      /*
+       * Deliberately no money in this line.
+       *
+       * The obvious body is "3 items, Rs 450" — but the only total on the
+       * order is the CUSTOMER'S, which includes our markup. Printing it to a
+       * kitchen makes the markup derivable by subtracting their own menu
+       * prices, and a notification body lands on a lock screen where anybody
+       * standing near the pass can read it. The item count is what decides
+       * whether to walk to the tablet; the money is on the ticket.
+       */
+      body: `#${orderNumber} — ${itemCount} ${itemCount === 1 ? 'item' : 'items'}. Accept it to start the clock.`,
+      data: { type: 'RESTAURANT_NEW_ORDER', orderId, orderNumber },
+      androidChannelId: CHANNEL.KITCHEN
+    });
+  }
+
+  /**
+   * Cancelled while the kitchen may already be cooking it.
+   *
+   * Loud on purpose. Food already on the pass is the cost of finding this out
+   * late, and it is the one kitchen notification where seconds are money.
+   */
+  async notifyRestaurantOrderCancelled(
+    ownerUserId: string,
+    orderId: string,
+    orderNumber: string,
+    reason: string
+  ) {
+    return this.sendPushNotification({
+      userId: ownerUserId,
+      orderId,
+      orderNumber,
+      title: 'Order cancelled',
+      body: `#${orderNumber} was cancelled. ${reason} Stop preparing it if you have started.`,
+      data: { type: 'RESTAURANT_ORDER_CANCELLED', orderId, orderNumber, reason },
+      androidChannelId: CHANNEL.KITCHEN
+    });
+  }
+
+  /** A rider is at the counter for an order that may not be bagged yet. */
+  async notifyRestaurantRiderArrived(
+    ownerUserId: string,
+    orderId: string,
+    orderNumber: string,
+    riderName: string
+  ) {
+    return this.sendPushNotification({
+      userId: ownerUserId,
+      orderId,
+      orderNumber,
+      title: 'Rider here',
+      body: `${riderName} has arrived to collect #${orderNumber}.`,
+      data: { type: 'RESTAURANT_RIDER_ARRIVED', orderId, orderNumber },
+      androidChannelId: CHANNEL.KITCHEN
+    });
+  }
+
+  /**
+   * Still waiting, some minutes later.
+   *
+   * Worded as information rather than a complaint. The usual cause is a busy
+   * pass, and a kitchen that feels told off by the platform stops reading the
+   * notifications entirely — which costs more than the wait did.
+   */
+  async notifyRestaurantRiderWaiting(
+    ownerUserId: string,
+    orderId: string,
+    orderNumber: string,
+    riderName: string,
+    waitingMinutes: number
+  ) {
+    return this.sendPushNotification({
+      userId: ownerUserId,
+      orderId,
+      orderNumber,
+      title: 'Rider still waiting',
+      body: `${riderName} has been waiting ${waitingMinutes} ${waitingMinutes === 1 ? 'minute' : 'minutes'} for #${orderNumber}.`,
+      data: { type: 'RESTAURANT_RIDER_WAITING', orderId, orderNumber },
+      androidChannelId: CHANNEL.KITCHEN
     });
   }
 
