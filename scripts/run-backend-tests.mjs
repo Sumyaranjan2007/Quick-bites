@@ -48,6 +48,7 @@ const SUITES = [
   'cash',
   'cashLocations',
   'charges',
+  'deliveryMarkup',
   'routes',
   'statements',
   'policies',

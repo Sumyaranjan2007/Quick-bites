@@ -87,6 +87,18 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'riderBaseKm', label: 'Rider base distance', help: 'Distance covered by the base fee.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: false },
   { key: 'riderPerKmFee', label: 'Rider per extra km', help: 'Earned per kilometre beyond the base.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: false },
   { key: 'riderMinEarningPerTrip', label: 'Rider minimum per trip', help: 'No trip pays less than this, whatever the distance.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false },
+  {
+    key: 'riderDeliveryMarkupPercent',
+    label: 'Delivery markup',
+    // Named for what it does to the customer, not for what it does to the
+    // rider, because it does nothing to the rider. An administrator reading
+    // "rider percentage" would reasonably expect it to change rider pay.
+    help: 'Added to what the CUSTOMER pays for delivery. Rider earnings are unaffected — the difference is ours.',
+    unit: 'PERCENT',
+    min: 0,
+    max: 100,
+    affectsCustomerBill: true
+  },
   { key: 'codCashCeiling', label: 'Rider cash ceiling', help: 'Cash a rider may hold before the platform stops offering them COD orders.', unit: 'RUPEES', min: 0, max: 100000, affectsCustomerBill: false },
   { key: 'codCashWarnPercent', label: 'Cash warning at', help: 'Percentage of the ceiling at which the rider is told to deposit.', unit: 'PERCENT', min: 1, max: 100, affectsCustomerBill: false },
   { key: 'partnerHoldDays', label: 'Partner hold period', help: 'Days after delivery before a restaurant’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },

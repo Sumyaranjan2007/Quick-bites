@@ -505,6 +505,12 @@ export interface OrderBillBreakdown {
   gstAmount: number;
   packagingFee: number;
   deliveryFee: number;
+  /**
+   * The delivery fee before the platform's markup. Absent on every order placed
+   * before the markup existed, which is why it is optional rather than zero --
+   * zero would claim those orders had no partner-side delivery fee at all.
+   */
+  partnerDeliveryFee?: number;
   platformFee: number;
   couponDiscount: number;
   /**
@@ -1382,6 +1388,19 @@ export interface PricingRates {
   riderPerKmFee: number;
   /** No trip pays a rider less than this, whatever the distance. */
   riderMinEarningPerTrip: number;
+  /**
+   * What the CUSTOMER is charged on top of the delivery fee, as a percentage.
+   *
+   * The rider's earnings are computed separately and are not affected by this.
+   * That is the whole point of it: the owner asked to charge more for delivery
+   * than the rider is paid, and the difference is the platform's. A change here
+   * must never move a rider's payout, and there is a test that asserts the
+   * payout is byte-identical across a change to this number.
+   *
+   * Platform-wide rather than per rider, as agreed -- one number, applied to
+   * every trip.
+   */
+  riderDeliveryMarkupPercent: number;
   /** Cash a rider may hold before the platform stops offering them COD orders. */
   codCashCeiling: number;
   /** Percentage of the ceiling at which the rider is warned to deposit. */
@@ -1607,6 +1626,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   riderBaseKm: 2,
   riderPerKmFee: 6,
   riderMinEarningPerTrip: 30,
+  // Starts at zero, so this lands changing nothing until somebody sets it.
+  riderDeliveryMarkupPercent: 0,
 
   // New controls. Nothing enforced any of these before, because until the
   // payouts rebuild nothing on this platform could pay anybody.

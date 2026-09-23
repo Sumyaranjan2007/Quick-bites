@@ -159,6 +159,16 @@ export interface CalculatedBill {
   extraCharge: number;
   extraChargeLabel: string;
   deliveryFee: number;
+  /**
+   * The delivery fee BEFORE the platform's markup, frozen onto the bill.
+   *
+   * Kept for the same reason as partnerPackagingFee: a settlement or a revenue
+   * figure worked out weeks later must be able to say what the markup was at
+   * the time, rather than re-deriving it from a rate that has since changed.
+   * The difference between this and deliveryFee is what the platform kept on
+   * delivery for this order, and it is the only place that is recorded.
+   */
+  partnerDeliveryFee: number;
   platformFee: number;
   couponDiscount: number;
   /**
@@ -229,6 +239,26 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     const extraKm = Math.ceil(input.distanceKm - rates.deliveryBaseKm);
     deliveryFee += extraKm * rates.deliveryPerKmBeyond;
   }
+  /*
+   * The platform's markup on delivery, paid by the CUSTOMER.
+   *
+   * Applied after distance and BEFORE any membership discount, deliberately.
+   * A member's percentage should come off the real price they would otherwise
+   * have paid -- discounting first and marking up afterwards would quietly
+   * claw back part of the benefit they bought, and the order of two
+   * percentages is invisible on a bill that still adds up.
+   *
+   * It does not appear in the rider's payout because the rider's payout is not
+   * computed here. calculateTripPayout works from the trip and the rider rates;
+   * this number is not one of them, and a test asserts the payout is
+   * byte-identical across a change to it.
+   */
+  const deliveryMarkupPercent = Math.max(0, Number(rates.riderDeliveryMarkupPercent) || 0);
+  const partnerDeliveryFee = deliveryFee;
+  if (deliveryMarkupPercent > 0) {
+    deliveryFee = Math.round(deliveryFee * (1 + deliveryMarkupPercent / 100) * 100) / 100;
+  }
+
   const freeDeliveryFloor =
     typeof input.memberFreeDeliveryMinOrder === 'number' && Number.isFinite(input.memberFreeDeliveryMinOrder)
       ? input.memberFreeDeliveryMinOrder
@@ -341,6 +371,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     extraCharge,
     extraChargeLabel: input.extraChargeLabel || '',
     deliveryFee,
+    partnerDeliveryFee,
     platformFee,
     couponDiscount,
     membershipDiscount,
