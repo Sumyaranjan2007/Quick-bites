@@ -660,11 +660,21 @@ customer paying it.
 
 **Use the implied ratio.** When a dish has a typed price, derive
 `typed / restaurantPrice` and apply that ratio to the add-ons. ₹200 typed at
-₹240 is a ratio of 1.2, so the ₹50 extra is ₹60 — **identical to what the
-percentage model does today**, which means a dish with no typed price and a
-dish typed at exactly its percentage behave the same. Continuity is the point:
-this feature should change what an administrator can express, not what the
-arithmetic means.
+₹240 is a ratio of 1.2, so the ₹50 extra is ₹60.
+
+> **The justification here was wrong and is replaced. See §6.1.3c.** This first
+> argued for the ratio on grounds of *continuity* — that a dish typed at exactly
+> its percentage would behave identically to the percentage. That is false, and
+> not only because of rounding.
+>
+> **The correct argument is stronger.** A typed price **is** the markup decision
+> for that dish. An administrator who types ₹11 against a ₹10 dish has marked it
+> up a tenth and has overridden the restaurant percentage for that dish. Making
+> its extras obey the percentage anyway would have them follow a number the
+> administrator had just replaced — which would be the actual bug.
+>
+> So the two paths diverging is **the feature working**, not an artefact to be
+> rounded away.
 
 Guard the division. `restaurantPrice` of zero — a free dish, or a promotional
 line — must yield the restaurant percentage rather than `Infinity` or `NaN`, and
@@ -707,15 +717,42 @@ The whole-rupee rounding is **pre-existing and deliberate**, not something
 seeing ₹240 rather than ₹239.87 is a reasonable product decision. The defect is
 having **two conventions for one concept** now that a second path exists.
 
-**Fix: round every DERIVED price the same way, whatever its source** — make the
-ratio path `Math.round(extras * ratio)`. A typed price itself is still honoured
-exactly, because a human typed it and rounding ₹239.50 to ₹240 would overrule
-them. The rule is: *typed values are obeyed, derived values are rounded.*
+**Fix, and it is only half of what this section first said: round every DERIVED
+price the same way, whatever its source** — make the ratio path
+`Math.round(extras * ratio)`. A typed price itself is still honoured exactly,
+because a human typed it and rounding ₹239.50 to ₹240 would overrule them. The
+rule is: *typed values are obeyed, derived values are rounded.*
 
-**The check that fails:** assert continuity on a number that does not coincide —
-₹55 typed to ₹65 (18%) with a ₹12 add-on must charge the same as a ₹55 dish at
-18% with a ₹12 add-on. Pick the awkward number deliberately; the clean ones
-prove nothing.
+> **The other half was wrong, and Session A measured it rather than arguing.**
+> This section then claimed whole-rupee rounding would make the two paths agree.
+> **It does not.** The typed price is itself rounded, so the implied ratio is not
+> `1 + p/100`: ₹149 at 15% types to ₹171, a ratio of 1.1477, and a ₹37 extra is
+> ₹42 by the ratio against ₹43 by the percentage — both whole rupees, still
+> different.
+>
+> Confirmed independently here by sweeping 891 base prices × 10 percentages ×
+> 7 add-on values: **7,802 divergent combinations, worst gap ₹9.**
+>
+> **The worst case is the one that settles it.** A ₹10 dish typed to ₹11 with
+> ₹180 of extras: the percentage gives ₹189, the ratio gives ₹198 — and **the
+> ratio is right**. That dish has been marked up a tenth by an administrator who
+> overrode the 5% for it. Continuity was never the property to want.
+>
+> So: fix the convention, keep the divergence, and do not write a comment
+> claiming exactness. That would have been a sixth wrong-prose incident, with me
+> as the one asserting it twice.
+
+**The check that fails** is therefore not a continuity check. Two, both using
+numbers that cannot coincide:
+
+1. ₹149 / ₹37 / 15% — assert **both** paths return whole rupees. Restoring the
+   paise rounding fails it.
+2. ₹10 typed to ₹11 with ₹100 of extras — assert the extras cost ₹110, not the
+   ₹105 the configured 5% would give. This is the property that makes the ratio
+   *right* rather than merely workable, written as something checkable.
+
+Pick the awkward number deliberately. ₹200 at 20% divides cleanly, which is how
+a suite came to assert continuity while being structurally unable to test it.
 
 **Task 6.1.3b — orphan keys.** Dish ids are `dish_` + `crypto.randomUUID()`
 (`menuRepository.ts:61`) and `updateItem` preserves the id (`:84`), so keys are
@@ -1483,6 +1520,13 @@ writing, or does not make the claim.
 A comment that goes stale is worse than no comment, because it is read as
 current by everyone who arrives later — which is exactly what happened here,
 twice, to people who were being careful.
+
+**A rule is not a mechanism.** Session A wrote *"a check asserting exact rupees
+must own every number it depends on"* in one commit message and broke it in the
+next, because the new checks set a percentage the old ones had been inheriting.
+The rule was right both times. Stating a rule does nothing; the check that
+enforces it has to be written. Assume every rule in this section will be broken
+by whoever wrote it, and put the guard in the code.
 
 **The rule extends to tool output, not only to prose.** A fifth incident on
 24 Sep: `sockets.test.ts` was flagged as exiting with an open handle on the
