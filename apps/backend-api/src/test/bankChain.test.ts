@@ -19,6 +19,7 @@
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { payableAccountFor } from '../modules/payments/payeeAccounts.ts';
+import { memoryStore } from '../db/client.ts';
 
 const PORT = 5197;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -182,6 +183,103 @@ try {
   const serialized = JSON.stringify(afterApply.accounts);
   check('No full account number is broadcast by the list endpoint',
     !serialized.includes('50100234567890'));
+
+  // ----------------------------------------------------------------
+  console.log('\n-- The diagnostic: what the server actually holds');
+
+  /*
+   * Written because a real submission on the live deployment never reached the
+   * admin console while every layer read as correct. It reports observations
+   * rather than conclusions, from the submitter's own session, so nobody has to
+   * hand over an administrator password to debug their own bank details.
+   */
+  const diag = await api('/payee-accounts/me/diagnostic', {}, rider.token);
+  check('A rider can read their own diagnostic', diag.status === 200,
+    `status ${diag.status}: ${JSON.stringify(diag.json).slice(0, 200)}`);
+
+  const d = diag.json?.data;
+  check('It says who the server resolved them to', d?.youAre?.resolvedTo?.ownerType === 'RIDER',
+    JSON.stringify(d?.youAre));
+  check('and it FINDS the accounts they submitted', d?.yourAccounts?.foundByYourUserId >= 2,
+    `found ${d?.yourAccounts?.foundByYourUserId}`);
+  check('filed under the owner id the screens look them up by',
+    d?.yourAccounts?.foundByYourResolvedOwnerId === d?.yourAccounts?.foundByYourUserId,
+    JSON.stringify(d?.yourAccounts));
+  check('so nothing is reported as filed under a different owner id',
+    Array.isArray(d?.yourAccounts?.filedUnderADifferentOwnerId) &&
+      d.yourAccounts.filedUnderADifferentOwnerId.length === 0);
+  check('It reports whether the store is durable',
+    typeof d?.theStore?.durable === 'boolean');
+  /*
+   * Adding an account archives the previous one -- replace semantics, decided
+   * in addAccount and documented there, because a payout already sent points
+   * at the old row and a history that cannot say where money went is not one.
+   *
+   * So exactly one row is live, and it is the newest. Asserted rather than
+   * assumed: the first version of this check asked whether EVERY row would
+   * appear, which is a claim about a system that keeps them all, and it failed
+   * honestly. The diagnostic is what showed the real rule.
+   */
+  const live = (d?.yourAccounts?.rows || []).filter((r: any) => r.wouldAppearInAdminList);
+  check('Exactly one account is live, the rest are archived by replacement',
+    live.length === 1, JSON.stringify(d?.yourAccounts?.rows));
+  check('and the live one is the newest submission',
+    live[0]?.id === secondId, `live is ${live[0]?.id}, newest is ${secondId}`);
+
+  /*
+   * The leak check. A diagnostic that answers "where is my account" by
+   * returning everybody's is a worse problem than the one it was written for.
+   * The partner shares this deployment with the rider whose accounts are above.
+   */
+  const partner = await login('partner@quickbite.app');
+  const partnerDiag = await api('/payee-accounts/me/diagnostic', {}, partner.token);
+  const pd = partnerDiag.json?.data;
+  check('A partner resolves to their restaurant', pd?.youAre?.resolvedTo?.ownerType === 'RESTAURANT',
+    JSON.stringify(pd?.youAre));
+  check('THE PARTNER SEES NONE OF THE RIDER ROWS', (pd?.yourAccounts?.rows || []).length === 0,
+    JSON.stringify(pd?.yourAccounts?.rows));
+  check('and no account number reaches it at all',
+    !JSON.stringify(partnerDiag.json).includes('50100234567890'));
+  // It still reports the shape of the store, which is what tells "nothing was
+  // ever written" apart from "something was written and it is not yours".
+  check('but it still counts what exists on the deployment',
+    pd?.theStore?.totalAccountsOnThisDeployment >= 2,
+    JSON.stringify(pd?.theStore));
+
+  // ----------------------------------------------------------------
+  console.log('\n-- The detector has to be able to FIRE, not only stay quiet');
+
+  /*
+   * Everything above asserts the mismatch detector reports nothing, which is
+   * exactly what a detector that can never fire also does. This is the whole
+   * reason the endpoint was written -- an account that exists but is filed
+   * under an owner id no screen looks up -- so the condition is created
+   * deliberately and the detector has to find it.
+   *
+   * The row is edited in the store directly because there is no API that can
+   * produce this state. That is the point: if there were, it would be a bug
+   * with a route attached rather than one nobody can explain.
+   */
+  const victim = memoryStore.payeeAccounts.get(secondId) as any;
+  const realOwnerId = victim.ownerId;
+  victim.ownerId = 'rdr_not_the_one_any_screen_looks_up';
+  memoryStore.payeeAccounts.set(secondId, victim);
+
+  const broken = await api('/payee-accounts/me/diagnostic', {}, rider.token);
+  const bd = broken.json?.data;
+
+  check('It still finds the account by USER id when the owner id is wrong',
+    bd?.yourAccounts?.foundByYourUserId >= 1, JSON.stringify(bd?.yourAccounts));
+  check('THE DETECTOR REPORTS THE ACCOUNT AS FILED ELSEWHERE',
+    (bd?.yourAccounts?.filedUnderADifferentOwnerId || []).some((r: any) => r.id === secondId),
+    JSON.stringify(bd?.yourAccounts?.filedUnderADifferentOwnerId));
+  check('and the lookup every screen uses no longer finds it',
+    bd?.yourAccounts?.foundByYourResolvedOwnerId < bd?.yourAccounts?.foundByYourUserId,
+    JSON.stringify(bd?.yourAccounts));
+
+  // Put it back, so nothing after this runs against a deliberately broken row.
+  victim.ownerId = realOwnerId;
+  memoryStore.payeeAccounts.set(secondId, victim);
 } finally {
   server.close();
 }
