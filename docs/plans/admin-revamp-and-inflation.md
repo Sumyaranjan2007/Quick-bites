@@ -151,9 +151,28 @@ already fully open. Nothing to remove.
 
 Two things the button must do that a confirmation dialog usually does not:
 
-1. **Show the full account number before the tap, not the last 4.** The
-   administrator is being asked to confirm a number against a document. Four
-   digits cannot be checked against anything.
+1. ~~**Show the full account number before the tap, not the last 4.**~~
+   **WITHDRAWN 24 Sep — impossible by design, and the design is right.**
+
+   > `PayeeAccount` stores `accountLast4` and nothing more
+   > (`shared-types:1715`). The full number is never written to the record —
+   > `createAccount` takes it as an argument, slices the last four and passes
+   > the rest straight to verification (`payeeAccounts.ts:333, :366`). The
+   > comment there states the intent: there is no code path in this platform
+   > that can read a stored account number, because there is nothing stored to
+   > read.
+   >
+   > That is a deliberate security property and worth more than the convenience
+   > this asked for. A plan section does not get to overrule it, and this one
+   > was written without checking whether the field existed — §11.2b, in the
+   > plan rather than in a comment.
+   >
+   > **What the administrator actually compares** against the partner's
+   > document: holder name, IFSC, and the last four. Where RazorpayX is
+   > configured, `registeredName` — the name the bank itself holds — is the
+   > real authority and outranks all three. Until live keys exist, that field
+   > is empty, so the tap is a human check against three fields rather than
+   > four, and the screen should not imply otherwise.
 2. **Record who tapped and when.** `appliedByAdminId` and `appliedAt` already
    exist on the model. Write an audit entry too — this is the moment money
    becomes sendable to a stranger's account, and it is the first thing anyone
@@ -1646,6 +1665,57 @@ Touching any of these is out of scope and needs the owner to ask first:
 - The partner's in-app order sound.
 - The rider's two-track trip model (`riderStage` separate from order status).
 - `check-apk-secrets.mjs` and the Metro cache clearing in `build-apks.sh`.
+
+---
+
+## 11A. What is still open — the list for the verification conversation
+
+Compiled 24 Sep, after steps 1–8. The owner will ask whether everything is
+fixed. This is the honest answer, and every line was checked against the tree
+rather than remembered.
+
+### Built and proved
+
+Steps 1–8. Bank reproduced and its three empty states fixed, the three queues,
+verify-and-connect, the account on profiles and on every row that pays; the
+kitchen push and its channel; the diagnostic; the persistence ceiling; office
+cash and the admin cash return; the two delivery paths unified; Settlements
+back in Money; the rider percentage; the Gold ladder; per-item pricing end to
+end.
+
+### Built but NOT proved, and only the owner can prove it
+
+| Item | What is missing |
+| --- | --- |
+| **§8.3 — push on a closed phone** | A real device, app force-stopped, a real order. Everything else about it is verified; this is the only check that counts and neither session can run it. |
+| **Step 3 of `road-to-launch.md` — real data** | Every "it works" here was observed against fixtures or two seeded restaurants. |
+
+### Open, and BLOCKED on the owner
+
+| Item | Why it is stuck |
+| --- | --- |
+| **The bank defect** | Still uncaused. The diagnostic is built, deployed and tested; it needs one authenticated run, which needs their password, which neither session will handle. |
+| **§5.1 — "fix the pay section properly"** | **Never answered.** The owner did not say what is wrong, `PayoutsScreen.tsx` is 1,134 lines, and guessing would waste a day. §5.2 and §5.3 were fixed anyway because they were defects either way — the destination on every row, and the daily ceiling announced before payday rather than halfway through. But the original complaint has no diagnosis. **This must be asked, not assumed fixed.** |
+
+### Open, and ours
+
+| Item | State |
+| --- | --- |
+| Step 9 — §7 rider app, §8.4–8.6 partner app, §9 policies | Removals and read-only. Not started. |
+| §8B — the customer live map | Specced in full, not started. Needs an APK to reach anyone. |
+| **Task 3.1 — Pay and Settlements disagree** | Known, deliberately deferred, assertion written out ready to paste. Not a regression; a pre-existing divergence with no shared source to unify. |
+| Step 10 — build and deliver | **Held on the owner's word.** |
+
+### Withdrawn as wrong
+
+Three plan items were removed rather than built, each because the premise was
+false. Listed so they are not mistaken for unfinished work:
+
+- **§6.1.6's first version** — assumed a restaurant could reprice unilaterally.
+  It cannot; approval is required. Replaced with the approval-time design.
+- **§8.3a** — claimed the pushes are awaited inside `placeOrder`. They are not.
+- **§2.3's full-account-number requirement** — impossible by design, and the
+  design is right.
 
 ---
 
