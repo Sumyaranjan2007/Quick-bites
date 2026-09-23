@@ -3,6 +3,10 @@
  * and the platform-wide categories that organise it.
  */
 import { Router } from 'express';
+import {
+  marginPreservingPrice,
+  setItemPrice
+} from '../../modules/payments/restaurantCharges.ts';
 import { z } from 'zod';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
@@ -357,6 +361,10 @@ catalogRoutes.post(
       const approved: any[] = [];
       const rejected: any[] = [];
       const failed: any[] = [];
+      /** Dishes whose customer price was adjusted to hold the margin. */
+      const markupsHeld: any[] = [];
+      /** Dishes where it could not be, which the administrator must see. */
+      const markupsNotHeld: any[] = [];
 
       for (const request of pending) {
         const rejectionReason = rejectionByRequestId.get(request.id);
@@ -375,10 +383,67 @@ catalogRoutes.post(
 
           let dish;
           if (request.kind === 'EDIT_ITEM' && request.dishId) {
+            /*
+             * Read the kitchen's CURRENT price and the margin standing on it
+             * BEFORE the write, because updateItem clears a typed customer price
+             * when the price changes and afterwards there is nothing left to
+             * preserve.
+             */
+            const before = await menuRepository.findItem(restaurantId, request.dishId);
+            const holding =
+              before && typeof (item as any).price === 'number'
+                ? marginPreservingPrice({
+                    restaurantId,
+                    itemId: request.dishId,
+                    oldRestaurantPrice: before.price,
+                    newRestaurantPrice: (item as any).price
+                  })
+                : null;
+
             dish = await menuRepository.updateItem(restaurantId, request.dishId, { ...item, categoryName });
             if (!dish) {
               failed.push({ requestId: request.id, name: request.payload.name, reason: 'The dish this request edits no longer exists.' });
               continue;
+            }
+
+            /*
+             * BULK APPROVAL MUST NOT SKIP THE MARKUP.
+             *
+             * Approving many price changes at once without setting customer
+             * prices would recreate, at scale and with one tap, exactly the lapse
+             * the approval design exists to prevent: the kitchen's new price live
+             * and the platform's markup gone. So the margin-preserving default is
+             * applied automatically, and REPORTED -- silence here is the failure,
+             * because nobody would think to check twelve dishes they had just
+             * approved in one action.
+             */
+            if (holding) {
+              try {
+                setItemPrice({
+                  restaurantId,
+                  itemId: request.dishId,
+                  restaurantPrice: dish.price,
+                  customerPrice: holding.rupee,
+                  actorUserId: req.user!.id,
+                  note: `Bulk approval held the Rs ${holding.keptRupees} margin on ${dish.name}.`
+                });
+                markupsHeld.push({
+                  dishId: dish.id,
+                  name: dish.name,
+                  kitchenPrice: dish.price,
+                  customerPrice: holding.rupee,
+                  keptRupees: holding.keptRupees
+                });
+              } catch (err: any) {
+                // Reported rather than swallowed. An unpriced dish falls back to
+                // the restaurant percentage, which is safe, but the
+                // administrator has to know which ones did.
+                markupsNotHeld.push({
+                  dishId: dish.id,
+                  name: dish.name,
+                  reason: err?.message || 'The customer price could not be set.'
+                });
+              }
             }
           } else {
             dish = await menuRepository.addItem(restaurantId, categoryName, {
@@ -412,6 +477,8 @@ catalogRoutes.post(
         entityId: restaurantId,
         summary:
           `Reviewed ${restaurant.name}'s menu: approved ${approved.length}, rejected ${rejected.length}` +
+          (markupsHeld.length ? `, held our margin on ${markupsHeld.length}` : '') +
+          (markupsNotHeld.length ? `, could NOT hold it on ${markupsNotHeld.length}` : '') +
           (failed.length ? `, ${failed.length} could not be applied` : '') +
           (rejected.length ? ` — turned down ${rejected.map((r: any) => `"${r.payload?.name}"`).join(', ')}` : ''),
         after: {
@@ -426,6 +493,13 @@ catalogRoutes.post(
           restaurantId,
           restaurantName: restaurant.name,
           approvedCount: approved.length,
+          /*
+           * What the platform did on the administrator's behalf, in the
+           * response, so the screen can say it. A margin adjusted silently is
+           * one nobody verifies.
+           */
+          markupsHeld,
+          markupsNotHeld,
           rejectedCount: rejected.length,
           approved: approved.map((a: any) => ({ requestId: a.request.id, dishId: a.item.id, name: a.item.name })),
           rejected: rejected.map((r: any) => ({ requestId: r.id, name: r.payload?.name })),
@@ -452,7 +526,21 @@ const ReviewMenuRequestSchema = z.object({
       categoryName: z.string().trim().min(1).max(80).optional(),
       imageUrl: z.string().trim().max(200000).optional()
     })
-    .optional()
+    .optional(),
+  /**
+   * What the CUSTOMER should pay for this dish, decided in the same action as
+   * the price change.
+   *
+   * Three meanings, deliberately distinct:
+   *   a number -- use it, refusing anything below the kitchen's own price
+   *   null     -- clear any typed price, so the restaurant percentage applies
+   *   absent   -- hold the existing margin automatically
+   *
+   * `.nullable()` rather than just optional, because "charge the percentage" and
+   * "I did not say" are different instructions and collapsing them would make
+   * clearing a price impossible through this route.
+   */
+  customerPrice: z.number().min(0).max(1000000).nullable().optional()
 });
 
 /**
@@ -506,9 +594,67 @@ catalogRoutes.post(
       const { categoryName, ...item } = final;
 
       let dish;
+      let markupHeld: any = null;
       if (request.kind === 'EDIT_ITEM' && request.dishId) {
+        // Read before the write: updateItem clears a typed customer price when
+        // the kitchen's price changes, and the margin standing on the old price
+        // cannot be recovered afterwards.
+        const before = await menuRepository.findItem(request.restaurantId, request.dishId);
+        const holding =
+          before && typeof (item as any).price === 'number'
+            ? marginPreservingPrice({
+                restaurantId: request.restaurantId,
+                itemId: request.dishId,
+                oldRestaurantPrice: before.price,
+                newRestaurantPrice: (item as any).price
+              })
+            : null;
+
         dish = await menuRepository.updateItem(request.restaurantId, request.dishId, { ...item, categoryName });
         if (!dish) throw new AppError('The dish this request edits no longer exists.', 404, 'DISH_NOT_FOUND');
+
+        /*
+         * The price change and the customer price are ONE decision, taken here.
+         *
+         * `customerPrice` in the body is what the administrator typed; when it is
+         * absent the margin-preserving default applies. Either way both values
+         * are written before this request returns, so there is no window in which
+         * the kitchen's new price is live and the platform's markup is not --
+         * they were never two separate saves.
+         */
+        const typedByAdmin = (req.body as any).customerPrice;
+        const target =
+          typedByAdmin === null
+            ? null
+            : typeof typedByAdmin === 'number'
+              ? typedByAdmin
+              : holding
+                ? holding.rupee
+                : undefined;
+
+        if (target !== undefined) {
+          // Refusals from setItemPrice are NOT caught here. A customer price
+          // below the kitchen's own is refused with both numbers named, and an
+          // administrator who typed it needs to see that rather than have the
+          // approval quietly succeed with something else.
+          const result = setItemPrice({
+            restaurantId: request.restaurantId,
+            itemId: request.dishId,
+            restaurantPrice: dish.price,
+            customerPrice: target,
+            actorUserId: req.user!.id,
+            note:
+              typeof typedByAdmin === 'number'
+                ? `Set at approval of a price change on ${dish.name}.`
+                : `Approval held the Rs ${holding?.keptRupees} margin on ${dish.name}.`
+          });
+          markupHeld = {
+            customerPrice: result.customerPrice,
+            marginRupees: Math.round(result.marginPaise) / 100,
+            chosenBy: typeof typedByAdmin === 'number' ? 'ADMIN' : 'MARGIN_DEFAULT',
+            alternatives: holding
+          };
+        }
       } else {
         dish = await menuRepository.addItem(request.restaurantId, categoryName, {
           ...item,
@@ -532,7 +678,7 @@ catalogRoutes.post(
         after: dish
       });
 
-      res.json({ success: true, data: { request: reviewed, item: dish } });
+      res.json({ success: true, data: { request: reviewed, item: dish, markupHeld } });
     } catch (err) {
       next(err);
     }

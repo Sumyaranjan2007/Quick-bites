@@ -632,6 +632,48 @@ export function customerAddonsPrice(
  * Passing null clears it, and resolution falls back to the restaurant
  * percentage.
  */
+/**
+ * What the customer's price should become when the kitchen's price changes.
+ *
+ * Returns the number to type, or null when there is nothing to preserve.
+ *
+ * Two readings are offered because they answer different questions and an
+ * administrator should pick rather than be given one silently:
+ *
+ *   RUPEE   Rs 200 -> Rs 260 with Rs 40 kept becomes Rs 300. The platform keeps
+ *           the same cash per order.
+ *   PERCENT Rs 200 -> Rs 260 with 20% kept becomes Rs 312. The platform keeps
+ *           the same share, so its margin grows with the dish.
+ *
+ * The rupee reading is the default. It is the smaller number, so defaulting to
+ * it cannot quietly raise a customer's bill by more than the kitchen did -- and
+ * a default that errs toward charging less is the one to get wrong.
+ */
+export function marginPreservingPrice(input: {
+  restaurantId: string;
+  itemId: string;
+  oldRestaurantPrice: number;
+  newRestaurantPrice: number;
+}): { rupee: number; percent: number; keptRupees: number; keptPercent: number } | null {
+  const typed = typedPriceFor(input.restaurantId, input.itemId);
+  const oldBase = Number(input.oldRestaurantPrice) || 0;
+  const newBase = Number(input.newRestaurantPrice) || 0;
+
+  // Nothing typed means nothing to preserve: the restaurant percentage applies
+  // to the new price on its own, which is already correct.
+  if (typed === null || oldBase <= 0) return null;
+
+  const keptRupees = Math.round((typed - oldBase) * 100) / 100;
+  const keptPercent = (typed / oldBase - 1) * 100;
+
+  return {
+    rupee: Math.round(newBase + keptRupees),
+    percent: Math.round(newBase * (1 + keptPercent / 100)),
+    keptRupees,
+    keptPercent: Math.round(keptPercent * 100) / 100
+  };
+}
+
 export function setItemPrice(input: {
   restaurantId: string;
   itemId: string;
@@ -752,3 +794,50 @@ export function resetRestaurantChargesForTesting(): void {
 
 /** Exported for the rupee/paise round trip in reports. */
 export const marginRupees = (paise: number) => toRupees(paise);
+
+/**
+ * Clears a typed customer price when the kitchen's own price CHANGES.
+ *
+ * A backstop, not the main flow. Prices normally change through the approval
+ * queue, where the new price and the customer price are decided together. Two
+ * routes still write a price straight through, so this lives inside
+ * `menuRepository.updateItem` where both are covered by one rule.
+ *
+ * It compares STORED against INCOMING rather than reacting to the field being
+ * present, because MenuItemSchema is `.partial()` -- a rename or a photo swap
+ * carries no price, and a description fix must not cost the platform its markup
+ * on that dish.
+ *
+ * Clearing rather than keeping is the safe direction. A typed price is absolute:
+ * a kitchen going from Rs 200 to Rs 260 against a typed Rs 240 would have the
+ * platform paying out more than it collects on every order. Losing the markup is
+ * recoverable by typing it again; paying more than you charge is not.
+ *
+ * If this starts firing regularly, something is writing prices around the
+ * approval queue, and that is the bug to find rather than this line.
+ */
+export function clearTypedPriceIfPriceChanged(
+  restaurantId: string,
+  itemId: string,
+  storedPrice: number | undefined,
+  incomingPrice: number | undefined
+): boolean {
+  if (incomingPrice === undefined || incomingPrice === null) return false;
+
+  const before = Number(storedPrice);
+  const after = Number(incomingPrice);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return false;
+  if (Math.round(before * 100) === Math.round(after * 100)) return false;
+
+  if (typedPriceFor(restaurantId, itemId) === null) return false;
+
+  const existing = { ...(row(restaurantId)?.itemPrices ?? {}) };
+  delete existing[itemId];
+  setCharges(
+    restaurantId,
+    { itemPrices: existing },
+    'system',
+    `Kitchen price changed from ${before} to ${after}, so the typed customer price was cleared.`
+  );
+  return true;
+}

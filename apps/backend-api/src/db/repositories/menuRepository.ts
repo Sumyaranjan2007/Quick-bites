@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { clearTypedPriceIfPriceChanged } from '../../modules/payments/restaurantCharges.ts';
 import { memoryStore, triggerAutoSave } from '../client.ts';
 import type { RestaurantMenu, MenuItem } from '@quick-bites/shared-types';
 
@@ -67,6 +68,23 @@ export const menuRepository = {
   },
 
   /** Edits an existing dish. Only the supplied fields change. */
+  /**
+   * One dish, as it stands right now.
+   *
+   * Added for the approval path, which has to read a dish's CURRENT price before
+   * overwriting it -- the margin standing on the old price cannot be worked out
+   * afterwards, and there was no way to ask for a single item.
+   */
+  async findItem(restaurantId: string, dishId: string): Promise<MenuItem | null> {
+    const menu = memoryStore.menus.get(restaurantId);
+    if (!menu) return null;
+    for (const category of menu.categories) {
+      const item = category.items.find((i: MenuItem) => i.id === dishId);
+      if (item) return item;
+    }
+    return null;
+  },
+
   async updateItem(
     restaurantId: string,
     dishId: string,
@@ -80,6 +98,21 @@ export const menuRepository = {
     for (const category of menu.categories) {
       const item = category.items.find((i: MenuItem) => i.id === dishId);
       if (!item) continue;
+
+      /*
+       * A changed kitchen price clears any typed customer price for this dish.
+       *
+       * Read BEFORE the assignment, because afterwards there is nothing to
+       * compare against. Compares stored to incoming rather than reacting to the
+       * field being present: these updates are partial, so a rename or a photo
+       * swap carries no price at all and must not cost the platform its markup.
+       *
+       * This is a backstop for the two routes that write a price without going
+       * through the approval queue. The approval path sets the new customer
+       * price AFTER calling this, so the clear-then-set order leaves the right
+       * number; a direct write leaves no stale one.
+       */
+      clearTypedPriceIfPriceChanged(restaurantId, dishId, item.price, (fields as any).price);
 
       Object.assign(item, fields, { id: item.id });
 

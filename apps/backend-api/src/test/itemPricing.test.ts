@@ -40,6 +40,7 @@ import assert from 'node:assert';
 import { seedDatabase } from '../db/seed.ts';
 import { createApp } from '../app.ts';
 import { memoryStore } from '../db/client.ts';
+import { menuRepository } from '../db/repositories/menuRepository.ts';
 import {
   setCharges,
   setItemPrice,
@@ -379,6 +380,172 @@ try {
       `net ${bill.restaurantNetPayout} looks derived from the customer total`
     );
   });
+/* ------------------------------------------------------------------ *
+ *  A PRICE CHANGE AND ITS MARKUP ARE ONE DECISION                      *
+ * ------------------------------------------------------------------ */
+
+/*
+ * A partner cannot reprice a dish on their own -- the app posts a request into
+ * the approval queue. So the kitchen's new price and the customer's price on top
+ * of it are decided together, once, by the person already being asked to approve
+ * the change.
+ *
+ * The failure this prevents: the new price goes live and the typed customer
+ * price is cleared, so the platform's markup on that dish silently becomes
+ * whatever the restaurant percentage happens to be -- or nothing. The dish keeps
+ * selling. Nothing reports an error.
+ *
+ * BULK APPROVAL IS THE DANGEROUS ONE. One tap can approve twelve price changes,
+ * and twelve silent margin losses look exactly like twelve successful
+ * approvals. So the default is applied automatically AND reported.
+ */
+
+async function adminToken() {
+  const res = await api('/auth/login', {
+    method: 'POST',
+    body: { email: 'admin@quickbite.app', password: 'pass123' }
+  });
+  return res.json?.data?.token as string;
+}
+
+async function partnerToken() {
+  const res = await api('/auth/login', {
+    method: 'POST',
+    body: { email: 'partner@quickbite.app', password: 'pass123' }
+  });
+  return res.json?.data?.token as string;
+}
+
+{
+  const admin = await adminToken();
+  const partner = await partnerToken();
+
+  const partnerRestaurant = Array.from(memoryStore.restaurants.values() as any).find(
+    (r: any) => r.ownerId === 'usr_partner_01'
+  ) as any;
+
+  check('There is a partner-owned restaurant to reprice', () => {
+    assert.ok(partnerRestaurant, 'no restaurant belongs to the seeded partner');
+  });
+
+  const rid = partnerRestaurant.id;
+  const theirMenu = memoryStore.menus.get(rid) as any;
+  const theirDish = theirMenu.categories.flatMap((c: any) => c.items)[0];
+
+  // This section owns every number it asserts.
+  theirDish.price = 200;
+  memoryStore.menus.set(rid, theirMenu);
+  setCharges(rid, { foodMarkupPercent: 0, itemPrices: {} }, ADMIN, 'approval section baseline');
+  setItemPrice({
+    restaurantId: rid,
+    itemId: theirDish.id,
+    restaurantPrice: 200,
+    customerPrice: 240,
+    actorUserId: ADMIN
+  });
+
+  check('The dish starts at Rs 200 with a Rs 240 customer price', () => {
+    assert.equal(theirDish.price, 200);
+    assert.equal(typedPriceFor(rid, theirDish.id), 240, 'Rs 40 of margin stands on it');
+  });
+
+  /* ---------------- the partner asks for Rs 260 ---------------- */
+
+  const requested = await api(`/restaurants/${rid}/menu/requests`, {
+    method: 'POST',
+    // Flat, not wrapped: the route destructures kind and dishId and treats the
+    // REST of the body as the payload. Read from the route rather than guessed,
+    // after the first version guessed a `payload` wrapper and got a 400.
+    body: {
+      kind: 'EDIT_ITEM',
+      dishId: theirDish.id,
+      name: theirDish.name,
+      price: 260,
+      isVeg: Boolean(theirDish.isVeg),
+      categoryName: theirMenu.categories[0].name
+    }
+  }, partner);
+
+  const requestId = requested.json?.data?.request?.id;
+  check('A partner can ask to change a price', () => {
+    assert.ok(requestId, `status ${requested.status}: ${JSON.stringify(requested.json).slice(0, 250)}`);
+  });
+
+  check('and asking alone changes NOTHING the customer pays', () => {
+    assert.equal(
+      (memoryStore.menus.get(rid) as any).categories.flatMap((c: any) => c.items)
+        .find((i: any) => i.id === theirDish.id).price,
+      200,
+      'a request wrote straight to the live menu'
+    );
+    assert.equal(typedPriceFor(rid, theirDish.id), 240);
+  });
+
+  /* ---------------- approval, with no price named ---------------- */
+
+  const approved = await api(`/admin/menu-requests/${requestId}/review`, {
+    method: 'POST',
+    body: { action: 'APPROVE' }
+  }, admin);
+
+  check('An administrator approves it', () => {
+    assert.equal(approved.status, 200, JSON.stringify(approved.json).slice(0, 250));
+  });
+
+  check('THE MARGIN IS HELD WITHOUT BEING ASKED FOR', () => {
+    // Rs 40 stood on the old price, so Rs 260 becomes Rs 300 -- not Rs 260 with
+    // the markup lost, and not Rs 240 which is now below what we pay out.
+    assert.equal(typedPriceFor(rid, theirDish.id), 300, 'the Rs 40 margin did not survive approval');
+  });
+
+  check('and the response SAYS it did, rather than doing it silently', () => {
+    const held = approved.json?.data?.markupHeld;
+    assert.ok(held, 'nothing in the response mentions the customer price');
+    assert.equal(held.chosenBy, 'MARGIN_DEFAULT');
+    assert.equal(held.customerPrice, 300);
+    assert.equal(held.marginRupees, 40, 'the margin kept is stated in rupees');
+    assert.equal(held.alternatives.percent, 312, '20% of Rs 260 offered as the other reading');
+  });
+
+  check('The customer never pays less than the kitchen is paid', () => {
+    const typed = typedPriceFor(rid, theirDish.id)!;
+    const live = (memoryStore.menus.get(rid) as any).categories.flatMap((c: any) => c.items)
+      .find((i: any) => i.id === theirDish.id);
+    assert.equal(live.price, 260, 'the approval did not write the new kitchen price');
+    assert.ok(typed >= live.price, `customer ${typed} is below kitchen ${live.price}`);
+  });
+
+  /* ---------------- a direct write, with no approval ---------------- */
+
+  check('A price written around the approval queue CLEARS the stale markup', () => {
+    /*
+     * The backstop. A typed price is absolute, so a kitchen going to Rs 400
+     * against a typed Rs 300 would have the platform paying out more than it
+     * collects on every order. Losing the markup is recoverable by typing it
+     * again; paying more than you charge is not.
+     */
+    assert.equal(typedPriceFor(rid, theirDish.id), 300);
+    menuRepository.updateItem(rid, theirDish.id, { price: 400 } as any);
+    assert.equal(typedPriceFor(rid, theirDish.id), null, 'a Rs 300 customer price survived a Rs 400 cost');
+  });
+
+  check('but a rename does not touch the markup', () => {
+    /*
+     * Updates are partial, so a rename carries no price at all. Reacting to the
+     * field being absent rather than comparing values would have cost the
+     * platform its margin every time somebody fixed a typo.
+     */
+    setItemPrice({ restaurantId: rid, itemId: theirDish.id, restaurantPrice: 400, customerPrice: 460, actorUserId: ADMIN });
+    menuRepository.updateItem(rid, theirDish.id, { description: 'Now with a longer description' } as any);
+    assert.equal(typedPriceFor(rid, theirDish.id), 460, 'editing the description cleared the markup');
+  });
+
+  check('and neither does re-writing the SAME price', () => {
+    menuRepository.updateItem(rid, theirDish.id, { price: 400 } as any);
+    assert.equal(typedPriceFor(rid, theirDish.id), 460, 'an unchanged price was treated as a change');
+  });
+}
+
 } finally {
   server.close();
 }
