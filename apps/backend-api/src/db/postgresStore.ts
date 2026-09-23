@@ -45,6 +45,21 @@ const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
 
+/*
+ * When this process last hydrated itself from Postgres.
+ *
+ * Recorded because a row written by one process is invisible to another until
+ * that one reloads, and with more than one instance running there is no moment
+ * at which they are both current. A submission that reaches the database and
+ * never reaches a screen looks like a storage bug from every angle except this
+ * one, so the timestamp is reported by the payee diagnostic.
+ */
+let lastLoadedFromDatabaseAt: string | null = null;
+
+export function storeLoadedAt(): string | null {
+  return lastLoadedFromDatabaseAt;
+}
+
 /**
  * What was last written for each document, so a save sends only rows that
  * actually changed. Without it, every mutation rewrites the entire store.
@@ -155,6 +170,7 @@ export async function loadStoreFromDatabase(): Promise<boolean> {
    * carrying values this build cannot transition out of.
    */
   normaliseLoadedStore();
+  lastLoadedFromDatabaseAt = new Date().toISOString();
   return true;
 }
 

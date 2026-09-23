@@ -210,6 +210,24 @@ try {
       d.yourAccounts.filedUnderADifferentOwnerId.length === 0);
   check('It reports whether the store is durable',
     typeof d?.theStore?.durable === 'boolean');
+
+  /*
+   * The fields that tell one server from two. The owner sees a badge on the
+   * Bank nav and nothing on the screen behind it, and within one process that
+   * is a contradiction -- the badge counts a subset of what the list returns.
+   * Asserted here as an invariant so the contradiction is impossible to
+   * reproduce in a single process, which is what makes it evidence of more than
+   * one when the owner's own run shows it.
+   */
+  check('It names the process that answered',
+    typeof d?.whoAnswered?.pid === 'number' && !!d?.whoAnswered?.startedAt,
+    JSON.stringify(d?.whoAnswered));
+  check('THE BADGE NEVER EXCEEDS THE LIST IN ONE PROCESS',
+    d?.whatTheAdminWouldSee?.badgeCount <= d?.whatTheAdminWouldSee?.listCount,
+    JSON.stringify(d?.whatTheAdminWouldSee));
+  check('and both counts see the account that was just submitted',
+    d?.whatTheAdminWouldSee?.listCount >= 1,
+    JSON.stringify(d?.whatTheAdminWouldSee));
   /*
    * Adding an account archives the previous one -- replace semantics, decided
    * in addAccount and documented there, because a payout already sent points

@@ -29,12 +29,14 @@ import {
   listFor,
   findById,
   archiveAccount,
-  publicView
+  publicView,
+  allAccounts,
+  awaitingApply
 } from '../modules/payments/payeeAccounts.ts';
 import { isRazorpayXConfigured } from '../modules/payments/razorpayXAdapter.ts';
 import { resolvePayee, parsePreference } from '../modules/payments/payeeIdentity.ts';
 import { memoryStore } from '../db/client.ts';
-import { isDatabaseConfigured } from '../db/postgresStore.ts';
+import { isDatabaseConfigured, storeLoadedAt } from '../db/postgresStore.ts';
 
 export const payeeAccountRouter = Router();
 
@@ -154,6 +156,38 @@ payeeAccountRouter.get('/me/diagnostic', authMiddleware(), async (req, res, next
             // and is invisible.
             wouldAppearInAdminList: !a.archivedAt
           }))
+        },
+        /*
+         * WHICH SERVER ANSWERED, and what it would put on each screen.
+         *
+         * The owner sees a badge on the Bank nav item and an empty list on the
+         * screen behind it. Within one process those two cannot disagree: the
+         * badge is awaitingApply(), which is allAccounts() with a filter, so a
+         * non-zero badge and an empty list are a contradiction.
+         *
+         * Unless two processes answered. The store lives in memory with
+         * Postgres behind it, so a second instance that has not reloaded serves
+         * its own stale copy, and the badge and the list are separate requests
+         * that can land on different instances. That is invisible to every test
+         * on this project, because a test is one process.
+         *
+         * So: run this twice, a few seconds apart. Two different pids is the
+         * answer. The same pid both times kills the idea outright, and the
+         * counts below then say whether this process can see the account at
+         * all.
+         */
+        whoAnswered: {
+          pid: process.pid,
+          startedAt: new Date(Date.now() - Math.round(process.uptime() * 1000)).toISOString(),
+          uptimeSeconds: Math.round(process.uptime()),
+          lastLoadedFromDatabaseAt: storeLoadedAt()
+        },
+        whatTheAdminWouldSee: {
+          // The number on the nav badge.
+          badgeCount: awaitingApply().length,
+          // The number of rows the Bank screen lists. Always >= badgeCount in
+          // an honest process, because the badge counts a subset of this.
+          listCount: allAccounts().length
         },
         theStore: {
           // No detail, only shape. Tells "nothing was ever written" apart from
