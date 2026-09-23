@@ -535,6 +535,18 @@ export function customerDishPrice(
  * free item, and collapsing "no typed price" into "typed as free" would give a
  * dish away.
  */
+/**
+ * Every typed customer price for a restaurant, keyed by dish id.
+ *
+ * Exposed as its own function rather than added to EffectiveCharges, which is
+ * read on every pricing path -- widening that type to carry a map would put it
+ * in front of a lot of code that has no business with it, and make it easy to
+ * hand to a partner-facing response by accident.
+ */
+export function typedPricesFor(restaurantId: string): Record<string, number> {
+  return { ...(row(restaurantId)?.itemPrices ?? {}) };
+}
+
 export function typedPriceFor(restaurantId: string, itemId: string): number | null {
   const stored = row(restaurantId)?.itemPrices?.[itemId];
   if (stored === undefined || stored === null) return null;
@@ -654,7 +666,14 @@ export function marginPreservingPrice(input: {
   itemId: string;
   oldRestaurantPrice: number;
   newRestaurantPrice: number;
-}): { rupee: number; percent: number; keptRupees: number; keptPercent: number } | null {
+}): {
+  rupee: number;
+  percent: number;
+  keptRupees: number;
+  keptPercent: number;
+  /** What holding the rupee margin leaves, as a percentage of the new price. */
+  rupeeKeepsPercent: number;
+} | null {
   const typed = typedPriceFor(input.restaurantId, input.itemId);
   const oldBase = Number(input.oldRestaurantPrice) || 0;
   const newBase = Number(input.newRestaurantPrice) || 0;

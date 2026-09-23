@@ -45,6 +45,7 @@ import {
   setCharges,
   setItemPrice,
   typedPriceFor,
+  typedPricesFor,
   customerDishPrice,
   customerAddonsPrice,
   inflateMenuForCustomer
@@ -614,6 +615,152 @@ async function partnerToken() {
   check('and neither does re-writing the SAME price', () => {
     menuRepository.updateItem(rid, theirDish.id, { price: 400 } as any);
     assert.equal(typedPriceFor(rid, theirDish.id), 460, 'an unchanged price was treated as a change');
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  THE SCREEN'S OWN ROUTES                                             *
+ * ------------------------------------------------------------------ */
+
+{
+  const admin2 = await adminToken();
+  const screenRid = 'rst_bbh_01';
+
+  // Owns its numbers: two dishes at known kitchen prices, no percentage.
+  const sMenu = memoryStore.menus.get(screenRid) as any;
+  const sItems = sMenu.categories.flatMap((c: any) => c.items);
+  const dishA = sItems[0];
+  const dishB = sItems[1];
+  dishA.price = 300;
+  dishB.price = 100;
+  memoryStore.menus.set(screenRid, sMenu);
+  setCharges(screenRid, { foodMarkupPercent: 0, itemPrices: {} }, ADMIN, 'screen route baseline');
+
+  const menuRes = await api(`/admin/rates/restaurants/${screenRid}/menu`, {}, admin2);
+
+  check('The Inflation screen can read a restaurant menu', () => {
+    assert.equal(menuRes.status, 200, JSON.stringify(menuRes.json).slice(0, 250));
+    assert.ok((menuRes.json?.data?.categories || []).length > 0, 'no categories came back');
+  });
+
+  check('Every row carries both prices and the margin between them', () => {
+    const row = menuRes.json.data.categories
+      .flatMap((c: any) => c.items)
+      .find((i: any) => i.id === dishA.id);
+    assert.equal(row.kitchenPrice, 300);
+    assert.equal(row.customerPrice, 300, 'nothing is marked up yet');
+    assert.equal(row.marginRupees, 0);
+    assert.equal(row.source, 'NONE', 'no typed price and no percentage');
+  });
+
+  check('and the packaging figures are on the same screen', () => {
+    // The owner asked for packaging here. No new model -- the two figures the
+    // pricing engine already carries, surfaced where they expect them.
+    const p = menuRes.json.data.packaging;
+    assert.ok(typeof p?.partnerPackagingFee === 'number', JSON.stringify(p));
+    assert.ok(typeof p?.customerPackagingFee === 'number');
+  });
+
+  /* ------------------- saving one dish at a time ------------------- */
+
+  const savedA = await api(`/admin/rates/restaurants/${screenRid}/menu/${dishA.id}`, {
+    method: 'PUT',
+    body: { customerPrice: 360 }
+  }, admin2);
+
+  check('One dish saves on its own', () => {
+    assert.equal(savedA.status, 200, JSON.stringify(savedA.json).slice(0, 250));
+    assert.equal(savedA.json.data.customerPrice, 360);
+    assert.equal(savedA.json.data.marginRupees, 60, 'Rs 360 against a Rs 300 kitchen price');
+  });
+
+  check('and the OTHER dish is untouched by that save', () => {
+    /*
+     * The property that makes this per-item rather than a form submit. A
+     * sixty-dish menu behind one Save button loses the lot on one failed
+     * request, which only happens on a bad connection -- the condition somebody
+     * pricing a menu on a phone is most likely to be in.
+     */
+    assert.equal(typedPriceFor(screenRid, dishB.id), null, 'saving one dish wrote another');
+  });
+
+  const belowCost = await api(`/admin/rates/restaurants/${screenRid}/menu/${dishA.id}`, {
+    method: 'PUT',
+    body: { customerPrice: 250 }
+  }, admin2);
+
+  check('A price below the kitchen price is refused by the route too', () => {
+    assert.ok(belowCost.status >= 400, `status ${belowCost.status}`);
+    const msg = JSON.stringify(belowCost.json);
+    assert.ok(msg.includes('300') && msg.includes('250'), `the refusal named neither price: ${msg}`);
+  });
+
+  check('and the refused save did not change anything', () => {
+    assert.equal(typedPriceFor(screenRid, dishA.id), 360, 'a refused request still wrote');
+  });
+
+  /* ------------------- the header counts ------------------- */
+
+  const afterOne = await api(`/admin/rates/restaurants/${screenRid}/menu`, {}, admin2);
+
+  check('The header counts what is marked up', () => {
+    const s = afterOne.json.data.summary;
+    assert.equal(s.markedUp, 1, 'one dish has a typed price');
+    assert.equal(s.averageMarginRupees, 60);
+    assert.equal(s.orphanedPrices, 0);
+  });
+
+  /*
+   * THE ORPHAN CASE, raised in review.
+   *
+   * Dish ids are stable and never reused, so a typed price cannot land on a
+   * different dish. But a DELETED dish leaves its key behind, and counting the
+   * stored map rather than the live menu would report "2 marked up" on a menu
+   * showing one. Harmless to the money, corrosive to a number somebody is using
+   * to decide whether they have finished pricing.
+   */
+  await api(`/admin/rates/restaurants/${screenRid}/menu/${dishB.id}`, {
+    method: 'PUT',
+    body: { customerPrice: 130 }
+  }, admin2);
+  await menuRepository.removeItem(screenRid, dishB.id);
+  const afterDelete = await api(`/admin/rates/restaurants/${screenRid}/menu`, {}, admin2);
+
+  check('A deleted dish does not inflate the marked-up count', () => {
+    const s = afterDelete.json.data.summary;
+    assert.equal(s.markedUp, 1, 'the count included a dish that no longer exists');
+    assert.equal(s.orphanedPrices, 1, 'the stale key is reported rather than hidden');
+  });
+
+  check('and the stale key is reported rather than silently cleaned', () => {
+    /*
+     * Reported, not tidied. A number that quietly fixes itself is one nobody
+     * learns from, and if this grows it means dishes are being deleted after
+     * being priced -- which is worth knowing.
+     */
+    assert.equal(Object.keys(typedPricesFor(screenRid)).length, 2, 'the key was silently removed');
+  });
+
+  /* ------------------- clearing through the route ------------------- */
+
+  const cleared = await api(`/admin/rates/restaurants/${screenRid}/menu/${dishA.id}`, {
+    method: 'PUT',
+    body: { customerPrice: null }
+  }, admin2);
+
+  check('A price can be cleared through the route', () => {
+    assert.equal(cleared.status, 200, JSON.stringify(cleared.json).slice(0, 200));
+    assert.equal(cleared.json.data.customerPrice, null);
+    assert.equal(typedPriceFor(screenRid, dishA.id), null);
+  });
+
+  const missing = await api(`/admin/rates/restaurants/${screenRid}/menu/dish_does_not_exist`, {
+    method: 'PUT',
+    body: { customerPrice: 100 }
+  }, admin2);
+
+  check('Pricing a dish that is not on the menu is refused', () => {
+    assert.equal(missing.status, 404, `status ${missing.status}`);
   });
 }
 

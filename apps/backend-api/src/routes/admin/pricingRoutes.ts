@@ -28,6 +28,13 @@ import {
   savePlans,
   goldMembersWithoutPlan
 } from '../../modules/membership/membershipService.ts';
+import { menuRepository } from '../../db/repositories/menuRepository.ts';
+import {
+  typedPriceFor,
+  typedPricesFor,
+  customerDishPrice,
+  setItemPrice
+} from '../../modules/payments/restaurantCharges.ts';
 import { incentiveSettings, setIncentiveSettings } from '../../modules/payments/incentiveConfig.ts';
 import {
   effectiveCharges,
@@ -652,6 +659,201 @@ pricingRoutes.get(
           'What a customer is promised is written from these numbers, so the wording can never say more than the plan does.'
       }
     });
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ *  ONE RESTAURANT'S MENU, WITH WHAT THE CUSTOMER PAYS FOR EACH DISH    *
+ * ------------------------------------------------------------------ */
+
+/**
+ * GET /api/admin/rates/restaurants/:restaurantId/menu
+ *
+ * Every dish, what the kitchen charges, what the customer pays, and the margin
+ * between them.
+ *
+ * The margin is COMPUTED from the two prices rather than stored. A stored margin
+ * is a third number that has to be kept in step with two others, and the moment
+ * it is not, a screen reports a profit that does not exist.
+ *
+ * `source` says WHY each customer price is what it is -- typed for this dish, the
+ * restaurant's percentage, or nothing at all. Without it a dish at the same
+ * price for two different reasons looks identical, and an administrator cannot
+ * tell which ones they have actually decided about.
+ */
+pricingRoutes.get(
+  '/rates/restaurants/:restaurantId/menu',
+  requirePermission('finance.config.edit', 'finance.reports.view'),
+  async (req, res, next) => {
+    try {
+      const restaurant = await restaurantRepository.findById(req.params.restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+
+      const charges = effectiveCharges(restaurant.id);
+      const menu = await menuRepository.findByRestaurantId(restaurant.id);
+
+      const categories = (menu?.categories || []).map((category: any) => ({
+        id: category.id,
+        name: category.name,
+        items: (category.items || []).map((item: any) => {
+          const kitchenPrice = Number(item.price) || 0;
+          const typed = typedPriceFor(restaurant.id, item.id);
+          const customerPrice = customerDishPrice(restaurant.id, item.id, kitchenPrice);
+          const marginRupees = Math.round((customerPrice - kitchenPrice) * 100) / 100;
+
+          return {
+            id: item.id,
+            name: item.name,
+            isAvailable: item.isAvailable !== false,
+            kitchenPrice,
+            customerPrice,
+            typedPrice: typed,
+            source: typed !== null ? 'TYPED' : charges.foodMarkupPercent > 0 ? 'PERCENTAGE' : 'NONE',
+            marginRupees,
+            marginPercent:
+              kitchenPrice > 0 ? Math.round((marginRupees / kitchenPrice) * 10000) / 100 : 0
+          };
+        })
+      }));
+
+      const allItems = categories.flatMap((c: any) => c.items);
+
+      /*
+       * THE MARKED-UP COUNT IS FILTERED AGAINST THE LIVE MENU, NOT TAKEN FROM
+       * THE STORED MAP.
+       *
+       * Dish ids are stable and never reused, so a typed price cannot land on a
+       * different dish -- but a DELETED dish leaves its key behind. Counting the
+       * keys would report prices for dishes that no longer exist, so the header
+       * would say "12 items marked up" on a menu showing 9. Harmless to the
+       * money; corrosive to a number somebody is using to decide whether they
+       * have finished.
+       */
+      const storedKeys = Object.keys(typedPricesFor(restaurant.id));
+      const liveIds = new Set(allItems.map((i: any) => i.id));
+      const orphanedPrices = storedKeys.filter(id => !liveIds.has(id));
+
+      const markedUp = allItems.filter((i: any) => i.source === 'TYPED');
+      const withMargin = allItems.filter((i: any) => i.marginRupees > 0);
+
+      res.json({
+        success: true,
+        data: {
+          restaurant: { id: restaurant.id, name: restaurant.name, city: restaurant.city },
+          summary: {
+            dishes: allItems.length,
+            /** Dishes with a price typed for them, counted from the MENU. */
+            markedUp: markedUp.length,
+            /** Anything earning us something, by either route. */
+            earning: withMargin.length,
+            averageMarginRupees: withMargin.length
+              ? Math.round(
+                  (withMargin.reduce((t: number, i: any) => t + i.marginRupees, 0) / withMargin.length) * 100
+                ) / 100
+              : 0,
+            foodMarkupPercent: charges.foodMarkupPercent,
+            /*
+             * Stale keys for dishes that have been deleted. Reported rather than
+             * cleaned up silently: a number that quietly tidies itself is one
+             * nobody learns from, and if this grows it means dishes are being
+             * deleted after being priced.
+             */
+            orphanedPrices: orphanedPrices.length
+          },
+          /*
+           * Packaging, on this screen because the owner asked for it here --
+           * "we can improve packaging money too". No new model: these are the
+           * same two figures the pricing engine already carries.
+           */
+          packaging: {
+            partnerPackagingFee: charges.partnerPackagingFee,
+            customerPackagingFee: charges.customerPackagingFee,
+            packagingMarkup: charges.packagingMarkup
+          },
+          categories
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const ItemPriceSchema = z.object({
+  /**
+   * Nullable rather than optional. Clearing a price is a real instruction, and
+   * "charge the percentage instead" must be expressible -- an optional field
+   * would make an omitted value and a deliberate clear the same request.
+   */
+  customerPrice: z.number().min(0).max(1000000).nullable(),
+  note: z.string().trim().max(300).optional()
+});
+
+/**
+ * PUT /api/admin/rates/restaurants/:restaurantId/menu/:itemId
+ *
+ * One dish, saved on its own.
+ *
+ * DELIBERATELY PER ITEM. A sixty-dish menu behind one Save button loses the lot
+ * on one failed request, and that only shows up on a bad connection -- which is
+ * the condition somebody pricing a menu on a phone is most likely to be in.
+ * Each row saves itself and reports its own result, so a failure costs one dish
+ * rather than an afternoon.
+ *
+ * The kitchen's price is read from the MENU, never taken from the request. A
+ * client that can name the price it is being compared against can defeat the
+ * below-cost refusal by understating it.
+ */
+pricingRoutes.put(
+  '/rates/restaurants/:restaurantId/menu/:itemId',
+  requirePermission('finance.config.edit'),
+  validate({ body: ItemPriceSchema }),
+  async (req, res, next) => {
+    try {
+      const { restaurantId, itemId } = req.params;
+      const item = await menuRepository.findItem(restaurantId, itemId);
+      if (!item) throw new AppError('That dish is not on this menu.', 404, 'DISH_NOT_FOUND');
+
+      const result = setItemPrice({
+        restaurantId,
+        itemId,
+        restaurantPrice: Number(item.price) || 0,
+        customerPrice: req.body.customerPrice,
+        actorUserId: req.user!.id,
+        note: req.body.note
+      });
+
+      recordAudit(req, {
+        action: req.body.customerPrice === null ? 'ITEM_PRICE_CLEARED' : 'ITEM_PRICE_SET',
+        entityType: 'RESTAURANT_CHARGES',
+        entityId: restaurantId,
+        summary:
+          req.body.customerPrice === null
+            ? `Cleared the customer price on ${item.name}; it follows the restaurant percentage again.`
+            : `${item.name}: kitchen Rs ${item.price}, customer Rs ${result.customerPrice}, we keep Rs ${
+                Math.round(result.marginPaise) / 100
+              }.`,
+        after: { itemId, kitchenPrice: item.price, customerPrice: result.customerPrice }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          itemId,
+          kitchenPrice: Number(item.price) || 0,
+          customerPrice: result.customerPrice,
+          marginRupees: Math.round(result.marginPaise) / 100
+        },
+        message:
+          result.customerPrice === null
+            ? `${item.name} follows the restaurant percentage again.`
+            : `${item.name}: the customer pays Rs ${result.customerPrice} and we keep Rs ${
+                Math.round(result.marginPaise) / 100
+              }.`
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 
