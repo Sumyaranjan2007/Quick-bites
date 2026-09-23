@@ -208,19 +208,18 @@ would have given Pay and Settlements two sources for one number — Task 3.1
 again, on the rider side, created deliberately on the day it was argued against.
 One source, so a wrong figure is wrong in exactly one place.
 
-**Expect this screen to show zero, and do not "fix" it.** §4.4a means the
-ordinary cash delivery posts nothing to the ledger, so `RIDER_PAYABLE` and
-`PARTNER_PAYABLE` are both empty for those orders. Pay and Settlements will
-therefore agree on zero owed — consistently wrong rather than inconsistently
-wrong, which is the better failure but still a failure.
-
-The temptation when a new screen reads zero is to switch it to the source that
-shows a number. That source is the order scan, and taking it would reintroduce
-the divergence this decision exists to prevent. **The zero is a symptom of
-§4.4a, not of the screen.** It clears when the delivery paths are unified, and
-that is the check: after §4.4a, a cash order delivered through the rider's OTP
-screen must appear in both Pay and Settlements without anybody pressing the
-backfill button.
+> **RESOLVED, `2bebdc4`.** This section carried a warning that Settlements would
+> read zero, because §4.4a meant an ordinary cash delivery posted nothing to the
+> ledger — and that the temptation would be to "fix" it by switching to the
+> order-scanning source, reintroducing the divergence this decision exists to
+> prevent. §4.4a is fixed, so the warning no longer applies. The rider's own
+> handover now posts `RIDER_PAYABLE` and `PARTNER_PAYABLE` at the door.
+>
+> The check that was going to prove it is the one that did: a cash order
+> delivered through the rider's OTP screen appears in both Pay and Settlements
+> **without anybody pressing backfill**. `cashLocations.test.ts` asserts it, and
+> the explicit `backfillEarnings()` call that used to stand in for a human is
+> gone from that suite. Its absence is the proof.
 
 Each rider row: name and phone, trips not yet settled, amount owed, cash still in
 hand, the connected bank account (§2.4), and when they were last paid. A rider
@@ -451,6 +450,38 @@ still be enterable only from `OUT_FOR_DELIVERY`.
 Do not solve this by calling `backfillEarnings` at boot. That converts "revenue
 is missing" into "revenue appears whenever the process restarts", which is a
 worse bug because it looks fixed.
+
+#### FIXED, `2bebdc4`
+
+`completeDelivery()` in `modules/orders/deliveryCompletion.ts`, called from both
+paths. One function named for when to call it, rather than the same two lines
+patched into two places — there are two call sites today and whoever adds a
+third would not know a delivery has two consequences.
+
+**The write that sets DELIVERED did not move.** It stays inside
+`verifyDeliveryOtp` behind the guard that stops an `ORDER_PLACED` order becoming
+DELIVERED on a correct code. Unifying by moving it would have traded a money bug
+for a fraud one, which was the trap this section named.
+
+**A new risk was created and closed in the same commit.** Before the fix,
+running both paths on one order was harmless because each did half the job. Now
+both do both, so a double-run would credit the cash twice — earnings deduplicate
+on the order id, but a cash credit is a **delta** and does not. Hence
+`codCashRecordedAt` on the order.
+
+Two details in that guard worth keeping:
+
+- **The marker is written to the STORED order, not the caller's copy.** A caller
+  holding a detached object would set it on something nobody reads back, and the
+  next call would credit again — the exact failure the marker exists to prevent,
+  arriving through the mechanism meant to prevent it.
+- **The cash is credited BEFORE the marker is written**, and that order is the
+  right way round. A crash between the two is a narrow window either way, but
+  the two outcomes are not equal: marker-first then a failed credit leaves cash
+  **uncounted**, which is invisible and is the original bug; credit-first then a
+  failed marker leaves cash **double-counted**, which is visible on the rider's
+  own screen and correctable by an administrator. Prefer the failure somebody
+  can see.
 
 #### The checks that fail
 
