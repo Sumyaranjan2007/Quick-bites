@@ -561,11 +561,33 @@ export function typedPriceFor(restaurantId: string, itemId: string): number | nu
  * customer paying it.
  *
  * So a typed price is converted to the RATIO it implies -- Rs 200 typed at
- * Rs 240 is 1.2 -- and the ratio is applied to the extras. That gives Rs 60,
- * which is exactly what the percentage model produces, so a dish with no typed
- * price and a dish typed at precisely its percentage behave identically. This
- * feature changes what an administrator can EXPRESS, not what the arithmetic
- * means.
+ * Rs 240 is 1.2 -- and the ratio is applied to the extras, giving Rs 60. That is
+ * what the percentage model produces for the same dish, so the feature changes
+ * what an administrator can EXPRESS rather than what the arithmetic means.
+ *
+ * -------------------------------------------------------------------------
+ * WHERE THE RATIO AND THE PERCENTAGE DISAGREE, AND WHY THAT IS CORRECT
+ * -------------------------------------------------------------------------
+ * They are NOT identical for every number, and the first version of this comment
+ * claimed they were. A typed price is a whole-rupee figure, so the ratio it
+ * implies is the markup that was actually typed rather than the one intended:
+ * a Rs 149 dish at 15% types as Rs 171, which is a ratio of 1.1477, not 1.15 --
+ * so a Rs 37 extra is Rs 42 by the ratio and Rs 43 by the percentage. On a cheap
+ * dish the gap is larger: Rs 10 typed to Rs 11 is a 10% markup whatever
+ * percentage produced it.
+ *
+ * That divergence is the RIGHT behaviour, not a rounding bug to paper over. The
+ * typed price is the more specific instruction, and an administrator who typed
+ * Rs 11 against a Rs 10 dish has marked it up a tenth; applying a tenth to its
+ * extras follows what they did. Following the restaurant percentage instead
+ * would mean the extras obeying a number the administrator had just overridden.
+ *
+ * What WAS a defect is having two rounding conventions for one concept. The
+ * percentage path returns whole rupees and the ratio path returned paise, so the
+ * same dish produced Rs 14 one way and Rs 14.18 the other. Both now round to
+ * whole rupees. A typed price itself is never rounded -- a human typed it, and
+ * rounding Rs 239.50 up to Rs 240 would overrule them. The rule is: typed values
+ * are obeyed, derived values are rounded.
  */
 export function customerAddonsPrice(
   restaurantId: string,
@@ -587,7 +609,10 @@ export function customerAddonsPrice(
    */
   if (typed !== null && base > 0) {
     const ratio = typed / base;
-    return Math.round(extras * ratio * 100) / 100;
+    // Whole rupees, the same convention as the percentage path below. Two
+    // conventions for one concept is how the same dish came back as Rs 14 from
+    // one path and Rs 14.18 from the other.
+    return Math.round(extras * ratio);
   }
 
   const markup = Math.max(0, Number(effectiveCharges(restaurantId).foodMarkupPercent) || 0);

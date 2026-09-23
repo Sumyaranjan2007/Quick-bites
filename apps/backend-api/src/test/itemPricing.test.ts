@@ -110,17 +110,63 @@ check('AN ADD-ON IS SCALED BY THE RATIO, NOT CHARGED THE DISH PRICE', () => {
   assert.equal(addons, 65, 'Rs 50 at the 1.3 ratio Rs 200 -> Rs 260 implies');
 });
 
-check('A dish typed at exactly its percentage behaves like the percentage', () => {
-  // The continuity argument, asserted rather than claimed: this is what makes
-  // the ratio the right shape instead of merely a workable one.
+check('A dish typed at its percentage matches the percentage where the numbers permit', () => {
   setItemPrice({ restaurantId, itemId: dish.id, restaurantPrice: 200, customerPrice: 240, actorUserId: ADMIN });
   const typedAddons = customerAddonsPrice(restaurantId, dish.id, 200, 50);
 
   setItemPrice({ restaurantId, itemId: dish.id, restaurantPrice: 200, customerPrice: null, actorUserId: ADMIN });
   const percentAddons = customerAddonsPrice(restaurantId, dish.id, 200, 50);
 
-  assert.equal(typedAddons, percentAddons, 'typed-at-20% and 20% must produce the same extras');
+  assert.equal(typedAddons, percentAddons, 'Rs 200 at 20% is one of the cases that coincide exactly');
   assert.equal(typedAddons, 60);
+});
+
+/*
+ * THE AWKWARD NUMBERS, chosen because the fixture above cannot reach this case.
+ *
+ * Rs 200 at 20% divides cleanly, so typed-at-the-percentage and the percentage
+ * agree exactly -- and a suite built only on that number would assert continuity
+ * while never testing it. That is the "fixture that cannot reach the case" shape.
+ *
+ * Rs 149 at 15% types as Rs 171, a ratio of 1.1477 rather than 1.15, so a Rs 37
+ * extra is Rs 42 by the ratio and Rs 43 by the percentage. They DIFFER, and that
+ * is correct: the typed price is the more specific instruction, and an
+ * administrator who typed Rs 171 marked the dish up by 14.77%. The extras
+ * following what was typed rather than a percentage that was overridden is the
+ * intended behaviour.
+ *
+ * What is asserted instead is the thing that must hold: one rounding convention.
+ */
+check('Both paths return whole rupees, whatever the numbers', () => {
+  const AWKWARD = 'dish_awkward_for_rounding';
+  setCharges(restaurantId, { foodMarkupPercent: 15, itemPrices: {} }, ADMIN, 'awkward rounding case');
+
+  const byPercentage = customerAddonsPrice(restaurantId, AWKWARD, 149, 37);
+  assert.ok(Number.isInteger(byPercentage), `percentage path gave ${byPercentage}`);
+  assert.equal(byPercentage, 43, '37 at 15% rounds to a whole rupee');
+
+  setItemPrice({ restaurantId, itemId: AWKWARD, restaurantPrice: 149, customerPrice: 171, actorUserId: ADMIN });
+  const byRatio = customerAddonsPrice(restaurantId, AWKWARD, 149, 37);
+
+  // The assertion that failed before the rounding was unified: this returned
+  // 42.46, so one dish produced a paise figure and the other whole rupees.
+  assert.ok(Number.isInteger(byRatio), `ratio path gave ${byRatio}, which is not a whole rupee`);
+  assert.equal(byRatio, 42, 'Rs 37 at the 1.1477 ratio Rs 149 -> Rs 171 actually implies');
+});
+
+check('The extras follow the markup that was TYPED, not the one configured', () => {
+  /*
+   * The property that makes the ratio right rather than merely workable, stated
+   * as something checkable. A Rs 10 dish typed at Rs 11 has been marked up a
+   * tenth whatever the restaurant percentage says, and its extras follow that.
+   */
+  const CHEAP = 'dish_cheap_for_ratio';
+  setCharges(restaurantId, { foodMarkupPercent: 5, itemPrices: {} }, ADMIN, 'cheap dish ratio case');
+  setItemPrice({ restaurantId, itemId: CHEAP, restaurantPrice: 10, customerPrice: 11, actorUserId: ADMIN });
+
+  const extras = customerAddonsPrice(restaurantId, CHEAP, 10, 100);
+  assert.equal(extras, 110, 'Rs 100 of extras at the tenth the typed price implies');
+  assert.notEqual(extras, 105, 'the extras followed the 5% the typed price overrode');
 });
 
 check('A free dish with a typed price cannot produce NaN', () => {
@@ -128,6 +174,8 @@ check('A free dish with a typed price cannot produce NaN', () => {
    * The guarded division. A zero-priced dish gives Infinity or NaN, and NaN
    * travels through a bill in silence until it reaches a screen as a blank.
    */
+  // Owns its own percentage, because the checks above it change theirs.
+  setCharges(restaurantId, { foodMarkupPercent: 20 }, ADMIN, 'NaN guard case');
   setItemPrice({ restaurantId, itemId: dish.id, restaurantPrice: 0, customerPrice: 30, actorUserId: ADMIN });
   const addons = customerAddonsPrice(restaurantId, dish.id, 0, 50);
   assert.ok(Number.isFinite(addons), `add-ons came back as ${addons}`);
@@ -147,6 +195,7 @@ check('A customer price below the kitchen price is refused, naming both', () => 
 });
 
 check('Clearing a typed price falls back to the percentage', () => {
+  setCharges(restaurantId, { foodMarkupPercent: 20 }, ADMIN, 'clearing case');
   setItemPrice({ restaurantId, itemId: dish.id, restaurantPrice: 200, customerPrice: 300, actorUserId: ADMIN });
   assert.equal(customerDishPrice(restaurantId, dish.id, 200), 300);
 
