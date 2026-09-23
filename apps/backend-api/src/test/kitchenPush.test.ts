@@ -53,14 +53,24 @@ function check(label: string, condition: boolean, detail = '') {
 }
 
 async function api(path: string, init: any = {}, token?: string) {
+  /*
+   * A caller-side deadline, because one check here deliberately hangs the push
+   * transport. Without it, a regression that makes delivery block order
+   * placement does not FAIL this suite -- it stops it, with no message and no
+   * failing line, and whoever is looking has to work out why the run died.
+   * A test that hangs is worse than one that fails.
+   */
   const res = await fetch(`${API}${path}`, {
     method: init.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
+    signal: AbortSignal.timeout(init.timeoutMs ?? 15000),
     ...(init.body ? { body: JSON.stringify(init.body) } : {})
-  });
+  }).catch((err: any) => ({ status: 0, __error: err?.name || String(err) }) as any);
+
+  if (!('json' in res)) return { status: 0, json: { error: (res as any).__error } };
   return { status: res.status, json: await res.json().catch(() => ({})) };
 }
 
@@ -223,6 +233,53 @@ try {
     `sent to '${cancelToKitchen?.userId}', owner is '${owner?.ownerId}'`);
 
   // ----------------------------------------------------------------
+  console.log('\n-- A push that never answers must not hold up an order');
+
+  /*
+   * fcmTransport makes two bare fetch() calls to Google with no timeout, and
+   * Node's undici defaults to five minutes before it gives up on a connection
+   * that blackholes rather than refuses. Placing an order now dispatches two
+   * pushes instead of one, so if delivery were awaited here, a slow Google
+   * would leave a customer on a spinner for an order that HAS been placed --
+   * and the obvious thing they do next is press it again.
+   *
+   * The file already carries that rule twelve lines above, explaining why
+   * payment initiation was moved out of order placement. It applies to Google
+   * exactly as it applied to Razorpay.
+   *
+   * So this asserts WHEN, not whether. "The push was sent" passes with an
+   * unbounded timeout, because it does eventually get sent. Delivery is
+   * replaced with a promise that never settles, which is what a blackholed
+   * connection actually looks like -- not an error, silence.
+   */
+  const dispatcher = fcmDispatcher as any;
+  const realDeliver = dispatcher.deliver;
+  dispatcher.deliver = () => new Promise(() => {});
+
+  try {
+    const startedAt = Date.now();
+    const hung = await api('/orders', {
+      method: 'POST',
+      body: {
+        restaurantId: restaurant.id,
+        deliveryAddressId: address.id,
+        paymentMethod: 'CASH_ON_DELIVERY',
+        idempotencyKey: `push-hang-${Date.now()}`,
+        items: [{ dishId: dish.id, quantity: 1 }]
+      },
+      timeoutMs: 4000
+    }, customer.token);
+    const elapsed = Date.now() - startedAt;
+
+    check('An order is still placed while push delivery hangs', !!hung.json?.data?.order?.id,
+      `status ${hung.status}: ${JSON.stringify(hung.json).slice(0, 200)}`);
+    check('AND THE CUSTOMER IS NOT LEFT WAITING ON IT', elapsed < 2000,
+      `placing the order took ${elapsed}ms with delivery hung`);
+  } finally {
+    dispatcher.deliver = realDeliver;
+  }
+
+  // ----------------------------------------------------------------
   console.log('\n-- The in-app alarm is a separate channel and must not have moved');
 
   /*
@@ -245,4 +302,18 @@ try {
 }
 
 console.log(`\n${failed === 0 ? 'ALL CHECKS PASSED' : `${failed} CHECK(S) FAILED`}\n`);
-process.exit(failed === 0 ? 0 : 1);
+/*
+ * The exit is deferred by a tick, as the other suites here do.
+ *
+ * One check above leaves push delivery hung on purpose, so this process reaches
+ * the end holding a promise that will never settle. Calling process.exit()
+ * straight into that raced libuv's handle teardown on Windows and aborted with
+ * "!(handle->flags & UV_HANDLE_CLOSING)" -- exit code 127, AFTER printing ALL
+ * CHECKS PASSED.
+ *
+ * Which is the worst possible shape: the runner reads the exit code, so a suite
+ * whose every check passed is reported as a failure, and the log says the
+ * opposite of the result. Found by checking the exit code rather than the
+ * output.
+ */
+setTimeout(() => process.exit(failed === 0 ? 0 : 1), 100);

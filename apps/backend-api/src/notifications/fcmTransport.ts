@@ -2,6 +2,24 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/env.ts';
 
 /**
+ * How long we wait on Google before giving up.
+ *
+ * Both calls below were bare `fetch()`. Node's fetch is undici, whose header
+ * timeout defaults to five minutes, and a connection that BLACKHOLES rather
+ * than refuses does not error -- it goes quiet. A try/catch does not help with
+ * silence; it catches rejections, and there is no rejection to catch.
+ *
+ * Delivery is not awaited by the caller, so a hang does not hold up an order --
+ * there is a check in kitchenPush.test.ts that hangs the transport deliberately
+ * and fails if placing an order ever starts waiting on it. But an un-timed
+ * request still holds a socket and its buffers for those five minutes, once per
+ * device token, and every order dispatches at least two. That is a resource
+ * leak with a slow outage as its trigger, which is exactly when the platform
+ * can least afford one.
+ */
+const PUSH_TIMEOUT_MS = 5000;
+
+/**
  * Actually delivering a notification to a phone.
  *
  * Everything above this file already existed: nine call sites, a dispatcher, a
@@ -122,6 +140,7 @@ async function accessToken(): Promise<string | null> {
 
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
+      signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -197,6 +216,7 @@ export async function sendToTokens(tokens: string[], message: PushMessage): Prom
   const results = await Promise.allSettled(
     tokens.map(async token => {
       const res = await fetch(endpoint, {
+        signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
         method: 'POST',
         headers: { Authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
