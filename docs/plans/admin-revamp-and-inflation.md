@@ -655,13 +655,42 @@ it is an unpaid payday.
 
 ## 8. Partner app
 
-**Task 8.1 — new-order push. The real one.** Write `notifyRestaurantNewOrder` on
-`fcmDispatcher` and call it where the order is created (`orderService.ts:561`),
-targeting the restaurant's **owner user id** — not `restaurantId`, because
+**Task 8.1 — new-order push. The real one. DONE, `23ceaa0`.**
+`notifyRestaurantNewOrder` / `OrderCancelled` / `RiderArrived` / `RiderWaiting`,
+wired at the three placement sites and the cancel through one helper, targeting
+the restaurant's **owner user id** — not `restaurantId`, because
 `deviceTokenRepository` keys on `userId`.
 
-Then the rest of what a kitchen needs to be told: cancelled by the customer,
-rider arrived, rider waiting. Each one targets the owner user id.
+**A second defect sat underneath this one.** Three spellings of one contract:
+the server sent `new_orders`, the rider app creates `new-orders`
+(`delivery-mobile/src/lib/orderAlert.ts:20`) and the partner app creates
+`kitchen-orders` (`restaurant-mobile/src/lib/orderAlert.ts:39`). The server
+matched neither. On Android 8+ a message naming a channel the app never created
+is **dropped**, so the MAX-importance channel carrying `new_order.wav`, built
+specifically to wake a kitchen, was addressed to a channel that has never
+existed on any phone. The rider's no-show warning was going nowhere for the same
+reason.
+
+The channel was also chosen from `data.type`, which cannot be right in
+principle: a channel belongs to the **recipient's** app, and a customer's
+`ORDER_PLACED` and a kitchen's new order are the same moment in two different
+apps. Each method now declares its own channel.
+
+**This reaches the owner without a new APK, and that is verified rather than
+assumed.** The shipped artifacts were unzipped and their bundles read:
+`QuickBites-Partner.apk` contains `kitchen-orders`, `QuickBites-Rider.apk`
+contains `new-orders`. Both already create their channel after sign-in and
+already register a token, and live `/health` reports
+`pushNotifications: configured`. So the fix is server-side only and starts
+working on the next Railway deploy, on phones already installed. It is the first
+thing on this list that reaches the owner without waiting for a build.
+
+**No money in a kitchen push.** The only total on an order is the customer's,
+which includes our markup; printing it to a lock screen makes the markup
+derivable by subtracting their own menu prices. Item count only. This is §6.4.2
+arriving at step 2 instead of step 8, and it is correct — a rule about what
+partners can derive is cheaper to hold from the first push than to retrofit
+after.
 
 **Task 8.2 — do not touch the in-app alarm.** The owner has said twice: *"dont
 break the sound when the portals receive ordars"*. The sound is the socket path
@@ -750,6 +779,18 @@ by whoever wrote the code:
 - **A stale artifact.** Metro's transform cache survives `expo prebuild --clean`,
   and an APK was built containing a current `App.tsx` beside a stale screen from
   the same commit. `scripts/build-apks.sh` now clears it. Do not remove that.
+- **An assertion skipped by its own safety guard.** Found by Session A on 23 Sep
+  in a check it had just written:
+
+  ```
+  check('addressed to the owner too', !cancelToKitchen || cancelToKitchen.userId === owner?.ownerId)
+  ```
+
+  It passed on the first run while the cancellation was returning 404 and no
+  notification existed at all. `!x ||` makes the assertion true **precisely
+  when the thing it exists to detect is happening**. The idiom reads as
+  defensive, which is why it survives review. Assert the value is present, then
+  assert what it equals — two statements, not one.
 
 The check that survives all six is one where the value **moves**. For this plan
 specifically:
