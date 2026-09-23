@@ -588,6 +588,55 @@ async function run() {
     assert.ok(first.alerts.length > 0, 'nothing was outstanding, so this proves nothing');
   });
 
+  /* ------------------------------------------------------------------ *
+   *  WHEN PARTNERS ARE TOLD THEY ARE PAID                              *
+   * ------------------------------------------------------------------ *
+   *
+   * This copy is a PROMISE, not a label. It said "payments run daily" in
+   * three separate places while the cadence was being moved to weekly, and a
+   * policy describing a different system from the one running is the document
+   * a partner quotes back at you in a dispute.
+   */
+
+  const cadenceSentences = () =>
+    paymentPolicies()
+      .flatMap(policy => (policy.sections || []).map(section => section.body))
+      .join('  ||  ');
+
+  await check('Every promise about payday follows the configured cadence', async () => {
+    createVersion({ payoutCadenceDays: 7 }, { userId: 'usr_admin_policy' }, 'Weekly');
+    const text = cadenceSentences();
+
+    assert.ok(/payments run weekly/i.test(text), 'the partner policy still promises something else');
+    assert.ok(/paid on the weekly run/i.test(text), 'the rider policy still promises something else');
+    assert.ok(
+      !/run daily|daily run/i.test(text),
+      'a promise of daily payment survived the change to weekly'
+    );
+  });
+
+  await check('and it is derived, not just reworded', async () => {
+    /*
+     * The half that proves the sentence is generated. Asserting only that it
+     * says "weekly" passes just as well against the word being hardcoded — and
+     * the next cadence change would silently reintroduce the defect this
+     * replaced.
+     */
+    createVersion({ payoutCadenceDays: 1 }, { userId: 'usr_admin_policy' }, 'Back to daily');
+    const daily = cadenceSentences();
+    assert.ok(/payments run daily/i.test(daily), 'the cadence is hardcoded rather than read');
+    assert.ok(!/run weekly/i.test(daily), 'both cadences appear at once');
+
+    createVersion({ payoutCadenceDays: 14 }, { userId: 'usr_admin_policy' }, 'Fortnightly');
+    assert.ok(
+      /every fortnight/i.test(cadenceSentences()),
+      'an unusual cadence falls back to wording nobody chose'
+    );
+
+    // Left where the owner has it.
+    createVersion({ payoutCadenceDays: 7 }, { userId: 'usr_admin_policy' }, 'Weekly');
+  });
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
   if (failed > 0) process.exit(1);
 }

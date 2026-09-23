@@ -91,6 +91,19 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'codCashWarnPercent', label: 'Cash warning at', help: 'Percentage of the ceiling at which the rider is told to deposit.', unit: 'PERCENT', min: 1, max: 100, affectsCustomerBill: false },
   { key: 'partnerHoldDays', label: 'Partner hold period', help: 'Days after delivery before a restaurant’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },
   { key: 'riderHoldDays', label: 'Rider hold period', help: 'Days after delivery before a rider’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },
+  {
+    key: 'payoutCadenceDays',
+    label: 'How often payday runs',
+    // The hold period is how long ONE order's money waits. This is how often a
+    // run happens at all. A partner is told both, and they are different
+    // promises — "released after a day" and "paid every seven" are compatible
+    // and confusing to state as one number.
+    help: 'Days between payout runs. 7 is weekly. Cash a rider collects does not follow this — that comes in whenever they near their limit.',
+    unit: 'DAYS',
+    min: 1,
+    max: 30,
+    affectsCustomerBill: false
+  },
   { key: 'minPayoutAmount', label: 'Minimum payout', help: 'Below this, a payout carries to the next run instead of being sent.', unit: 'RUPEES', min: 0, max: 10000, affectsCustomerBill: false },
   { key: 'makerCheckerThreshold', label: 'Second approver above', help: 'Payouts above this need a second administrator to approve them.', unit: 'RUPEES', min: 0, max: 1000000, affectsCustomerBill: false },
   { key: 'dailyPayoutCap', label: 'Daily payout cap', help: 'Everything the platform may pay out in any 24 hours.', unit: 'RUPEES', min: 0, max: 100000000, affectsCustomerBill: false },

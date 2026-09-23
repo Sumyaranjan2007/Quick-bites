@@ -1378,6 +1378,18 @@ export interface PricingRates {
   /** Days after delivery before a restaurant's money becomes payable. */
   partnerHoldDays: number;
   riderHoldDays: number;
+  /**
+   * How often payouts are actually run, in days. 7 means a weekly payday.
+   *
+   * Distinct from the hold period, which is how long one order's money waits
+   * before it may be paid at all. A partner can be told both honestly: when
+   * their money is released, and when the next run that would send it happens.
+   *
+   * Cash a rider collects does NOT follow this. It comes in whenever they
+   * approach the ceiling, because money in somebody's pocket for a week is a
+   * float the platform is carrying and cannot see.
+   */
+  payoutCadenceDays: number;
   /** A payout below this carries to the next run rather than being sent. */
   minPayoutAmount: number;
   /** Payouts above this need a second administrator to approve them. */
@@ -1569,6 +1581,7 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   codCashWarnPercent: 80,
   partnerHoldDays: 1,
   riderHoldDays: 0,
+  payoutCadenceDays: 7,
   minPayoutAmount: 100,
   makerCheckerThreshold: 10000,
   dailyPayoutCap: 200000,

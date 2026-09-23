@@ -109,6 +109,23 @@ export function policyGaps(): string[] {
  * name. It says the escalation route is not yet published and points at the
  * in-app one, which genuinely works.
  */
+/**
+ * How often payouts run, in the words a partner reads.
+ *
+ * Derived from the rate rather than written out, because this sentence is a
+ * PROMISE. It said "daily" in three places while the cadence was being changed
+ * to weekly, and a policy describing a different system from the one running is
+ * the document a partner quotes back at you in a dispute. One function means
+ * the three cannot drift apart again.
+ */
+function runCadence(days: number): string {
+  const n = Math.max(1, Math.round(Number(days) || 1));
+  if (n === 1) return 'daily';
+  if (n === 7) return 'weekly';
+  if (n === 14) return 'every fortnight';
+  return `every ${n} days`;
+}
+
 function grievanceSection(): { heading: string; body: string } {
   const contact = getGrievanceContact();
   if (!contact) {
@@ -274,7 +291,7 @@ export function paymentPolicies(): PaymentPolicy[] {
           heading: 'When you are paid',
           body:
             `An order becomes payable ${rates.partnerHoldDays === 1 ? 'one day' : `${rates.partnerHoldDays} days`} after it is delivered. The hold exists so that a refund raised the day after delivery comes off a settlement rather than becoming a debt we have to ask you for. ` +
-            `Payments run daily. Anything below ${money(rates.minPayoutAmount)} carries to the next run rather than being sent as a fee-heavy transfer.`
+            `Payments run ${runCadence(rates.payoutCadenceDays)}. Anything below ${money(rates.minPayoutAmount)} carries to the next run rather than being sent as a fee-heavy transfer.`
         },
         {
           heading: 'Where you are paid',
@@ -320,7 +337,7 @@ export function paymentPolicies(): PaymentPolicy[] {
         {
           heading: 'When you are paid',
           body:
-            `Earnings become payable ${rates.riderHoldDays === 0 ? 'the same day' : rates.riderHoldDays === 1 ? 'one day after' : `${rates.riderHoldDays} days after`} the trip is completed, and payments run daily to the bank account or UPI id you have registered. ` +
+            `Earnings become payable ${rates.riderHoldDays === 0 ? 'the same day' : rates.riderHoldDays === 1 ? 'one day after' : `${rates.riderHoldDays} days after`} the trip is completed, and payments run ${runCadence(rates.payoutCadenceDays)} to the bank account or UPI id you have registered. ` +
             `Anything below ${money(rates.minPayoutAmount)} carries to the next run.`
         },
         {
@@ -355,7 +372,7 @@ export function paymentPolicies(): PaymentPolicy[] {
         {
           heading: 'Asking to be paid',
           body:
-            'You can raise a request from your statement. It does not change what you are owed and you do not have to ask — everything owed is paid on the daily run either way.'
+            `You can raise a request from your statement. It does not change what you are owed and you do not have to ask — everything owed is paid on the ${runCadence(rates.payoutCadenceDays)} run either way.`
         },
         {
           heading: 'If you think a figure is wrong',

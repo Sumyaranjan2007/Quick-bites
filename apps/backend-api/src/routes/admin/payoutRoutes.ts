@@ -929,6 +929,34 @@ payoutRoutes.get(
        * would be invisible in exactly the way the held-earnings gate was:
        * people go unpaid and the screen shows nothing.
        */
+      /*
+       * PAYDAY VERSUS THE DAILY CEILING.
+       *
+       * The cap is a fraud blast-radius control: whatever goes wrong, only so
+       * much can leave in one day. It is deliberately NOT being raised to suit
+       * a schedule — weakening a security control to fix a calendar problem is
+       * the wrong trade.
+       *
+       * But the owner moved payouts from daily to weekly, so one payday now
+       * carries a week of earnings through a ceiling sized for a day. Enforced
+       * at execution, that stops the run partway: some partners paid, the rest
+       * refused with DAILY_PAYOUT_CAP_REACHED, and nothing saying why until
+       * somebody reads an error on the twelfth payout. This says it BEFORE the
+       * run rather than during it.
+       */
+      const readyPaise = ready.reduce((total, d) => total + d.payablePaise, 0);
+      const capPaise = toPaise(getActiveRates().dailyPayoutCap);
+      if (capPaise > 0 && readyPaise > capPaise) {
+        blockers.push({
+          what: `${formatPaise(readyPaise)} is ready to pay and the daily ceiling is ${formatPaise(capPaise)}.`,
+          count: ready.length,
+          fix:
+            `Payday will stop once ${formatPaise(capPaise)} has gone out. Either raise the ceiling in Inflation ` +
+            `before you start, or pay across two days — whichever you choose, decide it now rather than halfway through.`,
+          where: 'PAYOUTS'
+        });
+      }
+
       const waitingApply = awaitingApply();
       if (waitingApply.length > 0) {
         blockers.push({
