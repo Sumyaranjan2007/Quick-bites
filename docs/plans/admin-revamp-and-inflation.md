@@ -634,6 +634,57 @@ optional third parameter — an optional argument is a call site that silently
 keeps the old behaviour, and there are two of them in `orderService.ts` that
 must both change. Let the compiler find them.
 
+**Task 6.1.3a — ADD-ONS. The proposed signature breaks them, and the failure is
+a ₹240 slice of cheese.** Found reviewing Session A's design on 24 Sep, before
+any code was written.
+
+Add-ons are priced today and **are marked up today**. `orderService.ts:207–210`:
+
+```
+const customerUnitPrice = customerDishPrice(dish.price,   foodMarkup);
+const customerAddons    = customerDishPrice(addonsTotal,  foodMarkup);
+partnerItemsTotal += (dish.price + addonsTotal) * quantity;
+```
+
+A percentage scales naturally: a ₹50 extra becomes ₹60 at 20%, and the
+restaurant is paid its own ₹50. That is coherent and it is what happens now.
+
+**An absolute typed price does not scale, and there is no add-on id to look
+up.** `customerDishPrice(restaurantId, dish.id, addonsTotal)` would find the
+typed price keyed on that dish and return it — so a ₹50 add-on on a dish typed
+at ₹240 is charged **₹240**. The dish and its extras would each cost the
+customer the dish's full price.
+
+Nothing in the bill would look wrong. It adds up. It would be found by a
+customer paying it.
+
+**Use the implied ratio.** When a dish has a typed price, derive
+`typed / restaurantPrice` and apply that ratio to the add-ons. ₹200 typed at
+₹240 is a ratio of 1.2, so the ₹50 extra is ₹60 — **identical to what the
+percentage model does today**, which means a dish with no typed price and a
+dish typed at exactly its percentage behave the same. Continuity is the point:
+this feature should change what an administrator can express, not what the
+arithmetic means.
+
+Guard the division. `restaurantPrice` of zero — a free dish, or a promotional
+line — must yield the restaurant percentage rather than `Infinity` or `NaN`, and
+`NaN` propagates through a bill silently until it reaches a screen as a blank.
+
+**The check that fails:** one dish at ₹200 typed to ₹240, ordered with a ₹50
+add-on. Assert the customer pays ₹300 and `partnerItemsTotal` is ₹250. Asserting
+only the dish line passes while the add-on is wrong, because the add-on is a
+separate term.
+
+**Task 6.1.3b — orphan keys.** Dish ids are `dish_` + `crypto.randomUUID()`
+(`menuRepository.ts:61`) and `updateItem` preserves the id (`:84`), so keys are
+stable and never reused. Keying `itemPrices` on a dish id is safe — no risk of a
+typed price landing on a different dish.
+
+But a deleted dish leaves its key behind. Harmless for pricing, wrong for the
+"how many items are marked up" header in §6.1.7, which would count prices for
+dishes that no longer exist. Filter that count against the live menu rather than
+counting the map.
+
 **Task 6.1.4 — the money must still split correctly.** This is the assertion
 that matters more than the screen:
 
