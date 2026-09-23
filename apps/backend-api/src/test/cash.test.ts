@@ -189,7 +189,20 @@ check('An administrator confirms what was counted, and the cash moves', () => {
   assert.equal(variancePaise, 0);
   assert.equal(remainingPaise, 0);
   assert.equal(cashInHandPaise(RIDER), 0, 'the rider still shows as carrying cash they handed in');
-  assert.equal(ledger.balanceOf('PLATFORM_BANK'), toPaise(3000), 'the bank did not receive it');
+
+  /*
+   * The OFFICE receives it, not the bank.
+   *
+   * This assertion used to read PLATFORM_BANK, and it was right about the code
+   * and wrong about the world: handing cash to somebody at a desk does not put
+   * it in a bank account, and the ledger said it did from that moment until
+   * whenever a person next walked to the branch. Banking it is a separate
+   * physical act and is now a separate posting, so the assertion moved with the
+   * behaviour rather than being relaxed to accommodate it.
+   */
+  assert.equal(ledger.balanceOf('PLATFORM_CASH'), toPaise(3000), 'the office did not receive it');
+  assert.equal(ledger.balanceOf('PLATFORM_BANK'), 0,
+    'the bank received money nobody has taken to a bank');
   assert.equal(ledger.audit().balanced, true);
 });
 

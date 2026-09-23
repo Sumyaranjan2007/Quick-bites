@@ -1449,6 +1449,26 @@ export type LedgerAccountKind =
   | 'RIDER_PAYABLE'
   /** Platform money a rider is physically holding after a cash delivery. */
   | 'RIDER_CASH'
+  /**
+   * Platform money in the office, handed over by a rider and not yet banked.
+   *
+   * A third location, because there are three. The rider's pocket, the office
+   * drawer, and the bank are different places with different risks, and the
+   * ledger previously modelled two: a cash handover posted straight to
+   * PLATFORM_BANK, so from the moment a rider reached the desk the platform
+   * believed it held bank money that was physically in a drawer, for however
+   * many days passed before somebody walked to the branch.
+   *
+   * That is not a bookkeeping nicety. `rail.available()` checks whether a
+   * payout gateway is configured; nothing checks whether PLATFORM_BANK holds
+   * the money. A payout run funded by cash still sitting in the office is
+   * marked sent, bounces at the gateway, and our own books say the funds were
+   * there.
+   *
+   * The code already names this mistake one step earlier, about a rider's
+   * pocket. The sentence applies just as well to an office.
+   */
+  | 'PLATFORM_CASH'
   /** Owed to a customer where the money cannot go back the way it came. */
   | 'CUSTOMER_REFUND_PAYABLE'
   | 'TAX_GST_PAYABLE'
@@ -1463,6 +1483,8 @@ export type LedgerEvent =
   | 'ORDER_PAID_AT_DOOR'
   | 'COD_COLLECTED'
   | 'CASH_DEPOSIT_CONFIRMED'
+  /** The office cash reached the bank. */
+  | 'CASH_BANKED'
   | 'CASH_RETURNED_AT_DOOR'
   | 'PARTNER_EARNED'
   | 'RIDER_EARNED'

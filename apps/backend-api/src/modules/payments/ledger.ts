@@ -74,6 +74,11 @@ const DEBIT_POSITIVE: ReadonlySet<LedgerAccountKind> = new Set<LedgerAccountKind
   'PLATFORM_BANK',
   'GATEWAY_RECEIVABLE',
   'RIDER_CASH',
+  // Money in the office drawer is an ASSET, exactly like the bank and the
+  // rider's pocket. Omitting it here made a positive holding report as a
+  // negative balance, and the refusal message read "the office is holding
+  // -Rs 434.90" -- which is the shape of a number nobody can act on.
+  'PLATFORM_CASH',
   'TDS_WITHHELD',
   'REFUNDS_PAID'
 ]);

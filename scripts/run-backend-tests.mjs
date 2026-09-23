@@ -46,6 +46,7 @@ const SUITES = [
   'payouts',
   'refunds',
   'cash',
+  'cashLocations',
   'charges',
   'routes',
   'statements',

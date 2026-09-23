@@ -52,7 +52,14 @@ import {
 import { platformMarginPaiseFor } from '../../modules/payments/restaurantCharges.ts';
 import { reviewQueue } from '../../modules/payments/payeeAccounts.ts';
 import { memoryStore } from '../../db/client.ts';
-import { listDeposits, confirmDeposit, cashAgeing } from '../../modules/payments/cashDeposits.ts';
+import {
+  listDeposits,
+  confirmDeposit,
+  cashAgeing,
+  recordCashReturn,
+  bankOfficeCash,
+  officeCashPaise
+} from '../../modules/payments/cashDeposits.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import {
   listRequests,
@@ -768,6 +775,122 @@ payoutRoutes.post(
   }
 );
 
+const CashReturnSchema = z.object({
+  riderId: z.string().trim().min(1).max(120),
+  amount: z.number().positive('Enter the amount you counted.'),
+  note: z.string().trim().max(300).optional()
+});
+
+/**
+ * POST /api/admin/cash/returns
+ *
+ * A rider walks into the office with cash and has tapped nothing in the app.
+ *
+ * Every other path needs a deposit the RIDER declared first, so somebody
+ * standing at the desk holding four thousand rupees could not be cleared by
+ * anyone. The office is where this actually happens; the app was the only way
+ * in. It reuses declare-then-confirm rather than posting its own entry, so the
+ * refusals, the received-not-declared rule and the single ledger movement all
+ * come along unchanged.
+ *
+ * It credits NO revenue. The profit on a cash order was recognised at delivery;
+ * booking it again when the notes are counted would show a profit near double
+ * the truth on a screen that adds up perfectly.
+ */
+payoutRoutes.post(
+  '/cash/returns',
+  requirePermission('finance.payouts.manage'),
+  validate({ body: CashReturnSchema }),
+  async (req, res, next) => {
+    try {
+      const { deposit, variancePaise, remainingPaise } = recordCashReturn({
+        riderId: req.body.riderId,
+        amountPaise: toPaise(req.body.amount),
+        actorUserId: req.user!.id,
+        note: req.body.note
+      });
+
+      recordAudit(req, {
+        action: 'CASH_RETURN_RECORDED',
+        entityType: 'CASH_DEPOSIT',
+        entityId: deposit.id,
+        summary:
+          `${formatPaise(deposit.receivedPaise || 0)} taken at the office from ` +
+          `${deposit.riderName || deposit.riderId}. ${formatPaise(remainingPaise)} still with them.`,
+        after: { receivedPaise: deposit.receivedPaise, variancePaise, remainingPaise }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          deposit,
+          remainingCashInHand: toRupees(remainingPaise),
+          officeCash: toRupees(officeCashPaise())
+        },
+        // Partial returns are normal and the remainder still blocks their
+        // payout, so the number they are still carrying is said every time
+        // rather than only when it is zero.
+        message:
+          remainingPaise === 0
+            ? `${formatPaise(deposit.receivedPaise || 0)} received. They are carrying nothing and can be paid.`
+            : `${formatPaise(deposit.receivedPaise || 0)} received. ${formatPaise(remainingPaise)} is still with them, and still blocks their payout.`
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const BankDepositSchema = z.object({
+  amount: z.number().positive('Enter how much was paid into the bank.'),
+  reference: z.string().trim().min(1, 'Record the deposit slip or reference number.').max(120),
+  depositedOn: z.string().trim().max(40).optional()
+});
+
+/**
+ * POST /api/admin/cash/bank-deposits
+ *
+ * The walk to the branch: office cash becomes bank cash.
+ *
+ * A separate act from taking the money off a rider, days apart, and collapsing
+ * the two is what made the platform believe it could pay people out of money
+ * sitting in a drawer.
+ */
+payoutRoutes.post(
+  '/cash/bank-deposits',
+  requirePermission('finance.payouts.manage'),
+  validate({ body: BankDepositSchema }),
+  async (req, res, next) => {
+    try {
+      const { bankedPaise, officeRemainingPaise } = bankOfficeCash({
+        amountPaise: toPaise(req.body.amount),
+        actorUserId: req.user!.id,
+        reference: req.body.reference,
+        depositedOn: req.body.depositedOn
+      });
+
+      recordAudit(req, {
+        action: 'CASH_BANKED',
+        entityType: 'LEDGER',
+        entityId: req.body.reference,
+        summary: `${formatPaise(bankedPaise)} office cash paid into the bank (ref ${req.body.reference}).`,
+        after: { bankedPaise, officeRemainingPaise }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          banked: toRupees(bankedPaise),
+          officeCash: toRupees(officeRemainingPaise)
+        },
+        message: `${formatPaise(bankedPaise)} banked. The office is holding ${formatPaise(officeRemainingPaise)}.`
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 /* ------------------------------------------------------------------ *
  *  WHY IS THIS SCREEN EMPTY, AND WHAT DID WE EARN                     *
  * ------------------------------------------------------------------ */
@@ -982,10 +1105,47 @@ payoutRoutes.get(
         });
       }
 
+      /*
+       * Can the bank actually cover the run?
+       *
+       * A WARNING, not a blocker, and deliberately so: the owner may hold
+       * capital this ledger knows nothing about, and refusing a payday over a
+       * number the platform cannot see would be the system overruling the
+       * person who owns the money.
+       *
+       * But it must name UN-BANKED CASH as the cause. "Insufficient balance"
+       * sends somebody to check a bank statement that is perfectly correct,
+       * and the actual fix -- the office cash has not been paid in yet -- is
+       * nowhere on the screen. This is the same defect as the daily cap from
+       * the other side: a payday that stops halfway with no visible reason.
+       */
+      const readyPaiseTotal = ready.reduce((total, d) => total + d.payablePaise, 0);
+      const bankPaise = ledger.balanceOf('PLATFORM_BANK');
+      const officePaise = officeCashPaise();
+      if (readyPaiseTotal > bankPaise) {
+        const shortfall = readyPaiseTotal - bankPaise;
+        blockers.push({
+          what:
+            `${formatPaise(readyPaiseTotal)} is ready to pay and the bank holds ` +
+            `${formatPaise(bankPaise)} — ${formatPaise(shortfall)} short.`,
+          count: 1,
+          fix:
+            officePaise > 0
+              ? `${formatPaise(officePaise)} of cash is in the office and has not been paid in. Bank it and record the slip, then run payday.`
+              : 'Top up the payout account before running payday, or the run will stop partway and some partners will go unpaid with no visible cause.',
+          where: 'CASH'
+        });
+      }
+
       res.json({
         success: true,
         data: {
           period: { days, since },
+          cashPosition: {
+            inOurBank: toRupees(bankPaise),
+            inTheOffice: toRupees(officePaise),
+            readyToPay: toRupees(readyPaiseTotal)
+          },
           business: {
             orders,
             gross: toRupees(grossPaise),

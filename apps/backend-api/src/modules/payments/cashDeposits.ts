@@ -238,12 +238,26 @@ export function confirmDeposit(input: {
   deposit.varianceNote = input.varianceNote;
   memoryStore.cashDeposits.set(deposit.id, deposit);
 
-  // The money moves from the rider's pocket into the platform's bank.
+  /*
+   * The money moves from the rider's pocket into the OFFICE, not the bank.
+   *
+   * This used to debit PLATFORM_BANK, which said the platform held bank money
+   * from the moment a rider reached the desk -- for however many days passed
+   * before somebody walked to the branch. Banking it is a separate physical act
+   * and is now a separate posting; see bankOfficeCash below.
+   *
+   * Note what does NOT appear here: any REVENUE account. Our profit on a cash
+   * order was recognised at DELIVERY, when the gross was split and the whole of
+   * it debited to the rider. Crediting revenue again when the notes are counted
+   * would book every cash order twice and show a profit near double the truth,
+   * on a screen that adds up perfectly. This posting changes the money's
+   * LOCATION, never its ownership.
+   */
   if (input.receivedPaise > 0) {
     ledger.post({
       event: 'CASH_DEPOSIT_CONFIRMED',
       postings: [
-        { account: 'PLATFORM_BANK', direction: 'DEBIT', amountPaise: input.receivedPaise },
+        { account: 'PLATFORM_CASH', direction: 'DEBIT', amountPaise: input.receivedPaise },
         {
           account: accountFor('RIDER_CASH', deposit.riderId),
           direction: 'CREDIT',
@@ -286,6 +300,141 @@ export function confirmDeposit(input: {
   );
 
   return { deposit, variancePaise, remainingPaise: cashInHandPaise(deposit.riderId) };
+}
+
+/**
+ * A rider walks in with cash and has tapped nothing in the app.
+ *
+ * Every existing path needs a deposit the RIDER declared first, so somebody
+ * standing at the desk holding four thousand rupees could not be cleared by
+ * anyone. That was the defect: the office is where this actually happens, and
+ * the app was the only way in.
+ *
+ * Deliberately built as declare-then-confirm through the SAME functions rather
+ * than as a second cash path with its own arithmetic. This platform has already
+ * removed one payout system that adjusted a balance without a ledger entry; a
+ * second cash route doing its own posting is that mistake wearing a different
+ * hat. The rules come along for free: it cannot exceed what they are holding,
+ * it reduces cash-in-hand by what was RECEIVED, and it posts one movement.
+ */
+export function recordCashReturn(input: {
+  riderId: string;
+  amountPaise: number;
+  actorUserId: string;
+  note?: string;
+}): { deposit: CashDeposit; variancePaise: number; remainingPaise: number } {
+  const rider = memoryStore.riders.get(input.riderId) as any;
+  if (!rider) {
+    throw new AppError('No such delivery partner.', 404, 'RIDER_NOT_FOUND');
+  }
+
+  const held = cashInHandPaise(input.riderId);
+  if (input.amountPaise <= 0) {
+    throw new AppError('Enter the amount you counted.', 400, 'INVALID_DEPOSIT_AMOUNT');
+  }
+  if (input.amountPaise > held) {
+    // Named amounts, not "invalid amount". Whoever is at the desk needs to know
+    // what the platform thinks this rider is carrying in order to argue with it.
+    throw new AppError(
+      `${rider.fullName || input.riderId} is carrying ${formatPaise(held)}. ` +
+        `You cannot record a return of ${formatPaise(input.amountPaise)}.`,
+      400,
+      'RETURN_EXCEEDS_CASH_IN_HAND'
+    );
+  }
+
+  /*
+   * An open declaration is absorbed rather than refused.
+   *
+   * A rider who declared Rs 4,000 in the app and then arrived is the NORMAL
+   * case, and refusing it would send the person at the desk to cancel the
+   * rider's declaration first, which is a rule nobody will remember at a
+   * counter with somebody waiting.
+   */
+  const open = listDeposits({ riderId: input.riderId, status: 'DECLARED' })[0];
+  const deposit =
+    open ??
+    declareDeposit({
+      riderId: input.riderId,
+      riderUserId: rider.userId,
+      riderName: rider.fullName || rider.driverCode,
+      amountPaise: input.amountPaise
+    });
+
+  (deposit as any).declaredBy = open ? 'RIDER' : 'ADMIN';
+  memoryStore.cashDeposits.set(deposit.id, deposit);
+
+  return confirmDeposit({
+    depositId: deposit.id,
+    receivedPaise: input.amountPaise,
+    actorUserId: input.actorUserId,
+    // A variance note is required when the counted amount differs from the
+    // declaration, and an admin-recorded return against an open declaration is
+    // exactly where that happens.
+    varianceNote:
+      input.note ||
+      (open && open.declaredPaise !== input.amountPaise
+        ? 'Counted at the office by an administrator.'
+        : undefined)
+  });
+}
+
+/** What the office is holding and has not banked. */
+export function officeCashPaise(): number {
+  return ledger.balanceOf('PLATFORM_CASH');
+}
+
+/**
+ * The walk to the branch. Office cash becomes bank cash.
+ *
+ * Separate from the handover because they are separate physical acts, days
+ * apart, and collapsing them is what made the platform believe it could pay
+ * people out of money that was in a drawer.
+ */
+export function bankOfficeCash(input: {
+  amountPaise: number;
+  actorUserId: string;
+  reference: string;
+  depositedOn?: string;
+}): { bankedPaise: number; officeRemainingPaise: number } {
+  const available = officeCashPaise();
+
+  if (input.amountPaise <= 0) {
+    throw new AppError('Enter how much was paid into the bank.', 400, 'INVALID_BANK_DEPOSIT');
+  }
+  if (input.amountPaise > available) {
+    throw new AppError(
+      `The office is holding ${formatPaise(available)}. You cannot bank ${formatPaise(input.amountPaise)}.`,
+      400,
+      'BANK_DEPOSIT_EXCEEDS_OFFICE_CASH'
+    );
+  }
+  if (!input.reference?.trim()) {
+    // The slip number is the only thing tying this entry to a real bank
+    // statement line. Without it the two can never be reconciled, and an
+    // unreconcilable cash movement is indistinguishable from a missing one.
+    throw new AppError(
+      'Record the deposit slip or reference number.',
+      400,
+      'BANK_DEPOSIT_REFERENCE_REQUIRED'
+    );
+  }
+
+  ledger.post({
+    event: 'CASH_BANKED',
+    postings: [
+      { account: 'PLATFORM_BANK', direction: 'DEBIT', amountPaise: input.amountPaise },
+      { account: 'PLATFORM_CASH', direction: 'CREDIT', amountPaise: input.amountPaise }
+    ],
+    // Same slip twice is the same deposit, not two.
+    idempotencyKey: `cash_banked:${input.reference.trim()}`,
+    actorUserId: input.actorUserId,
+    narration:
+      `${formatPaise(input.amountPaise)} office cash paid into the bank` +
+      ` (ref ${input.reference.trim()}${input.depositedOn ? `, ${input.depositedOn}` : ''})`
+  });
+
+  return { bankedPaise: input.amountPaise, officeRemainingPaise: officeCashPaise() };
 }
 
 /**
