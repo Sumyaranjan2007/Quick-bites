@@ -119,6 +119,11 @@ module.exports = ({ config }) => {
    */
   return {
     ...expo,
-    plugins: [...(expo.plugins || []), '@rnmapbox/maps']
+    // An options OBJECT, not a bare string. The plugin destructures its props
+    // on entry and crashes on undefined:
+    //   TypeError: Cannot destructure property 'RNMapboxMapsImpl' of 'undefined'
+    // Empty is the point - the download token deliberately does not travel
+    // this way, because anything passed here is serialised into the APK.
+    plugins: [...(expo.plugins || []), ['@rnmapbox/maps', {}]]
   };
 };
