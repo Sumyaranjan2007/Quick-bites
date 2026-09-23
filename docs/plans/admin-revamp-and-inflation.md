@@ -218,16 +218,70 @@ returns `remainingPaise`; show it back on the screen after the tap.
 
 ### 4.3 Where the button lives
 
-The owner said "the restaurant section". Their own description is the office, so
-it goes where the rider's cash is:
+**Confirmed by the owner on 23 Sep: the rider's page.** Their words — *"no i
+want it in the riders page and when they come to our office and hand over the
+money we remove them from their portal"*. The earlier "restaurant section"
+wording is superseded.
 
 - **The rider's profile in People**, beside "Cash in hand (COD)"
   (`PeopleScreen.tsx:478`), which today is a number you can read and not act on.
 - **Pay → Cash**, alongside the deposits waiting to be counted.
 
-If the owner meant a screen in the restaurant section specifically, this is the
-one item in the plan to check with them before building. It is a button
-placement, not a rebuild.
+### 4.4 The returned cash is NOT revenue. Do not book it as revenue.
+
+The owner also said the money *"will be added to our total earning and that
+money will be distributed among every one"*. That describes the right outcome
+in the wrong words, and implementing the words literally would corrupt every
+revenue figure on the platform.
+
+**What the code already does, and it is correct:**
+
+At delivery (`earnings.ts:275–300`) the gross is split in one balanced
+transaction. `PARTNER_PAYABLE` and `RIDER_PAYABLE` are credited with what is
+owed out; `REVENUE_COMMISSION` and `REVENUE_FEES` are credited with what is
+genuinely ours; and for a cash order the whole gross is debited to
+`RIDER_CASH:<riderId>` — because that is where the money physically is. The
+comment in that file puts it exactly right: recording cash in a rider's pocket
+as though it were in the bank is how a platform believes it holds money it has
+never seen.
+
+**Our earnings on that order are recognised at delivery, not when the cash
+arrives.** By the time the rider walks into the office, the profit has already
+been counted.
+
+When the cash is handed over, `confirmDeposit` (line 244) posts
+`RIDER_CASH → PLATFORM_BANK` and touches no revenue account at all. The money
+changes *location*, not *ownership*.
+
+**Task 4.4.1 — the admin cash return must post that movement and nothing else.**
+No `REVENUE_*` posting. No adjustment to any earnings total. If a cash return
+increases a revenue figure anywhere, every COD order is being counted twice —
+once when delivered and again when the notes are counted — and the owner would
+be reading a profit figure roughly double the truth, on the strength of a screen
+that looked right.
+
+**Task 4.4.2 — build the screen the owner is actually asking for.** Underneath
+the loose wording is a real and reasonable question: *how much money do I have,
+and how much of it is mine?* Nothing on the platform answers it today. Add a
+"The pot" panel to Finance, straight from the ledger:
+
+| Line | Account |
+| --- | --- |
+| In our bank | `PLATFORM_BANK` |
+| Still in riders' pockets | sum of `RIDER_CASH:*` |
+| Owed to restaurants | sum of `PARTNER_PAYABLE:*` |
+| Owed to riders | sum of `RIDER_PAYABLE:*` |
+| Tax held back | `TAX_GST_PAYABLE`, `TAX_TCS_PAYABLE`, `TDS_WITHHELD` |
+| **Genuinely ours** | `REVENUE_COMMISSION` + `REVENUE_FEES` − `REFUNDS_PAID` |
+
+Derived from the ledger on every read, never stored as a running total. A
+second copy of a number that is already derivable is a number that will
+eventually disagree with the first, and the one people trust is whichever one
+is on the screen they happen to open.
+
+This is also the panel that answers "can I make payroll this week" before the
+payout run rather than after it, which is the same defect as §5.3 from the other
+direction.
 
 ---
 
