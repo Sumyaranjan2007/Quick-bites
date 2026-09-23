@@ -702,6 +702,54 @@ app open, before reporting it done.
 phone, app force-stopped, order placed. This is the only check that would have
 failed today, and it is the only one that counts.
 
+**Task 8.3a — REVIEW FINDING, 23 Sep. Two un-timed calls to Google now sit
+inside order placement.** Found reviewing `23ceaa0`, not by a failing test.
+
+`fcmTransport.ts` makes two bare `fetch()` calls — the OAuth token at line 124
+and the send at line 199 — with **no `signal`, no `AbortController` and no
+timeout**. Node 22's fetch is undici, whose `headersTimeout` defaults to five
+minutes. A connection that blackholes rather than refuses therefore hangs for
+up to five minutes.
+
+Both are awaited inside `placeOrder` (`orderService.ts:611` and `:612`), once
+for the customer and now once for the kitchen.
+
+**`fcmDispatcher`'s try/catch does not help.** It catches a rejection. A hang
+is not a rejection — it is silence, and it is awaited.
+
+**The file already states the rule it is now breaking.** Twelve lines above, at
+`orderService.ts:594–606`, is the note explaining why payment initiation was
+moved out of this path: *a third-party network call inside order placement means
+Razorpay being slow or unreachable takes down the ability to place an order.*
+That reasoning is exactly as true of Google.
+
+**What the owner would see.** The order is created and persisted before this
+block, and `emitOrderCreated` fires first, so the kitchen tablet rings. Only the
+customer's app is left spinning — on an order that has in fact been placed. The
+obvious next move for a customer is to press it again. The owner has already
+reported *"when customers make an order the restaurant receives two orders"*
+once on this project. `isDuplicate` suggests there is protection; a request that
+hangs for minutes is still the condition that exercises it.
+
+Not a regression Session A introduced — the customer push was already awaited
+here. They doubled the exposure and surfaced it.
+
+**The fix, smallest first:**
+
+1. `signal: AbortSignal.timeout(5000)` on both fetches. One line each, and it
+   bounds the damage whatever else is decided.
+2. Stop awaiting the pushes in the placement path. The order is already saved
+   and the response does not carry the push result, so nothing downstream needs
+   it. Fire them after the response, with the rejection handled — an unhandled
+   rejection escaping here is what took the process down last time (`:600`).
+
+Do 1 regardless. Do 2 unless there is a reason to keep the ordering.
+
+**The check that fails:** a fake transport that never resolves, and an assertion
+that `placeOrder` still returns within a couple of seconds. Asserting the push
+was sent passes with an unbounded timeout, because the push does eventually get
+sent — the defect is *when*.
+
 **Task 8.4 — remove ask-to-be-paid, keep the statement.** `SettlementsScreen.tsx`
 (nav at `App.tsx:425`) keeps everything read-only. The request control goes.
 
@@ -750,7 +798,34 @@ Each step is verifiable before the next depends on it.
 | 7 | §6.3 Gold plans | Second pricing change, self-contained. |
 | 8 | §6.1 per-item pricing | Largest. Touches the customer's bill and the partner's payout. Last, on a tree where everything else is green. |
 | 9 | §7 rider app, §8.4–8.6 partner app, §9 policies | Removals and read-only. Safe once the money is right. |
-| 10 | Gate, build, verify, deliver | `road-to-launch.md` §3 step 5, unchanged. |
+| 10 | Gate, verify, **and stop** | See below. |
+
+### Step 10 is held. The owner decides when an APK is built.
+
+Instruction, 23 Sep: *"dont make the apk till i say — after you done making
+ill ask question if its verified then make the apk."*
+
+So the sequence is: finish the work, run the gate, report what is done and what
+is proved, **answer the owner's questions**, and build only when they say to.
+`road-to-launch.md` §3 step 5 still describes how to build; it no longer
+describes when.
+
+This is the right way round. The last three builds were made on a belief that
+everything was fixed, and one of them shipped a stale screen, one shipped a
+secret token, and one was reported successful while having failed. A round of
+questions before the build costs an hour; a bad APK costs a reinstall on every
+phone the owner has handed out.
+
+Two things worth having ready for that conversation, because they are what the
+owner will ask:
+
+- **What reaches them without a new APK.** The kitchen push (§8.1) is
+  server-side only and is already verified against the installed artifacts. The
+  Railway URL correction affects the web portals only. Anything in admin, rider
+  or partner UI needs a build.
+- **What is proved versus what is merely written.** Per §11.2, name the check
+  that would fail for each claim. "It is built" is not the answer to "is it
+  verified".
 
 ---
 
