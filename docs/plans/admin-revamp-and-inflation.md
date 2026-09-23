@@ -825,6 +825,49 @@ Offer the percentage reading beside it (20% kept becomes ₹312) as one tap.
 Whichever is chosen, the number is visible and editable before approval — the
 platform proposes, the administrator decides.
 
+**Task 6.1.6b(i) — the rupee reading stays the default. ANSWERED 24 Sep.**
+
+₹200 → ₹260 with ₹40 kept is ₹300 by rupees and ₹312 by percentage. Keep
+rupees, for two reasons and with one addition.
+
+**It matches the mental model the owner chose.** Asked directly whether to type
+a price or a percentage per item, they chose *"type the customer's price"*.
+Somebody who thinks in absolute prices expects an absolute margin to hold.
+
+**And it is the smaller number.** Session A's argument, and it is right: a
+default that errs toward charging the customer less is the one to get wrong.
+
+**But the rupee reading erodes, and the erosion must be visible.** A margin held
+at ₹40 across ₹200 → ₹260 → ₹340 goes 20% → 15.4% → 11.8%. That is a slow
+silent bleed of exactly the kind this plan keeps catching, and it happens most
+when costs rise fastest.
+
+So the approval screen shows the margin **as a percentage, before and after**:
+*"You kept 20%. This keeps 15.4%."* One line, and it turns an invisible drift
+into a number at the moment of decision. The percentage reading stays one tap
+away for the administrator who wants it.
+
+**Task 6.1.6b(ii) — §11.3 still holds, and here is the one place it would
+stop.** Verified 24 Sep at Session A's request.
+
+Every reader of `typedPriceFor` and `itemPrices` is inside
+`restaurantCharges.ts`. `/restaurants/:id/menu/manage` returns the menu as the
+kitchen set it and does not call `inflateMenuForCustomer`. `review()`
+(`menuRequestRepository.ts:55`) stores only `status`, `reviewedAt`,
+`reviewedByUserId`, `rejectionReason` and `resultingDishId` — nothing about the
+customer price — and its `extras` parameter is a closed shape, so the compiler
+refuses a new field without a type change. Clean.
+
+**The gap is that the partner's own route has no projection.**
+`restaurantRouter.ts:736` returns `res.json({ requests })` — the raw records.
+The day anyone widens `MenuChangeRequest` or `extras` to remember what the
+administrator set at approval — a natural thing to want for an audit trail — it
+reaches the partner immediately, and nothing would fail.
+
+A rule in a comment will not hold this. **Assert it:** serialise the partner's
+`/menu/requests` response and check it contains no customer-price or margin key.
+That check fails on the day somebody adds one, which is the only day it matters.
+
 **Task 6.1.6c — the same refusal as §6.1.5 applies here.** A customer price
 below the restaurant's newly approved price is refused, naming both numbers.
 Approval is the moment this is easiest to get wrong, because the administrator
