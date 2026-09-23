@@ -33,6 +33,7 @@ import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates, createVersion } from '../modules/payments/pricingConfig.ts';
+import { calculateTripPayout } from '../routes/riderRouter.ts';
 
 const PORT = 5217;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -103,6 +104,19 @@ try {
     String(getActiveRates().riderDeliveryMarkupPercent));
 
   const atZero = priceATrip();
+
+  /*
+   * The same trip object at both rates, carrying the marked-up delivery fee,
+   * because that is the value the payout function could reach for. Handing it a
+   * trip with no deliveryFee would be testing that it ignores a field that is
+   * not there.
+   */
+  const SAMPLE_TRIP = { distanceKm: 6, bill: { deliveryFee: 0, tipAmount: 0 } };
+  const payoutAtZero = calculateTripPayout({
+    ...SAMPLE_TRIP,
+    bill: { ...SAMPLE_TRIP.bill, deliveryFee: atZero.deliveryFee }
+  });
+
   const riderRatesAtZero = {
     base: getActiveRates().riderBaseFeePerTrip,
     perKm: getActiveRates().riderPerKmFee,
@@ -137,17 +151,44 @@ try {
     `expected ${Math.round(atZero.deliveryFee * 1.2 * 100) / 100}, got ${atTwenty.deliveryFee}`);
 
   /*
-   * The pair. The rider's trip pay is computed from the rider rates and the
-   * trip, and NONE of those inputs is the markup. If any of these four moved,
-   * the markup is reaching the rider's side of the bill.
+   * The pair, and it has to be the PAYOUT rather than the rates behind it.
+   *
+   * The first version of this check compared four configuration values before
+   * and after -- riderBaseFeePerTrip, riderPerKmFee, riderBaseKm,
+   * riderMinEarningPerTrip -- and nothing in this feature writes to any of
+   * them. It compared config with config and would have passed under almost any
+   * mutation of the delivery-fee code, including the one it exists to catch.
+   * The reasoning above it was sound and the assertion stood one step away from
+   * the thing the reasoning was about.
+   *
+   * It matters more than pedantry here. calculateTripPayout ALREADY takes
+   * `bill.deliveryFee` in its parameter type (riderRouter.ts:105) and does not
+   * read it, so a now-marked-up number is sitting in scope inside the rider
+   * payout function. The only thing keeping it out of rider pay is that nobody
+   * has used it yet -- and somebody would have a reasonable motive to, making
+   * rider pay track the delivery charge. On the day they do, either riders earn
+   * a share of our markup or the customer's markup inflates rider pay. Both are
+   * money bugs, and a config-versus-config check stays green through both.
+   *
+   * So: the same trip, through the real function, at both rates.
    */
+  const payoutAtTwenty = calculateTripPayout({
+    ...SAMPLE_TRIP,
+    bill: { ...SAMPLE_TRIP.bill, deliveryFee: atTwenty.deliveryFee }
+  });
+  check('AND THE RIDER IS PAID EXACTLY WHAT THEY WERE',
+    payoutAtTwenty === payoutAtZero,
+    `the rider was paid ${payoutAtZero} at 0% and ${payoutAtTwenty} at 20%`);
+
+  // Belt and braces on the inputs too, so a failure says WHICH of the two
+  // things went wrong: the payout formula, or the rates underneath it.
   const riderRatesAtTwenty = {
     base: getActiveRates().riderBaseFeePerTrip,
     perKm: getActiveRates().riderPerKmFee,
     baseKm: getActiveRates().riderBaseKm,
     min: getActiveRates().riderMinEarningPerTrip
   };
-  check('AND EVERY RIDER RATE IS BYTE-IDENTICAL',
+  check('and no rider rate was touched either',
     JSON.stringify(riderRatesAtTwenty) === JSON.stringify(riderRatesAtZero),
     `${JSON.stringify(riderRatesAtZero)} became ${JSON.stringify(riderRatesAtTwenty)}`);
 
