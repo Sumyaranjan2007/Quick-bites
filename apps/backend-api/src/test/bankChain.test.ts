@@ -19,7 +19,7 @@
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { payableAccountFor } from '../modules/payments/payeeAccounts.ts';
-import { memoryStore } from '../db/client.ts';
+import { memoryStore, nextFlushDelayMs } from '../db/client.ts';
 
 const PORT = 5197;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -298,6 +298,30 @@ try {
   // Put it back, so nothing after this runs against a deliberately broken row.
   victim.ownerId = realOwnerId;
   memoryStore.payeeAccounts.set(secondId, victim);
+
+  // ----------------------------------------------------------------
+  console.log('\n-- A write that is never flushed is a write that was never made');
+
+  /*
+   * The autosave debounce had no ceiling. Every write cleared the timer and
+   * started it again, so continuous traffic could defer persistence
+   * indefinitely and everything since the last flush lived only in memory. On a
+   * host that restarts, that is silent data loss which looks exactly like a
+   * record that was never written -- acknowledged to the caller, counted by the
+   * process still holding it, absent afterwards.
+   *
+   * Asserted as arithmetic rather than by waiting on a real timer, because a
+   * test that sleeps for the ceiling is a test nobody keeps.
+   */
+  const t0 = 1_000_000;
+  check('A quiet store waits the full debounce', nextFlushDelayMs(null, t0) === 300,
+    String(nextFlushDelayMs(null, t0)));
+  check('A burst still coalesces while the ceiling is far away',
+    nextFlushDelayMs(t0, t0 + 100) === 300, String(nextFlushDelayMs(t0, t0 + 100)));
+  check('THE DELAY SHRINKS AS THE OLDEST WRITE AGES',
+    nextFlushDelayMs(t0, t0 + 1900) === 100, String(nextFlushDelayMs(t0, t0 + 1900)));
+  check('and a write can NEVER be deferred past the ceiling',
+    nextFlushDelayMs(t0, t0 + 2000) === 0 && nextFlushDelayMs(t0, t0 + 999_999) === 0);
 } finally {
   server.close();
 }

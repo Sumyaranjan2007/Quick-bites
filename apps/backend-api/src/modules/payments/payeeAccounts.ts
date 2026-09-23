@@ -29,7 +29,7 @@
  * embarrassing and being a fraud campaign against every rider on the platform.
  */
 import crypto from 'crypto';
-import { memoryStore, triggerAutoSave } from '../../db/client.ts';
+import { memoryStore, triggerAutoSave, flushStore } from '../../db/client.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { razorpayXAdapter, isRazorpayXConfigured } from './razorpayXAdapter.ts';
 import type {
@@ -316,7 +316,28 @@ export async function addAccount(input: AddAccountInput): Promise<PayeeAccount> 
   };
 
   memoryStore.payeeAccounts.set(account.id, account);
-  triggerAutoSave();
+
+  /*
+   * Persisted NOW, not on the debounce.
+   *
+   * Everywhere else in this file triggerAutoSave() is right: a burst of related
+   * writes should cost one flush. This one is different, for two reasons.
+   *
+   * The loop above ARCHIVED the previous account before this one was created.
+   * Those two changes are a single intention -- replace the account -- and a
+   * process that dies between them leaves the old one archived and the new one
+   * absent, which is every account invisible and a partner who cannot be paid
+   * with nothing on any screen to say why.
+   *
+   * And this is the write a partner is told succeeded. "Our team will verify
+   * this before your first payout" is a promise made at the moment of the
+   * request; if the row is still only in memory when the host restarts, that
+   * promise was made about nothing, and the partner has no reason to suspect it
+   * and no way to check.
+   *
+   * It costs one database round trip on an action somebody performs once.
+   */
+  await flushStore();
 
   return verifyAccount(account.id, input.kycName, input.accountNumber, input.contactPhone);
 }

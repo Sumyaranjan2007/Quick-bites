@@ -272,19 +272,51 @@ export function flushStore(): Promise<void> {
 }
 
 let autoSaveTimer: NodeJS.Timeout | null = null;
+/** When the oldest write still waiting to be persisted arrived. */
+let firstPendingWriteAt: number | null = null;
+
+const DEBOUNCE_MS = 300;
+/**
+ * The longest a write may wait, however busy the platform is.
+ *
+ * The debounce alone has no ceiling: every write cleared the timer and started
+ * it again, so a steady stream of traffic could defer the flush indefinitely
+ * and everything since the last one lived only in memory. On a host that
+ * restarts -- a deploy, a crash, a container move -- that window is silent data
+ * loss, and it looks exactly like a record that was never written: acknowledged
+ * to the caller, counted by the process still holding it, gone afterwards.
+ */
+const MAX_DEFERRAL_MS = 2000;
+
+/**
+ * How long the next flush may wait. Pure, and exported, so the ceiling can be
+ * asserted without a test that sits watching a clock.
+ */
+export function nextFlushDelayMs(firstWriteAt: number | null, now: number): number {
+  if (firstWriteAt === null) return DEBOUNCE_MS;
+  const alreadyWaited = now - firstWriteAt;
+  return Math.max(0, Math.min(DEBOUNCE_MS, MAX_DEFERRAL_MS - alreadyWaited));
+}
+
 /**
  * Debounced automatic persistence trigger called after state mutations.
+ *
+ * Debounced because a burst of related writes should cost one flush, and
+ * bounded because a write that is never flushed is a write that was never made.
  */
 export function triggerAutoSave(): void {
   if (process.env.NODE_ENV === 'test') return;
+  if (firstPendingWriteAt === null) firstPendingWriteAt = Date.now();
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null;
+    firstPendingWriteAt = null;
     // A persistence failure must be visible: the request has already returned
     // success to the caller, so silence here means data loss nobody notices.
     flushStore().catch(err => {
       console.error('[ERROR] Failed to persist the database store:', err);
     });
-  }, 300);
+  }, nextFlushDelayMs(firstPendingWriteAt, Date.now()));
 }
 
 /**
