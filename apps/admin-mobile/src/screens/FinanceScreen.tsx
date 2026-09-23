@@ -348,6 +348,29 @@ const SettlementsTab: React.FC = () => {
               <PayCell label="Net payable" value={formatMoney(row.pendingAmount)} />
               <PayCell label="Paid" value={formatMoney(row.paidToDate)} />
             </View>
+
+            {/*
+              * Where a settlement would land, on the row it is settled from.
+              *
+              * The owner asked that a verified account be attached to the
+              * partner's profile "so they can pay everything as settlement".
+              * Knowing the destination on the profile screen is no use if the
+              * screen somebody actually pays from does not show it -- checking
+              * would mean leaving the row, and a step you have to remember is
+              * one that gets skipped on a busy payday.
+              */}
+            {row.destination ? (
+              <Text style={s.sub} numberOfLines={1}>
+                Pays to {row.destination.holderName} ·{' '}
+                {row.destination.method === 'VPA'
+                  ? row.destination.vpa
+                  : `ending ${row.destination.accountLast4 || '----'}`}
+              </Text>
+            ) : row.pendingAmount > 0 ? (
+              <Text style={[s.sub, { color: c.state.warning }]} numberOfLines={2}>
+                {row.payoutBlockedReason || 'No account connected — this partner cannot be paid.'}
+              </Text>
+            ) : null}
           </Card>
         ))}
       </ScrollView>

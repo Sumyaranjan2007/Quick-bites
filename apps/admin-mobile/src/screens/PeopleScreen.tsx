@@ -26,6 +26,72 @@ const c = tokens.colors;
 type Tab = 'customers' | 'drivers' | 'restaurants';
 
 /**
+ * Where this partner's money goes.
+ *
+ * The owner asked that a verified account be "added to their profile which is
+ * available in the admin portal so they can pay everything as settlement". This
+ * is that block, and it is on the profile rather than only in the Bank queue
+ * because the question "why has this rider not been paid" is asked while
+ * looking at the rider, not while looking at a queue of bank accounts.
+ *
+ * It states two things separately and never merges them: whether an account is
+ * connected, and whether money can actually leave. An account can be connected
+ * and still unpayable -- a rider holding our cash is the common one -- and
+ * collapsing that into a single "not payable" sends somebody to ask a partner
+ * for bank details that are already correct.
+ *
+ * Never blank. When there is nothing connected it says so and says what that
+ * costs, because this is the screen somebody is already on when they ask.
+ */
+const PaidIntoCard: React.FC<{ destination: any }> = ({ destination }) => {
+  const d = destination;
+  const account = d?.account;
+
+  return (
+    <Card>
+      <Text style={s.cardHeading}>Paid into</Text>
+
+      {!d || !d.connected ? (
+        <>
+          <Text style={s.muted}>
+            {d?.reason || 'No account connected. This partner cannot be paid.'}
+          </Text>
+          <Text style={[s.muted, { marginTop: 6 }]}>
+            They add one from their own app, under Payout account. It appears in Bank for you to
+            check and apply.
+          </Text>
+        </>
+      ) : (
+        <>
+          <KeyValue label="Holder name" value={account.holderName} tone="strong" />
+          {account.method === 'VPA' ? (
+            <KeyValue label="UPI ID" value={account.vpa} />
+          ) : (
+            <>
+              {/* The last four only. A profile is the screen most likely to be
+                  shown to somebody standing beside the desk, and the full
+                  number is never stored anyway. */}
+              <KeyValue label="Account" value={`Ending ${account.accountLast4 || '----'}`} />
+              <KeyValue label="IFSC" value={account.ifsc} />
+            </>
+          )}
+          <KeyValue label="Connected" value={formatDateTime(account.appliedAt)} />
+          <KeyValue label="Checked by" value={d.appliedByName || 'An administrator'} />
+
+          {/* Connected but still not payable. Shown as its own line so it reads
+              as a blocker to clear rather than as a missing account. */}
+          {d.payableNow ? (
+            <Text style={[s.muted, { marginTop: 8 }]}>Settlements and payouts go here.</Text>
+          ) : (
+            <Text style={[s.muted, { marginTop: 8, color: c.state.warning }]}>{d.reason}</Text>
+          )}
+        </>
+      )}
+    </Card>
+  );
+};
+
+/**
  * The directory of everyone on the platform.
  *
  * Three populations on one screen because they are read the same way — find a
@@ -479,6 +545,8 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             <KeyValue label="Wallet balance" value={formatMoney(resource.data.wallet?.balance)} />
           </Card>
 
+          <PaidIntoCard destination={resource.data.payoutDestination} />
+
           <Card>
             <Text style={s.cardHeading}>Documents</Text>
             {(resource.data.documents || []).map((doc: any) => (
@@ -763,6 +831,10 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
             <Divider />
             <KeyValue label="Rating" value={restaurant.ratingAverage ? `${restaurant.ratingAverage} from ${restaurant.ratingCount}` : 'Not rated yet'} />
           </Card>
+
+          {/* Directly under what they are owed, because those two lines are read
+              together: the amount, and where it would go. */}
+          <PaidIntoCard destination={resource.data.payoutDestination} />
 
           <Card>
             <Text style={s.cardHeading}>Documents</Text>

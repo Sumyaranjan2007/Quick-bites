@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { Banknote, ShieldAlert, Clock, CircleSlash, Send, Info, Wallet, TriangleAlert } from 'lucide-react-native';
+import { Banknote, ShieldAlert, Clock, CircleSlash, Send, Info, Wallet, TriangleAlert, Landmark } from 'lucide-react-native';
 import {
   Card,
   Badge,
@@ -30,7 +30,40 @@ interface DueRow {
   cashInHand: number;
   hasVerifiedAccount: boolean;
   blockedReason: string | null;
+  /** Where the money would land. Null when nothing is connected. */
+  destination: {
+    method: 'BANK' | 'VPA';
+    holderName: string;
+    accountLast4?: string;
+    ifsc?: string;
+    vpa?: string;
+  } | null;
 }
+
+/**
+ * Where a payment is going, on the row that offers to send it.
+ *
+ * Nobody should press Send having seen only a name and an amount. The
+ * destination is the one part of a payout that cannot be undone afterwards, and
+ * until now it lived on a different screen entirely -- so checking it meant
+ * leaving the row, and a step somebody has to remember to take is a step that
+ * gets skipped on a busy payday.
+ */
+const Destination: React.FC<{ destination: DueRow['destination'] }> = ({ destination }) => {
+  if (!destination) return null;
+  return (
+    <View style={s.blockRow}>
+      <Landmark size={14} color={c.text.muted} />
+      <Text style={s.blockText}>
+        {destination.method === 'VPA'
+          ? `${destination.holderName} · ${destination.vpa}`
+          : `${destination.holderName} · ending ${destination.accountLast4 || '----'}${
+              destination.ifsc ? ` · ${destination.ifsc}` : ''
+            }`}
+      </Text>
+    </View>
+  );
+};
 
 interface Rail {
   id: string;
@@ -190,6 +223,7 @@ export const PayoutsScreen: React.FC = () => {
       payableNowPaise: number;
       movedSinceRequest: boolean;
       blockedReason: string | null;
+      destination: DueRow['destination'];
     }>;
   }>(() => api.get('/admin/payouts/requests').then(r => r.data), [], { enabled: canView });
 
@@ -529,6 +563,8 @@ export const PayoutsScreen: React.FC = () => {
                   </View>
                 )}
 
+                <Destination destination={row.destination} />
+
                 {canPay && !row.blockedReason && row.payable > 0 && (
                   <Button
                     label="Draft a payment"
@@ -667,6 +703,8 @@ export const PayoutsScreen: React.FC = () => {
                 )}
 
                 {!!request.note && <Text style={s.askedNote}>“{request.note}”</Text>}
+
+                <Destination destination={request.destination} />
 
                 {request.blockedReason ? (
                   <Text style={s.askedBlocked}>{request.blockedReason}</Text>
