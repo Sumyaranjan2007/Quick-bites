@@ -16,6 +16,7 @@ import {
 import { tokens } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { MenuPricingTab } from './MenuPricingTab';
 
 const c = tokens.colors;
 
@@ -216,6 +217,7 @@ export const RatesScreen: React.FC = () => {
         <Segmented
           options={[
             { key: 'restaurants', label: 'Per restaurant' },
+            { key: 'menu', label: 'Dish prices' },
             { key: 'platform', label: 'Rider pay & defaults' },
             { key: 'gold', label: 'Gold plans' },
             { key: 'bonuses', label: 'Rider bonuses' }
@@ -223,6 +225,14 @@ export const RatesScreen: React.FC = () => {
           value={tab}
           onChange={setTab}
         />
+
+        {/*
+          * Per-dish pricing, in its own file. The owner asked to open a
+          * restaurant and type a customer price on any item, which is a
+          * different shape of screen from the per-restaurant charge list -- a
+          * list within a list, with its own save per row.
+          */}
+        {tab === 'menu' && <MenuPricingTab />}
 
         {tab === 'restaurants' && (
           <>
