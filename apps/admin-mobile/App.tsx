@@ -11,6 +11,7 @@ import {
   Percent,
   Landmark,
   Banknote,
+  Handshake,
   Megaphone,
   LifeBuoy,
   FileCheck2,
@@ -34,6 +35,7 @@ import { PeopleScreen } from './src/screens/PeopleScreen';
 import { RefundsScreen } from './src/screens/RefundsScreen';
 import { CatalogScreen } from './src/screens/CatalogScreen';
 import { FinanceScreen } from './src/screens/FinanceScreen';
+import { SettlementsScreen } from './src/screens/SettlementsScreen';
 import { RatesScreen } from './src/screens/RatesScreen';
 import { PayeeAccountsScreen } from './src/screens/PayeeAccountsScreen';
 import { PayoutsScreen } from './src/screens/PayoutsScreen';
@@ -184,6 +186,21 @@ const SECTIONS: Array<{
     icon: active => <Banknote size={16} color={active ? c.brand.amberText : c.text.secondary} />,
     badge: counts => (counts?.openPayoutRequests || 0) + (counts?.cashDepositsAwaitingConfirmation || 0) || undefined,
     render: () => <PayoutsScreen />
+  },
+  {
+    /*
+     * Settlements sits between Pay and Bank because that is the order the
+     * questions come in: what is owed, then who can receive it. It reads the
+     * same endpoint Pay reads -- one source for one number.
+     */
+    key: 'settlements',
+    group: 'money',
+    label: 'Settlements',
+    title: 'What we owe',
+    subtitle: 'Riders and restaurants, and whether it can reach them',
+    permissions: ['finance.settlements.view', 'finance.payouts.view'],
+    icon: active => <Handshake size={16} color={active ? c.brand.amberText : c.text.secondary} />,
+    render: () => <SettlementsScreen />
   },
   {
     key: 'payees',

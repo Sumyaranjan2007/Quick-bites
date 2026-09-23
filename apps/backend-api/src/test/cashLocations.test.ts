@@ -372,6 +372,37 @@ try {
     `status ${again.status}, bank is now ${formatPaise(ledger.balanceOf('PLATFORM_BANK'))}`);
 
   // ----------------------------------------------------------------
+  console.log('\n-- What the Settlements screen reads');
+
+  /*
+   * Settlements reads the SAME endpoint as Pay, deliberately. A rider-side
+   * helper that derived what a rider was owed by SCANNING ORDERS was deleted
+   * rather than revived for it: two sources for one number is how two screens
+   * come to disagree about one partner on one morning.
+   *
+   * These checks live HERE, and not in the bank suite where they were first
+   * written, because allDues only returns people with money outstanding. A
+   * suite that never delivers an order gets an empty list, and then every
+   * "every row carries X" check iterates over nothing and passes. All ten of
+   * them failed honestly in the wrong suite, which is the only reason this is
+   * in the right one.
+   */
+  const duesRes = await api('/admin/payouts/dues', {}, admin.token);
+  check('The dues endpoint answers', duesRes.status === 200, `status ${duesRes.status}`);
+
+  const dueRows: any[] = duesRes.json?.data?.dues || [];
+  check('and somebody is actually owed money to check the shape against',
+    dueRows.length > 0, JSON.stringify(duesRes.json).slice(0, 200));
+
+  const sample = dueRows[0];
+  for (const field of ['ownerType', 'ownerId', 'ownerName', 'payable', 'held', 'outstanding', 'cashInHand', 'blockedReason']) {
+    check(`Every due row carries ${field}`, !!sample && field in sample,
+      JSON.stringify(Object.keys(sample || {})));
+  }
+  check('and willPayInto, so the row can say where the money goes',
+    !!sample && 'willPayInto' in sample, JSON.stringify(Object.keys(sample || {})));
+
+  // ----------------------------------------------------------------
   console.log('\n-- A rider cannot return more than they are carrying');
 
   const overReturn = await api('/admin/cash/returns', {

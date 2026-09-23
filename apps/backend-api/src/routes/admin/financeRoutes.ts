@@ -485,28 +485,25 @@ financeRoutes.post(
   }
 );
 
-/* --------------------------------- Payouts -------------------------------- */
-
-/** Trips a rider has completed that no settlement has covered yet. */
-async function unsettledFor(riderId: string) {
-  const orders = await orderRepository.listByRiderId(riderId);
-  /*
-   * `settlementEvidence`, not `status === 'DELIVERED'`.
-   *
-   * Reaching DELIVERED writes `paymentStatus = 'PAID'` whether or not a payment
-   * was ever taken, so a prepaid order that was never paid for looked exactly
-   * like a settled one from here, and became a payout. The evidence check asks
-   * whether the money arrived rather than whether a flag says so.
-   */
-  return orders.filter(o => settlementEvidence(o).ok && !o.payoutId);
-}
-
-/**
- * GET /api/admin/payouts
+/*
+ * THE RIDER SIDE OF THIS FILE IS DELIBERATELY EMPTY.
  *
- * One row per rider: what they have earned, what has already been paid, and what
- * is outstanding — plus the settlement history behind those numbers.
+ * A `unsettledFor(riderId)` helper and a docblock for `GET /api/admin/payouts`
+ * stood here, left behind when the second payout system was removed. The route
+ * was gone; the function had no callers and the compiler does not complain
+ * about an unused one, so both sat here looking like working code.
+ *
+ * They are not being revived for the Settlements screen, and that is the point
+ * worth recording. This helper derived what a rider is owed by SCANNING ORDERS;
+ * `duesFor` in payouts.ts derives it from the LEDGER. Two sources for one
+ * number is how Pay and Settlements would come to disagree about the same rider
+ * on the same morning, and whichever screen somebody happened to open would be
+ * the one they believed.
+ *
+ * Rider settlements therefore read `/admin/payouts/dues`, the same source Pay
+ * reads. If a rider figure is ever wrong, it is wrong in one place.
  */
+
 /**
  * GET /api/admin/finance/wallet-audit
  *

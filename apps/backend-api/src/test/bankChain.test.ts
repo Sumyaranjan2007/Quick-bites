@@ -408,6 +408,7 @@ try {
     JSON.stringify(theirRow?.willPayInto));
   check('so paying and seeing the destination is one screen, not two',
     theirRow?.willPayInto?.holderName === 'Spice Garden Foods');
+
 } finally {
   server.close();
 }
