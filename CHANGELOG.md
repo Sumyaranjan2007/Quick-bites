@@ -2427,7 +2427,7 @@ deployment configuration.
 **Description:** Production backend deployment to Railway, Vercel Web Portals live API connectivity & CORS resolution, and Customer Mobile APK dual-ABI launch fix.
 **Chunks Modified:** 02, 05, 06, 08
 **Changes:**
-- **Railway Backend Cloud Deployment (`quick-bites-production-9f45.up.railway.app`):**
+- **Railway Backend Cloud Deployment (`quick-bites-production.up.railway.app`):**
   - Configured Railway Node 22 runtime with dynamic `$PORT` and `0.0.0.0` network binding.
   - Mounted root health welcome handler `GET /` and `/api` prefix alongside `/api/v1` for universal client routing.
   - **Critical CORS Policy Fix (`apps/backend-api/src/middlewares/cors.ts`):** Enabled wildcard origin matching for `*.vercel.app` and `*.railway.app`, resolving browser cross-origin policy blockage preventing Vercel web apps from communicating with Railway.
@@ -2959,7 +2959,7 @@ order history while they were demonstrating it.
 
 **Testing performed:**
 
-*Hosted API* — `https://quick-bites-production-9f45.up.railway.app/api`
+*Hosted API* — `https://quick-bites-production.up.railway.app/api`
 - `GET /health` -> 200, `status: HEALTHY`, `environment: production`, `demoMode: false`, database **UP** on Supabase PostgreSQL + PostGIS, uptime ~3h. **This closes the Session 19 blocker**, which recorded the hosted API returning 502 because Railway had no `JWT_SECRET` set. It is now booting and serving.
 - `GET /restaurants` -> 200 with live seed data on Kanakapura Main Road, Harohalli — the relocated service area from Session 18 is what the live API is actually serving.
 - `POST /auth/login` with a deliberately wrong password -> **401** `Invalid email or password`, not a 500 and not a leak of which half was wrong.

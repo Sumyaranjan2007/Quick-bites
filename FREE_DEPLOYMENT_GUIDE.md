@@ -2,7 +2,7 @@
 
 **Version:** 2.0.0  
 **Repository:** [https://github.com/Sumyaranjan2007/Quick-bites](https://github.com/Sumyaranjan2007/Quick-bites)  
-**Live Production API:** [https://quick-bites-production-9f45.up.railway.app](https://quick-bites-production-9f45.up.railway.app)  
+**Live Production API:** [https://quick-bites-production.up.railway.app](https://quick-bites-production.up.railway.app)  
 **Cost:** $0.00 / ₹0.00 (100% Free Forever Stack)
 
 ---
@@ -57,12 +57,12 @@ apps/customer-mobile      apps/restaurant-mobile apps/delivery-mobile  apps/admi
 
 1. **Git Repository**: Synced on `main` branch at `https://github.com/Sumyaranjan2007/Quick-bites`.
 2. **Backend Deployed on Railway**: 
-   - Public URL: `https://quick-bites-production-9f45.up.railway.app`
+   - Public URL: `https://quick-bites-production.up.railway.app`
    - Node 22 runner with native type stripping enabled.
    - Host bound to `0.0.0.0` with dynamic `$PORT` routing.
    - Root welcome route `GET /` and universal `/api` & `/api/v1` routes active.
 3. **Mobile Apps Configured**:
-   - All 4 mobile apps updated to point to `https://quick-bites-production-9f45.up.railway.app/api`.
+   - All 4 mobile apps updated to point to `https://quick-bites-production.up.railway.app/api`.
 4. **Customer Mobile APK Compiled & Hardened**:
    - Output binary: `build/apk/QuickBite-Customer.apk` (33.0 MB).
    - Dual-ABI architecture support: `armeabi-v7a` (32-bit) + `arm64-v8a` (64-bit).

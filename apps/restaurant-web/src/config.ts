@@ -5,4 +5,4 @@
  * a staging deployment is pointed somewhere else without editing source.
  */
 export const DEFAULT_API_URL =
-  ((import.meta as any).env?.VITE_API_URL as string) || 'https://quick-bites-production-9f45.up.railway.app/api';
+  ((import.meta as any).env?.VITE_API_URL as string) || 'https://quick-bites-production.up.railway.app/api';

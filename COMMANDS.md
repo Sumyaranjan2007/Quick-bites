@@ -158,7 +158,7 @@ open each app before publishing anything.
 ## The hosted deployment
 
 ```bash
-curl https://quick-bites-production-9f45.up.railway.app/health
+curl https://quick-bites-production.up.railway.app/health
 ```
 
 Expect `"status":"HEALTHY"` and `"demoMode":false`. If the service is not

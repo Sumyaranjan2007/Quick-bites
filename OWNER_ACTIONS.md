@@ -36,7 +36,7 @@ else still works, so it is not an outage — but it is worth a redeploy.
 ### Step 2 — confirm the deploy is healthy
 
 ```bash
-curl https://quick-bites-production-9f45.up.railway.app/health
+curl https://quick-bites-production.up.railway.app/health
 ```
 
 Want: `"status":"HEALTHY"` and `"demoMode":false`.
@@ -44,7 +44,7 @@ Want: `"status":"HEALTHY"` and `"demoMode":false`.
 ### Step 3 — confirm the new endpoints are live
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" https://quick-bites-production-9f45.up.railway.app/api/v1/places/status
+curl -s -o /dev/null -w "%{http_code}\n" https://quick-bites-production.up.railway.app/api/v1/places/status
 ```
 
 Want **401**, not 404. 401 means the route exists and is correctly asking who you
@@ -94,7 +94,7 @@ Two warnings about `OTP_ALLOW_FIXED_IN_PRODUCTION=true`:
 
 ### 1.2 Check the deployment came up
 
-Open `https://quick-bites-production-9f45.up.railway.app/health` in a browser.
+Open `https://quick-bites-production.up.railway.app/health` in a browser.
 You want `"status":"HEALTHY"` and `"demoMode":false`. If the service is not
 running, the variables above are the first thing to check — it refuses to start
 deliberately rather than coming up in a state it cannot honestly serve from.
@@ -312,7 +312,7 @@ The words *"Map not available in this build"* mean there is no key at all.
 The health endpoint says whether the key reached the server:
 
 ```bash
-curl -s https://quick-bites-production-9f45.up.railway.app/health | grep -o '"addressLookup":{[^}]*}'
+curl -s https://quick-bites-production.up.railway.app/health | grep -o '"addressLookup":{[^}]*}'
 ```
 
 `"configured":true` only means a key is SET. Whether Google accepts it is a
@@ -536,7 +536,7 @@ PCI-DSS scope and outside RBI rules at the same time.
 
 ```bash
 # Is the hosted API alive?
-curl https://quick-bites-production-9f45.up.railway.app/health
+curl https://quick-bites-production.up.railway.app/health
 ```
 
 ```bash
