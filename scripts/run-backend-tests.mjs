@@ -42,6 +42,7 @@ const SUITES = [
   'membership',
   'ledger',
   'payees',
+  'bankChain',
   'payouts',
   'refunds',
   'cash',
