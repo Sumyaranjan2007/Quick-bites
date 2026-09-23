@@ -55,9 +55,30 @@ console.log('  PER-ITEM CUSTOMER PRICING                         ');
 console.log('====================================================\n');
 
 let failed = 0;
+/**
+ * Runs one check, and REFUSES an async body.
+ *
+ * This runner is synchronous. An `async` function handed to it returns a promise
+ * that nothing awaits, so the check prints PASS immediately and any assertion
+ * inside it can never fail. That happened here: the partner-leak check was
+ * written async, passed, and went on passing when the leak was deliberately
+ * introduced.
+ *
+ * Detected rather than documented, because a note saying "do not write these
+ * async" is advisory and this is enforceable. Anything returning a thenable is a
+ * FAILURE with a message saying why, not a silent pass.
+ */
 function check(label: string, fn: () => void) {
   try {
-    fn();
+    const result: any = fn();
+    if (result && typeof result.then === 'function') {
+      failed++;
+      console.error(
+        `[FAIL] ${label}: this check is async, and this runner does not await. ` +
+          'Its assertions could never fail. Do the awaiting outside and assert synchronously.'
+      );
+      return;
+    }
     console.log(`[PASS] ${label}`);
   } catch (err: any) {
     failed++;
@@ -505,6 +526,56 @@ async function partnerToken() {
     assert.equal(held.customerPrice, 300);
     assert.equal(held.marginRupees, 40, 'the margin kept is stated in rupees');
     assert.equal(held.alternatives.percent, 312, '20% of Rs 260 offered as the other reading');
+  });
+
+  check('The erosion is stated, so a margin cannot drift away unseen', () => {
+    /*
+     * Holding Rs 40 is the right default and it erodes: 20% of Rs 200 is 15.38%
+     * of Rs 260, and 11.76% by the time the dish reaches Rs 340. It erodes
+     * fastest exactly when costs rise fastest. Nothing reports that unless the
+     * approval says it, so the approval says it.
+     */
+    const held = approved.json?.data?.markupHeld;
+    assert.equal(held.alternatives.keptPercent, 20, 'what was kept before, as a percentage');
+    assert.equal(held.alternatives.rupeeKeepsPercent, 15.38, 'and what holding the rupees leaves');
+    assert.ok(
+      held.alternatives.rupeeKeepsPercent < held.alternatives.keptPercent,
+      'the screen has nothing to warn with'
+    );
+  });
+
+  /*
+   * THE BOUNDARY, not a value. Raised in review, and it is the one place §11.3
+   * would stop holding.
+   *
+   * The partner's own request history returns the raw records with no
+   * projection. Today they carry nothing about our markup. The day anybody
+   * widens the record to remember what an administrator set at approval -- a
+   * natural thing to want for an audit trail -- our markup reaches the partner
+   * immediately and nothing fails.
+   *
+   * A comment would not hold that. This does: it serialises what the partner is
+   * actually sent and fails on the day a customer-price field appears in it.
+   * Checking the JSON rather than the screen, because a field the screen does
+   * not render is still a field the partner can read.
+   */
+  // Fetched OUT HERE. The runner above is synchronous, so an async check body
+  // would print PASS without ever evaluating what is below it.
+  const partnerHistory = await api(`/restaurants/${rid}/menu/requests`, {}, partner);
+
+  check('THE PARTNER IS NEVER SENT OUR MARKUP', () => {
+    assert.equal(partnerHistory.status, 200, `status ${partnerHistory.status}`);
+
+    const serialised = JSON.stringify(partnerHistory.json);
+    for (const leak of ['customerPrice', 'itemPrices', 'typedPrice', 'markup', 'margin', 'keptRupees']) {
+      assert.ok(
+        !serialised.includes(leak),
+        `the partner's request history now carries "${leak}" -- our markup is derivable from it`
+      );
+    }
+
+    // And the figure itself, in case a field is ever named something else.
+    assert.ok(!serialised.includes('300'), 'the customer price Rs 300 appears in a partner response');
   });
 
   check('The customer never pays less than the kitchen is paid', () => {

@@ -42,7 +42,25 @@ let failed = 0;
 
 function check(name: string, fn: () => void): void {
   try {
-    fn();
+    const result: any = fn();
+    /*
+     * An async body handed to this synchronous runner would return a promise
+     * nothing awaits, print PASS immediately, and its assertions could never
+     * fail. That happened once on this project -- a check verifying our markup
+     * never reaches a partner passed, and went on passing when the leak was
+     * deliberately introduced.
+     *
+     * Detected rather than documented: a note saying "do not write these async"
+     * is advisory, and this is enforceable.
+     */
+    if (result && typeof result.then === 'function') {
+      failed++;
+      console.log(
+        `[FAIL] ${name}: this check is async and this runner does not await, so its ` +
+          'assertions could never fail. Await outside and assert synchronously.'
+      );
+      return;
+    }
     passed++;
     console.log(`[PASS] ${name}`);
   } catch (error) {

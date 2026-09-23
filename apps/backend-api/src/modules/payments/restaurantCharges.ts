@@ -666,11 +666,24 @@ export function marginPreservingPrice(input: {
   const keptRupees = Math.round((typed - oldBase) * 100) / 100;
   const keptPercent = (typed / oldBase - 1) * 100;
 
+  const rupee = Math.round(newBase + keptRupees);
+
   return {
-    rupee: Math.round(newBase + keptRupees),
+    rupee,
     percent: Math.round(newBase * (1 + keptPercent / 100)),
     keptRupees,
-    keptPercent: Math.round(keptPercent * 100) / 100
+    keptPercent: Math.round(keptPercent * 100) / 100,
+    /*
+     * What holding the rupee margin leaves as a PERCENTAGE, so the erosion is
+     * visible at the moment of decision.
+     *
+     * A margin held at Rs 40 across Rs 200 -> Rs 260 -> Rs 340 goes 20% to 15.4%
+     * to 11.8%. Nothing reports that, and it erodes fastest exactly when costs
+     * rise fastest -- which is when the owner can least afford it. Holding rupees
+     * is still the right default; drifting toward nothing without being told is
+     * not.
+     */
+    rupeeKeepsPercent: newBase > 0 ? Math.round((keptRupees / newBase) * 10000) / 100 : 0
   };
 }
 
