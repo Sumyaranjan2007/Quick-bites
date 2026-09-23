@@ -764,6 +764,40 @@ delivery fee rose, and the rider's earning for that trip is byte-identical to
 what it was at 0%. A test that only checks the customer's side passes just as
 well when the money has been taken out of the rider.
 
+> **REVIEW FINDING, 23 Sep — this one is NOT yet satisfied by `4d44863`.**
+>
+> `deliveryMarkup.test.ts:150` asserts *"AND EVERY RIDER RATE IS
+> BYTE-IDENTICAL"*, comparing four values read from `getActiveRates()` —
+> `riderBaseFeePerTrip`, `riderPerKmFee`, `riderBaseKm`,
+> `riderMinEarningPerTrip` — before and after the markup is set.
+>
+> **Those are configuration values, and nothing in §6.2 writes to them.** The
+> check compares config with config. It would pass under almost any mutation of
+> the delivery-fee code, including the one it exists to catch.
+>
+> The reasoning in the comment above it is correct *today*: rider pay is
+> computed by `calculateTripPayout` (`riderRouter.ts:103–120`) from those four
+> rates and the distance, and none of them is the markup. But that is an
+> argument, not a measurement — and the assertion checks the inputs the argument
+> relies on rather than the output the argument is about. It is §11.2's family:
+> a check positioned one step away from the thing it claims.
+>
+> **What makes it more than pedantry.** `calculateTripPayout` already accepts
+> `bill.deliveryFee` in its parameter type (`riderRouter.ts:105`) and does not
+> currently read it. So a now-marked-up number is sitting in scope in the rider
+> payout function, and the only thing keeping it out of a rider's pay is that
+> nobody has used it yet. The day somebody does — reasonably, to make rider pay
+> track the delivery charge — this check stays green while riders start earning
+> a share of the platform's markup, or the customer's markup starts inflating
+> rider pay. Either direction is a money bug and neither would fail.
+>
+> **The check that closes it:** call `calculateTripPayout` on the same order at
+> 0% and at 20% and assert the two returned numbers are equal. One line, one
+> function, and it fails the moment the markup reaches the rider's side.
+>
+> Not a defect in the shipped behaviour — the behaviour is correct. A defect in
+> the evidence that it stays correct.
+
 ### 6.3 Gold plans
 
 The new ladder, as decided today:
@@ -1252,6 +1286,29 @@ specifically:
   and not that it is "a number".
 - Bank verify: assert an account that was not payable **became** payable, and
   that the previously-connected one **stopped** being payable.
+
+### 11.2b A comment that asserts something checkable gets checked in the same edit
+
+A standing rule, earned by four incidents in one day. It covers any comment
+claiming something a grep would settle: a call site, a caller count, a
+frequency, a route path, a schema value, an "only place that".
+
+| Claim | Reality | Cost |
+| --- | --- | --- |
+| `decision: 'APPLY'` | schema is `z.enum(['APPROVE','REJECT'])` | would have 400'd on every tap |
+| the pushes are awaited in `placeOrder` | `void this.deliver(record)` | a withdrawn finding and a wrong report to the owner |
+| `backfillEarnings()` sweeps at boot | one caller, an admin route | repeated by both sessions from the comment, then committed |
+| cash is credited "nowhere else" | true when written, false after the next commit | caught before commit — the first time the loop closed |
+
+All four were checkable in under a minute. None was checked before being
+written. The rule is not "write fewer comments" — these comments are why this
+codebase is navigable. It is that **prose asserting a fact about code is code
+that nothing type-checks**, so the author checks it by hand, at the moment of
+writing, or does not make the claim.
+
+A comment that goes stale is worse than no comment, because it is read as
+current by everyone who arrives later — which is exactly what happened here,
+twice, to people who were being careful.
 
 ### 11.3 The three numbers that must never converge
 
