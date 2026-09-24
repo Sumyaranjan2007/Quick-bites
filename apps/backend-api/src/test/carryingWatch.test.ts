@@ -339,6 +339,129 @@ try {
   });
 
   /* ---------------------------------------------------------------- *
+   *  AND THE CUSTOMER HEARS ABOUT THE ESCALATION TOO                 *
+   * ---------------------------------------------------------------- */
+  console.log('\n-- The customer was told "still on the way" about a rider we have since lost');
+
+  /*
+   * DRIVEN THROUGH TWO REAL SWEEPS RATHER THAN BY PRE-SETTING THE FLAGS.
+   *
+   * The escalation checks above pre-set `carryingAlertTier`, which is fine for
+   * the admin tier but would be wrong here: pre-setting
+   * `customerToldLateTier` is asserting that the code reads a field this check
+   * wrote, not that the first sweep writes it. So the first sweep sends the
+   * "running late" message and records the tier, and the second sweep is the one
+   * under test.
+   */
+  const worsening = ownOrder('w21worsen', {
+    restaurantId: restaurant.id,
+    riderId: rider.id,
+    riderStage: 'PICKED_UP',
+    status: 'OUT_FOR_DELIVERY',
+    extra: {
+      pickedUpAt: minutesAgo(40),
+      // Transmitting, so the first sweep finds it merely late.
+      riderLocationUpdatedAt: new Date().toISOString()
+    }
+  });
+
+  captureSends();
+  await sweepStaleOrders(new Date());
+  const firstTold = ofType('DELIVERY_DELAYED')[0];
+
+  it('An order that is merely late is told so, and the tier is recorded', () => {
+    assert.ok(firstTold, 'the customer was not told about the delay at all');
+    assert.ok(/running late/i.test(firstTold.title), firstTold.title);
+    const stored = memoryStore.orders.get(worsening.id) as any;
+    assert.equal(stored.customerToldLateTier, 'OVERDUE',
+      `the tier the customer was told about was not recorded: ${stored.customerToldLateTier}`);
+  });
+
+  // Now the rider goes quiet on the same order.
+  const worseningNow = memoryStore.orders.get(worsening.id) as any;
+  worseningNow.riderLocationUpdatedAt = minutesAgo(30);
+  memoryStore.orders.set(worsening.id, worseningNow);
+
+  captureSends();
+  await sweepStaleOrders(new Date());
+  const secondTold = ofType('DELIVERY_DELAYED')[0];
+
+  it('AND IS TOLD A SECOND TIME WHEN "LATE" BECOMES "WE HAVE LOST THEM"', () => {
+    /*
+     * The one case where a second message is worth more than the quiet. They are
+     * sitting on "your rider is still on the way" about a rider the platform can
+     * no longer see, and leaving them with that is the reassuring version of a
+     * situation that got worse.
+     */
+    assert.ok(secondTold, 'the customer was left with the reassuring version');
+    assert.ok(/lost contact/i.test(secondTold.body),
+      `the second message did not say what had changed: ${secondTold.body}`);
+    assert.equal(ofType('DELIVERY_DELAYED').length, 1,
+      'more than one message was sent for one escalation');
+  });
+
+  captureSends();
+  await sweepStaleOrders(new Date());
+
+  it('and never a third time, however long it stays lost', () => {
+    /*
+     * The sweep runs every thirty seconds. Capped structurally rather than by a
+     * counter: recording SILENT makes the escalation condition unsatisfiable, so
+     * there is no number to get wrong.
+     */
+    assert.equal(ofType('DELIVERY_DELAYED').length, 0,
+      'a customer was messaged again about an order that had not changed');
+  });
+
+  /* ---------------------------------------------------------------- *
+   *  AND THE REVERSE IS NOT NEWS                                     *
+   * ---------------------------------------------------------------- */
+  console.log('\n-- A rider coming back on the air is good news, not a second alarm');
+
+  const recovering = ownOrder('w21recover', {
+    restaurantId: restaurant.id,
+    riderId: rider.id,
+    riderStage: 'PICKED_UP',
+    status: 'OUT_FOR_DELIVERY',
+    extra: { pickedUpAt: minutesAgo(50), riderLocationUpdatedAt: minutesAgo(40) }
+  });
+
+  captureSends();
+  await sweepStaleOrders(new Date());
+
+  it('An order whose rider was lost is told once, about the lost contact', () => {
+    const told = ofType('DELIVERY_DELAYED')[0];
+    assert.ok(told, 'the customer was told nothing about a lost rider');
+    assert.ok(/lost contact/i.test(told.body), told.body);
+    const stored = memoryStore.orders.get(recovering.id) as any;
+    assert.equal(stored.customerToldLateTier, 'SILENT');
+  });
+
+  // The rider starts transmitting again. Still late, but no longer lost.
+  const recoveringNow = memoryStore.orders.get(recovering.id) as any;
+  recoveringNow.riderLocationUpdatedAt = new Date().toISOString();
+  memoryStore.orders.set(recovering.id, recoveringNow);
+
+  captureSends();
+  const sweepRecovered = await sweepStaleOrders(new Date());
+
+  it('AND IS NOT TOLD AGAIN WHEN THE RIDER COMES BACK ON THE AIR', () => {
+    /*
+     * Operations are told — the tier genuinely changed and they are working the
+     * problem. The CUSTOMER is not, and that asymmetry is deliberate: sending
+     * "your order is running late" to somebody who has already been told we lost
+     * the rider delivers good news as a fresh alarm about their dinner, and reads
+     * as a platform that has lost its grip rather than one that found the rider.
+     */
+    const flagged = sweepRecovered.carryingFlagged.find(f => f.orderId === recovering.id);
+    assert.ok(flagged, 'operations were not told the rider came back');
+    assert.equal(flagged!.tier, 'OVERDUE');
+
+    assert.equal(ofType('DELIVERY_DELAYED').length, 0,
+      'a customer was sent a second, milder message after being told we lost the rider');
+  });
+
+  /* ---------------------------------------------------------------- *
    *  NEVER TRANSMITTED AT ALL                                        *
    * ---------------------------------------------------------------- */
   console.log('\n-- A rider who has not transmitted since collecting');

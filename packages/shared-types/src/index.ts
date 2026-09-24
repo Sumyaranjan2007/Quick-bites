@@ -670,6 +670,21 @@ export interface Order {
    * PREPARING arrives the status no longer remembers that ACCEPTED happened.
    */
   customerToldKitchenHasItAt?: string;
+  /** When the customer was told their delivery was in trouble. */
+  customerToldLateAt?: string;
+  /**
+   * WHICH kind of trouble they were told about.
+   *
+   * Stored, because it is what decides whether there is anything new to say. A
+   * customer told "running late" and then told nothing more, while the platform
+   * has since lost contact with the rider entirely, has been left with the
+   * reassuring version of a situation that got worse.
+   *
+   * The reverse is not news: a rider who starts transmitting again after going
+   * silent is good news arriving as a second alarm, so it is never sent. That
+   * asymmetry is the whole reason this is a tier and not a counter.
+   */
+  customerToldLateTier?: 'SILENT' | 'OVERDUE';
   /**
    * Set when the handover was confirmed from somewhere that is not the delivery
    * address. Not an accusation and not a block — the food may genuinely have

@@ -488,16 +488,38 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
     }
 
     /*
-     * And tell the CUSTOMER, once.
+     * And tell the CUSTOMER — once, and a second time only if it got worse.
      *
      * A frozen map with no explanation is the worst version of this: they cannot
      * tell whether the app is broken, the rider is lost, or the food is coming, so
-     * they assume the worst and phone support. Said once per order, on whichever
-     * tier fired first, because two messages about one late dinner is worse than
-     * one.
+     * they assume the worst and phone support.
+     *
+     * The first message goes on whichever tier fires first. The SECOND goes only
+     * on an escalation from "running late" to "we have lost contact", because that
+     * is the one case where what they were told is now materially wrong: they are
+     * sitting on a reassuring message — "your rider is still on the way" — about a
+     * rider the platform can no longer see.
+     *
+     * THREE THINGS IT DELIBERATELY WILL NOT DO.
+     *
+     * It will not send the reverse. A rider who starts transmitting again has
+     * turned bad news into good, and delivering that as a second alarm about a
+     * late dinner makes the platform look panicked.
+     *
+     * It will not send a third. Once they have been told contact was lost there is
+     * nothing further to add until the food arrives, and this sweep runs every
+     * thirty seconds. The cap is structural rather than counted: recording the new
+     * tier makes the escalation condition unsatisfiable afterwards.
+     *
+     * And it will not repeat the same tier. That is already true one level up,
+     * where the sweep skips an unchanged tier entirely.
      */
-    if (order.customerId && !(order as any).customerToldLateAt) {
-      (order as any).customerToldLateAt = now.toISOString();
+    const toldTier = order.customerToldLateTier;
+    const escalatedToLostContact = toldTier === 'OVERDUE' && tier === 'SILENT';
+
+    if (order.customerId && (!order.customerToldLateAt || escalatedToLostContact)) {
+      order.customerToldLateAt = now.toISOString();
+      order.customerToldLateTier = tier;
       memoryStore.orders.set(order.id, order);
       try {
         await fcmDispatcher.notifyCustomerDeliveryDelayed(
