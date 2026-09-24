@@ -232,6 +232,16 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
       throw new AppError('You do not have permission to track this order.', 403, 'FORBIDDEN');
     }
 
+    /*
+     * Looked up rather than read off the order, because an order carries the
+     * restaurant's NAME and not its position. Failure here is null, not an
+     * error: a missing coordinate costs the first map phase, and a tracking
+     * screen that 500s costs the customer everything else on it too.
+     */
+    const trackedRestaurant = order.restaurantId
+      ? await restaurantRepository.findById(order.restaurantId).catch(() => null)
+      : null;
+
     res.json({
       success: true,
       data: {
@@ -242,10 +252,40 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
         // delivered order does not leave a permanent phone number on a screen.
         riderPhone: visibleContact(order.riderPhone, order.status).phone,
         riderPhoneMasked: visibleContact(order.riderPhone, order.status).maskedPhone,
-        riderCoordinates: order.riderCoordinates ?? null,
-        riderBearing: order.riderBearing ?? 0,
-        riderLocationUpdatedAt: order.riderLocationUpdatedAt ?? null,
+        /*
+         * THE RIDER'S POSITION IS WITHHELD UNTIL THEY ARE CARRYING THE FOOD.
+         *
+         * It used to go out whenever it existed — including while the rider was
+         * still riding to the restaurant, on a trip this customer's food is not
+         * part of yet. Every customer with an accepted order could read a
+         * rider's live coordinates from this JSON.
+         *
+         * Hiding it in the screen would not have hidden it. `pickedUpAt` is the
+         * gate the owner described ("when driver is on its way after taking otp")
+         * so it is applied where it can actually be enforced.
+         *
+         * The rider's STAGE still shows as words — "your rider is at the
+         * restaurant" — which is what a customer actually wants and discloses
+         * nothing precise.
+         */
+        riderCoordinates: order.pickedUpAt ? order.riderCoordinates ?? null : null,
+        riderBearing: order.pickedUpAt ? order.riderBearing ?? 0 : 0,
+        riderLocationUpdatedAt: order.pickedUpAt ? order.riderLocationUpdatedAt ?? null : null,
         destinationCoordinates: order.deliveryCoordinates ?? null,
+        /*
+         * WHERE THE FOOD IS BEING COOKED, for the map's first phase.
+         *
+         * The owner asked that a customer see the restaurant and the distance to
+         * it from the moment the partner accepts, rather than a line of text
+         * until the rider collects. This is the only backend change the whole of
+         * §8B needs.
+         *
+         * Sent from acceptance onward rather than from placement: before anybody
+         * has accepted there is nothing to show a customer about a kitchen that
+         * may yet decline.
+         */
+        restaurantCoordinates: trackedRestaurant?.coordinates ?? null,
+        restaurantName: order.restaurantName ?? null,
         // Recomputed on every poll rather than stored, because it is a function
         // of where the rider is right now. A stored ETA is a stale ETA the
         // moment the rider moves, and the tracking screen's whole job is to

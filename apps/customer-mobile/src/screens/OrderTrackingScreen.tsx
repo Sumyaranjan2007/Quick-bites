@@ -13,7 +13,7 @@ import { tokens } from '../theme/tokens';
 import { Linking, Alert } from 'react-native';
 import { Bike, Phone, ArrowLeft, Check, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';
 import { Card } from '../components/ui';
-import { LiveRiderMap } from '../components/LiveRiderMap';
+import { LiveOrderMap } from '../components/LiveOrderMap';
 import { OrderChat } from '../components/OrderChat';
 import { RatingSheet } from '../components/RatingSheet';
 import { useTranslation } from '../lib/i18n';
@@ -109,6 +109,23 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   const isDelivered = status === 'DELIVERED';
   const isClosed = isDelivered || status === 'CANCELLED' || status === 'REFUNDED';
   const riderAssigned = Boolean(order?.riderName) && !isClosed;
+
+  /*
+   * WHEN THERE IS A MAP AT ALL, and which phase it is in.
+   *
+   * The map appears once the kitchen has ACCEPTED — before that there is nothing
+   * honest to show a customer about a restaurant that may still decline — and it
+   * goes when the order closes, because a delivered order does not need a live
+   * view of anything.
+   *
+   * `carryingNow` reads `pickedUpAt` rather than the status. The two-track model
+   * keeps the food's progress and the rider's progress apart on purpose, and the
+   * server withholds the rider's coordinates on this same field, so the screen
+   * and the server cannot end up in different phases.
+   */
+  const ACCEPTED_ONWARD = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'];
+  const carryingNow = Boolean(tracking?.pickedUpAt);
+  const mapVisible = !isClosed && (ACCEPTED_ONWARD.includes(status) || riderAssigned);
 
   // Push updates arrive instantly; the poll below is only a fallback for
   // networks where websockets are blocked.
@@ -458,20 +475,31 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         </Card>
       )}
 
-      {/* Live rider position - only while a delivery is actually in progress */}
-      {riderAssigned && (
+      {/*
+        THE MAP APPEARS WHEN THE KITCHEN ACCEPTS, not when a rider is assigned.
+
+        It used to be gated on `riderAssigned`, so a customer whose order had
+        been accepted and was being cooked saw a line of text saying live
+        location would start later. The owner asked for the restaurant and the
+        distance to it in that window — "when partner accepts the order then also
+        customer should be able to see the map".
+      */}
+      {mapVisible && (
         <Card style={styles.block}>
-          <Text style={styles.blockTitle}>Live location</Text>
-          <LiveRiderMap
+          <Text style={styles.blockTitle}>{carryingNow ? 'Live location' : 'Your order'}</Text>
+          <LiveOrderMap
             rider={tracking?.riderCoordinates ?? null}
+            restaurant={tracking?.restaurantCoordinates ?? null}
             /* Falls back to the order's own delivery coordinates. A rider ping
                can arrive over the socket before the first tracking fetch
                returns, and the merge then produces a rider with no destination -
                leaving the map stuck on "waiting for the delivery address"
                even though the order has carried that address all along. */
             destination={tracking?.destinationCoordinates ?? order?.deliveryCoordinates ?? null}
+            pickedUpAt={tracking?.pickedUpAt ?? null}
             updatedAt={tracking?.riderLocationUpdatedAt}
             riderName={tracking?.riderName ?? riderName}
+            restaurantName={tracking?.restaurantName ?? order?.restaurantName ?? null}
           />
         </Card>
       )}
