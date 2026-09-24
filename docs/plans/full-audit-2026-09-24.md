@@ -658,6 +658,23 @@ floors on the routes found, the calls found, and the calls per app.
   morning. A check that reports a defect nobody introduced gets switched off
   rather than read.
 
+### W7(c) — money IN accepted `8b65152`; money OUT added (25 Sep)
+
+Four lifecycles over HTTP (cash, online, customer cancel, kitchen reject). The
+books are checked after every step, and the customer total = bank + fees +
+still-held. No defect found. **Gap:** nothing runs money out. Added:
+- **c5** payout run on MANUAL_BANK: payables to zero, bank down by the exact sum,
+  one push per payee. Cash in the rider's bag blocks the payout. An M2 incentive
+  is carried by the next run.
+- **c6** refund on a delivered order via the admin queue: the receivable is
+  credited and the kitchen's share is clawed back, including when the kitchen was
+  already paid.
+- **c7** admin cancel and sweeper auto-cancel on paid orders, asserted the same
+  as the customer cancel.
+- **(b) scope:** behaviour for decision-gating rates. A GET-after-PUT round trip
+  for all ~30 rates, to catch the RATE_BOUNDS silent drop. Every
+  `requireFeature` flag, off and on.
+
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
 - Remove the twelve dead exports in §F7 one commit each, gate green between.
