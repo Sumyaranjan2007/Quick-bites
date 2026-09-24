@@ -157,6 +157,52 @@ class FcmNotificationDispatcher {
   }
 
   /**
+   * A TRIP IS WAITING, and this is the notification that did not exist.
+   *
+   * -------------------------------------------------------------------------
+   * RIDERS HAVE NEVER BEEN PUSHED A JOB
+   * -------------------------------------------------------------------------
+   * Trips reached riders through one channel only: `emitOrderAvailableForPickup`,
+   * a socket event to a room. A socket needs the app open and connected, and
+   * Android kills background sockets. So a rider with the phone in their pocket
+   * learned of nothing, cooked food sat on the pass, and the sweeper eventually
+   * raised NO_RIDER_FOUND — which reads as "no riders available" when what
+   * actually happened is that nobody was asked.
+   *
+   * The rider app has been ready for this the whole time. `orderAlert.ts` creates
+   * the `new-orders` channel with a looping alarm built for exactly this moment.
+   * The server had never sent to it. Same shape as the kitchen push, and it
+   * reaches riders on the APK they already have.
+   *
+   * -------------------------------------------------------------------------
+   * NO MONEY IN THE BODY, AND FOR A DIFFERENT REASON THAN THE KITCHEN'S
+   * -------------------------------------------------------------------------
+   * A rider's own earning is theirs to see and would genuinely help them decide.
+   * It is left out because computing it here means importing the payout
+   * calculator from the rider router, which imports this module — and a cycle in
+   * the notification path is a risk that is not worth an extra line on a lock
+   * screen. The restaurant and the distance are what decide whether to open the
+   * app; the app then shows the full offer including the fee.
+   */
+  async notifyRiderTripAvailable(
+    riderUserId: string,
+    orderId: string,
+    orderNumber: string,
+    restaurantName: string,
+    distanceLabel: string | null
+  ) {
+    return this.sendPushNotification({
+      userId: riderUserId,
+      orderId,
+      orderNumber,
+      title: 'New trip available',
+      body: `Pick up from ${restaurantName}${distanceLabel ? `, ${distanceLabel} away` : ''}. Open the app to accept it.`,
+      data: { type: 'RIDER_TRIP_AVAILABLE', orderId, orderNumber },
+      androidChannelId: CHANNEL.RIDER
+    });
+  }
+
+  /**
    * Sent to a RIDER, not a customer: everything else here goes the other way.
    *
    * The nudge before a trip is taken back. Worded as a question rather than an
@@ -171,7 +217,7 @@ class FcmNotificationDispatcher {
       title: 'Still collecting?',
       body: `Order #${orderNumber} is waiting at ${restaurantName}. It will be offered to another rider shortly.`,
       data: { type: 'NO_SHOW_WARNING', orderId, orderNumber },
-      androidChannelId: CHANNEL.RIDER
+      androidChannelId: 'new_orders'
     });
   }
 

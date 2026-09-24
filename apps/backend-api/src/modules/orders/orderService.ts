@@ -40,6 +40,7 @@ import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
+import { offerTripToNearbyRiders } from './tripOffers.ts';
 
 /**
  * Tells the kitchen, on the phone in somebody's pocket.
@@ -1100,6 +1101,20 @@ export const orderService = {
         restaurantId: updated.restaurantId,
         restaurantName: (updated as any).restaurantName
       });
+
+      /*
+       * AND WAKE THE RIDERS WHOSE APP IS CLOSED.
+       *
+       * The emit above reaches a socket room, which needs the app open and
+       * connected — and Android kills background sockets. So this was the whole
+       * of dispatch, and it reached almost nobody: food went cold on the pass and
+       * the sweeper reported NO_RIDER_FOUND, which reads as "no riders" when
+       * nobody had been asked.
+       *
+       * Not awaited. Marking food ready must never fail because a push service is
+       * slow, and `offerTripToNearbyRiders` catches its own errors.
+       */
+      void offerTripToNearbyRiders(updated as any);
     }
 
     // 2. Dispatch FCM push notifications per status
