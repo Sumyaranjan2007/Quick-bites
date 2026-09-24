@@ -58,6 +58,7 @@ import { runPaymentsHealthCheck } from '../modules/payments/paymentsHealth.ts';
 import { toPaise } from '../modules/payments/money.ts';
 import { sendRefund } from '../modules/payments/refunds.ts';
 import { createVersion, resetConfigsForTesting } from '../modules/payments/pricingConfig.ts';
+import { istDayStart } from '../modules/admin/analytics.ts';
 import { ownOrder } from './helpers/ownFixture.ts';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -587,10 +588,21 @@ try {
     assert.equal(counts.cancelled, 1, `cancelled was ${counts.cancelled}`);
   });
 
+  /*
+   * THE EVENING SLOT ON THE SAME IST DAY AS THE ORDERS ABOVE.
+   *
+   * Derived, not written down. This said `2026-09-24T18:00:00Z` while the orders
+   * were created with the real clock — so it passed on the day it was written and
+   * failed the next morning, when `istDayKey(now)` had moved on and the summary
+   * counted a day with nothing in it. A check that only holds on one date is a check
+   * that reports a defect nobody introduced.
+   */
+  const eveningToday = new Date(istDayStart(new Date()).getTime() + 23.5 * 3_600_000);
+
   resetDigestForTesting();
   captureSends();
-  const firstSend = await sendDigestIfDue(new Date('2026-09-24T18:00:00Z'));
-  const secondSend = await sendDigestIfDue(new Date('2026-09-24T18:05:00Z'));
+  const firstSend = await sendDigestIfDue(eveningToday);
+  const secondSend = await sendDigestIfDue(new Date(eveningToday.getTime() + 5 * 60_000));
 
   it('IT IS SENT ONCE PER SLOT, NOT ONCE PER WAKE-UP', () => {
     /*
@@ -613,7 +625,7 @@ try {
   resetDigestForTesting();
   setCategoryEnabled('DIGEST', false, 'usr_admin_01');
   captureSends();
-  await sendDigestIfDue(new Date('2026-09-24T18:00:00Z'));
+  await sendDigestIfDue(eveningToday);
 
   it('and muting the summary silences it without silencing problems', () => {
     assert.equal(ofType('ADMIN_DAILY_DIGEST').length, 0, 'a muted summary still arrived');
