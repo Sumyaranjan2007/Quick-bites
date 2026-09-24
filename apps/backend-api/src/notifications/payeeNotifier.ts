@@ -87,6 +87,8 @@ export async function notifyPayeePaid(input: {
   amountLabel: string;
   payoutId: string;
   reference?: string;
+  /** False when the rail only ACCEPTED it, which is not the same as arriving. */
+  landed?: boolean;
 }): Promise<void> {
   try {
     const userId = await userIdFor(input.ownerType, input.ownerId);
@@ -109,7 +111,8 @@ export async function notifyPayeePaid(input: {
       amountLabel: input.amountLabel,
       destinationLabel: destinationLabelFor(input.ownerType, input.ownerId),
       payoutId: input.payoutId,
-      reference: input.reference
+      reference: input.reference,
+      landed: input.landed !== false
     });
   } catch (err: any) {
     console.error(

@@ -49,8 +49,10 @@ import {
   draftPayout,
   approvePayout,
   executePayout,
+  findPayout,
   resetPayoutsForTesting
 } from '../modules/payments/payouts.ts';
+import { runPaymentsHealthCheck } from '../modules/payments/paymentsHealth.ts';
 import { resetPayeeAccountsForTesting } from '../modules/payments/payeeAccounts.ts';
 import { RAILS } from '../modules/payments/rails.ts';
 import { sendRefund } from '../modules/payments/refunds.ts';
@@ -326,6 +328,144 @@ async function run(): Promise<void> {
 
     assert.equal(pushesSinceClear('PAYOUT_PAID').length, 0,
       'a payee was told they were paid by a gateway that declined the transfer');
+  });
+
+  /* ================================================================ *
+   *  A PAYOUT THAT WAS IN DOUBT AND TURNED OUT FINE                   *
+   * ================================================================ */
+
+  await check('A payout resolved from UNCERTAIN to PAID also tells the payee', async () => {
+    fcmDispatcher.clearHistory();
+    recordOrderEarnings(deliveredOrder({ orderNumber: 'QB-900008' }));
+
+    const payout = draftPayout({
+      ownerType: 'RIDER',
+      ownerId: RIDER,
+      ownerName: 'Rahul Sharma',
+      actorUserId: ADMIN_A,
+      rail: 'MANUAL_BANK'
+    });
+    if (payout.state === 'AWAITING_APPROVAL') approvePayout(payout.id, ADMIN_B);
+
+    /*
+     * A payout is UNCERTAIN when we asked and do not know — the request timed out,
+     * or the process died between sending and recording. A rail that neither
+     * throws nor answers produces exactly that, so the rail's `send` stands in for
+     * one that never came back.
+     */
+    const rail = RAILS.MANUAL_BANK;
+    const realSend = rail.send;
+    (rail as any).send = async () => ({ status: 'UNKNOWN' as any, reason: 'No answer' });
+    try {
+      await executePayout({ id: payout.id, actorUserId: ADMIN_B, manualReference: 'UTR77778888' });
+    } finally {
+      (rail as any).send = realSend;
+    }
+
+    const inDoubt = findPayout(payout.id)!;
+    assert.equal(inDoubt.state, 'UNCERTAIN', `expected UNCERTAIN, got ${inDoubt.state}`);
+    await new Promise(r => setTimeout(r, 30));
+    assert.equal(pushesSinceClear('PAYOUT_PAID').length, 0,
+      'somebody was told they were paid while the outcome was still unknown');
+
+    /*
+     * THE SECOND PLACE A PAYOUT BECOMES PAID, AND IT TOLD NOBODY.
+     *
+     * Reconciliation confirming an uncertain payout had grown its own copy of the
+     * PAID path: its own ledger posting, its own state change, no notification. So
+     * the payee whose money had been in doubt for a day — the one most likely to be
+     * anxious about it — was the only payee never told it had landed.
+     */
+    fcmDispatcher.clearHistory();
+    const report = await runPaymentsHealthCheck({
+      lookup: async () => [{ id: 'pout_live_1', status: 'processed' }]
+    });
+    assert.equal(report.uncertainPayouts.resolvedPaid >= 1, true,
+      `reconciliation resolved nothing: ${JSON.stringify(report.uncertainPayouts)}`);
+    assert.equal(findPayout(payout.id)!.state, 'PAID');
+
+    await new Promise(r => setTimeout(r, 30));
+    const told = pushesSinceClear('PAYOUT_PAID');
+    assert.equal(told.length, 1,
+      `the payee whose money was in doubt was told ${told.length} times`);
+    assert.equal(told[0].userId, RIDER_USER);
+    assert.match(told[0].title, /have been paid/i,
+      `a confirmed payout was announced as merely on its way: ${told[0].title}`);
+  });
+
+  await check('and it clears the payable through the same account name the normal path uses', () => {
+    /*
+     * The copy did not only forget the notification. It built the payable account
+     * by concatenating 'RIDER_PAYABLE:' + ownerId instead of calling `accountFor`.
+     * Those agree today because nobody has changed how an account name is
+     * composed — and the day that changes, reconciliation clears a payable nothing
+     * else reads, so the payable never goes down and the next run pays the same
+     * person again.
+     *
+     * Asserted on the ENTRY rather than on the balance: the rider has earnings
+     * from several orders in this suite, so a balance of zero is not what "the
+     * payout cleared its own payable" means and a check written that way would be
+     * measuring the other orders.
+     *
+     * `accountFor` is on the left of the comparison because it is the thing that
+     * would move. A hardcoded 'RIDER_PAYABLE:rdr_news_1' here would agree with the
+     * drifted copy and disagree with the rest of the platform.
+     */
+    const cleared = ledger
+      .query({})
+      .filter(e => e.event === 'PAYOUT_SENT' && e.direction === 'DEBIT');
+    assert.ok(cleared.length > 0, 'no payout cleared a payable at all');
+    for (const entry of cleared) {
+      assert.equal(
+        entry.account === accountFor('RIDER_PAYABLE', RIDER) ||
+          entry.account === accountFor('PARTNER_PAYABLE', RESTAURANT),
+        true,
+        `a payout cleared "${entry.account}", which is not an account accountFor composes`
+      );
+    }
+  });
+
+  await check('A QUEUED payout is told it is on its way, not that it has arrived', async () => {
+    fcmDispatcher.clearHistory();
+    recordOrderEarnings(deliveredOrder({ orderNumber: 'QB-900009' }));
+
+    const payout = draftPayout({
+      ownerType: 'RESTAURANT',
+      ownerId: RESTAURANT,
+      ownerName: 'Nandini Kitchen',
+      actorUserId: ADMIN_A,
+      rail: 'MANUAL_BANK'
+    });
+    if (payout.state === 'AWAITING_APPROVAL') approvePayout(payout.id, ADMIN_B);
+
+    /*
+     * RazorpayX ACCEPTING a payout is not RazorpayX having paid it. The state is
+     * PAID either way, because the money has left our control and the entries it
+     * covers must never be drafted again — but "you have been paid" about a
+     * transfer the bank has not made yet sends somebody to look at an account that
+     * has not moved, and the second time that happens they stop believing us.
+     */
+    const rail = RAILS.MANUAL_BANK;
+    const realSend = rail.send;
+    (rail as any).send = async () => ({ status: 'QUEUED' as const, reference: 'pout_q_1' });
+    try {
+      const queued = await executePayout({
+        id: payout.id,
+        actorUserId: ADMIN_B,
+        manualReference: 'UTR99990000'
+      });
+      assert.equal(queued.state, 'PAID', 'a queued payout must still clear what it covers');
+    } finally {
+      (rail as any).send = realSend;
+    }
+    await new Promise(r => setTimeout(r, 30));
+
+    const told = pushesSinceClear('PAYOUT_PAID');
+    assert.equal(told.length, 1);
+    assert.match(told[0].title, /on its way/i,
+      `a queued transfer was announced as arrived: ${told[0].title}`);
+    assert.equal(/have been paid/i.test(told[0].title), false,
+      `a queued transfer claimed the money had landed: ${told[0].title}`);
   });
 
   /* ================================================================ *

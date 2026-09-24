@@ -532,15 +532,34 @@ class FcmNotificationDispatcher {
    */
   async notifyPayeePaid(
     userId: string,
-    input: { amountLabel: string; destinationLabel: string | null; payoutId: string; reference?: string }
+    input: {
+      amountLabel: string;
+      destinationLabel: string | null;
+      payoutId: string;
+      reference?: string;
+      /**
+       * Whether the money has ARRIVED, or only been accepted for sending.
+       *
+       * RazorpayX accepting a payout is not RazorpayX having paid it. Telling
+       * somebody "you have been paid" about a transfer the bank has not made yet
+       * sends them to look at an account that has not moved — and the second time
+       * that happens they stop believing the message, which is worse than never
+       * having sent it.
+       */
+      landed?: boolean;
+    }
   ) {
+    const arrived = input.landed !== false;
     return this.sendPushNotification({
       userId,
-      title: 'You have been paid',
-      body:
-        `${input.amountLabel} has been sent` +
-        (input.destinationLabel ? ` to ${input.destinationLabel}` : '') +
-        '.',
+      title: arrived ? 'You have been paid' : 'Your payment is on its way',
+      body: arrived
+        ? `${input.amountLabel} has been sent` +
+          (input.destinationLabel ? ` to ${input.destinationLabel}` : '') +
+          '.'
+        : `${input.amountLabel} is on its way` +
+          (input.destinationLabel ? ` to ${input.destinationLabel}` : '') +
+          '. It usually arrives within a few hours.',
       androidChannelId: CHANNEL.DEFAULT,
       data: {
         type: 'PAYOUT_PAID',

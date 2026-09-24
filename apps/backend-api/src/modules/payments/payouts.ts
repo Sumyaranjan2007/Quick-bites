@@ -400,6 +400,105 @@ export function cancelPayout(id: string, actorUserId: string, reason: string): P
  *  EXECUTION — the moment money leaves                                *
  * ------------------------------------------------------------------ */
 
+/**
+ * A payout becomes PAID. All of it, in one place.
+ *
+ * -------------------------------------------------------------------------
+ * WHY THIS IS A FUNCTION AND NOT TWO COPIES
+ * -------------------------------------------------------------------------
+ * There are TWO moments a payout becomes PAID, and only one of them was obvious.
+ * The second is reconciliation resolving a payout whose outcome was unknown, and
+ * it had grown its own copy of this: its own ledger posting, its own state
+ * change, and no notification at all. So the payee most likely to be anxious —
+ * the one whose money was in doubt for a day — was the only one never told it had
+ * landed.
+ *
+ * The drift was already worse than a missing message. That copy built the payable
+ * account name by string concatenation, `'PARTNER_PAYABLE:' + ownerId`, rather
+ * than through `accountFor`. The two agree today. They agree because nobody has
+ * changed how an account name is composed, which is not a guarantee — and the day
+ * they stop agreeing, reconciliation posts a partner's payout against an account
+ * nothing else reads, the payable never clears, and the next run pays them again.
+ *
+ * One function, called from both. A state change with money attached gets one
+ * place to live.
+ */
+export function markPayoutPaid(
+  payout: PayoutRecord,
+  input: {
+    actorUserId: string;
+    narration: string;
+    reference?: string;
+    /**
+     * Whether the money has actually arrived, as opposed to having been accepted.
+     *
+     * The state is PAID either way — the money has left our control and the
+     * entries it covers must never be drafted again. What changes is what the
+     * payee is told, because "you have been paid" about a transfer a bank has not
+     * made yet sends somebody to look at an account that has not moved.
+     */
+    landed: boolean;
+  }
+): void {
+  payout.state = 'PAID';
+
+  /*
+   * The money is out. This is the entry that clears what they were owed.
+   *
+   * Keyed on the payout, so the two callers cannot post it twice: reconciliation
+   * confirming a payout whose original call DID complete is handed the existing
+   * entries rather than doubling them.
+   */
+  ledger.post({
+    event: 'PAYOUT_SENT',
+    postings: [
+      {
+        account: accountFor(
+          (payout.ownerType === 'RESTAURANT' ? 'PARTNER_PAYABLE' : 'RIDER_PAYABLE') as any,
+          payout.ownerId
+        ),
+        direction: 'DEBIT',
+        amountPaise: payout.amountPaise
+      },
+      { account: 'PLATFORM_BANK', direction: 'CREDIT', amountPaise: payout.amountPaise }
+    ],
+    idempotencyKey: `payout_sent:${payout.id}`,
+    actorUserId: input.actorUserId,
+    narration: input.narration,
+    payoutId: payout.id
+  });
+
+  memoryStore.payouts.set(payout.id, payout);
+  triggerAutoSave();
+
+  /*
+   * AND TELL THE PERSON WHOSE MONEY IT IS.
+   *
+   * This is the notification the platform owed and never sent. The ledger entry
+   * above and an audit line were the whole record of a payday, so a partner and a
+   * rider found out by checking their bank — or by ringing to ask about money that
+   * had already arrived.
+   *
+   * Only from here, which is the point of here existing: a manual rail cannot
+   * reach PAID without a recorded reference, a refused rail never reaches it at
+   * all, and a FAILED one alerts the admin instead. Every one of those rules is
+   * enforced by the callers deciding whether to call this, rather than by three
+   * notification sites each remembering a different condition.
+   *
+   * Not awaited. The money has gone; a slow push service must not turn a completed
+   * transfer into an exception, and the notifier catches its own errors.
+   */
+  void notifyPayeePaid({
+    ownerType: payout.ownerType,
+    ownerId: payout.ownerId,
+    ownerName: payout.ownerName,
+    amountLabel: formatPaise(payout.amountPaise),
+    payoutId: payout.id,
+    reference: input.reference,
+    landed: input.landed
+  });
+}
+
 export async function executePayout(input: {
   id: string;
   actorUserId: string;
@@ -509,55 +608,22 @@ export async function executePayout(input: {
   payout.failureReason = result.reason;
 
   if (result.status === 'SENT' || result.status === 'QUEUED') {
-    payout.state = 'PAID';
-
-    // The money is out. This is the entry that clears what they were owed.
-    ledger.post({
-      event: 'PAYOUT_SENT',
-      postings: [
-        {
-          account: accountFor(
-            (payout.ownerType === 'RESTAURANT' ? 'PARTNER_PAYABLE' : 'RIDER_PAYABLE') as any,
-            payout.ownerId
-          ),
-          direction: 'DEBIT',
-          amountPaise: payout.amountPaise
-        },
-        { account: 'PLATFORM_BANK', direction: 'CREDIT', amountPaise: payout.amountPaise }
-      ],
-      idempotencyKey: `payout_sent:${payout.id}`,
+    markPayoutPaid(payout, {
       actorUserId: input.actorUserId,
       narration:
         `${formatPaise(payout.amountPaise)} paid to ${payout.ownerName} via ${rail.displayName}` +
         (result.reference ? ` (${result.reference})` : ''),
-      payoutId: payout.id
-    });
-
-    /*
-     * AND TELL THE PERSON WHOSE MONEY IT IS.
-     *
-     * This is the one notification the platform owed and never sent. The ledger
-     * entry above and an audit line were the whole record of a payday, so the
-     * partner and the rider found out by checking their bank — or by ringing to
-     * ask about money that had already arrived.
-     *
-     * Here rather than in the FAILED or UNCERTAIN branches, and that placement is
-     * the rule: PAID means a rail reported the transfer as sent or queued. A
-     * manual rail cannot reach this branch at all without a recorded reference,
-     * because it refuses to report SENT without one — so a hand-made transfer is
-     * announced only once somebody has written down that they made it.
-     *
-     * Not awaited. The money has gone; a slow push service must not turn a
-     * completed transfer into an exception, and the notifier catches its own
-     * errors.
-     */
-    void notifyPayeePaid({
-      ownerType: payout.ownerType,
-      ownerId: payout.ownerId,
-      ownerName: payout.ownerName,
-      amountLabel: formatPaise(payout.amountPaise),
-      payoutId: payout.id,
-      reference: result.reference
+      reference: result.reference,
+      /*
+       * QUEUED IS NOT LANDED, AND THE PAYEE IS TOLD THE DIFFERENCE.
+       *
+       * RazorpayX accepting a payout is not RazorpayX having paid it. The state
+       * here is PAID either way, because the money has left our control and the
+       * entries it covers must not be drafted again — but telling somebody "you
+       * have been paid" for a transfer the bank has not made yet is a promise this
+       * platform cannot keep, and they will go and look at their account.
+       */
+      landed: result.status === 'SENT'
     });
   } else if (result.status === 'FAILED') {
     // Definitely did not happen. The entries it covered are released by

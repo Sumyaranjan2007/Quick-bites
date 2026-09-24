@@ -34,7 +34,7 @@ import { emitOpsAlert } from '../../sockets/socketServer.ts';
 import { notifyAdminsPaymentsHealth } from '../../notifications/adminNotifier.ts';
 import { ledger } from './ledger.ts';
 import { cashAgeing } from './cashDeposits.ts';
-import { listPayouts, type PayoutRecord } from './payouts.ts';
+import { listPayouts, markPayoutPaid, type PayoutRecord } from './payouts.ts';
 import { razorpayXAdapter, isRazorpayXConfigured } from './razorpayXAdapter.ts';
 import { getActiveRates } from './pricingConfig.ts';
 import { formatPaise, toPaise } from './money.ts';
@@ -158,31 +158,36 @@ export async function runPaymentsHealthCheck(
        * original call did in fact complete and post its entry, this is refused
        * by the ledger rather than double-counted.
        */
+      /*
+       * THROUGH THE SAME FUNCTION THE NORMAL PATH USES.
+       *
+       * This used to be a second copy: its own posting, its own state change, and
+       * nobody told. The payee whose money had been in doubt for a day — the one
+       * most likely to be anxious about it — was the only payee never told it had
+       * landed.
+       *
+       * And the copy had already drifted in a way that costs money rather than
+       * goodwill. It composed the payable account name by concatenating
+       * `'PARTNER_PAYABLE:' + ownerId` instead of calling `accountFor`. They agree
+       * today only because nobody has changed how an account name is built; the day
+       * that changes, reconciliation clears a payable that nothing else reads and
+       * the next run pays the same partner again.
+       *
+       * `landed: true` because this is the gateway CONFIRMING the money went, which
+       * is stronger than the queued case the normal path can see.
+       */
       try {
-        ledger.post({
-          event: 'PAYOUT_SENT',
-          postings: [
-            {
-              account:
-                (payout.ownerType === 'RESTAURANT' ? 'PARTNER_PAYABLE:' : 'RIDER_PAYABLE:') + payout.ownerId,
-              direction: 'DEBIT',
-              amountPaise: payout.amountPaise
-            },
-            { account: 'PLATFORM_BANK', direction: 'CREDIT', amountPaise: payout.amountPaise }
-          ],
-          idempotencyKey: `payout_sent:${payout.id}`,
+        markPayoutPaid(payout, {
           actorUserId: 'system:payments-health',
           narration:
             `${formatPaise(payout.amountPaise)} to ${payout.ownerName} — confirmed by reconciliation ` +
             'after an unknown outcome',
-          payoutId: payout.id
+          landed: true
         });
       } catch {
         /* Already posted. Which is the good case. */
       }
 
-      payout.state = 'PAID';
-      memoryStore.payouts.set(payout.id, payout);
       resolvedPaid += 1;
       alerts.push(
         `Payout ${payout.id} to ${payout.ownerName} was in doubt and has been confirmed as sent.`
