@@ -1454,6 +1454,16 @@ different apps. That was the root error at §8.1.
 them to the server's. Do the same here. A constant compared with itself is the
 shape that let three spellings of one contract survive.
 
+> **STRIP COMMENTS FIRST.** Session A hit this in step 9 and it will hit §8C the
+> moment anyone documents a channel above its declaration. A grep over app
+> source matches the **comment explaining the code** as readily as the code. A
+> check that claims something about the code and reads the whole file is
+> asserting something else.
+>
+> The tempting fix is backwards: deleting the explanation to satisfy the grep
+> throws away the only thing stopping the next person undoing the change, and
+> leaves a weaker check behind. Strip comments, then match.
+
 ### 8C.4 Tapping it must land somewhere
 
 **Task 8C.4.1 — carry the nav key.** `App.tsx` already keys every section —
@@ -1634,7 +1644,7 @@ the clean result is worth recording so nobody repeats it:**
 
 ### 11.2 A passing check is not evidence
 
-Seven shapes of false pass have been found on this project, all in checks written
+Eight shapes of false pass have been found on this project, all in checks written
 by whoever wrote the code:
 
 - A guard that refuses everything passes every refusal assertion.
@@ -1703,7 +1713,23 @@ by whoever wrote the code:
   > was mutated rather than the check re-read. That is the argument for the
   > habit: **ask what mutation would make this fail, and then make it.**
 
-The check that survives all seven is one where the value **moves**. For this plan
+- **A source grep defeated by the comment explaining the removal.** Found by
+  Session A in step 9. Checks asserting that "Ask to be paid" and "our daily
+  run" no longer appear in the app failed — on the **header comments explaining
+  why those things were removed**.
+
+  The backwards fix is the tempting one: delete the explanation to satisfy the
+  grep. That discards the only thing stopping the next person re-adding the
+  control, and leaves a weaker check behind. **The check claimed to assert
+  something about the code and was asserting something about the whole file.**
+  Strip comments, then match.
+
+  This generalises past removals: any check reading source text — a channel id,
+  a route path, a forbidden string — has the same hole, and the better the
+  codebase's comments, the more likely it fires. §8C.3.2 carries the warning
+  because it is next in line to hit it.
+
+The check that survives all eight is one where the value **moves**. For this plan
 specifically:
 
 - Per-item price: assert the customer's total **rose** and the restaurant's
@@ -1713,6 +1739,30 @@ specifically:
   and not that it is "a number".
 - Bank verify: assert an account that was not payable **became** payable, and
   that the previously-connected one **stopped** being payable.
+
+### 11.2c The plan is a secondhand account too
+
+§11.2b says prose asserting a fact about code is code nothing type-checks. This
+plan is that prose, at length, and it has now been wrong five times: `APPLY` for
+`APPROVE`; the claim that pushes are awaited in `placeOrder`; the rider
+settlement backend described as intact when its helper had no callers; a
+requirement to show an account number the platform deliberately never stores;
+and the continuity property behind §6.1.3a.
+
+Step 9 added two more, both locations. §7.1 and §8.4 named `SettlementScreen.tsx`
+and `SettlementsScreen.tsx` as holding the request control. **Neither ever had
+one** — both were already read-only, and the button was in
+`EarningsStatementScreen.tsx` in both apps. §9.1 named one policy line to rewrite
+and there were two, the partner's sitting at `paymentPolicies.ts:303-306`.
+
+Same class as the cancel route being `PUT /orders/:id/status` rather than
+`POST /orders/:id/cancel`: a plausible location, written from the shape of the
+codebase rather than from the file.
+
+**So the rule is symmetrical.** The implementing session reads the file before
+building a section, and says when the plan is wrong. Seven of the eight
+corrections on this project came back that way, and every one was cheaper than
+the build that would have followed it.
 
 ### 11.2b A comment that asserts something checkable gets checked in the same edit
 
@@ -1829,7 +1879,8 @@ end.
 
 | Item | State |
 | --- | --- |
-| Step 9 — §7 rider app, §8.4–8.6 partner app, §9 policies | Removals and read-only. Not started. |
+| ~~Step 9~~ | **Done.** Controls removed at their real location, the payout promise derived in one place, and two money defects fixed in `/riders/settlements` on the way. |
+| **Orphaned payout requests** | Any request raised before step 9 sits in the admin queue with **no way for the payee to withdraw it** — the app can no longer reach the route. An administrator can still decline or settle it, so nothing is stuck permanently. Judged not worth a migration; recorded here so it is a decision rather than an oversight. If the owner sees a stale request they cannot explain, this is why. |
 | §8B — the customer live map | Specced in full, not started. Needs an APK to reach anyone. |
 | **Task 3.1 — Pay and Settlements disagree** | Known, deliberately deferred, assertion written out ready to paste. Not a regression; a pre-existing divergence with no shared source to unify. |
 | Step 10 — build and deliver | **Held on the owner's word.** |
