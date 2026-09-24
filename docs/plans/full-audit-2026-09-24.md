@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7) → **M3/W8** → W7(b) → W7(a) → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7 ✅ `1ef9e3e` + M4) → **M3/W8** → W7(b) → W7(a) → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -674,6 +674,31 @@ still-held. No defect found. **Gap:** nothing runs money out. Added:
 - **(b) scope:** behaviour for decision-gating rates. A GET-after-PUT round trip
   for all ~30 rates, to catch the RATE_BOUNDS silent drop. Every
   `requireFeature` flag, off and on.
+
+### M4 — CRITICAL — a payee paid once was never fully paid again — fixed `1ef9e3e`
+
+`duesFor` skipped the credits a payout covered **and** subtracted the payout's own
+debit: the same money twice. A payout's debit is in nobody's `coversLedgerIds`,
+so it stayed subtracted for ever, and what a payee was owed read as their new
+earnings minus **everything they had ever been paid**. A partner paid ₹500 in
+week one and earning ₹300 in week two is owed "nothing", and for a steady payee
+the figure never goes positive again. The screen says "Nothing owed".
+
+Fixed by skipping entries carrying `payoutId`, which only a payout's own
+postings do. **Session B verified independently:** the only two ledger postings
+tagged `payoutId` are the payout clearings (`payouts.ts` :497, :525); a refund
+clawback carries a refund case, not a payout; a cancelled payout is refused
+after PAID/UNCERTAIN so it never posted; and the FAILED path never posted, so
+nothing needs reversing (the reversal gap is G3, RazorpayX only).
+
+**Why nothing caught it — §11 shape: *the first pass is always correct*.** Every
+money check on this platform paid each payee exactly ONCE. A state transition
+that writes two records — a reservation and a ledger entry — is where
+double-counting hides. **Anything cumulative must be run twice and the SECOND
+result asserted.** It surfaced only from the incentive case in c5, which pays a
+rider and then awards a bonus: ₹60 arrived where ₹120 was owed.
+
+**W6 addition:** `ledger.reverse` (`ledger.ts`:403) has no production caller.
 
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
