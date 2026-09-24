@@ -676,6 +676,173 @@ export const BarRow: React.FC<{ label: string; value: string; fraction: number; 
   </View>
 );
 
+/**
+ * A failed load, said out loud. Renders nothing when nothing failed.
+ *
+ * -------------------------------------------------------------------------
+ * WHY THIS EXISTS ALONGSIDE ResourceState
+ * -------------------------------------------------------------------------
+ * `ResourceState` owns the whole rendering of a source and is the right answer for
+ * a new screen. Fourteen sources across eleven existing screens were silent, and
+ * those screens already work — their empty states, filters and merged views are
+ * correct and in use. Rewriting all of them to hand rendering over to a component
+ * would be a large change to working UI in order to fix one missing branch.
+ *
+ * So this is the one missing branch, in one line, with no restructuring: the error
+ * becomes visible, and the screen keeps doing everything else it already does.
+ *
+ * It is always paired with suppressing the EMPTY state at the same site. Showing
+ * "could not load" above "No restaurants yet" is better than silence and still
+ * wrong: one of the two is a lie, and leaving both on screen makes the reader
+ * choose which to believe.
+ */
+export const ResourceError: React.FC<{
+  resource: { error: string | null; denied?: boolean; reload: () => Promise<void> | void };
+  /** What could not be loaded, so a screen with several sources says which. */
+  what?: string;
+}> = ({ resource, what }) => {
+  if (!resource.error) return null;
+  return (
+    <Card>
+      <Text style={s.resourceErrorTitle}>
+        {what ? `${what} could not be loaded` : 'This could not be loaded'}
+      </Text>
+      <Text style={s.resourceErrorBody}>{resource.error}</Text>
+      <Text style={s.resourceErrorHint}>
+        {resource.denied
+          ? 'Your role does not include this.'
+          : 'This is not the same as there being nothing here. Nothing has been lost.'}
+      </Text>
+      {!resource.denied && (
+        <Button label="Try again" variant="secondary" onPress={() => void resource.reload()} />
+      )}
+    </Card>
+  );
+};
+
+/**
+ * The four states a loaded thing actually has, so they cannot be confused.
+ *
+ * -------------------------------------------------------------------------
+ * THE DEFECT THIS REPLACES, IN FOURTEEN PLACES
+ * -------------------------------------------------------------------------
+ * `useResource` returns an `error` and renders nothing itself. There is no toast
+ * and no global handler. So a screen that never reads `.error` turns a failed
+ * request into `data === null`, and its own code renders that as an EMPTY LIST.
+ *
+ * Concretely, and this is the one the owner reported: if `/admin/rates/restaurants`
+ * fails, the Inflation screen says "No restaurants yet". A 500 presented as good
+ * news. That is worse than a crash — it needs no investigation, it provokes no
+ * question, and the person reading it goes away satisfied that there is nothing
+ * there.
+ *
+ * Fourteen sources across eleven screens did this. Writing the four branches by
+ * hand in each is how they drifted apart in the first place, so they live here
+ * once:
+ *
+ *   LOADING  — we are still asking.
+ *   REFUSED  — this account may not see it. Different from a fault, and it names
+ *              the permission so somebody can ask for it.
+ *   FAILED   — we asked and could not get an answer. Says so, and offers a retry.
+ *   EMPTY    — we asked, we got an answer, and the answer is genuinely nothing.
+ *
+ * FAILED and EMPTY are the two that were collapsed, and keeping them apart is the
+ * whole purpose. "We could not reach the server" and "there is nothing here" look
+ * identical on screen and mean opposite things.
+ *
+ * -------------------------------------------------------------------------
+ * CHILDREN AS A FUNCTION, ON PURPOSE
+ * -------------------------------------------------------------------------
+ * The content receives `data` already narrowed to non-null. A component that took
+ * plain children would leave every screen writing `resource.data!.rows`, and the
+ * `!` is the assertion that was wrong in the first place.
+ */
+export const ResourceState = <T,>({
+  resource,
+  children,
+  loadingLabel,
+  emptyTitle,
+  emptyMessage,
+  emptyIcon,
+  isEmpty,
+  permission
+}: {
+  resource: {
+    data: T | null;
+    loading: boolean;
+    error: string | null;
+    denied?: boolean;
+    reload: () => Promise<void> | void;
+  };
+  children: (data: T) => React.ReactNode;
+  loadingLabel?: string;
+  emptyTitle?: string;
+  emptyMessage?: string;
+  emptyIcon?: React.ReactNode;
+  /** Whether a successful answer is genuinely nothing. Absent means never empty. */
+  isEmpty?: (data: T) => boolean;
+  /** Named in the refusal, so somebody can ask for the right thing. */
+  permission?: string;
+}) => {
+  /*
+   * Loading only while there is nothing to show. A silent reload over content
+   * that is already on screen must not blank it — an operator who pulls to refresh
+   * and watches the page empty assumes they have lost their place.
+   */
+  if (resource.loading && resource.data === null) {
+    return <Loading label={loadingLabel} />;
+  }
+
+  if (resource.denied) {
+    return <NoAccess permission={permission} />;
+  }
+
+  if (resource.error) {
+    return (
+      <Card>
+        <Text style={s.resourceErrorTitle}>This could not be loaded</Text>
+        <Text style={s.resourceErrorBody}>{resource.error}</Text>
+        {/*
+          Said explicitly, because the wrong conclusion is the tempting one and it
+          is the entire defect this component exists to remove.
+        */}
+        <Text style={s.resourceErrorHint}>
+          This is not the same as there being nothing here. Nothing has been lost.
+        </Text>
+        <Button label="Try again" variant="secondary" onPress={() => void resource.reload()} />
+      </Card>
+    );
+  }
+
+  if (resource.data === null) {
+    /*
+     * Not loading, not refused, no error, and no data. It should not happen, and
+     * saying so beats rendering an empty list — which is the exact lie this
+     * component was built to stop telling.
+     */
+    return (
+      <Card>
+        <Text style={s.resourceErrorTitle}>Nothing came back</Text>
+        <Text style={s.resourceErrorBody}>
+          The server answered without any data. Pull down to ask again.
+        </Text>
+      </Card>
+    );
+  }
+
+  if (isEmpty?.(resource.data)) {
+    return (
+      <EmptyState
+        title={emptyTitle || 'Nothing here yet'}
+        message={emptyMessage}
+        icon={emptyIcon}
+      />
+    );
+  }
+
+  return <>{children(resource.data)}</>;
+};
+
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.bg.base },
 
@@ -940,7 +1107,10 @@ const s = StyleSheet.create({
   barLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 1 },
   barValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.bold },
   barTrack: { height: 7, borderRadius: 4, backgroundColor: c.bg.sunken, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 4 }
+  barFill: { height: '100%', borderRadius: 4 },
+  resourceErrorTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  resourceErrorBody: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginBottom: 6 },
+  resourceErrorHint: { color: c.text.muted, fontSize: 12, lineHeight: 17, marginBottom: 12 }
 });
 
 export const styles = s;

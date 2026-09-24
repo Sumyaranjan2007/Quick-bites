@@ -58,6 +58,7 @@ const SUITES = [
   'moneyReached',
   'adminEverything',
   'moneyPaths',
+  'adminErrorStates',
   'adminPush',
   'orderMap',
   'riderTripPush',

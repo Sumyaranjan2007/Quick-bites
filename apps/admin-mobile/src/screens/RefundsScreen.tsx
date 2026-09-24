@@ -11,6 +11,7 @@ import {
   KeyValue,
   Divider,
   Loading,
+  ResourceError,
   EmptyState
 } from '../components/ui';
 import { tokens, formatMoney, humanise, formatDateTime, timeAgo } from '../theme/tokens';
@@ -165,6 +166,7 @@ const RefundCaseSheet: React.FC<{ id: string | null; onClose: () => void; onChan
         ) : undefined
       }
     >
+      <ResourceError resource={resource} what="This refund case" />
       {resource.loading && !resource.data ? <Loading /> : null}
       {resource.data ? (
         <>

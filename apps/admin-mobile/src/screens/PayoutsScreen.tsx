@@ -11,6 +11,7 @@ import {
   Loading,
   NoAccess,
   EmptyState,
+  ResourceError,
   SectionTitle,
   Segmented
 } from '../components/ui';
@@ -769,14 +770,15 @@ export const PayoutsScreen: React.FC = () => {
         )}
 
         {/* ------------------------- Asked to be paid ------------------------- */}
+        {tab === 'asked' && <ResourceError resource={requests} what="Who has asked to be paid" />}
         {tab === 'asked' &&
-          ((requests.data?.requests.length || 0) === 0 ? (
+          ((requests.data?.requests.length || 0) === 0 && !requests.error ? (
             <EmptyState
               title="Nobody is waiting on an answer"
               message="When a restaurant or rider asks to be paid, they appear here with what they are owed right now. Everyone owed money is under Owed whether or not they have asked."
               icon={<Send size={28} color={c.text.muted} />}
             />
-          ) : (
+          ) : (requests.data?.requests.length || 0) === 0 ? null : (
             (requests.data?.requests || []).map(request => (
               <Card key={request.id} style={s.payoutCard}>
                 <View style={s.payoutHead}>
@@ -822,10 +824,11 @@ export const PayoutsScreen: React.FC = () => {
             ))
           ))}
 
+        {tab === 'history' && <ResourceError resource={history} what="What you have sent" />}
         {tab === 'history' &&
-          (rest.length === 0 ? (
+          (rest.length === 0 && !history.error ? (
             <EmptyState title="Nothing sent yet" message="Payments you send will be listed here with their references." />
-          ) : (
+          ) : rest.length === 0 ? null : (
             rest.map(payout => (
               <Card key={payout.id} style={s.payoutCard}>
                 <View style={s.payoutHead}>

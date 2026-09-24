@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput } from 'react-native';
 import { Store, Search, TriangleAlert, ChevronLeft, Package } from 'lucide-react-native';
-import { Card, Button, Loading, EmptyState, SearchBar, Badge, KeyValue } from '../components/ui';
+import { Card, Button, Loading, EmptyState, SearchBar, Badge, KeyValue , ResourceError} from '../components/ui';
 import { tokens, formatMoney } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
@@ -143,6 +143,7 @@ const RestaurantMenuPrices: React.FC<{
         <RefreshControl refreshing={menu.loading} onRefresh={menu.reload} tintColor={c.brand.amber} />
       }
     >
+      <ResourceError resource={menu} what="This menu" />
       <Button label="All restaurants" variant="ghost" onPress={onBack} icon={<ChevronLeft size={16} color={c.text.secondary} />} />
 
       <Card>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Scale } from 'lucide-react-native';
-import { Card, Button, Field, Sheet, SectionTitle } from '../components/ui';
+import { Card, Button, Field, Sheet, SectionTitle , ResourceError} from '../components/ui';
 import { tokens } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
@@ -107,6 +107,12 @@ export const GrievanceCard: React.FC = () => {
   return (
     <>
       <SectionTitle title="Legal" subtitle="What the law requires you to publish" />
+
+      {/*
+        `gaps` is [] when the request fails, which renders as "nothing missing" —
+        the most dangerous possible reading of a failed compliance check.
+      */}
+      <ResourceError resource={policy} what="What the law requires" />
 
       {gaps.length > 0 ? (
         <Card style={s.gapCard}>

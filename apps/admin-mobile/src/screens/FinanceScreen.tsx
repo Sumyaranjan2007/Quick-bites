@@ -13,6 +13,7 @@ import {
   Divider,
   Loading,
   EmptyState,
+  ResourceError,
   NoAccess,
   Sparkline,
   BarRow,
@@ -452,6 +453,11 @@ const SettlementSheet: React.FC<{
     }
   };
 
+  /*
+   * The sheet renders these three as empty when the request fails, so a partner
+   * with unsettled money reads as a partner with nothing outstanding. The error
+   * goes at the top of the sheet body below.
+   */
   const pending = detail.data?.pending;
   const lines = detail.data?.lines || [];
   const history = detail.data?.history || [];
@@ -463,6 +469,7 @@ const SettlementSheet: React.FC<{
       title={restaurant?.restaurantName || 'Settlement'}
       subtitle={restaurant?.city}
     >
+      <ResourceError resource={detail} what="This settlement" />
       {restaurant ? (
         <>
           <Card>

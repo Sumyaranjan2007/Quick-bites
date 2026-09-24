@@ -12,6 +12,7 @@ import {
   Divider,
   Loading,
   EmptyState,
+  ResourceError,
   NoAccess
 } from '../components/ui';
 import { tokens, humanise, formatDateTime, timeAgo } from '../theme/tokens';
@@ -172,6 +173,7 @@ const TicketSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
         ) : undefined
       }
     >
+      <ResourceError resource={resource} what="This ticket" />
       {resource.loading && !resource.data ? <Loading /> : null}
       {resource.data ? (
         <>

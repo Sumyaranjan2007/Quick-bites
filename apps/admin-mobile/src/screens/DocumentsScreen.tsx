@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, Alert } from 'react-native';
 import { FileCheck2 } from 'lucide-react-native';
-import { Card, Segmented, Badge, Button, Field, Divider, Loading, EmptyState, NoAccess, KeyValue } from '../components/ui';
+import { Card, Segmented, Badge, Button, Field, Divider, Loading, EmptyState, NoAccess, KeyValue, ResourceError } from '../components/ui';
 import { tokens, humanise, formatDateTime } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
@@ -84,6 +84,7 @@ export const DocumentsScreen: React.FC = () => {
         />
       </View>
 
+      <ResourceError resource={list} what="These documents" />
       {list.loading && documents.length === 0 ? <Loading /> : null}
       {!list.loading && documents.length === 0 ? (
         <EmptyState

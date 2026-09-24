@@ -11,6 +11,7 @@ import {
   Loading,
   NoAccess,
   EmptyState,
+  ResourceError,
   SectionTitle,
   Segmented
 } from '../components/ui';
@@ -389,6 +390,13 @@ export const PayeeAccountsScreen: React.FC = () => {
           <NoAccess permission="finance.payouts.view" />
         ) : coverage.loading && !coverage.data ? (
           <Loading label="Checking who can be paid…" />
+        ) : coverage.error ? (
+          /*
+           * Its own branch rather than a banner over the tables, because a
+           * coverage table with no rows reads as "everybody can be paid" — the
+           * most reassuring possible rendering of a request that failed.
+           */
+          <ResourceError resource={coverage} what="Who can be paid" />
         ) : (
           <>
             {renderCoverage('Riders', coverage.data?.riders)}

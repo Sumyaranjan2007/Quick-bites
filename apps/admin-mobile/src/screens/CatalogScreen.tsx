@@ -13,6 +13,7 @@ import {
   Divider,
   Loading,
   EmptyState,
+  ResourceError,
   NoAccess,
   Toggle
 } from '../components/ui';
@@ -200,6 +201,7 @@ const MenuSheet: React.FC<{ restaurantId: string | null; onClose: () => void; on
         ) : undefined
       }
     >
+      <ResourceError resource={resource} what="This menu" />
       {resource.loading && !resource.data ? <Loading /> : null}
 
       {(editing || adding) && canEdit ? (

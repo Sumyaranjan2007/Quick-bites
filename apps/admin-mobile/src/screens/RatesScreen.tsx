@@ -9,6 +9,7 @@ import {
   Loading,
   NoAccess,
   EmptyState,
+  ResourceError,
   SectionTitle,
   Segmented,
   Badge
@@ -263,13 +264,21 @@ export const RatesScreen: React.FC = () => {
               />
             </View>
 
-            {filtered.length === 0 ? (
+            {/*
+              THE ONE THE OWNER REPORTED.
+              If /admin/rates/restaurants fails, `rates.data` is null, `rows` is []
+              and this said "No restaurants yet" — a 500 presented as good news,
+              needing no investigation and provoking no question.
+            */}
+            <ResourceError resource={rates} what="These charges" />
+
+            {filtered.length === 0 && !rates.error ? (
               <EmptyState
                 title={search ? 'No restaurant by that name' : 'No restaurants yet'}
                 message={search ? 'Try a different name.' : 'Charges appear here once a restaurant is approved.'}
                 icon={<Store size={28} color={c.text.muted} />}
               />
-            ) : (
+            ) : filtered.length === 0 ? null : (
               filtered.map(row => (
                 <TouchableOpacity
                   key={row.restaurantId}
@@ -511,6 +520,8 @@ export const RatesScreen: React.FC = () => {
               </Card>
             )}
 
+            <ResourceError resource={membership} what="The membership plans" />
+
             {membership.loading && !membership.data ? (
               <Loading label="Reading your plans…" />
             ) : (
@@ -652,6 +663,8 @@ export const RatesScreen: React.FC = () => {
                 nothing.
               </Text>
             </Card>
+
+            <ResourceError resource={bonuses} what="The rider bonuses" />
 
             {(bonuses.data?.incentives || []).map(incentive => (
               <Card key={incentive.code} style={s.row}>

@@ -10,6 +10,7 @@ import {
   Divider,
   Loading,
   EmptyState,
+  ResourceError,
   NoAccess
 } from '../components/ui';
 import { tokens, formatDateTime } from '../theme/tokens';
@@ -177,6 +178,7 @@ export const ProfileApprovalsScreen: React.FC = () => {
         </Card>
       )}
 
+      <ResourceError resource={list} what="These profile changes" />
       {list.loading && !edits.length ? (
         <Loading label="Loading profile changes" />
       ) : !edits.length ? (
