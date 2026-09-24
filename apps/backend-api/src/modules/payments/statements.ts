@@ -35,6 +35,7 @@ import { splitForOrder } from './earnings.ts';
 import { getActiveRates } from './pricingConfig.ts';
 import { toRupees, toPaise } from './money.ts';
 import { listPayouts } from './payouts.ts';
+import { arrivalSentence, noRequestNeededSentence } from './payoutPromise.ts';
 
 /** One named figure on a statement. Positive adds, negative deducts. */
 export interface StatementLine {
@@ -99,6 +100,18 @@ export interface Statement {
   }>;
   /** The hold in force, so "why is this not payable yet" answers itself. */
   holdDays: number;
+  /**
+   * What we promise about arrival, in words, from the one function that derives
+   * them from the rates.
+   *
+   * The apps used to write this sentence themselves and both said the run was
+   * DAILY while the configured cadence was weekly. An app cannot read the
+   * pricing config, so the only way it can tell the truth is to be told it.
+   */
+  payoutPromise: {
+    arrival: string;
+    noRequestNeeded: string;
+  };
 }
 
 const signed = (entry: LedgerEntry) =>
@@ -362,7 +375,11 @@ export function statementFor(
       ...(p.reference ? { reference: p.reference } : {}),
       ...(p.executedAt ? { executedAt: p.executedAt } : {})
     })),
-    holdDays
+    holdDays,
+    payoutPromise: {
+      arrival: arrivalSentence(ownerType),
+      noRequestNeeded: noRequestNeededSentence(ownerType)
+    }
   };
 }
 

@@ -139,6 +139,17 @@ export interface DueRow {
   } | null;
   /** Why this row cannot be paid right now, in words. */
   blockedReason: string | null;
+  /**
+   * The same block, as something code can branch on.
+   *
+   * The words are for a screen; a caller that needs to know WHICH block this is
+   * would otherwise have to match on the prose, and then the prose could not be
+   * improved without silently breaking the caller. The rider app needs exactly
+   * this distinction: a block it can act on (deposit the cash, connect an
+   * account) is worth telling a rider about, while "below the minimum" is a
+   * statement about an amount they can already see.
+   */
+  blockedCode: 'NOTHING_OWED' | 'CASH_IN_HAND' | 'NO_ACCOUNT' | 'BELOW_MINIMUM' | null;
   /** Ledger entries making up the payable figure. */
   ledgerIds: string[];
 }
@@ -200,17 +211,22 @@ export function duesFor(
   const hasVerifiedAccount = Boolean(account_);
 
   let blockedReason: string | null = null;
+  let blockedCode: DueRow['blockedCode'] = null;
   if (payablePaise <= 0) {
+    blockedCode = 'NOTHING_OWED';
     blockedReason = heldPaise > 0 ? 'Everything earned is still inside the hold period.' : 'Nothing owed.';
   } else if (cashInHandPaise > 0) {
     // The rule the owner asked for, and it is the right way round. A rider
     // holding Rs 2,000 of platform cash is not paid Rs 1,800 of earnings; that
     // is a net position, not a payment, and settling it by transfer means the
     // platform sending out money it is owed.
+    blockedCode = 'CASH_IN_HAND';
     blockedReason = `Holding ${formatPaise(cashInHandPaise)} of platform cash. It must be deposited before any payout.`;
   } else if (!hasVerifiedAccount) {
+    blockedCode = 'NO_ACCOUNT';
     blockedReason = 'No verified account to pay into.';
   } else if (payablePaise < toPaise(rates.minPayoutAmount)) {
+    blockedCode = 'BELOW_MINIMUM';
     blockedReason = `Below the ${formatPaise(toPaise(rates.minPayoutAmount))} minimum. Carries to the next run.`;
   }
 
@@ -233,6 +249,7 @@ export function duesFor(
         }
       : null,
     blockedReason,
+    blockedCode,
     ledgerIds
   };
 }

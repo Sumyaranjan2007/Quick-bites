@@ -40,6 +40,7 @@
 import type { PolicyDocument } from '../riders/riderPolicies.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { getActiveRates } from './pricingConfig.ts';
+import { arrivalSentence, noRequestNeededSentence } from './payoutPromise.ts';
 
 export type PolicyAudience = 'customer' | 'partner' | 'rider' | 'public';
 
@@ -109,22 +110,12 @@ export function policyGaps(): string[] {
  * name. It says the escalation route is not yet published and points at the
  * in-app one, which genuinely works.
  */
-/**
- * How often payouts run, in the words a partner reads.
- *
- * Derived from the rate rather than written out, because this sentence is a
- * PROMISE. It said "daily" in three places while the cadence was being changed
- * to weekly, and a policy describing a different system from the one running is
- * the document a partner quotes back at you in a dispute. One function means
- * the three cannot drift apart again.
+/*
+ * `runCadence` used to live here, and the apps could not reach it — so each app
+ * wrote the sentence out by hand and both said "daily" while the cadence was
+ * weekly. It now lives in payoutPromise.ts, which the statement carries to both
+ * apps, so there is one function rather than four copies.
  */
-function runCadence(days: number): string {
-  const n = Math.max(1, Math.round(Number(days) || 1));
-  if (n === 1) return 'daily';
-  if (n === 7) return 'weekly';
-  if (n === 14) return 'every fortnight';
-  return `every ${n} days`;
-}
 
 function grievanceSection(): { heading: string; body: string } {
   const contact = getGrievanceContact();
@@ -290,8 +281,9 @@ export function paymentPolicies(): PaymentPolicy[] {
         {
           heading: 'When you are paid',
           body:
-            `An order becomes payable ${rates.partnerHoldDays === 1 ? 'one day' : `${rates.partnerHoldDays} days`} after it is delivered. The hold exists so that a refund raised the day after delivery comes off a settlement rather than becoming a debt we have to ask you for. ` +
-            `Payments run ${runCadence(rates.payoutCadenceDays)}. Anything below ${money(rates.minPayoutAmount)} carries to the next run rather than being sent as a fee-heavy transfer.`
+            `${arrivalSentence('RESTAURANT')} ` +
+            'The hold exists so that a refund raised the day after delivery comes off a settlement rather than becoming a debt we have to ask you for. ' +
+            `Anything below ${money(rates.minPayoutAmount)} carries to the next run rather than being sent as a fee-heavy transfer.`
         },
         {
           heading: 'Where you are paid',
@@ -300,10 +292,11 @@ export function paymentPolicies(): PaymentPolicy[] {
             'We do not keep your account number after verification — only the last four digits, so you can recognise it. Until an account is verified we have nowhere to send a settlement.'
         },
         {
-          heading: 'Asking to be paid',
+          heading: 'You do not have to ask',
           body:
-            'You may raise a payout request at any time from your statement. It does not change the amount and it is not required: everything owed is paid on the ordinary run whether or not you ask. ' +
-            'What it does is tell our finance team you are waiting, with your statement attached.'
+            `${noRequestNeededSentence('RESTAURANT')} ` +
+            'There used to be a request button in your app and it has been removed, because it implied that asking was part of getting paid. It never was. ' +
+            'If a settlement has not arrived when you expected it, that is a question for the Help section rather than a request to raise, and it is answered by a person against the orders concerned.'
         },
         {
           heading: 'Deductions and adjustments',
@@ -337,7 +330,8 @@ export function paymentPolicies(): PaymentPolicy[] {
         {
           heading: 'When you are paid',
           body:
-            `Earnings become payable ${rates.riderHoldDays === 0 ? 'the same day' : rates.riderHoldDays === 1 ? 'one day after' : `${rates.riderHoldDays} days after`} the trip is completed, and payments run ${runCadence(rates.payoutCadenceDays)} to the bank account or UPI id you have registered. ` +
+            `${arrivalSentence('RIDER')} ` +
+            'It goes to the bank account or UPI id you have registered. ' +
             `Anything below ${money(rates.minPayoutAmount)} carries to the next run.`
         },
         {
@@ -370,9 +364,11 @@ export function paymentPolicies(): PaymentPolicy[] {
             'To the bank account or UPI id you register in the app, verified with a small test transfer. We do not keep your account number afterwards, only the last four digits. Until it is verified there is nowhere to send your earnings.'
         },
         {
-          heading: 'Asking to be paid',
+          heading: 'You do not have to ask',
           body:
-            `You can raise a request from your statement. It does not change what you are owed and you do not have to ask — everything owed is paid on the ${runCadence(rates.payoutCadenceDays)} run either way.`
+            `${noRequestNeededSentence('RIDER')} ` +
+            'There used to be a request button in your app and it has been removed, because it implied that asking was part of getting paid. It never was, and a rider who believed it would read a quiet week as their own fault. ' +
+            'The one thing that does stop a payout is cash of ours still in your bag, and your app tells you that in plain words rather than by showing you a smaller number.'
         },
         {
           heading: 'If you think a figure is wrong',

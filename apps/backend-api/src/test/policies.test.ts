@@ -608,7 +608,14 @@ async function run() {
     const text = cadenceSentences();
 
     assert.ok(/payments run weekly/i.test(text), 'the partner policy still promises something else');
-    assert.ok(/paid on the weekly run/i.test(text), 'the rider policy still promises something else');
+    // Wording moved with §9.1: the "Asking to be paid" section became "You do
+    // not have to ask", so the promise now reads "paid automatically on the
+    // weekly run". Still asserted exactly -- the point of this check is that the
+    // cadence word is generated, and a looser pattern would stop proving it.
+    assert.ok(
+      /paid automatically on the weekly run/i.test(text),
+      'the rider policy still promises something else'
+    );
     assert.ok(
       !/run daily|daily run/i.test(text),
       'a promise of daily payment survived the change to weekly'
