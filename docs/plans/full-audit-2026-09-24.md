@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 → M2 → P1 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -622,6 +622,24 @@ is dropped was wrong; the fallback is documented by Firebase.
   fix to the first never reached: cancellation's refund (W3 R5), the health
   check's PAID (G1), the admin cancel (M1). Before closing any money fix, grep
   for every other place that sets the same state.
+
+### M1/M2/P1/W7.1 — accepted (24 Sep)
+
+- M1 also closed a missing `validateTransition`. The admin "refund" checkbox no
+  longer decides whether a paid order gets its money back.
+- M2's backfill runs at boot (after hydration) and from its endpoint.
+  **Rider build item:** `IncentiveProgress.paid` now means "earned, goes out with
+  your next payout", but the rider app still labels it "paid".
+- W7.1 adds `ResourceError` to the eleven screens and doesn't convert them to
+  `ResourceState`: working UI isn't rewritten to add one branch. The scanner
+  accepts either.
+- **Two new false-pass shapes** from mutating the W7.1 check: *referencing the
+  error is not showing it* (a guard that only suppresses the empty state passed),
+  and *one copy passing for two* (a "file contains the sentence" check passed
+  with one of two components stripped). The second is the same shape as W5
+  counting recipients instead of notifications.
+- **W7 adds an app ↔ server route contract check** before the manual sweep:
+  every path the four apps call must match a mounted route and method.
 
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
