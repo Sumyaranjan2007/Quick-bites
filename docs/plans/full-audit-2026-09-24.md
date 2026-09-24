@@ -131,7 +131,7 @@ Referenced nowhere, not even by a test:
 | --- | --- |
 | `modules/admin/analytics.ts` | `TERMINAL_STATUSES` |
 | `modules/admin/permissions.ts` | `hasPermission` |
-| `modules/orders/riderTrip.ts` | `isCarrying` |
+| ~~`modules/orders/riderTrip.ts`~~ | ~~`isCarrying`~~ — **now used** by W2.1's `listCarrying`. Not dead. |
 | `modules/payments/earnings.ts` | `partnerEarningsBalance` |
 | `modules/payments/rails.ts` | `payoutsPossible` |
 | `modules/payments/refunds.ts` | `refundStatusView` |
@@ -198,13 +198,21 @@ Checked and inconclusive. Confirm each against the file before building.
   the partner and rider apps. It must NOT be the looping order alarm. If no quiet
   channel exists in the shipped APKs, F5 needs a build for those two apps.
 
+- **V7. The platform makes NO durable delivery promise.** Found building W2.1.
+  Every ETA is computed on read from the rider's current position; nothing
+  records what the customer was told at checkout. So nothing can be "late"
+  against a commitment, and **any future on-time rate, lateness refund or SLA
+  has nothing to measure against.** Not obvious from `eta.ts`, which reads like it
+  produces a promise. Decide whether to store the checkout estimate before
+  building anything that depends on one.
+
 ---
 
 ## 4. The work — order and acceptance
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 → W3 → W4 → W5 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 → W4 → W5 → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -390,6 +398,32 @@ recovered by re-offering, because the food has left the building.
   past ETA raises attention and not urgent; a **delivered** order raises neither.
   The last one matters — a detector that fires on every old order is noise.
 
+> **W2.1 DONE** — `4d4e122`, `79277bb`. Verified: no stored delivery promise
+> exists anywhere on an order; the overdue rate's help now reads *"minutes a rider
+> may be carrying food"*.
+>
+> **My overdue tier could never fire — eleventh plan miss.** I specified "past ETA
+> but still transmitting" using `estimateArrival`. That recomputes the journey from
+> the rider's **current** position on every call, so the arrival is always in the
+> future and "minutes past it" is always negative — the log read
+> `lateByMinutes: -12` on a ninety-minute-old order. The tier was dead code.
+> Lateness is now measured from `pickedUpAt`: how long the food has been out. A
+> durable fact, and what an operator actually wants.
+>
+> **It was hidden by a conditional assertion.** The overdue checks were wrapped in
+> `if (lateFlag)`, so they passed while the tier never fired. See §6.
+>
+> **Customer messaging, decided:** a silent-rider escalation **does** send the
+> customer a second message, even after a "running late" one. The two are
+> different kinds of fact — "late" means wait, "lost contact" means your food may
+> not be coming. A customer told only the weaker one keeps waiting for dinner that
+> may never arrive, which is a worse harm than one extra message. Escalation only
+> (late → lost contact), never the reverse, never more than two per order.
+>
+> **The fixture helper** is at `src/test/helpers/ownFixture.ts`: unique per call,
+> no accessor for an existing fixture, and deliberately no clean-up — a check that
+> only passes because an earlier one tidied is the same bug pointing the other way.
+
 ### W3 — money in (F3 + F4) · **no APK needed**
 
 - Online payment books to `GATEWAY_RECEIVABLE`, not `PLATFORM_BANK`.
@@ -479,5 +513,9 @@ hardest:
   dedup.
 - **One source per fact.** W1's eligibility, W8's blocker and W3's bank balance
   all fail the same way if a second copy is introduced.
+- **A check reports PASS whenever its assertions do not run.** Three ways found
+  in three days: an `async` body in a synchronous runner, a check that only
+  arranges state, and an assertion inside `if (flag)` — which hid W2.1's dead
+  tier. Every check must be able to fail on the path it names.
 - **Two sessions, one tree.** Stage by path; `origin/main..HEAD` empty after every
   push.
