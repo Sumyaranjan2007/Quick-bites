@@ -1,0 +1,326 @@
+# Full audit — 24 Sep 2026
+
+Written by Session B (plan and review) after the owner asked for the whole
+project to be audited: every bug, all dead code, every flow and case, the
+payment system end to end, cash, every notification, admin receiving all
+notifications, and every section controllable from admin.
+
+**No APK and no build of any artifact.** Session A implements; Session B
+reviews every commit against this document.
+
+Against commit `518acc5`+ (tree clean, pushed, 44 suites green).
+
+---
+
+## 0. How to read this
+
+Every finding in §1 was **verified by opening the file**, not inferred from a
+comment, a grep window or a summary — this project's plans have been wrong nine
+times when that rule was skipped (`admin-revamp-and-inflation.md` §11.2c).
+
+Three suspected bugs were checked during this audit and turned out **not** to be
+bugs. They are listed in §2 so nobody spends time on them again.
+
+Things I could not confirm are in §3 as **tasks to verify**, not findings. Do not
+build against them until they are confirmed.
+
+---
+
+## 1. Verified findings
+
+### F1 — CRITICAL — riders are never told a trip is waiting when the app is closed
+
+`fcmDispatcher.ts` has eleven notify methods. Exactly one targets a rider:
+`notifyRiderNoShowWarning`. **Nothing pushes a rider a new trip.**
+
+Trips reach riders only through the socket: `emitOrderAvailableForPickup`
+(`socketServer.ts:418`) emits `order:available` to the `riders:available` room
+(`:434`). A socket needs the app open and connected, and Android kills
+background sockets. So a rider with the phone in their pocket learns of nothing,
+food that is cooked sits on the pass, and the sweeper eventually raises
+`NO_RIDER_FOUND` — which is F2.
+
+**The rider app is already built to receive this.** `delivery-mobile/src/lib/orderAlert.ts`
+creates the `new-orders` channel with a looping alarm — *"Rings until the rider
+deals with the offer"*. The server never sends to it.
+
+**It reaches riders without a new APK.** The shipped `QuickBites-Rider.apk` was
+unzipped on 23 Sep and contains `new-orders`. Server-side only, exactly like the
+kitchen push.
+
+This is the rider equivalent of the partner push that did not exist
+(`admin-revamp-and-inflation.md` §0), and it is very likely the cause of any
+real-world "no rider found".
+
+### F2 — CRITICAL — the admin is not told about the problems the system detects
+
+The owner's words: *"notification for the admin portal should push all
+notification so we can take a look (main is solving problems)."*
+
+The platform **does** detect problems:
+
+| Detected in | Problem |
+| --- | --- |
+| `orderSweeper.ts:158` | `NO_RIDER_FOUND` — cooked food, no rider |
+| `orderSweeper.ts:96` | a restaurant did not accept inside `ORDER_ACCEPT_TIMEOUT_MINUTES`, so the order is cancelled |
+| `paymentsHealth.ts:297` | a payout whose outcome never came back; a rider holding cash for days; books that stopped balancing |
+
+Every one goes out through `emitOpsAlert` — **a socket event, to an admin
+console that happens to be open.**
+
+§8C's admin push (`adminNotifier.ts`) covers nine events: SOS, payout failed,
+bank account filed, KYC, refund raised, support ticket, cash declared, menu
+request, profile edit. **None of the problems above is among them.** The events
+that most need a person, and that nobody else will report, are exactly the ones
+missing.
+
+### F3 — HIGH — money still at Razorpay is booked as money in the bank
+
+`earnings.ts` books an online payment straight to `PLATFORM_BANK`:
+
+```
+const moneyHolder = paidOnline
+  ? { account: 'PLATFORM_BANK', event: 'ORDER_PAID_ONLINE' }
+  : { account: accountFor('RIDER_CASH', …), event: 'COD_COLLECTED' };
+```
+
+Razorpay settles to the bank a day or more later. Until then the money is at
+Razorpay, not in the platform's account. **`GATEWAY_RECEIVABLE` exists for
+exactly this — it is defined at `ledger.ts:75` and posted to nowhere.**
+
+This is the same mistake §4.5 fixed for office cash, one step earlier in the
+chain. Consequences: the pot panel's "In our bank" overstates, and the payday
+shortfall warning (§4.5.4) can say the money is there when it is at Razorpay —
+so a payout run funded by it bounces.
+
+### F4 — HIGH — Razorpay's fee is never recorded
+
+No gateway fee, MDR or processing fee is recorded anywhere in `src/` or
+`packages/`. Razorpay deducts roughly 2% plus GST from each online payment before
+settling.
+
+So for every online order the ledger believes the platform received the full
+amount. **The ledger's bank balance will never match the real bank statement**,
+and the gap grows with every online order — and "genuinely ours" overstates by
+the fee. The owner will reconcile against their statement, find it does not
+match, and have no way to see why.
+
+F3 and F4 are fixed together: the settlement is where the fee becomes visible.
+
+### F5 — HIGH — nobody is told that money reached them
+
+- **Partners and riders are never told they were paid.** `PAYOUT_SENT` exists
+  only as a ledger event (`payouts.ts:515`) and an audit action
+  (`payoutRoutes.ts:331`). No notification.
+- **Customers are never told a refund was processed.** Admin is notified when a
+  refund is *raised*; the customer hears nothing when it is *paid*.
+
+For "pay everyone", the person being paid is the one who does not find out. The
+result is a support call per payday.
+
+### F6 — MEDIUM — the admin does not receive "everything"
+
+The §8C digest tier and the per-category switch were deferred. The owner has now
+asked for all notifications. F2 is the half that matters most; this is the rest.
+
+### F7 — MEDIUM — twelve dead exports in the backend
+
+Referenced nowhere, not even by a test:
+
+| File | Export |
+| --- | --- |
+| `modules/admin/analytics.ts` | `TERMINAL_STATUSES` |
+| `modules/admin/permissions.ts` | `hasPermission` |
+| `modules/orders/riderTrip.ts` | `isCarrying` |
+| `modules/payments/earnings.ts` | `partnerEarningsBalance` |
+| `modules/payments/rails.ts` | `payoutsPossible` |
+| `modules/payments/refunds.ts` | `refundStatusView` |
+| `modules/payments/restaurantCharges.ts` | `listCharges` |
+| `modules/restaurants/openingHours.ts` | `windowLengthMinutes` |
+| `modules/restaurants/restaurantDocuments.ts` | `MANDATORY_RESTAURANT_DOCUMENTS` |
+| `notifications/fcmTransport.ts` | `resetPushCredentialCache` |
+| `sockets/socketServer.ts` | `getSocketServer` |
+| `utils/phone.ts` | `isValidIndianPhone` |
+
+Each was checked for whether it is a **safeguard nobody wired in** rather than
+leftover code. None is — see §2.
+
+Plus one dead ledger account: **`GATEWAY_RECEIVABLE`**, which F3 brings back
+into use rather than deleting.
+
+Sixteen more have only test callers. Thirteen are `reset…ForTesting` helpers and
+are correct. Three are wrappers with no production caller —
+`canTakeCodOrder`, `recordCashRefundAtDoor`, `refundAlreadyPaid` — decide each
+individually in W6.
+
+### F8 — MEDIUM — Pay and Settlements still disagree (Task 3.1)
+
+Carried over. Pay derives "why can't this partner be paid" from `payouts.ts`
+(hold, cash, minimum); Settlements from `accountBlockReason` (account only). For
+a partner inside the hold period, one screen explains and the other is silent.
+`blockedCode` on `DueRow` (added in step 9) is the shape the fix wants.
+
+---
+
+## 2. Checked and NOT bugs — do not re-investigate
+
+| Suspected | Why it is fine |
+| --- | --- |
+| Payment reconciliation never starts | It does — `server.ts:131`. My first grep searched the wrong name. |
+| The rider cash ceiling is not enforced (`canTakeCodOrder` unused) | Enforced at the accept gate, `riderRouter.ts:848–857`, via `cashStanding` directly. |
+| Restaurants can go live without mandatory documents | `buildDocumentOverview` enforces the required set (`peopleRoutes.ts:709`). |
+| Phone numbers are not validated | `phoneSchema` (zod) validates; `isValidIndianPhone` is a dead wrapper. |
+| A cash customer cannot be refunded without RazorpayX | `manualReference` escape hatch (`refunds.ts:120`). |
+| The owner cannot pay anybody without RazorpayX | The `MANUAL_BANK` rail is always available (`rails.ts:168`). |
+| The Razorpay webhook is unsigned | Verified with HMAC (`razorpayAdapter.ts:201`). |
+| Abandoned online payments are lost | `reconciliation.ts` asks Razorpay and completes or cancels. |
+
+---
+
+## 3. To verify — NOT findings yet
+
+Checked and inconclusive. Confirm each against the file before building.
+
+- **V1.** Does the rider's available-trips list hide cash orders from a rider
+  already at the cash ceiling? If not, a rider sees a trip, taps accept and is
+  refused — an error state the owner would call a bug.
+- **V2.** Every admin section: does each queue, screen and platform switch
+  actually control what it names? List them; exercise each.
+- **V3.** Every screen in all four apps: does every fetch have an error state,
+  or do some resolve to a blank card? The Bank screen's "nothing is coming up"
+  was exactly this.
+- **V4.** Frontend dead code. F7 is backend only — screens, components and
+  client functions in the four apps are unscanned.
+- **V5.** Customer notification completeness. Is the customer told the order
+  was **accepted**, and that a **rider was assigned**? The list in F1 suggests
+  not — `notifyOrderPreparing` is the first after placement.
+- **V6.** Which notification channel a "you were paid" message should use in
+  the partner and rider apps. It must NOT be the looping order alarm. If no quiet
+  channel exists in the shipped APKs, F5 needs a build for those two apps.
+
+---
+
+## 4. The work — order and acceptance
+
+Order is by harm, then by whether it reaches the owner without a build.
+
+### W1 — rider trip-offer push (F1) · **no APK needed**
+
+- `notifyRiderTripAvailable` on `fcmDispatcher`, channel `new-orders` (read from
+  the rider app source, comments stripped — §11.2 shape 8).
+- Fire where `emitOrderAvailableForPickup` fires. **Keep the socket** — it is the
+  fast path for an open app; push is for a closed one.
+- Target riders who are **online and eligible**: not on a trip, and for a cash
+  order not at the ceiling. The same eligibility the accept gate enforces, from
+  the same function, or the push offers a trip the gate refuses.
+- **Do not push every rider in the city for every trip.** Nearest first, the same
+  order dispatch already uses.
+- Never fail order progress because a push failed — the `tellTheKitchen` rule.
+- **Check that fails:** a trip becomes available → an eligible rider is pushed on
+  `new-orders`; a rider already on a trip is **not**; a rider at the cash ceiling
+  is **not** pushed a cash trip.
+
+### W2 — admin problem alerts (F2) · **needs the admin APK**
+
+- Push, from the same call sites that call `emitOpsAlert`: `NO_RIDER_FOUND`,
+  not-accepted-and-cancelled, and each `paymentsHealth` alert.
+- Urgent tier for `NO_RIDER_FOUND` — food is going cold. Needs-you for the rest.
+- Keep `emitOpsAlert`. Socket for an open console, push for a closed phone.
+- Dedup on the event and its subject, as §8C does — the sweeper runs on a timer
+  and must not push the same stuck order every tick.
+- Permission-targeted as §8C.2. `NO_RIDER_FOUND` → `orders.deliveries.manage`;
+  payments health → `finance.payouts.manage`.
+- **Check that fails:** one stuck order across three sweeper ticks produces
+  **one** push, to an admin who can act on it, and none to one who cannot.
+
+### W3 — money in (F3 + F4) · **no APK needed**
+
+- Online payment books to `GATEWAY_RECEIVABLE`, not `PLATFORM_BANK`.
+- A settlement event moves `GATEWAY_RECEIVABLE → PLATFORM_BANK` for the amount
+  Razorpay actually paid, and books the difference to a **gateway-fee expense**
+  account. Source it from Razorpay's settlement data where available; otherwise
+  an administrator records it from the statement, the way §4.5 records a bank
+  deposit.
+- The pot panel gains "At Razorpay, not yet settled", and "genuinely ours" is
+  net of fees.
+- **Do not rewrite historical entries.** Existing orders stay where they are;
+  the change applies forward. Say so on the screen.
+- **Check that fails:** a ₹1,000 online order leaves `PLATFORM_BANK` unchanged
+  until settlement; settling ₹976.40 raises it by exactly ₹976.40 and books
+  ₹23.60 as fee; revenue excludes the fee. Assert **all four accounts** move —
+  a check on the bank alone passes while the fee vanishes.
+
+### W4 — tell people money reached them (F5) · **possibly needs APKs — see V6**
+
+- Partner and rider: *"You were paid ₹X into account ending 1234."* On a payout
+  reaching `PAID`, never on draft. Never on a manual payout before the
+  administrator has recorded the reference.
+- Customer: *"Your refund of ₹X has been sent."* On settlement of the refund.
+- Quiet channel — **never** the order alarm.
+- **Check that fails:** a payout moving to PAID produces one push to its payee; a
+  payout that FAILS produces none to the payee (and §8C's admin alert fires).
+
+### W5 — the rest of "everything" to admin (F6) · **needs the admin APK**
+
+- The digest: orders placed, delivered, cancelled, new sign-ups — twice a day.
+- A per-category switch in admin Settings. **Default ON**, reading the owner's
+  latest instruction literally; SOS and `NO_RIDER_FOUND` cannot be switched off.
+- **Check that fails:** turning a category off stops its pushes and nothing else;
+  SOS still arrives with every category off.
+
+### W6 — dead code (F7) · **no APK needed for the backend**
+
+- Remove the twelve dead exports in §F7 one commit each, gate green between.
+- Decide `canTakeCodOrder`, `recordCashRefundAtDoor`, `refundAlreadyPaid`
+  individually — keep a wrapper only if it names something the call site does
+  not.
+- Then V4: the same scan across the four apps.
+- **Removal is the whole of "optimise".** No rewrites of working code in the
+  name of tidiness. The owner said do not break anything that works, and the
+  cheapest way to honour that is to not touch it.
+
+### W7 — the verification sweep (§3)
+
+V1–V6, each confirmed or struck, with anything confirmed becoming its own
+fix-and-check. This is where "every section works, every case covered, no error
+state" is actually established — by exercising it, not by reading it.
+
+### W8 — Pay and Settlements agree (F8)
+
+One source for "can this partner be paid right now", both screens reading it, the
+assertion from `admin-revamp-and-inflation.md` §3.1 pasted in.
+
+### Then: gate, report, stop
+
+No build. Report to the owner what is done, what is proved, and — separately —
+what only they can prove.
+
+---
+
+## 5. Only the owner can do these
+
+| | |
+| --- | --- |
+| **Razorpay is in TEST mode** (`rzp_test_`) | No real customer payment can be taken until live keys are set on Railway. |
+| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. |
+| **The bank defect** | Run the diagnostic command. |
+| **"Fix the Pay section"** | Say what was wrong with it. |
+| **A push on a closed phone** | The only real test of every notification in this plan. |
+| **Rotate the Mapbox `sk.` token** | It shipped in three APKs before the fix. |
+
+---
+
+## 6. Rules that apply to all of it
+
+From `admin-revamp-and-inflation.md` §11, unchanged. The ones this work leans on
+hardest:
+
+- **A check that has never failed is not evidence.** Every check above is written
+  as the mutation that should break it.
+- **Notifications fire at the route, never in the data layer** (§11.2d) — the
+  sweeper and payments health are the exception, being timers, and they must
+  dedup.
+- **One source per fact.** W1's eligibility, W8's blocker and W3's bank balance
+  all fail the same way if a second copy is introduced.
+- **Two sessions, one tree.** Stage by path; `origin/main..HEAD` empty after every
+  push.
