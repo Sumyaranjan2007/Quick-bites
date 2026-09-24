@@ -85,18 +85,50 @@ export const SettlementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 
         <Row label="Trip earnings" value={rupees(summary?.tripEarningsPending || 0)} />
         <Row label="Incentives & bonuses" value={rupees(summary?.incentivesPending || 0)} />
-        <Row
-          label="Cash in hand (deducted)"
-          value={`- ${rupees(summary?.cashInHand || 0)}`}
-          valueStyle={{ color: t.color.warning }}
-        />
         <Divider style={{ marginVertical: t.space[3] }} />
         <Row
           label="You will receive"
           value={rupees(summary?.netPending || 0)}
           valueStyle={{ color: t.color.go, fontWeight: '800' }}
         />
+
+        {/*
+          * CASH IS A BLOCK, NOT A DEDUCTION.
+          *
+          * This card used to show "Cash in hand (deducted)" as a negative line
+          * and subtract it from the total. The platform does neither, and the
+          * subtraction was wrong in both directions: a rider holding Rs 500
+          * against Rs 1,800 of earnings was shown "you will receive Rs 1,300"
+          * and would in fact receive nothing, because any of our cash in the bag
+          * stops the payout outright; one holding Rs 2,000 against Rs 1,800 was
+          * shown a NEGATIVE payout, which cannot happen.
+          *
+          * The reason comes from the same function the admin console drafts
+          * payouts from, so a rider and the person paying them cannot be looking
+          * at two different explanations of one hold.
+          */}
+        {!!summary?.payoutBlockedBy && (
+          <View style={s.blocked}>
+            <Text style={s.blockedTitle}>Nothing will be sent yet</Text>
+            <Text style={s.blockedBody}>{summary.payoutBlockedBy}</Text>
+            <Text style={s.blockedBody}>
+              Your earnings are not reduced by it and nothing is lost — the full{' '}
+              {rupees(summary?.netPending || 0)} is paid once this is cleared.
+            </Text>
+          </View>
+        )}
       </Card>
+
+      {!!summary?.cashInHand && (
+        <Card>
+          <SectionTitle>Our cash in your bag</SectionTitle>
+          <Text style={s.headline}>{rupees(summary.cashInHand)}</Text>
+          <Text style={s.headlineSub}>
+            The same figure your Cash screen shows and the same one an administrator sees. It goes down when cash is
+            counted in at the office, not when a trip is settled.
+          </Text>
+        </Card>
+      )}
 
       <Card>
         <SectionTitle>Settled so far</SectionTitle>
@@ -160,6 +192,17 @@ const s = StyleSheet.create({
   headline: { fontSize: 32, fontWeight: '800', color: t.color.text, marginTop: t.space[2] },
   headlineSub: { fontSize: 12, color: t.color.textMuted, marginTop: 2 },
   error: { color: t.color.danger, fontSize: 13, lineHeight: 19 },
+  blocked: {
+    marginTop: t.space[4],
+    padding: t.space[3],
+    borderRadius: 10,
+    backgroundColor: t.color.surfaceSunken,
+    borderLeftWidth: 3,
+    borderLeftColor: t.color.warning,
+    gap: 4
+  },
+  blockedTitle: { color: t.color.text, fontSize: 13, fontWeight: '800' },
+  blockedBody: { color: t.color.textSecondary, fontSize: 12, lineHeight: 17 },
   line: { paddingVertical: t.space[3], borderTopWidth: 1, borderTopColor: t.color.border, gap: 3 },
   lineHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: t.space[3] },
   lineTitle: { fontSize: 14, fontWeight: '800', color: t.color.text, flexShrink: 1 },

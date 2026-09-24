@@ -9,7 +9,9 @@ import { completeDelivery } from '../modules/orders/deliveryCompletion.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { riderEarningsBalance } from '../modules/payments/earnings.ts';
-import { cashStanding } from '../modules/payments/cashDeposits.ts';
+import { cashStanding, cashInHandPaise } from '../modules/payments/cashDeposits.ts';
+import { duesFor } from '../modules/payments/payouts.ts';
+import { toRupees } from '../modules/payments/money.ts';
 import { getActiveRates } from '../modules/payments/pricingConfig.ts';
 import { payoutRepository } from '../db/repositories/payoutRepository.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
@@ -1387,15 +1389,43 @@ riderRouter.get('/settlements', async (req, res, next) => {
     const pendingAmount = Math.round(unsettled.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100;
     const paidToDate = await payoutRepository.paidTotal(self.id);
 
-    // Cash taken at the door belongs to the platform and is netted off the next
-    // payout. Showing it here is the difference between a rider understanding
-    // their settlement and being surprised by a deduction.
-    const cashInHand =
-      Math.round(
-        unsettled
-          .filter(o => o.paymentMethod === 'CASH_ON_DELIVERY')
-          .reduce((t, o) => t + (Number(o.bill?.totalAmount) || 0), 0) * 100
-      ) / 100;
+    /*
+     * CASH COMES FROM THE RIDER'S OWN RECORD, NOT RECOMPUTED FROM ORDERS.
+     *
+     * This used to add up the cash orders in `unsettled`, which is a second
+     * source for a number the platform already maintains — and the two diverge
+     * the moment an administrator records a cash return, because a return moves
+     * `codCashInHand` and does not touch the orders. A rider who had just handed
+     * over Rs 2,000 at the office would have gone on being shown Rs 2,000 in
+     * their bag, by the same app that told them a payout was blocked because of
+     * it.
+     *
+     * `cashInHandPaise` reads the field that `adjustCashInHand` maintains and
+     * that an admin return reduces, which is the field the payout itself is
+     * blocked on. One number, one source.
+     */
+    const cashInHand = toRupees(cashInHandPaise(self.id));
+
+    /*
+     * AND CASH IS NOT SUBTRACTED FROM EARNINGS.
+     *
+     * The old figure was `earnings + incentives - cash`, which is a net position
+     * and not a payment. The platform does not do that: `duesFor` BLOCKS the
+     * payout entirely while any of our cash is in the bag, and the payment
+     * policy says so in as many words — "you are not paid the difference between
+     * the two".
+     *
+     * So the subtraction was wrong twice over. A rider holding Rs 500 against
+     * Rs 1,800 of earnings was shown "you will receive Rs 1,300" and would
+     * receive nothing; one holding Rs 2,000 against Rs 1,800 was shown a
+     * NEGATIVE payout, which is not a thing that can happen.
+     *
+     * The block is now stated as a block, in the rider's own screen, using the
+     * authoritative reason rather than a second copy of the rule.
+     */
+    const dues = duesFor('RIDER', self.id, self.fullName || 'Rider');
+    const payoutBlockedBy =
+      dues.blockedCode === 'CASH_IN_HAND' || dues.blockedCode === 'NO_ACCOUNT' ? dues.blockedReason : null;
 
     const incentives = Array.from(memoryStore.riderIncentives.values()).filter(
       (i: any) => i.riderId === self.id
@@ -1413,8 +1443,16 @@ riderRouter.get('/settlements', async (req, res, next) => {
           tripEarningsPending: pendingAmount,
           incentivesPending,
           cashInHand,
-          /** What a payout drafted right now would transfer. */
-          netPending: Math.round((pendingAmount + incentivesPending - cashInHand) * 100) / 100,
+          /**
+           * What is owed. NOT reduced by cash in hand — cash blocks a payout, it
+           * does not shrink one, and `payoutBlockedBy` is where that is said.
+           */
+          netPending: Math.round((pendingAmount + incentivesPending) * 100) / 100,
+          /**
+           * Why nothing will be sent yet, when the reason is something the rider
+           * can do something about. Null when nothing is in the way.
+           */
+          payoutBlockedBy,
           paidToDate,
           lastSettledAt: payouts.find(p => p.status === 'PAID')?.paidAt || null
         },

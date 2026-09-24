@@ -642,8 +642,21 @@ export interface SettlementsResponse {
     tripsAwaitingSettlement: number;
     tripEarningsPending: number;
     incentivesPending: number;
+    /**
+     * Our cash this rider is carrying, from their own record — the same figure
+     * the Cash screen and an administrator see. NOT recomputed from orders, which
+     * is what this used to be and which stopped agreeing with everything else the
+     * moment an administrator counted cash in at the office.
+     */
     cashInHand: number;
+    /** What is owed. Never reduced by cash in hand: cash blocks a payout. */
     netPending: number;
+    /**
+     * Why nothing will be sent yet, when it is something the rider can act on.
+     * From the same function that blocks the payout, so this screen and the admin
+     * console cannot explain one hold two ways. Null when nothing is in the way.
+     */
+    payoutBlockedBy: string | null;
     paidToDate: number;
     lastSettledAt: string | null;
   };
@@ -799,37 +812,29 @@ export interface RiderStatementView {
     executedAt?: string;
   }>;
   holdDays: number;
+  /**
+   * What we promise about arrival, in words, derived on the server from the
+   * live cadence and hold.
+   *
+   * Sent rather than written here because the version written here said "our
+   * daily run" while the configured cadence was weekly, to the people with the
+   * most at stake in the answer. An app cannot read the pricing config.
+   */
+  payoutPromise: {
+    arrival: string;
+    noRequestNeeded: string;
+  };
 }
 
-export interface RiderPayoutRequestView {
-  id: string;
-  status: 'OPEN' | 'SEEN' | 'SETTLED' | 'DECLINED' | 'WITHDRAWN';
-  raisedAt: string;
-  payableAtRequest: number;
-  note?: string;
-  declineReason?: string;
-}
-
+/*
+ * `raiseRequest` and `withdrawRequest` were here, and they are gone with the
+ * button. Leaving a working call behind a removed control is how the control
+ * comes back: the next person to want one finds a ready-made client function and
+ * a route that still answers, and nothing tells them the removal was deliberate.
+ */
 export const earningsApi = {
   statement(ctx: ApiContext) {
-    return request<{ statement: RiderStatementView; openRequest: RiderPayoutRequestView | null }>(
-      ctx,
-      '/earnings/statement'
-    );
-  },
-
-  /** Raises a request. Deliberately takes no amount. */
-  raiseRequest(ctx: ApiContext, note?: string) {
-    return request<{ request: RiderPayoutRequestView }>(ctx, '/earnings/payout-requests', {
-      method: 'POST',
-      body: JSON.stringify(note ? { note } : {})
-    });
-  },
-
-  withdrawRequest(ctx: ApiContext, requestId: string) {
-    return request<{ request: RiderPayoutRequestView }>(ctx, `/earnings/payout-requests/${requestId}`, {
-      method: 'DELETE'
-    });
+    return request<{ statement: RiderStatementView }>(ctx, '/earnings/statement');
   }
 };
 
