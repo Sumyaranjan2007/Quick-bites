@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) → W5 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -557,6 +557,16 @@ is dropped was wrong; the fallback is documented by Firebase.
   posting and notifying, called from both places.
 - **G2** — QUEUED says "on its way", not "paid". Wording only until RazorpayX.
 - **G3** — no reversal webhook. This is a RazorpayX prerequisite (§5).
+- **G1/G2 landed `deb5583`.** `markPayoutPaid` is now the only place a payout
+  becomes PAID. G1 was worse than a missing message: the health-check copy built
+  the payable name by string concatenation, not `accountFor`. It matched only
+  because nobody had changed the naming, and a drift would have cleared a payable
+  nothing reads and paid the partner again. **Lesson: a check comparing against a
+  hardcoded account string agrees with the drifted copy. Put `accountFor` on the
+  expected side.**
+- **W2.1 second customer message landed `2f00d4c`.** It fires on late → lost
+  contact only, keyed on a stored tier. Session A's own note: the "never a third"
+  check doesn't guard the cap alone; the recovery check does.
 
 ### W5 — the rest of "everything" to admin (F6) · **needs the admin APK**
 
