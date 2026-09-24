@@ -611,6 +611,186 @@ try {
       assert.ok(s.data?.type, `"${s.title}" carries no event type`);
     }
   });
+  /* ---------------------------------------------------------------- *
+   *  W2: THE PROBLEMS THE PLATFORM FINDS BY ITSELF                   *
+   * ---------------------------------------------------------------- */
+  console.log('\n-- W2: problems, targeted at whoever can act on them');
+
+  const OPS = 'usr_admin_ops';
+  const opsUser = memoryStore.users.get(OPS) as any;
+  if (!opsUser) {
+    throw new Error('PRECONDITION: no operations administrator, so the targeting below cannot fail.');
+  }
+  const opsPerms = resolveAccess(opsUser).permissions;
+
+  if (!opsPerms.includes('orders.deliveries.manage' as any)) {
+    throw new Error('PRECONDITION: the operations role cannot manage deliveries, so it is the wrong fixture.');
+  }
+  if (opsPerms.includes('finance.payouts.manage' as any)) {
+    throw new Error(
+      'PRECONDITION: the operations role holds finance.payouts.manage, so "the books did not reach operations" cannot fail.'
+    );
+  }
+  if (financePerms.includes('orders.deliveries.manage' as any)) {
+    throw new Error(
+      'PRECONDITION: the finance role can manage deliveries, so "a stuck order did not reach finance" cannot fail.'
+    );
+  }
+
+  captureSends();
+  resetAdminNotificationDedupeForTesting();
+  await all.notifyAdminsNoRiderFound({
+    orderId: 'ord_w2_stuck',
+    orderNumber: 'QB-W2-1',
+    restaurantName: 'Biryani House',
+    waitingMinutes: 14
+  });
+
+  it('A STUCK ORDER REACHES OPERATIONS AND NOT FINANCE', () => {
+    assert.equal(to(OPS).length, 1, `operations got ${to(OPS).length}`);
+    assert.equal(to(FINANCE).length, 0, 'finance was told about a trip they cannot dispatch');
+  });
+
+  it('and it is URGENT, because the food is going cold', () => {
+    /*
+     * The only operational alert that earns the urgent channel. A rider no-show
+     * is recoverable — the trip goes straight back on offer — but cooked food
+     * with nobody to carry it needs somebody now.
+     */
+    assert.equal(to(OPS)[0].channel, ADMIN_CHANNEL.URGENT, `sent on ${to(OPS)[0].channel}`);
+    assert.equal(to(OPS)[0].data?.open, 'deliveries');
+  });
+
+  // A no-show is NOT urgent: the trip goes straight back on offer, so the
+  // platform has already recovered. Somebody should know; nobody needs waking.
+
+  captureSends();
+  resetAdminNotificationDedupeForTesting();
+  await all.notifyAdminsRiderNoShow({
+    orderId: 'ord_w2_noshow',
+    orderNumber: 'QB-W2-2',
+    riderName: 'Vikram',
+    waitingMinutes: 11
+  });
+
+  it('and that is asserted', () => {
+    assert.equal(to(OPS).length, 1);
+    assert.equal(
+      to(OPS)[0].channel,
+      ADMIN_CHANNEL.ATTENTION,
+      'a recovered no-show woke somebody at 3am'
+    );
+  });
+
+  /* ---- B's check: three ticks, one push ---- */
+  console.log('\n-- One stuck order across three sweeps is one push');
+
+  captureSends();
+  resetAdminNotificationDedupeForTesting();
+  for (let tick = 0; tick < 3; tick++) {
+    await all.notifyAdminsNoRiderFound({
+      orderId: 'ord_w2_repeat',
+      orderNumber: 'QB-W2-3',
+      restaurantName: 'Biryani House',
+      waitingMinutes: 10 + tick
+    });
+  }
+
+  it('THREE SWEEPER TICKS ON ONE ORDER PRODUCE ONE PUSH', () => {
+    /*
+     * The sweeper runs on a timer. Without dedup on the ORDER, a single stuck
+     * order is a notification every thirty seconds until somebody fixes it —
+     * which is how the reader learns to swipe, and the next thing they swipe is
+     * the SOS.
+     */
+    assert.equal(to(OPS).length, 1, `operations got ${to(OPS).length} pushes for one order`);
+  });
+
+  /*
+   * Two stuck orders are two problems with two different fixes — a different
+   * restaurant, a different rider to phone. Collapsing them would hide the second.
+   */
+  await all.notifyAdminsNoRiderFound({
+    orderId: 'ord_w2_other',
+    orderNumber: 'QB-W2-4',
+    restaurantName: 'Dosa Corner',
+    waitingMinutes: 12
+  });
+
+  it('and that is asserted too', () => {
+    assert.equal(to(OPS).length, 2, `a second stuck order did not reach anybody: ${to(OPS).length}`);
+  });
+
+  /* ---- The books, collapsed and change-driven ---- */
+  console.log('\n-- The books: one message, and only when the set changes');
+
+  captureSends();
+  resetAdminNotificationDedupeForTesting();
+  all.resetPaymentsHealthNotificationForTesting();
+
+  const twoAlerts = [
+    'THE LEDGER DOES NOT BALANCE. 2 transaction(s) are one-sided.',
+    '3 duplicate idempotency key(s) in the ledger. Money may be double-counted.'
+  ];
+  await all.notifyAdminsPaymentsHealth({ alerts: twoAlerts, worst: twoAlerts[0] });
+
+  it('SIX FINDINGS ARE ONE PUSH, NOT SIX', () => {
+    /*
+     * One bad state produces several alerts at once — an imbalance brings its
+     * duplicate keys and the uncertain payouts behind both. Six notifications for
+     * one morning is how a channel gets muted.
+     */
+    assert.equal(to(FINANCE).length, 1, `finance got ${to(FINANCE).length} pushes for one sweep`);
+    assert.equal(to(OPS).length, 0, 'operations was told about the books');
+  });
+
+  it('and it names the worst one, with the count of the rest', () => {
+    const push = to(FINANCE)[0];
+    assert.ok(push.body.includes('DOES NOT BALANCE'), push.body);
+    assert.ok(push.body.includes('1 more'), `the other finding is not mentioned: ${push.body}`);
+    assert.ok(push.title.includes('2'), `the count is not in the title: ${push.title}`);
+  });
+
+  captureSends();
+  await all.notifyAdminsPaymentsHealth({ alerts: twoAlerts, worst: twoAlerts[0] });
+
+  it('THE SAME PROBLEMS NEXT SWEEP SEND NOTHING', () => {
+    /*
+     * The sweep runs every fifteen minutes and an unresolved problem is still
+     * there next time. Re-notifying trains the reader to swipe, and a reader who
+     * swipes these by reflex is worse off than one never notified — they are now
+     * practised at it.
+     */
+    assert.equal(to(FINANCE).length, 0, 'the same unresolved problems notified again');
+  });
+
+  captureSends();
+  await all.notifyAdminsPaymentsHealth({
+    alerts: [...twoAlerts, '2 riders have held cash for more than 3 days.'],
+    worst: twoAlerts[0]
+  });
+
+  it('but a NEW problem appearing does send one', () => {
+    /*
+     * Keyed on the SET, not a count and not a flag. Two alerts becoming two
+     * DIFFERENT alerts is news, and a count would miss it entirely.
+     */
+    assert.equal(to(FINANCE).length, 1, 'a new finding was swallowed as a repeat');
+  });
+
+  captureSends();
+  await all.notifyAdminsPaymentsHealth({ alerts: [], worst: '' });
+  await all.notifyAdminsPaymentsHealth({ alerts: twoAlerts, worst: twoAlerts[0] });
+
+  it('and a problem that CLEARS and comes back is announced again', () => {
+    /*
+     * Remembering the fingerprint forever would silence a recurrence, which is a
+     * worse failure than a repeat: the first time it happened somebody was told,
+     * so the second time looks like it never came back.
+     */
+    assert.equal(to(FINANCE).length, 1, 'a recurrence was swallowed as a duplicate');
+  });
+
 } catch (err: any) {
   failed++;
   console.log(`[FAIL] the suite itself threw: ${err?.stack || err}`);
