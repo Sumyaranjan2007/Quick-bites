@@ -131,7 +131,10 @@ the partner sees and is paid their own.
   (`decision: 'APPROVE'`). A verified account appears on the rider's and
   restaurant's **profile** and on **every row that pays**
   (`willPayInto` on unpaid rows, `destination` on sent ones).
-- **Settlements** back under Money, reading the same ledger source as Pay.
+- **Settlements** back under Money. *(Corrected 25 Sep: it does NOT read the
+  ledger. It recomputes what is owed from orders, and marking a settlement PAID
+  posts nothing, so Pay would pay the partner again. Tracked as M3 in
+  `docs/plans/full-audit-2026-09-24.md`.)*
 - **Dish prices** tab in Inflation, saving one dish at a time.
 - **Admin push** (`b8057dc`–`1132f13`): nine events, targeted by the permission
   that lets the recipient act, fired from the event and never from a count.
