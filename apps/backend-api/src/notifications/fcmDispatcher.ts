@@ -29,6 +29,10 @@ export interface PushNotificationPayload {
    * moment and must ring in different places, or not ring at all.
    */
   androidChannelId?: string;
+  /** Android's notification tag: a later message with the same tag REPLACES this one. */
+  androidTag?: string;
+  /** Data only, no visible notification. The only way to withdraw one. */
+  dataOnly?: boolean;
   sentAt: string;
 }
 
@@ -133,7 +137,9 @@ class FcmNotificationDispatcher {
           },
           // Declared by the method that built the record, because only it
           // knows which app is being written to. See CHANNEL above.
-          androidChannelId: record.androidChannelId || CHANNEL.DEFAULT
+          androidChannelId: record.androidChannelId || CHANNEL.DEFAULT,
+          androidTag: record.androidTag,
+          dataOnly: record.dataOnly
         }
       );
 
@@ -198,7 +204,56 @@ class FcmNotificationDispatcher {
       title: 'New trip available',
       body: `Pick up from ${restaurantName}${distanceLabel ? `, ${distanceLabel} away` : ''}. Open the app to accept it.`,
       data: { type: 'RIDER_TRIP_AVAILABLE', orderId, orderNumber },
-      androidChannelId: CHANNEL.RIDER
+      androidChannelId: CHANNEL.RIDER,
+      /*
+       * Tagged per order, so the later waves of the same trip REPLACE this entry
+       * rather than stacking beside it. Dispatch re-offers every few minutes
+       * until somebody takes the job, and four identical alarms for one trip is
+       * how a rider learns to clear the whole channel.
+       */
+      androidTag: `trip:${orderId}`
+    });
+  }
+
+  /**
+   * That trip is gone — somebody else took it.
+   *
+   * -------------------------------------------------------------------------
+   * WHY THIS IS DATA ONLY, AND WHAT IT DOES AND DOES NOT DO TODAY
+   * -------------------------------------------------------------------------
+   * Six riders are woken for one trip and one accepts. The other five keep a
+   * looping alarm in the tray for a job that no longer exists, and a rider who
+   * taps it later is refused. That is the same "offered something and then told
+   * no" shape that the offer list had, arriving through the push instead.
+   *
+   * There is no "delete that notification" message type. The only way to clear
+   * an entry is to tell the APP and let it do it, which means a message with no
+   * notification block — data only, invisible, handled in code.
+   *
+   * A visible replacement is not an alternative. Channel importance and sound are
+   * fixed when the app creates the channel, so a "that trip is gone" message on
+   * `new-orders` would play the looping alarm AGAIN — worse than the stale entry.
+   *
+   * BE CLEAR ABOUT TODAY: the shipped rider APK has no handler for this, so it
+   * currently arrives and is ignored. Nothing breaks, nothing is cleared. It is
+   * shipped now because it is inert until the app half exists and then works with
+   * no server change, and because `androidTag` above — which DOES work on the
+   * shipped build — stops the waves stacking, which is the larger half of the
+   * same problem.
+   */
+  async notifyRiderTripWithdrawn(riderUserId: string, orderId: string, orderNumber: string) {
+    return this.sendPushNotification({
+      userId: riderUserId,
+      orderId,
+      orderNumber,
+      // Carried for the app to display if it decides to; never shown by Android
+      // itself, because `dataOnly` omits the notification block.
+      title: 'Trip taken',
+      body: 'Another rider took this one.',
+      data: { type: 'RIDER_TRIP_WITHDRAWN', orderId, orderNumber, tag: `trip:${orderId}` },
+      androidChannelId: CHANNEL.RIDER,
+      androidTag: `trip:${orderId}`,
+      dataOnly: true
     });
   }
 

@@ -63,6 +63,22 @@ export async function eligibleRidersFor(order: Order): Promise<DeliveryRider[]> 
     // alarm, and the list already respects this.
     if ((order.declinedByRiderIds || []).includes(rider.id)) continue;
 
+    /*
+     * ALREADY SHOWN THIS TRIP. This is what makes the waves WIDEN rather than
+     * repeat.
+     *
+     * Dispatch offers a trip to the nearest few, waits, then offers it to the
+     * next few. Without this, every wave wakes the same nearest riders again —
+     * the ones who have already decided not to take it — while rider seven is
+     * never asked at all, and the order waits for NO_RIDER_FOUND with riders
+     * still available.
+     *
+     * `offeredToRiderIds` is the field the offer LIST already writes, so a rider
+     * who has seen the trip on their screen is not then woken about it. Two marks
+     * for one fact would drift, and the drift would be invisible.
+     */
+    if ((order.offeredToRiderIds || []).includes(rider.id)) continue;
+
     // On a job. The gate refuses a second trip, so waking them for one is noise
     // arriving while they are riding.
     const theirs = await orderRepository.listByRiderId(rider.id);
@@ -149,6 +165,16 @@ export async function offerTripToNearbyRiders(order: Order): Promise<string[]> {
         restaurantName,
         km === null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
       );
+
+      /*
+       * Recorded AFTER the push, so a rider the push failed to reach is tried
+       * again on the next wave rather than being marked as asked.
+       *
+       * The mark is what makes the next wave widen instead of repeating, and it
+       * is the same field the offer list writes — one record of "this rider has
+       * seen this trip", whichever way they saw it.
+       */
+      await orderRepository.markOfferedToRider(order.id, rider.id);
     }
 
     return riders.map(r => r.id);
@@ -157,6 +183,55 @@ export async function offerTripToNearbyRiders(order: Order): Promise<string[]> {
       JSON.stringify({
         level: 'ERROR',
         event: 'RIDER_TRIP_PUSH_FAILED',
+        orderId: order?.id,
+        message: err?.message
+      })
+    );
+    return [];
+  }
+}
+
+/**
+ * Tells every rider who was offered this trip, except the one who took it, that
+ * it is gone.
+ *
+ * -------------------------------------------------------------------------
+ * THE OTHER FIVE ALARMS
+ * -------------------------------------------------------------------------
+ * Six riders are woken and one accepts. The other five keep a looping alarm in
+ * the tray for a job that no longer exists, and a rider who taps it a minute
+ * later is refused. That is the same shape as the offer list showing a trip the
+ * gate would refuse — offered something, then told no — arriving through the push
+ * instead.
+ *
+ * Read `notifyRiderTripWithdrawn` for what this does and does not achieve on the
+ * APK riders have today: the withdrawal is inert until the rider app grows a
+ * handler for it. The `androidTag` on the offer, which DOES work now, is what
+ * stops repeated waves stacking.
+ *
+ * NEVER THROWS. Assigning a rider must not fail because a withdrawal could not be
+ * sent; the worst case of a failure here is a stale entry, which is where we
+ * already were.
+ */
+export async function withdrawTripOffers(order: Order, takenByRiderId: string): Promise<string[]> {
+  try {
+    const offered = order.offeredToRiderIds || [];
+    const told: string[] = [];
+
+    for (const riderId of offered) {
+      if (riderId === takenByRiderId) continue;
+      const rider = memoryStore.riders.get(riderId) as DeliveryRider | undefined;
+      if (!rider?.userId) continue;
+      await fcmDispatcher.notifyRiderTripWithdrawn(rider.userId, order.id, order.orderNumber);
+      told.push(riderId);
+    }
+
+    return told;
+  } catch (err: any) {
+    console.error(
+      JSON.stringify({
+        level: 'ERROR',
+        event: 'RIDER_TRIP_WITHDRAW_FAILED',
         orderId: order?.id,
         message: err?.message
       })

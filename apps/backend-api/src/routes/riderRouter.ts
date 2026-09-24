@@ -39,7 +39,7 @@ import type { DeliveryRider, Order, SosAlert } from '@quick-bites/shared-types';
 import { requireFeature } from '../middlewares/featureGate.ts';
 import { visibleContact } from '../modules/orders/contactVisibility.ts';
 import { hasActiveTrip, cashCeilingBlocks } from '../modules/orders/riderTrip.ts';
-import { offerTripToNearbyRiders } from '../modules/orders/tripOffers.ts';
+import { offerTripToNearbyRiders, withdrawTripOffers } from '../modules/orders/tripOffers.ts';
 
 export const riderRouter = Router();
 
@@ -885,6 +885,19 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
     const wasOffered = (order.offeredToRiderIds || []).includes(self.id);
     if (!wasOffered) await orderRepository.markOfferedToRider(order.id, self.id);
     await riderRepository.recordAcceptance(self.id, !wasOffered);
+
+    /*
+     * AND STOP THE OTHER ALARMS.
+     *
+     * Everybody else who was woken for this trip still has it in their tray, and
+     * a rider who taps it now is refused — offered something and then told no,
+     * which is the shape V1 fixed on the offer list. Read `withdrawTripOffers`
+     * for what this clears today and what waits on a rider build.
+     *
+     * Not awaited: a rider must not be left unable to accept a trip because a
+     * withdrawal to somebody else was slow.
+     */
+    void withdrawTripOffers(order, self.id);
 
     /*
      * The FOOD's status is broadcast unchanged, because claiming a trip does

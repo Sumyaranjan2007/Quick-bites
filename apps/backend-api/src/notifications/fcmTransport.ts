@@ -190,6 +190,30 @@ export interface PushMessage {
    * silently — which for a kitchen alert is the same as not delivering it.
    */
   androidChannelId?: string;
+  /**
+   * Android's notification tag. A later message with the SAME tag REPLACES the
+   * earlier one in the tray instead of stacking beside it.
+   *
+   * This is what stops a rider accumulating one entry per wave for a single
+   * trip. Dispatch re-offers an order every few minutes until somebody takes it,
+   * and without a tag a trip nobody accepts for twenty minutes leaves four
+   * identical alarms — at which point the rider clears the lot and stops
+   * looking.
+   */
+  androidTag?: string;
+  /**
+   * Send DATA ONLY, with no notification block.
+   *
+   * Android shows nothing for such a message and hands it to the app, which is
+   * the only way to WITHDRAW something already in the tray: there is no "delete
+   * that notification" message type, so the app has to be told and do it itself.
+   *
+   * A visible replacement is not an option here. Channel importance and sound
+   * are fixed when the app creates the channel, so a "that trip is gone" message
+   * on the rider's `new-orders` channel would play the looping alarm again — a
+   * worse outcome than the stale entry it was trying to clear.
+   */
+  dataOnly?: boolean;
 }
 
 /**
@@ -222,7 +246,11 @@ export async function sendToTokens(tokens: string[], message: PushMessage): Prom
         body: JSON.stringify({
           message: {
             token,
-            notification: { title: message.title, body: message.body },
+            // Omitted entirely for a data-only message. An empty notification
+            // block is not the same thing: Android draws a blank entry for it.
+            ...(message.dataOnly
+              ? {}
+              : { notification: { title: message.title, body: message.body } }),
             // Data values must be strings; a number here is rejected by the
             // API with a message that does not say which field.
             data: Object.fromEntries(
@@ -230,10 +258,15 @@ export async function sendToTokens(tokens: string[], message: PushMessage): Prom
             ),
             android: {
               priority: 'HIGH',
-              notification: {
-                channel_id: message.androidChannelId || 'default',
-                sound: 'default'
-              }
+              ...(message.dataOnly
+                ? {}
+                : {
+                    notification: {
+                      channel_id: message.androidChannelId || 'default',
+                      sound: 'default',
+                      ...(message.androidTag ? { tag: message.androidTag } : {})
+                    }
+                  })
             }
           }
         })
