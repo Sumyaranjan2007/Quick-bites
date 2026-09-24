@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7 ✅ `1ef9e3e` + M4) → **M3/W8** ✅ `39ead40` (M3a open) → W7(b) → W7(a) → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7 ✅ `1ef9e3e` + M4) → **M3/W8** ✅ `39ead40` (M3a open) → W7(b) ✅ `0a42496` → W7(a) → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -707,7 +707,7 @@ single-payee payout through `payouts.ts`, the amount is `duesFor`'s, the
 adjustments field refuses, and the rider's cash counter is asserted equal to the
 `RIDER_CASH` ledger balance at every step of the cash lifecycle.
 
-**M3a — OPEN — the legacy backfill double-pays under a real hold period.**
+**M3a — FIXED `0a42496`** — the legacy backfill double-paid under a real hold.
 `ledger.post` stamps `occurredAt = now` unless given one (`ledger.ts`:201) and
 `legacySettlements.ts` passes none, while `duesFor` buckets on `occurredAt`. So
 the backfill's debit lands outside the payable bucket and the old credits it
@@ -721,9 +721,27 @@ free). Re-run the block at a real hold and assert **payable-now**, not
 outstanding. `payable + held === outstanding` does not hold after a backfill and
 would have caught this alone.
 
+**M3a fix, and Session B re-verified it** with the same probe that caught it
+(payable 50000 → 0, and `payable + held === outstanding`), including the
+no-stamped-orders fallback path. Session A took the synthetic-payout option over
+re-dating, because re-dating is still a date argument — a settlement paid inside
+the hold window would mis-bucket — while covered credits are excluded outright
+and inherit M4's `payoutId` skip. A legacy settlement now shows in the Sent list
+and is indistinguishable from a proper one. No payee push: "you have been paid"
+about last quarter is news about nothing.
+
+**W7(b) landed in the same commit.** Decision-gating rates driven by behaviour;
+all 31 round-trip through the route; **every rate is checked for a bounds entry
+from the DEFAULTS**, since iterating the bounds can never find a key missing from
+them. Feature flags scanned for enforcement, three driven off and on.
+
 **§11 shapes added:**
 - **A hold period of 0 hides every date-bucketing defect.** Any check about what
   is payable NOW must run with a real hold.
+- **A refusal check must guarantee the only reason it could refuse is the one
+  under test.** A bounds check survived removing BOTH bounds layers — it was
+  being refused for a missing required field. Pair every refusal with an
+  in-bounds control that must be ACCEPTED.
 - **When the fix is "the route now calls the module", the check must drive the
   ROUTE.** A module-level check passes either way — the same family as the KYC
   alert wired to a route no app calls.
