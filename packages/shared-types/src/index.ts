@@ -1602,6 +1602,20 @@ export type LedgerAccountKind =
    * truthful order of events.
    */
   | 'CUSTOMER_PREPAID'
+  /**
+   * Bonuses promised to riders for hitting a target.
+   *
+   * An EXPENSE, so it grows with a debit: the platform chose to pay it, it is not
+   * coming back, and it is a real cost of running the fleet that belonged in the
+   * books from the start.
+   *
+   * It exists because incentives were credited to the customer WALLET — a balance
+   * nothing on this platform can spend and that no payout has ever read. The
+   * rider's Earnings screen showed the bonus as paid. So every incentive any rider
+   * had ever "earned" was money they were told they had and would never receive,
+   * and the only trace was a wallet row nobody looked at.
+   */
+  | 'EXPENSE_RIDER_INCENTIVE'
   | 'REFUNDS_PAID';
 
 export type LedgerEvent =
@@ -1636,6 +1650,8 @@ export type LedgerEvent =
   | 'PAYOUT_REVERSED'
   | 'REFUND_TO_SOURCE'
   | 'REFUND_BY_LINK'
+  /** A rider hit an incentive target, so the platform owes them the bonus. */
+  | 'RIDER_INCENTIVE_AWARDED'
   | 'SETTLEMENT_ADJUSTMENT'
   | 'MEMBERSHIP_PURCHASED'
   | 'CORRECTION';

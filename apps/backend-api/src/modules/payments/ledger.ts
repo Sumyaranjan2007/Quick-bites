@@ -89,6 +89,12 @@ const DEBIT_POSITIVE: ReadonlySet<LedgerAccountKind> = new Set<LedgerAccountKind
    * the same mistake PLATFORM_CASH made one line above.
    */
   'EXPENSE_GATEWAY_FEE',
+  /*
+   * A rider's bonus is an EXPENSE too, for the same reason as the gateway's fee:
+   * the money left and is not owed back. Omitting it here would report every
+   * rupee of incentive the platform has promised as a NEGATIVE expense.
+   */
+  'EXPENSE_RIDER_INCENTIVE',
   'REFUNDS_PAID'
 ]);
 

@@ -10,9 +10,9 @@
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { settingFor } from '../payments/incentiveConfig.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
-import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import type { DeliveryRider, Order } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../orders/riderTrip.ts';
+import { postIncentiveAward } from '../payments/incentives.ts';
 
 /** Riders, restaurants and customers are all in India; days end at IST midnight. */
 const IST_OFFSET_MINUTES = 330;
@@ -387,11 +387,24 @@ export async function evaluateIncentives(
         paidAt
       });
       triggerAutoSave();
-      await walletRepository.credit(
-        rider.userId,
-        rule.reward,
-        `Incentive: ${rule.title}`
-      );
+
+      /*
+       * OWED, NOT SENT — AND IT USED TO BE NEITHER.
+       *
+       * This credited `walletRepository`, the customer wallet. Nothing in
+       * `modules/payments` reads that wallet and no payout run has ever looked at
+       * it, so the bonus was unspendable — while the row written just above made
+       * the rider's Earnings screen show it as PAID, with a date.
+       *
+       * Now it joins what the rider is owed and goes out with their next payout,
+       * through the same rails and the same controls as everything else they earn.
+       */
+      postIncentiveAward({
+        awardKey: key,
+        riderId: rider.id,
+        title: rule.title,
+        rewardRupees: rule.reward
+      });
       entry.paid = true;
       entry.paidAt = paidAt;
       newlyAwarded.push(entry);

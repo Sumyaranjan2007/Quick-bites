@@ -17,6 +17,7 @@ import { startOrderSweeper, stopOrderSweeper } from './modules/orders/orderSweep
 import { startPaymentReconciliation, stopPaymentReconciliation } from './modules/payments/reconciliation.ts';
 import { startPaymentsHealthCheck, stopPaymentsHealthCheck } from './modules/payments/paymentsHealth.ts';
 import { startAdminDigest, stopAdminDigest } from './notifications/adminDigest.ts';
+import { backfillIncentiveAwards } from './modules/payments/incentives.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -140,6 +141,20 @@ startPaymentsHealthCheck();
 // day. Everything else on this list speaks up when something is wrong, and a
 // platform that never says anything else is one nobody wants to hear from.
 startAdminDigest();
+
+/*
+ * And write down the bonuses riders were told they had been paid.
+ *
+ * Incentives were credited to the customer wallet, which no payout run reads, so
+ * every one of them was unspendable while the rider's own screen showed it as
+ * PAID. Recording them as owed is not rewriting history — it is writing down a
+ * debt that already existed and had been communicated to the person owed it.
+ *
+ * At boot rather than behind an admin button, because the person who would have to
+ * press that button has no way of knowing it is there, and the riders are owed the
+ * money either way. Idempotent, so a restart posts nothing twice.
+ */
+backfillIncentiveAwards();
 
 // Graceful Shutdown
 async function handleShutdown(signal: string) {

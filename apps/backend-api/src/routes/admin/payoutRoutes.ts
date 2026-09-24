@@ -62,6 +62,7 @@ import {
 } from '../../modules/payments/cashDeposits.ts';
 import { gatewayReceivablePaise, recordGatewaySettlement, gatewayFeesPaise } from '../../modules/payments/gatewaySettlements.ts';
 import { customerPrepaidPaise } from '../../modules/payments/capture.ts';
+import { backfillIncentiveAwards } from '../../modules/payments/incentives.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import {
   listRequests,
@@ -543,19 +544,35 @@ payoutRoutes.post(
   async (req, res, next) => {
     try {
       const result = backfillEarnings();
+
+      /*
+       * Bonuses too, and for the same reason this endpoint exists.
+       *
+       * Incentives used to be credited to the customer wallet, which no payout run
+       * reads — so every bonus a rider had been shown as PAID was money they were
+       * never going to receive. Recording them as owed is not rewriting history: it
+       * writes down a debt that already existed and had been communicated.
+       */
+      const incentives = backfillIncentiveAwards();
+
       recordAudit(req, {
         action: 'EARNINGS_BACKFILLED',
         entityType: 'LEDGER',
-        summary: `Scanned ${result.scanned} delivered orders, posted earnings for ${result.posted}`,
-        after: result
+        summary:
+          `Scanned ${result.scanned} delivered orders, posted earnings for ${result.posted}; ` +
+          `posted ${incentives.posted} rider incentives that were never booked`,
+        after: { ...result, incentives }
       });
       res.json({
         success: true,
-        data: result,
+        data: { ...result, incentives },
         message:
-          result.posted === 0
+          (result.posted === 0
             ? `All ${result.scanned} delivered orders already had their earnings posted.`
-            : `Posted earnings for ${result.posted} of ${result.scanned} delivered orders.`
+            : `Posted earnings for ${result.posted} of ${result.scanned} delivered orders.`) +
+          (incentives.posted > 0
+            ? ` ${incentives.posted} rider bonus${incentives.posted === 1 ? '' : 'es'} that had been shown as paid but never recorded are now owed to them.`
+            : '')
       });
     } catch (err) {
       next(err);

@@ -57,6 +57,7 @@ const SUITES = [
   'gatewaySettlements',
   'moneyReached',
   'adminEverything',
+  'moneyPaths',
   'adminPush',
   'orderMap',
   'riderTripPush',

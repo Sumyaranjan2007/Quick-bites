@@ -8,9 +8,7 @@ import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
-import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { orderService } from '../../modules/orders/orderService.ts';
-import { emitOrderStatusUpdate } from '../../sockets/socketServer.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { LIVE_STATUSES, IN_TRANSIT_STATUSES, economicsOf } from '../../modules/admin/analytics.ts';
 import { shapeOrderDetail, summariseOrder, matchesQuery, paginate } from './shared.ts';
@@ -268,57 +266,65 @@ orderRoutes.post(
       }
 
       const before = order.status;
-      order.status = 'CANCELLED';
-      order.cancellationReason = req.body.reason;
-      order.cancellationReasonCode = findCancellationReason(req.body.reasonCode || '')?.code ?? 'OTHER';
-      order.cancelledByUserId = req.user?.id;
-      order.cancelledByRole = req.user?.role;
-      order.cancelledAt = new Date().toISOString();
-      order.updatedAt = order.cancelledAt;
-      memoryStore.orders.set(order.id, order);
 
-      // A rider who was on this trip is freed by the cancellation itself: an
-      // active trip is derived from the order's status, so there is no separate
-      // flag to clear.
-      let refund: { amount: number } | null = null;
-      if (req.body.refund && order.paymentStatus === 'PAID') {
-        const amount = Number(order.bill?.totalAmount) || 0;
-        // Guarded because the wallet now refuses a non-positive movement. An
-        // order with no readable total is a data problem, not a refund of zero
-        // rupees, and crediting nothing while reporting a refund would be worse
-        // than declining to.
-        if (amount > 0) {
-          await walletRepository.credit(
-            order.customerId,
-            amount,
-            `Refund for cancelled order #${order.orderNumber}: ${req.body.reason}`,
-            order.id
-          );
-          order.paymentStatus = 'REFUNDED';
-          order.status = 'REFUNDED';
-          memoryStore.orders.set(order.id, order);
-          refund = { amount };
-        }
-      }
+      /*
+       * THROUGH THE ONE CANCELLATION, AND THIS WAS A THIRD IMPLEMENTATION.
+       *
+       * What used to be here set the status by hand and then credited
+       * `walletRepository` — the customer wallet that no longer exists and that
+       * nobody can spend. It marked the order REFUNDED, told the customer their
+       * money was back, and posted NOTHING to the ledger. No gateway refund, no
+       * refund case, no push to the customer or the kitchen.
+       *
+       * So an administrator cancelling a paid order produced exactly the lie
+       * `refunds.ts` was written to make impossible: a green tick over money that
+       * had not moved. The money stayed at the gateway, no record said it was
+       * owed, and the one screen anybody would look at said the refund was done.
+       *
+       * `orderService.cancelOrder` is the path the customer and partner apps use.
+       * It validates the transition, refunds by the route the ORDER dictates,
+       * opens a case that stays open when the money does not move, tells the
+       * kitchen and the customer, and writes the ledger entries. Delegating to it
+       * is the fix; nothing here needs to know how a refund works.
+       *
+       * The specific guards above are kept rather than left to
+       * `validateTransition`, because "raise a refund against it instead" is a
+       * sentence somebody can act on and a transition error is not.
+       */
+      const reasonCode = findCancellationReason(req.body.reasonCode || '')?.code ?? 'OTHER';
+      const result = await orderService.cancelOrder(
+        order.id,
+        {
+          userId: req.user!.id,
+          name: req.user?.fullName || 'admin',
+          role: (req.user?.role || 'admin') as any
+        },
+        reasonCode,
+        req.body.reason
+      );
 
-      emitOrderStatusUpdate(order.id, {
-        orderId: order.id,
-        status: order.status,
-        updatedAt: order.updatedAt
-      });
+      /*
+       * `refund` is no longer conditional on the request asking for one.
+       *
+       * The old flag let a cancellation of a PAID order be recorded with no
+       * refund at all, which is not a decision anybody should be able to make in
+       * a checkbox: the customer's money is theirs. Every paid order is refunded.
+       * The field stays in the response because the admin app reads it.
+       */
+      const refund = result.refund ? { amount: result.refund.amount, status: result.refund.status } : null;
 
       recordAudit(req, {
         action: 'ORDER_CANCELLED',
         entityType: 'ORDER',
         entityId: order.id,
         summary: `Cancelled order #${order.orderNumber}: ${req.body.reason}${
-          refund ? ` (refunded Rs ${refund.amount})` : ''
+          refund ? ` (refund ${refund.status}, Rs ${refund.amount})` : ''
         }`,
         before: { status: before },
-        after: { status: order.status }
+        after: { status: result.order?.status }
       });
 
-      res.json({ success: true, data: { order, refund } });
+      res.json({ success: true, data: { order: result.order, refund } });
     } catch (err) {
       next(err);
     }

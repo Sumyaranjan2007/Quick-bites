@@ -32,7 +32,7 @@
  * reasonable to mute. A per-category rule would have forced either muting it with
  * them or giving it a category of its own that explains nothing.
  */
-import { memoryStore } from '../db/client.ts';
+import { memoryStore, triggerAutoSave } from '../db/client.ts';
 
 export type AdminNotificationCategory =
   | 'SAFETY'
@@ -164,6 +164,17 @@ export function setCategoryEnabled(
     changedAt: new Date().toISOString(),
     changedByUserId: actorUserId
   });
+
+  /*
+   * SAVED HERE, not left to the caller.
+   *
+   * This survived a restart only because the route that sets it happens to write an
+   * audit row immediately afterwards, and THAT triggers a save of the whole store.
+   * It worked for a reason with nothing to do with this code — so a second caller
+   * without an audit write, or an audit write that moved, would have silently
+   * un-muted a category on the next deploy.
+   */
+  triggerAutoSave();
 }
 
 /** Every category with its current state, for the settings screen. */

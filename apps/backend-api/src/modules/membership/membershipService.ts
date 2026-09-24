@@ -18,7 +18,7 @@
  * `isGold` flag anywhere that decides money is the bug this module exists to
  * make impossible.
  */
-import { memoryStore } from '../../db/client.ts';
+import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { UserProfile } from '@quick-bites/shared-types';
@@ -143,6 +143,15 @@ export function findPlan(planId: string): MembershipPlan | null {
 /** Admin-editable. Replaces the whole set, so a removed plan is really removed. */
 export function savePlans(plans: MembershipPlan[]): MembershipPlan[] {
   memoryStore.settings.set(SETTINGS_KEY, plans);
+  /*
+   * Saved here rather than by whoever calls it.
+   *
+   * `memoryStore` is Maps, so a write lasts exactly as long as the process. An
+   * administrator editing the membership price would have seen it take effect, and
+   * seen it revert to the old price on the next deploy — which reads as the edit
+   * screen being broken rather than as a missing line here.
+   */
+  triggerAutoSave();
   return plans;
 }
 

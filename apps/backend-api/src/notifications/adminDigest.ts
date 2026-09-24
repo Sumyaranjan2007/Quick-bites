@@ -31,7 +31,7 @@
  * at UTC midnight splits an Indian evening's trading across two days, which makes
  * both numbers wrong and neither obviously so.
  */
-import { memoryStore } from '../db/client.ts';
+import { memoryStore, triggerAutoSave } from '../db/client.ts';
 import { istDayKey } from '../modules/admin/analytics.ts';
 import { notifyAdmins } from './adminNotifier.ts';
 import { ADMIN_CHANNEL } from './adminNotifier.ts';
@@ -173,7 +173,17 @@ export async function sendDigestIfDue(
    * works — until somebody places one order at 23:59 and gets a summary that reads
    * as the whole day.
    */
+  /*
+   * SAVED, not just written.
+   *
+   * `memoryStore` is Maps: a write survives exactly as long as the process. This
+   * marker's ENTIRE PURPOSE is to survive a restart — it is what stops a deploy
+   * re-sending a summary that has already gone out. Without the save it worked
+   * until the first restart and then did the one thing the slot design exists to
+   * prevent, which nothing would have reported.
+   */
   memoryStore.settings.set(sentKey, { sentAt: at.toISOString(), hadContent: Boolean(body) });
+  triggerAutoSave();
 
   if (!body) return { sent: false, reason: 'nothing happened today', recipients: [] };
 
