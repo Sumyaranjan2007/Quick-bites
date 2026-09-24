@@ -6,6 +6,195 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-24] -- Claude Opus 5 -- Session 34: order flow rebuilt, the money chain made honest, and the admin revamp
+
+**Covers 114 commits, `e53f944` through `66c407c`, 22–24 Sep 2026.** Two Claude
+sessions worked in one git tree. Session A ("money") wrote the code; Session B
+("experience", later "plan and review") wrote `docs/plans/` and reviewed every
+commit. **No APK was built during this period, on the owner's instruction.**
+
+> **IF YOU ARE AN AI PICKING THIS UP, READ THESE FIRST, IN THIS ORDER:**
+> 1. `docs/plans/admin-revamp-and-inflation.md` — the working plan. §11A is the
+>    list of what is still open. §11 is the rules, each earned by a real defect.
+> 2. `docs/plans/road-to-launch.md` — the launch sequence and the build checklist.
+> 3. `SIGNING_KEYS.md` — where the signing keys live (outside the repo).
+> 4. This entry.
+
+---
+
+### How to resume safely
+
+- **Two sessions may share this tree.** Never `git add -A` — stage by explicit
+  path and read `git diff --cached --stat` first. Never `git stash` while
+  another session has uncommitted work.
+- **`git status` clean is not "pushed".** Run `git log --oneline origin/main..HEAD`
+  after every push. Nine unpushed commits once shipped an APK with none of the
+  work in it.
+- **The gate:** `node scripts/run-backend-tests.mjs` — 43 suites at the time of
+  writing. Read the **exit code**, never the printed text (see §11.2a).
+- **Never pipe a build through `| tail`.** It reports `tail`'s exit code.
+- **The repository is PUBLIC.** `.env`, `keystore.properties`,
+  `apps/*/google-services.json` and `apps/backend-api/data/store.json` are
+  gitignored and must stay so. A `pk.` Mapbox token may ship; an `sk.` token must
+  never reach an artifact — `scripts/check-apk-secrets.mjs` enforces it.
+- **Do not build an APK** unless the owner explicitly says to.
+
+---
+
+### Where the platform is
+
+| | |
+| --- | --- |
+| Backend | `quick-bites-production.up.railway.app`, real Railway Postgres via `DATABASE_URL` (the only database variable read) |
+| Old host `quick-bites-production-9f45…` | **Dead (404).** Every reference removed in `0429c17`. |
+| Live data | Two real ACTIVE restaurants. **No payee (bank) accounts** on the deployment at last check. |
+| Backend suites | 43, green on exit code |
+| Last APKs built | 23 Sep, 07:39–07:56 — **predate all admin-revamp work** |
+
+---
+
+### 1. The order flow, rebuilt
+
+The owner reported *"the rider accepts and everything marks itself done"* and
+a rider stuck at a door unable to finish.
+
+- **The rider's trip is its own track** (`riderStage`), separate from the food's
+  `status`. `RIDER_ASSIGNED` removed from order status; `normaliseStore.ts`
+  migrates stored rows on load from **both** the JSON and Postgres paths.
+- Food cannot be collected before it is cooked; a correct doorstep code alone is
+  not a delivery; delivery no longer invents a payment that never arrived.
+- Every refusal carries a `code`, so "the kitchen has not tapped Ready" no
+  longer arrives as "invalid code".
+- The rider app imports `RiderTripStage` from `shared-types` instead of keeping a
+  private copy — the private copy is what stranded a rider.
+- **`completeDelivery()` (`modules/orders/deliveryCompletion.ts`, `2bebdc4`).**
+  The two paths to DELIVERED each did half the money: the rider's OTP route
+  credited cash and posted no earnings; the status route posted earnings and
+  recorded no cash. Both now call one function. `codCashRecordedAt` on the
+  **stored** order prevents a double credit, written credit-first so a crash
+  leaves a visible over-count rather than an invisible under-count.
+
+### 2. Money
+
+- **One payout system, not two** (`118e836`). The second one credited a wallet
+  and adjusted a cash counter with no ledger entry.
+- **An order becomes money owed only with evidence it happened**
+  (`settlementEvidence`), never by scanning for DELIVERED.
+- **Payday is weekly** (`32b2dfa`), read from `payoutCadenceDays` everywhere.
+  `payoutPromise.ts` (`4a411f4`) owns the words: four copies of the promise
+  became one, and the window is computed as hold + cadence + transfer.
+- **The daily payout cap is announced before payday**, not discovered halfway
+  through. The cap itself was deliberately **not** raised — it is a fraud
+  control.
+- **Cash has three locations** (`4a53874`): `RIDER_CASH` → `PLATFORM_CASH` (the
+  office) → `PLATFORM_BANK`. An admin can record cash handed in without the rider
+  declaring it first, and record the bank deposit separately. **Returned cash is
+  a location change, never revenue** — asserted by checking `REVENUE_COMMISSION`
+  and `REVENUE_FEES` are byte-identical across the return.
+- **Cash in the bag blocks a payout; it does not shrink one** (`5d079c3`). The
+  rider screen had shown "You will receive Rs 1,300" for a payout that would pay
+  nothing, and negative payouts.
+- The ask-to-be-paid control is **gone from both apps** (`4c4b1db`). Server
+  routes remain so older installed APKs keep working.
+
+### 3. Pricing — "Inflation"
+
+All of it partner-invisible: the customer sees and pays the inflated figure;
+the partner sees and is paid their own.
+
+- **Per-item typed prices** (`90355f6`, `ab06ab8`, `f971749`, `3aada24`).
+  `customerDishPrice(restaurantId, itemId, restaurantPrice)` — the signature
+  change surfaced **six** call sites, two of them the customer-facing menu.
+  Resolution: typed price → restaurant percentage → restaurant's own price.
+- **Add-ons follow the typed ratio**, because a typed price *is* the markup
+  decision for that dish. Typed values are obeyed exactly; derived values round
+  to whole rupees.
+- **A price change and its markup are approved as one decision.** Partners
+  cannot reprice without approval. Bulk approval applies the margin-preserving
+  default and **reports** `markupsHeld` / `markupsNotHeld`. The approval screen
+  shows margin erosion as a percentage.
+- **Commission and TDS compute on the restaurant's own total**, never the
+  customer's.
+- **Rider delivery markup** (`4d44863`): the customer pays it, rider pay is
+  untouched — asserted on `calculateTripPayout` output, not on the rate config.
+- **Gold ladder** (`3cbe959`): Rs 99 / 30d / 10% delivery / 5% food cap Rs 75;
+  Rs 249 / 30d / 25% / 5% cap Rs 100; Rs 799 / 60d / 40% / 7% cap Rs 150. Free
+  delivery became a percentage. A Gold member with no plan id falls back to the
+  cheapest active plan, floored when every plan is inactive, and the count is
+  shown in the Gold tab.
+
+### 4. Admin console
+
+- Two-tier navigation with attention badges proved to **move**.
+- **Bank** (`6006fd2`): Restaurants / Riders / Approved / Who can be paid, each
+  with a count; three distinct empty states. Verify is the administrator's tap
+  (`decision: 'APPROVE'`). A verified account appears on the rider's and
+  restaurant's **profile** and on **every row that pays**
+  (`willPayInto` on unpaid rows, `destination` on sent ones).
+- **Settlements** back under Money, reading the same ledger source as Pay.
+- **Dish prices** tab in Inflation, saving one dish at a time.
+- **Admin push** (`b8057dc`–`1132f13`): nine events, targeted by the permission
+  that lets the recipient act, fired from the event and never from a count.
+  Two channels created before the token registers. SOS first. Tapping opens the
+  section, including a tap that launches the app from closed.
+
+### 5. Notifications
+
+- **The kitchen was never notified of anything** — every push targeted the
+  customer. `notifyRestaurant*` added (`23ceaa0`).
+- **The channel ids never matched**: server `new_orders`, rider app
+  `new-orders`, partner app `kitchen-orders`. Android 8+ drops a message naming
+  an unknown channel. Fixed server-side; **verified against the shipped APKs**, so
+  the kitchen push works on phones already installed.
+- Delivery is fire-and-forget (`void this.deliver(record)`); Google calls are
+  bounded at 5s.
+
+### 6. Platform
+
+- **Mapbox replaced Google Maps** behind one seam per app (`nativeMap.ts`).
+- The **Mapbox secret token was shipping in three APKs** via
+  `assets/app.config`. Fixed, and the scanner now reads the whole artifact.
+- **Metro's transform cache** shipped an admin APK with a current `App.tsx`
+  beside a stale screen. `build-apks.sh` now clears it before every build.
+- **Persistence ceiling** (`73cc5ff`): a debounced write could be deferred
+  forever; bank accounts now flush at once.
+- **Diagnostic** `GET /api/payee-accounts/me/diagnostic` reports which process
+  answered, what each admin screen would show, and whether the store is durable.
+
+---
+
+### What is NOT done — do not report these as working
+
+| Item | State |
+| --- | --- |
+| **The bank defect** | Owner submitted a bank account from both apps; it did not appear in admin, though the badge counted it. **Uncaused.** Needs one authenticated diagnostic run by the owner. |
+| **§5.1 "fix the pay section"** | The owner never said what is wrong. Two defects in Pay were fixed; the complaint itself is undiagnosed. |
+| **§8.3 push on a closed phone** | Unprovable without a real device. |
+| **§8C digest tier** | **Not built.** The owner has since asked that admin receive **all** notifications — back in scope. |
+| **§8B customer map** | In progress at the time of writing. |
+| **Task 3.1** | Pay and Settlements derive "why can't this partner be paid" from different sources and can disagree. Known, deferred. |
+| **Any APK** | None built since 23 Sep. Admin push and the map **need** a new APK. |
+
+---
+
+### The rules this period earned
+
+Every one is in `docs/plans/admin-revamp-and-inflation.md` §11 with the defect
+that produced it. The short form:
+
+1. **A check that has never failed is not evidence.** Mutate the code and watch
+   it fail.
+2. **Eight ways a check passed wrongly**, all found this period — including an
+   `async` body in a synchronous runner, which cannot fail at all.
+3. **A verdict must travel in the channel the runner reads** — the exit code.
+4. **Any secondhand account of the code is not the code**: a comment, a plan
+   section, a grep window, another session's summary. The plan itself was wrong
+   eight times; the implementer read the file first and caught each one.
+5. **A rule is not a mechanism.** Put the guard in the code.
+6. **State changes choke at the data layer; notifications fire at the route.**
+
+---
+
 ## [2026-09-22] -- Claude Opus 5 -- Session 33: PAYMENTS_PLAN P2-P8 — the platform can pay people, and say why
 
 **Description:** The rest of `PAYMENTS_PLAN.md`, built alongside the features
