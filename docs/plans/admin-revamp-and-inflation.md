@@ -1369,6 +1369,132 @@ starts lying and expensive later.
 
 ---
 
+## 8C. Admin — push notifications
+
+Asked for on 24 Sep: *"add the push notification for admin in which admin will
+also get notification of everything so it will make everything more smoother and
+more easier to do stuffs."*
+
+### 8C.0 Where this starts from
+
+Two facts checked before writing this:
+
+- **The admin app already registers a push token.**
+  `admin-mobile/src/lib/pushRegistration.ts`, wired at `App.tsx:52`. Tokens are
+  in the database already. Same position the partner app was in at §0.
+- **The admin app creates NO notification channel.** No
+  `setNotificationChannelAsync` anywhere. On Android 8+ a message naming a
+  channel the app never created is **dropped**, which is exactly the defect
+  found at §8.1.
+
+**So this one needs a new APK**, unlike the kitchen push. Say so to the owner
+rather than letting them expect it to arrive on the build they already have.
+
+### 8C.1 "Everything" has to mean everything that needs a decision
+
+The request is to be told everything. Taken literally — a push per order — a
+busy day is several hundred, and the owner mutes the app. Then the SOS alert
+arrives into a muted app and nobody sees it.
+
+So: **every event that needs a person, always. Volume events by choice.**
+Three tiers, and a switch per category so the owner can have the literal version
+if they want it.
+
+| Tier | Behaviour | Events |
+| --- | --- | --- |
+| **Urgent** | Own channel, MAX importance, sound, wakes the phone | A rider's SOS. A payout that failed at the gateway. |
+| **Needs you** | Normal channel, no sound at night | Bank account submitted · KYC document · refund raised · support ticket · payout request · cash deposit declared · menu change request · a profile edit |
+| **Digest** | One message, twice a day, counts only | Orders placed, orders delivered, new sign-ups — the volume ones |
+
+**Default the digest categories OFF for orders.** The owner can switch them on in
+Settings. A notification nobody wants is how the ones that matter get muted.
+
+**Task 8C.1.1 — the eight sources already exist.** `dashboardRoutes.ts:189–248`
+computes `pendingKyc`, `openRefunds`, `openTickets`, `openSos`,
+`pendingMenuRequests`, `payeeAccountsAwaitingReview`, `openPayoutRequests` and
+`cashDepositsAwaitingConfirmation`. These are the same things the nav badges
+count. Notify from the same facts the badges use, or a badge and a notification
+will eventually disagree about whether something needs doing.
+
+### 8C.2 Target by permission, never "all admins"
+
+`resolveAccess(user)` (`permissions.ts:209`) already returns the permission list
+for any staff account. Every notification names the permission that lets you
+**act** on it, and goes only to admins holding it.
+
+| Event | Permission |
+| --- | --- |
+| Bank account submitted | `finance.payouts.manage` |
+| Payout request, payout failed, cash deposit | `finance.payouts.manage` |
+| KYC document | `documents.review` |
+| Refund raised | `finance.refunds.manage` |
+| Support ticket, SOS | `support.tickets.manage` |
+| Menu change request | `catalog.menus.review` |
+| Profile edit | `catalog.restaurants.approve` |
+
+A support administrator receiving payout alerts they cannot act on learns to
+swipe admin notifications away, and the next one they swipe is the one that
+mattered. The owner, as super admin, holds every permission and therefore gets
+everything — which is the literal request, correctly implemented.
+
+**Task 8C.2.1 — the check that fails:** send one event, assert it reached an
+admin **with** the permission and did **not** reach one **without** it. Asserting
+only that somebody was notified passes when it goes to everybody.
+
+### 8C.3 The channel, and the lesson from §8.1
+
+**Task 8C.3.1 — the admin app declares its channels, and the server names the
+same strings.** `admin-urgent` and `admin-attention`. Each dispatcher method
+declares its own channel — never chosen from `data.type`, because a channel
+belongs to the **recipient's** app and the same event means different things to
+different apps. That was the root error at §8.1.
+
+**Task 8C.3.2 — assert the ids against the app source, not against a copy.**
+`kitchenPush.test.ts` reads the channel ids out of the app files and compares
+them to the server's. Do the same here. A constant compared with itself is the
+shape that let three spellings of one contract survive.
+
+### 8C.4 Tapping it must land somewhere
+
+**Task 8C.4.1 — carry the nav key.** `App.tsx` already keys every section —
+`payees`, `documents`, `refunds`, `support`, `payouts`, `catalog`,
+`profileChanges`. Put that key in the payload and open it. A notification that
+opens the dashboard makes the reader hunt for what it was about, which is worse
+than no notification because they now have to look anyway.
+
+### 8C.5 What must not break
+
+- **Never fail an action because a push failed.** Same rule as `tellTheKitchen`
+  (§8.1): a bank account must submit, an SOS must raise, whether or not anyone
+  can be told. Catch and log.
+- **Never block a request on delivery.** `sendPushNotification` already does
+  `void this.deliver(record)` (`fcmDispatcher.ts:74`). Keep that shape — and
+  note §8.3a: Session B once misread this and claimed the opposite.
+- **No money in an admin push beyond what the recipient may see.** An admin
+  holding `support.tickets.manage` and nothing financial should not learn a
+  payout amount from a lock screen.
+- **Do not touch `useLiveUpdates`.** The admin console's live refresh works.
+  Push is a second, independent channel for a closed app, exactly as the socket
+  and the kitchen push are two separate things.
+
+### 8C.6 Deduplicate, or it becomes noise on its own
+
+**Task 8C.6.1.** A bank account edited three times must not send three
+notifications, and a dashboard poll must never be the thing that sends one.
+Notify from the **event** — the submission, the raise, the request — not from a
+count changing. A count-driven notifier fires again every time anything else in
+the count moves, and it cannot tell you which one changed.
+
+### 8C.7 The one that must work when nothing else does
+
+**Task 8C.7.1 — SOS is the reason this feature is worth building.** A rider
+pressing SOS is the only event here where a delayed notification has a
+consequence that is not money. It gets the urgent channel, it ignores quiet
+hours, and it is the one to test on a real phone with the app force-stopped —
+the §8.3 check, applied to the event that matters most.
+
+---
+
 ## 9. Policies
 
 **Task 9.1 — the promise must match the system.** The owner's wording: money
@@ -1404,7 +1530,9 @@ Each step is verifiable before the next depends on it.
 | 7 | §6.3 Gold plans | Second pricing change, self-contained. |
 | 8 | §6.1 per-item pricing | Largest. Touches the customer's bill and the partner's payout. Last, on a tree where everything else is green. |
 | 8b | **§4.4a the two delivery paths** | Promoted. It is the most serious defect open, it makes §3's Settlements read zero, and it makes every ledger figure understate. Do it before §6.1 adds a second price to reason about. |
-| 9 | §7 rider app, §8.4–8.6 partner app, §8B customer map, §9 policies | Removals, read-only, and the map. Safe once the money is right. |
+| 9 | §7 rider app, §8.4–8.6 partner app, §9 policies | Removals and read-only. Safe once the money is right. |
+| 9b | **§8C admin push** | New, 24 Sep. Needs a new APK — the admin app registers tokens but creates no channel. Build before the gate, not after. |
+| 9c | §8B customer map | Also APK-bound. Last of the feature work. |
 | 10 | Gate, verify, **and stop** | See below. |
 
 ### Step 10 is held. The owner decides when an APK is built.
