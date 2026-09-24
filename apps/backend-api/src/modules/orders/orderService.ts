@@ -41,6 +41,7 @@ import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
+import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
 
 /**
  * Tells the kitchen, on the phone in somebody's pocket.
@@ -1074,6 +1075,12 @@ export const orderService = {
             `Marked delivered ${distanceMetres} m from the delivery address ` +
             `(threshold ${config.DELIVERY_PROXIMITY_METRES} m), rider ${order.riderId || 'unknown'}.`,
           raisedAt: flaggedAt
+        });
+
+        void notifyAdminsDeliveryLocationMismatch({
+          orderId,
+          orderNumber: order.orderNumber,
+          distanceMetres
         });
       }
     }

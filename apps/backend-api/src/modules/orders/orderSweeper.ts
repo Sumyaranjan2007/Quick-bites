@@ -33,6 +33,11 @@ import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from './orderService.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import {
+  notifyAdminsNoRiderFound,
+  notifyAdminsRiderNoShow,
+  notifyAdminsOrderAutoCancelled
+} from '../../notifications/adminNotifier.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 import { config } from '../../config/env.ts';
@@ -138,6 +143,22 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
           restaurantId: order.restaurantId,
           waitedMinutes: Math.round(minutesSince(order.createdAt, now))
         }));
+
+        /*
+         * The one detected problem here that had NO ops alert at all — only a log
+         * line and an audit row, both of which require somebody to go looking.
+         *
+         * A customer paid, waited, and was refunded because a kitchen ignored its
+         * tablet. Nobody at the platform found out unless they read the logs, and
+         * a restaurant doing it repeatedly is a conversation somebody needs to
+         * have.
+         */
+        void notifyAdminsOrderAutoCancelled({
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          restaurantName: (order as Order & { restaurantName?: string }).restaurantName,
+          waitedMinutes: Math.round(minutesSince(order.createdAt, now))
+        });
       } catch (error) {
         // One order that cannot be cancelled must not stop the rest of the
         // sweep — the failure is recorded and the loop continues.
@@ -217,6 +238,21 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
       raisedAt: alertedAt
     });
 
+    /*
+     * AND ON A PHONE. The emit above reaches a console somebody has open; this
+     * reaches the person who can do something about it wherever they are.
+     *
+     * Cooked food with nobody to carry it is the only operational alert on this
+     * platform that is urgent, and it is now honest about what it means: since
+     * W1.2 it fires only after the search has been widened to exhaustion.
+     */
+    void notifyAdminsNoRiderFound({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      restaurantName: (order as Order & { restaurantName?: string }).restaurantName,
+      waitingMinutes: Math.round(waiting)
+    });
+
     await auditRepository.record({
       actorUserId: SYSTEM_ACTOR.userId,
       actorName: SYSTEM_ACTOR.name,
@@ -275,6 +311,13 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
         restaurantName,
         waitingMinutes: Math.round(held),
         raisedAt: now.toISOString()
+      });
+
+      void notifyAdminsRiderNoShow({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        riderName: (order as Order & { riderName?: string }).riderName,
+        waitingMinutes: Math.round(held)
       });
 
       await auditRepository.record({

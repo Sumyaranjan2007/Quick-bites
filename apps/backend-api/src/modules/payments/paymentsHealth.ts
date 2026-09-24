@@ -31,6 +31,7 @@
  */
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import { notifyAdminsPaymentsHealth } from '../../notifications/adminNotifier.ts';
 import { ledger } from './ledger.ts';
 import { cashAgeing } from './cashDeposits.ts';
 import { listPayouts, type PayoutRecord } from './payouts.ts';
@@ -298,6 +299,29 @@ export async function runPaymentsHealthCheck(
     } catch {
       /* Alerting must never be the reason the sweep fails. */
     }
+  }
+
+  /*
+   * AND ONE PUSH FOR THE WHOLE SWEEP.
+   *
+   * One per alert would make a single bad state a burst — an unbalanced ledger
+   * brings its duplicate keys and the uncertain payouts that caused both — and a
+   * burst is how a channel gets muted. The channel that gets muted is the one
+   * carrying the SOS.
+   *
+   * WHICH ONE IS WORST IS DECIDED HERE, not in the notifier. This function knows:
+   * an imbalance is "the loudest thing this job can say" and the comment above
+   * that push says so. A notifier ranking these strings by keyword would be wrong
+   * the first time somebody reworded one.
+   */
+  if (alerts.length > 0) {
+    const worst = audit.balanced
+      ? alerts[0]
+      : alerts.find(a => a.startsWith('THE LEDGER DOES NOT BALANCE')) || alerts[0];
+    void notifyAdminsPaymentsHealth({ alerts, worst });
+  } else {
+    // Cleared. Told so it can forget, and announce a recurrence as news.
+    void notifyAdminsPaymentsHealth({ alerts: [], worst: '' });
   }
 
   return report;

@@ -29,6 +29,7 @@ import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from '../orders/orderService.ts';
 import { razorpayAdapter } from './razorpayAdapter.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import { notifyAdminsPaymentRecovered } from '../../notifications/adminNotifier.ts';
 import { isEnabled } from '../platform/featureFlags.ts';
 import { config } from '../../config/env.ts';
 
@@ -109,6 +110,12 @@ export async function reconcilePayments(now: Date = new Date()): Promise<Reconci
         restaurantId: order.restaurantId,
         detail: `Captured payment found at the gateway ${Math.round(age)} minutes after checkout.`,
         raisedAt: now.toISOString()
+      });
+
+      void notifyAdminsPaymentRecovered({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        minutesLate: Math.round(age)
       });
       continue;
     }
