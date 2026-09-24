@@ -471,6 +471,19 @@ the admin app can record a settlement, so the owner needs a screen.
   confirm books one capture; the worked day records; a replay gets 409.
 - **Admin screen** under Money with the W7.1 four states. It needs the admin APK.
 
+**Round 2 (same day).** R1–R4 landed in the working tree. Suite 18/20. Found:
+- **R5** — the cancellation path (`orderService` ~:843) is a **second refund
+  implementation** that posts nothing to the ledger. With captures booked, every
+  cancelled prepaid order would leave its money showing "at Razorpay" forever.
+  The check that claimed to cover it drove `sendRefund`, not the cancellation.
+  Fix: cancellation calls `sendRefund`, so there is one refund function.
+- **R6** — refunding money that was never captured (paid before the switch, or
+  delivered before the ledger) must not touch `CUSTOMER_PREPAID`.
+- **R7** — the new suite was **not in the runner's list**, so the gate exited 0
+  with two failures in it. New false-pass shape: **the unregistered suite**. The
+  fix is a mechanism: the runner fails when a `*.test.ts` file is not listed.
+- **R9 (low)** — legacy wallet orders without a gateway payment stay on the bank.
+
 ### W4 — tell people money reached them (F5) · **possibly needs APKs — see V6**
 
 - Partner and rider: *"You were paid ₹X into account ending 1234."* On a payout
