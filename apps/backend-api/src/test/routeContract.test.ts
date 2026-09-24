@@ -40,6 +40,7 @@ import {
   mountedRoutes,
   appCalls,
   unmatchedCalls,
+  unmatchedPrefixes,
   normalisePath,
   type MountedRoute
 } from './helpers/routeContract.ts';
@@ -102,7 +103,7 @@ it('and the scan actually read the server, so a clean result is not an empty one
    * given a floor.
    */
   assert.ok(mounted.length > 300, `only ${mounted.length} routes were found on the server`);
-  assert.ok(allCalls.length > 180, `only ${allCalls.length} app calls were read`);
+  assert.ok(allCalls.length > 210, `only ${allCalls.length} app calls were read`);
   for (const one of scanned) {
     assert.ok(one.calls.length > 10, `only ${one.calls.length} calls found in ${one.name}`);
   }
@@ -131,6 +132,29 @@ it('THE PUSH-TOKEN CALLS EVERY NOTIFICATION DEPENDS ON ARE COVERED', () => {
   }
 });
 
+it('AND EVERY QUERY-BUILT PATH IS CHECKED AT ITS PREFIX', () => {
+  /*
+   * Fifteen of the admin console's list screens build their path as
+   * `/admin/x${query({ ... })}`, which cannot be matched whole — the hole could expand
+   * to anything, so the scan refuses to guess.
+   *
+   * Reporting those as "cannot check" and stopping throws away most of what is
+   * knowable. The segment before the hole is a real path, and it is the one the screen
+   * requests when it opens with no filters. So a renamed list route is caught even
+   * though the full path is not.
+   */
+  const badPrefixes = unmatchedPrefixes(allUnreadable, mounted);
+  assert.deepEqual(
+    badPrefixes.map(c => `${c.method} /${c.path} (${c.app} ${c.file})`),
+    [],
+    'these list screens ask for a base path the server does not mount'
+  );
+  assert.ok(
+    allUnreadable.length >= 10,
+    `only ${allUnreadable.length} query-built paths were found, so this check is not exercising much`
+  );
+});
+
 it('and the handful it cannot read are reported rather than counted as fine', () => {
   /*
    * A path glued to a hole — `/earnings/statement${query}` — could expand to
@@ -140,7 +164,7 @@ it('and the handful it cannot read are reported rather than counted as fine', ()
    * seeing rather than swallowing.
    */
   assert.ok(
-    allUnreadable.length <= 4,
+    allUnreadable.length <= 20,
     `${allUnreadable.length} calls could not be read:\n  ${allUnreadable
       .map(c => `${c.method} /${c.path}   (${c.app} ${c.file})`)
       .join('\n  ')}`

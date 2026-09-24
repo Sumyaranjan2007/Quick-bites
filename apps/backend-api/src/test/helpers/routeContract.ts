@@ -308,9 +308,23 @@ export function appCalls(
       const q = quote === '`' ? '`' : quote;
       const body = `[^${quote === '`' ? '`' : quote}]*`;
 
-      // A helper that names the method: api.get('/x'), client.post('/x', body)
+      /*
+       * A helper that names the method: api.get('/x'), client.post('/x', body).
+       *
+       * The optional `<...>` matters more than it looks. The admin app writes
+       * `api.get<any>('/admin/orders…')`, and without allowing a type argument this
+       * pattern matched none of those — so every list screen in the console was
+       * silently absent from the contract check. It reported 69 calls for that app and
+       * looked healthy, because the per-app floor was ten.
+       *
+       * A scan that skips what it cannot parse, rather than reporting it, is the
+       * failure this whole helper is written against.
+       */
       for (const m of code.matchAll(
-        new RegExp(`\\.(get|post|put|patch|del|delete)\\s*\\(\\s*${q}(\\/${body})${q}`, 'g')
+        new RegExp(
+          `\\.(get|post|put|patch|del|delete)\\s*(?:<[^>()]*>)?\\s*\\(\\s*${q}(\\/${body})${q}`,
+          'g'
+        )
       )) {
         record(m[2], METHOD_FROM_NAME[m[1]] || 'GET');
       }
@@ -350,6 +364,35 @@ export function appCalls(
  * The apps' base URL already ends in `/api`, and the server mounts the same router
  * at `/api` and `/api/v1`, so an app path is compared with that prefix added.
  */
+/**
+ * Unreadable calls whose readable PREFIX names no mounted route.
+ *
+ * A path like `/admin/orders${query({ status, page })}` cannot be matched whole: the
+ * hole is a query string in practice, but it could expand to anything, so the scan
+ * refuses to guess. Fifteen of the admin console's list screens are built that way.
+ *
+ * Reporting them as "cannot check" and stopping there throws away most of what IS
+ * knowable. The segment before the hole is a real path, and it is the one the screen
+ * requests when it first opens with no filters — so a renamed list route is caught
+ * even though the full path is not.
+ *
+ * Only paths with at least two segments are considered, because a one-segment prefix
+ * is usually a router mount rather than a route.
+ */
+export function unmatchedPrefixes(unreadable: AppCall[], mounted: MountedRoute[]): AppCall[] {
+  const have = new Set(mounted.map(r => `${r.method} ${normalisePath(r.path)}`));
+  const out: AppCall[] = [];
+
+  for (const call of unreadable) {
+    const prefix = call.path.split(':param')[0].replace(/\/$/, '');
+    if (prefix.split('/').filter(Boolean).length < 2) continue;
+    if (!have.has(`${call.method} ${normalisePath('/api/' + prefix)}`)) {
+      out.push({ ...call, path: prefix });
+    }
+  }
+  return out;
+}
+
 export function unmatchedCalls(calls: AppCall[], mounted: MountedRoute[]): AppCall[] {
   const have = new Set(mounted.map(r => `${r.method} ${normalisePath(r.path)}`));
   return calls.filter(call => !have.has(`${call.method} ${normalisePath('/api/' + call.path)}`));
