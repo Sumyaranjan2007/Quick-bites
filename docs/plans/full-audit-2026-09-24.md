@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7 ✅ `1ef9e3e` + M4) → **M3/W8** → W7(b) → W7(a) → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7 ✅ `1ef9e3e` + M4) → **M3/W8** ✅ `39ead40` (M3a open) → W7(b) → W7(a) → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -699,6 +699,38 @@ result asserted.** It surfaced only from the incentive case in c5, which pays a
 rider and then awards a bonus: ₹60 arrived where ₹120 was owed.
 
 **W6 addition:** `ledger.reverse` (`ledger.ts`:403) has no production caller.
+
+### M3 landed `39ead40` — one defect left open (25 Sep, Session B)
+
+C1, C2 and C3 are all in, and W8/F8 is closed: Settlements now drafts a
+single-payee payout through `payouts.ts`, the amount is `duesFor`'s, the
+adjustments field refuses, and the rider's cash counter is asserted equal to the
+`RIDER_CASH` ledger balance at every step of the cash lifecycle.
+
+**M3a — OPEN — the legacy backfill double-pays under a real hold period.**
+`ledger.post` stamps `occurredAt = now` unless given one (`ledger.ts`:201) and
+`legacySettlements.ts` passes none, while `duesFor` buckets on `occurredAt`. So
+the backfill's debit lands outside the payable bucket and the old credits it
+clears stay inside it. **Session B reproduced it** with `partnerHoldDays: 7`:
+outstanding falls to 0, but payable-now stays at the full amount, so Pay offers
+money the settlement already paid. The check passes because
+`settlementsAgree.test.ts`:325 sets `partnerHoldDays: 0` first, collapsing the
+two buckets. Fix: stamp `occurredAt` with the settlement's paid date, or have the
+backfill create the synthetic payout record (which gets M4's `payoutId` skip for
+free). Re-run the block at a real hold and assert **payable-now**, not
+outstanding. `payable + held === outstanding` does not hold after a backfill and
+would have caught this alone.
+
+**§11 shapes added:**
+- **A hold period of 0 hides every date-bucketing defect.** Any check about what
+  is payable NOW must run with a real hold.
+- **When the fix is "the route now calls the module", the check must drive the
+  ROUTE.** A module-level check passes either way — the same family as the KYC
+  alert wired to a route no app calls.
+
+**Own piece of work, not squeezed in:** `rider.codCashInHand` and the
+`RIDER_CASH` ledger balance are two sources for the cash in a rider's bag. They
+are asserted equal for now; collapsing them is a deliberate change.
 
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
