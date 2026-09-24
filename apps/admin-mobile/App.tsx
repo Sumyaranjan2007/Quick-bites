@@ -50,6 +50,7 @@ import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 import { createClient } from './src/lib/api';
 import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
+import { prepareAdminChannels } from './src/lib/adminChannels';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const c = tokens.colors;
@@ -445,7 +446,11 @@ function AdminApp() {
             });
             // Not awaited: the console must open whether or not a push
             // service answers.
-            void registerForPush(stored.apiUrl, stored.token);
+            //
+            // The channels are created BEFORE the token is registered, because a
+            // notification that arrives naming a channel this app has not created
+            // yet is discarded by Android rather than queued.
+            void prepareAdminChannels().then(() => registerForPush(stored.apiUrl, stored.token));
           }
         } catch {
           // Expired, revoked, or the server is unreachable: ask for a password.
@@ -471,7 +476,7 @@ function AdminApp() {
             // Registered on a fresh sign-in as well as on restore. Only doing
             // it on restore means an operator is unreachable for their whole
             // first session, which is the one where they are setting things up.
-            void registerForPush(next.apiUrl, next.token);
+            void prepareAdminChannels().then(() => registerForPush(next.apiUrl, next.token));
           }}
         />
       </SessionProvider>

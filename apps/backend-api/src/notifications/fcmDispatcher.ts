@@ -4,8 +4,18 @@ import { sendToTokens, pushIsConfigured } from './fcmTransport.ts';
 
 export interface PushNotificationPayload {
   userId: string;
-  orderId: string;
-  orderNumber: string;
+  /**
+   * OPTIONAL, because not everything worth telling somebody is an order.
+   *
+   * Every notification on this platform used to be about an order, so these were
+   * required and every method had one to pass. The admin notifications are about
+   * a bank account, a document, a rider in trouble — and the shortest path to
+   * making them fit was passing an empty string for both, which would have put
+   * `orderId: ""` into the payload of every one of them and left a reader
+   * wondering which order it meant.
+   */
+  orderId?: string;
+  orderNumber?: string;
   title: string;
   body: string;
   data?: Record<string, string>;
@@ -110,7 +120,17 @@ class FcmNotificationDispatcher {
         {
           title: record.title,
           body: record.body,
-          data: { ...(record.data || {}), orderId: record.orderId, orderNumber: record.orderNumber },
+          /*
+           * The order fields are spread only when there IS an order. Sending
+           * `orderId: undefined` to FCM is a type error at the transport and
+           * sending `orderId: ""` is worse — an app reading it gets a falsy id
+           * that looks like a real field somebody forgot to fill in.
+           */
+          data: {
+            ...(record.data || {}),
+            ...(record.orderId ? { orderId: record.orderId } : {}),
+            ...(record.orderNumber ? { orderNumber: record.orderNumber } : {})
+          },
           // Declared by the method that built the record, because only it
           // knows which app is being written to. See CHANNEL above.
           androidChannelId: record.androidChannelId || CHANNEL.DEFAULT
