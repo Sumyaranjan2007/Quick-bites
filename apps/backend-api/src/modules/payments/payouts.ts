@@ -40,6 +40,7 @@ import { getActiveRates } from './pricingConfig.ts';
 import { payableAccountFor, accountBlockReason } from './payeeAccounts.ts';
 import { railFor, defaultRail } from './rails.ts';
 import type { PayoutRailId, RailResultStatus, PayeeOwnerType } from '@quick-bites/shared-types';
+import { notifyAdminsPayoutFailed } from '../../notifications/adminNotifier.ts';
 
 export type PayoutState =
   /** Drafted. Nothing has moved and nothing is committed. */
@@ -535,6 +536,25 @@ export async function executePayout(input: {
     // `duesFor`, so the next draft picks them up rather than writing the money
     // off.
     payout.state = 'FAILED';
+
+    /*
+     * URGENT, and this is the one place the notification is unambiguously worth
+     * waking somebody for other than an SOS.
+     *
+     * Money was authorised, sent, and did not arrive. The payee is waiting and
+     * does not know; the entries have been released so the next run will try
+     * again, but a failure with a cause — a closed account, a name mismatch, a
+     * gateway refusal — will fail again identically until a person reads it.
+     *
+     * Not awaited, and the notifier catches its own errors: a payout must record
+     * its outcome whether or not anybody can be told.
+     */
+    void notifyAdminsPayoutFailed({
+      payoutId: payout.id,
+      payeeName: payout.ownerName,
+      amountLabel: formatPaise(payout.amountPaise),
+      reason: result.reason || 'The gateway gave no reason.'
+    });
   } else {
     payout.state = 'UNCERTAIN';
   }

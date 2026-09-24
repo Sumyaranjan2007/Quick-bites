@@ -31,6 +31,7 @@ import {
   doorQrView
 } from '../modules/payments/doorPayment.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
+import { notifyAdminsCashDeclared } from '../notifications/adminNotifier.ts';
 
 export const cashRouter = Router();
 
@@ -234,6 +235,16 @@ cashRouter.post('/deposits', authMiddleware('rider'), validate({ body: DeclareSc
       riderName: rider.fullName,
       amountPaise: toPaise(req.body.amount),
       proofUrl: req.body.proofUrl
+    });
+
+    /*
+     * From the route, not from `declareDeposit` — cash.test.ts calls that helper
+     * nine times, and a notifier inside it would make every one of those a push.
+     */
+    void notifyAdminsCashDeclared({
+      depositId: deposit.id,
+      riderName: rider.fullName || 'A rider',
+      amountLabel: `Rs ${req.body.amount}`
     });
 
     res.status(201).json({

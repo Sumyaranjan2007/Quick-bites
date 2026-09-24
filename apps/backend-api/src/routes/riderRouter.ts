@@ -11,6 +11,7 @@ import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { riderEarningsBalance } from '../modules/payments/earnings.ts';
 import { cashStanding, cashInHandPaise } from '../modules/payments/cashDeposits.ts';
 import { duesFor } from '../modules/payments/payouts.ts';
+import { notifyAdminsSosRaised } from '../notifications/adminNotifier.ts';
 import { toRupees } from '../modules/payments/money.ts';
 import { getActiveRates } from '../modules/payments/pricingConfig.ts';
 import { payoutRepository } from '../db/repositories/payoutRepository.ts';
@@ -1343,6 +1344,24 @@ riderRouter.post('/sos', validate({ body: SosSchema }), async (req, res, next) =
     triggerAutoSave();
     if (coordinates) await riderRepository.updateLocation(self.id, coordinates);
     emitSosAlert(alert);
+
+    /*
+     * AND REACH AN ADMINISTRATOR WHOSE PHONE IS IN THEIR POCKET.
+     *
+     * `emitSosAlert` reaches a console that is OPEN. This is the other half, and
+     * for this one event it is the half that matters: a rider in trouble at
+     * 11pm is not helped by an alert sitting on a screen nobody is looking at.
+     *
+     * Not awaited, and it cannot throw — `notifyAdmins` catches its own errors.
+     * An SOS must be recorded and answered whether or not anybody can be pushed
+     * to, and this route must never be the reason a rider's emergency fails to
+     * register.
+     */
+    void notifyAdminsSosRaised({
+      alertId: alert.id,
+      riderName: self.fullName,
+      riderPhone: self.phone
+    });
 
     res.status(201).json({
       success: true,

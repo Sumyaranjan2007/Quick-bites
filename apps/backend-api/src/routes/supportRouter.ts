@@ -16,6 +16,7 @@ import { refundRepository } from '../db/repositories/refundRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
+import { notifyAdminsSupportTicketOpened, notifyAdminsRefundRaised } from '../notifications/adminNotifier.ts';
 
 export const supportRouter = Router();
 
@@ -65,6 +66,12 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
       // A complaint about an order in flight is time-critical in a way an
       // account question is not.
       priority: req.body.category === 'DELIVERY' || req.body.category === 'ORDER' ? 'HIGH' : 'NORMAL'
+    });
+
+    void notifyAdminsSupportTicketOpened({
+      ticketId: ticket.id,
+      subjectLine: req.body.subject,
+      raisedBy: user?.fullName || req.user!.fullName || 'Somebody'
     });
 
     res.status(201).json({
@@ -187,6 +194,20 @@ supportRouter.post('/refund-requests', validate({ body: RefundRequestSchema }), 
       attachments: req.body.attachments || [],
       requestedAmount: requested,
       orderTotal: total
+    });
+
+    /*
+     * The amount IS in this notification, unlike the kitchen push.
+     *
+     * Only `finance.refunds.manage` receives it, and everybody holding that sees
+     * the figure on the screen this opens. Whether it is Rs 40 or Rs 4,000 is the
+     * whole of what decides if it waits until morning, so withholding it would
+     * make the notification useless to the only people who get it.
+     */
+    void notifyAdminsRefundRaised({
+      requestId: request.id,
+      orderNumber: order.orderNumber,
+      amountLabel: `Rs ${requested}`
     });
 
     res.status(201).json({

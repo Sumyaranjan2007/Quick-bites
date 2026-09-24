@@ -37,6 +37,7 @@ import { isRazorpayXConfigured } from '../modules/payments/razorpayXAdapter.ts';
 import { resolvePayee, parsePreference } from '../modules/payments/payeeIdentity.ts';
 import { memoryStore } from '../db/client.ts';
 import { isDatabaseConfigured, storeLoadedAt } from '../db/postgresStore.ts';
+import { notifyAdminsBankAccountFiled } from '../notifications/adminNotifier.ts';
 
 export const payeeAccountRouter = Router();
 
@@ -304,6 +305,23 @@ payeeAccountRouter.post('/me', authMiddleware(), validate({ body: AddAccountSche
       kycName: owner.kycName,
       contactPhone: owner.contactPhone,
       createdByUserId: req.user!.id
+    });
+
+    /*
+     * NO ACCOUNT NUMBER AND NOT EVEN THE LAST FOUR.
+     *
+     * Everybody who receives this holds `finance.payouts.manage` and will see
+     * both on the screen it opens. A lock screen is not that screen — it is
+     * readable by whoever is standing near the phone, and this is the one
+     * notification on the platform carrying somebody's banking details.
+     *
+     * The owner's name and the fact that a payout is blocked is all that is
+     * needed to decide whether to open it.
+     */
+    void notifyAdminsBankAccountFiled({
+      accountId: account.id,
+      ownerName: owner.kycName || account.holderName,
+      ownerKind: owner.ownerType === 'RESTAURANT' ? 'restaurant' : 'rider'
     });
 
     res.status(201).json({

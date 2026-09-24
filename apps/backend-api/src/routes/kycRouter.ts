@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
@@ -124,6 +125,21 @@ kycRouter.post('/submit', validate({ body: SubmitKycSchema }), async (req, res, 
         await riderRepository.updateKycStatus(entityId, 'PENDING_APPROVAL');
       }
     }
+
+    /*
+     * Told from the ROUTE, not from `kycRepository.submitDocument`.
+     *
+     * The repository is the tempting place — one chokepoint, three callers, no
+     * risk of a fourth being forgotten. But `db/seed.ts` calls it three times,
+     * so a notification there would push "a document needs checking" to the
+     * owner's phone every time anybody seeds a demo database. A notifier wired
+     * into a data layer cannot tell a real event from a fixture.
+     */
+    void notifyAdminsKycSubmitted({
+      documentId: doc.id,
+      ownerName: entityName,
+      documentLabel: String(documentType).toLowerCase().replace(/_/g, ' ')
+    });
 
     return res.status(201).json({
       success: true,

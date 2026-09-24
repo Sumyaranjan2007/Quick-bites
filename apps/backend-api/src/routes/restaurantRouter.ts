@@ -23,6 +23,7 @@ import {
 } from '../modules/restaurants/restaurantDocuments.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { profileEditRepository } from '../db/repositories/profileEditRepository.ts';
+import { notifyAdminsMenuRequestRaised, notifyAdminsProfileEditRaised } from '../notifications/adminNotifier.ts';
 import { couponRepository } from '../db/repositories/couponRepository.ts';
 import { inflateMenuForCustomer } from '../modules/payments/restaurantCharges.ts';
 import { bestOfferFor, platformPromotion } from '../modules/restaurants/restaurantOffers.ts';
@@ -718,6 +719,23 @@ restaurantRouter.post(
       });
 
       emitMenuRequestSubmitted(request);
+
+      /*
+       * `emitMenuRequestSubmitted` reaches an open console. This reaches a phone
+       * in a pocket, which is the difference between a dish going live today and
+       * a partner waiting until somebody happens to open the Catalogue screen.
+       */
+      void notifyAdminsMenuRequestRaised({
+        requestId: request.id,
+        restaurantName: restaurant.name,
+        what:
+          kind === 'EDIT_ITEM'
+            ? `a change to ${payload.name || 'a dish'}`
+            : kind === 'ADD_ITEM'
+            ? `a new dish, ${payload.name || 'unnamed'}`
+            : 'a menu change'
+      });
+
       res.status(201).json({
         success: true,
         data: { request },
@@ -1113,6 +1131,8 @@ restaurantRouter.put('/:id/profile', authMiddleware('restaurant_owner'), async (
       changes,
       previous
     });
+
+    void notifyAdminsProfileEditRaised({ editId: edit.id, restaurantName: restaurant.name });
 
     res.status(201).json({
       success: true,
