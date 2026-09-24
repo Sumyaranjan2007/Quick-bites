@@ -53,6 +53,7 @@ const SUITES = [
   'routes',
   'statements',
   'policies',
+  'payoutPromise',
   'platformReset',
   'accountBlocking',
   'profileEdits',
