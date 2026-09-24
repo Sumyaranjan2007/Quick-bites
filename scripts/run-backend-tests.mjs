@@ -62,6 +62,7 @@ const SUITES = [
   'routeContract',
   'lifecycleMoney',
   'settlementsAgree',
+  'ratesAndSwitches',
   'adminPush',
   'orderMap',
   'riderTripPush',

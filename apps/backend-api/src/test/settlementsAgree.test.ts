@@ -322,8 +322,50 @@ try {
    * ================================================================ */
   console.log('\n-- The ones paid before the ledger knew');
 
-  createVersion({ partnerHoldDays: 0 }, { userId: ADMIN_A }, 'Release again');
+  /*
+   * RUN WITH A REAL HOLD PERIOD, AND THAT IS THE WHOLE POINT OF THIS BLOCK.
+   *
+   * The first version of this check set the hold to zero, and it passed against a
+   * backfill that was wrong. A hold of zero collapses `duesFor`'s two date buckets into
+   * one, so a debit stamped today nets against credits from last month and everything
+   * looks correct. Under a real hold the debit landed in the HELD bucket while the
+   * credits it cleared sat in the RELEASED one: `outstanding` fell to zero while
+   * `payable now` stayed at the full amount, and the Pay screen went on offering money
+   * that had already been paid.
+   *
+   * So: a seven-day hold, and money genuinely older than it. A fixture more permissive
+   * than the rule hides the rule, and a zero hold is the most permissive setting there
+   * is for anything about dates.
+   */
+  createVersion({ partnerHoldDays: 7 }, { userId: ADMIN_A }, 'A real hold, not zero');
+
+  const legacyOrder = deliveredOrder('agree_legacy', 800);
+  memoryStore.orders.set(legacyOrder.id, legacyOrder);
+  recordOrderEarnings(legacyOrder);
+
+  /*
+   * Backdated, because earnings are stamped when they are POSTED, not when the order
+   * was delivered — so freshly posted earnings are inside any non-zero hold. The check
+   * needs money that is genuinely released, which in production is simply money from
+   * last week.
+   */
+  for (const entry of memoryStore.ledgerEntries.values() as any) {
+    if (
+      (entry as any).orderId === legacyOrder.id &&
+      (entry as any).account === accountFor('PARTNER_PAYABLE', PARTNER)
+    ) {
+      (entry as any).occurredAt = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    }
+  }
+  (legacyOrder as any).settlementId = 'setl_legacy_1';
+
   const legacyOwed = duesFor('RESTAURANT', PARTNER, 'Agreeing Kitchen').payablePaise;
+
+  it('Money older than the hold is payable before the backfill runs', () => {
+    // Otherwise the checks below would pass on a fixture where nothing was ever
+    // payable, which is the same output and no evidence at all.
+    assert.ok(legacyOwed > 0, 'nothing was payable, so the backfill has nothing to clear');
+  });
 
   memoryStore.restaurantSettlements.set('setl_legacy_1', {
     id: 'setl_legacy_1',
@@ -332,10 +374,59 @@ try {
     status: 'PAID',
     netAmount: toRupees(legacyOwed),
     reference: 'UTR-OLD-1',
+    paidAt: new Date(Date.now() - 29 * 86_400_000).toISOString(),
     createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString()
   } as any);
 
   const backfilled = backfillLegacySettlements();
+  const afterBackfill = duesFor('RESTAURANT', PARTNER, 'Agreeing Kitchen');
+
+  it('AND PAYABLE-NOW FALLS, NOT JUST OUTSTANDING', () => {
+    /*
+     * The assertion that caught the defect. `outstanding` fell to zero either way —
+     * it is a balance, and the debit reduces it wherever it is bucketed. `payable now`
+     * is what the Pay screen offers, and it is the number that has to move.
+     */
+    assert.equal(
+      afterBackfill.payablePaise,
+      0,
+      `the Pay screen still offers ${formatPaise(afterBackfill.payablePaise)} that a settlement already paid`
+    );
+  });
+
+  it('and payable + held reconciles with outstanding', () => {
+    /*
+     * The identity that would have caught it on its own. It held before the backfill
+     * and broke after: payable 50000, held 0, outstanding 0 — three figures that cannot
+     * all be true. Asserted from now on, because it is cheap and it is the shape of
+     * every date-bucketing mistake.
+     */
+    assert.equal(
+      afterBackfill.payablePaise + afterBackfill.heldPaise,
+      afterBackfill.outstandingPaise,
+      `payable ${formatPaise(afterBackfill.payablePaise)} + held ${formatPaise(afterBackfill.heldPaise)} ` +
+        `does not equal outstanding ${formatPaise(afterBackfill.outstandingPaise)}`
+    );
+  });
+
+  it('and the legacy settlement is indistinguishable from a proper one', () => {
+    /*
+     * It gets a real payout record rather than a bare ledger entry, so it appears in
+     * the Sent list, carries its reference, and is skipped by the payable calculation
+     * through the same `payoutId` rule as every other payout. One mechanism, not two.
+     */
+    const payout = Array.from(memoryStore.payouts.values() as Iterable<any>).find(
+      p => p?.settlementId === 'setl_legacy_1'
+    );
+    assert.ok(payout, 'no payout was recorded for the legacy settlement');
+    assert.equal(payout.state, 'PAID');
+    assert.equal(payout.rail, 'MANUAL_BANK');
+    assert.equal(payout.reference, 'UTR-OLD-1');
+    assert.ok(
+      (payout.coversLedgerIds || []).length > 0,
+      'the payout covers no ledger entries, so it relies on dates again'
+    );
+  });
 
   it('A SETTLEMENT PAID BEFORE THE LEDGER KNEW IS WRITTEN DOWN', () => {
     /*
@@ -373,29 +464,84 @@ try {
     assert.equal(legacySettlementPosted('setl_proper_1'), false);
   });
 
+  /*
+   * ITS OWN PARTNER, because this check asserts an exact figure.
+   *
+   * The first version used the partner above and failed: held money from an earlier
+   * block was still on that account, so the balance was nowhere near zero and adding a
+   * Rs 250 settlement did not make it negative. A check that asserts exact rupees has
+   * to own every number it depends on — the rule ownFixture exists for, applied to a
+   * ledger account rather than an order.
+   */
+  const OVERPAID = 'rst_overpaid_1';
+  memoryStore.restaurants.set(OVERPAID, {
+    id: OVERPAID,
+    name: 'Overpaid Kitchen',
+    ownerId: 'usr_owner_overpaid'
+  } as any);
+
+  const overOrder = ownOrder('agree_over', {
+    restaurantId: OVERPAID,
+    status: 'DELIVERED',
+    paymentMethod: 'RAZORPAY_SANDBOX',
+    totalAmount: 1000,
+    riderId: RIDER,
+    extra: {
+      paymentStatus: 'PAID',
+      razorpayPaymentId: 'pay_agree_over',
+      riderPayout: 30,
+      pickedUpAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+      deliveredAt: new Date(Date.now() - 20 * 86_400_000).toISOString(),
+      bill: billFor(1000)
+    }
+  });
+  memoryStore.orders.set(overOrder.id, overOrder);
+  recordOrderEarnings(overOrder);
+  for (const entry of memoryStore.ledgerEntries.values() as any) {
+    if (
+      (entry as any).orderId === overOrder.id &&
+      (entry as any).account === accountFor('PARTNER_PAYABLE', OVERPAID)
+    ) {
+      (entry as any).occurredAt = new Date(Date.now() - 20 * 86_400_000).toISOString();
+    }
+  }
+  (overOrder as any).settlementId = 'setl_over_1';
+
+  const earnedByOverpaid = ledger.balanceOf(accountFor('PARTNER_PAYABLE', OVERPAID));
+
+  // Paid Rs 100 MORE than they earned, which is what the old formula could do.
+  memoryStore.restaurantSettlements.set('setl_over_1', {
+    id: 'setl_over_1',
+    restaurantId: OVERPAID,
+    restaurantName: 'Overpaid Kitchen',
+    status: 'PAID',
+    netAmount: toRupees(earnedByOverpaid) + 100,
+    reference: 'UTR-OLD-2',
+    paidAt: new Date(Date.now() - 19 * 86_400_000).toISOString(),
+    createdAt: new Date(Date.now() - 20 * 86_400_000).toISOString()
+  } as any);
+
+  backfillLegacySettlements();
+
   it('and an OVERPAYMENT is surfaced as a named figure, not left looking broken', () => {
     /*
      * A settlement computed by the old formula could pay more than the ledger says a
-     * partner earned. Posting it drives the payable negative, which is the honest
-     * answer — it nets off their next run like a refund clawback — but a negative
-     * figure with no explanation reads as a bug, so the Pay screen names it.
+     * partner earned — it ignored packaging and used a different TDS base. Posting it
+     * drives the payable negative, which is the honest answer: it nets off their next
+     * run like a refund clawback. But a negative figure with no explanation reads as a
+     * bug, so the Pay screen names it.
      */
-    memoryStore.restaurantSettlements.set('setl_over_1', {
-      id: 'setl_over_1',
-      restaurantId: PARTNER,
-      restaurantName: 'Agreeing Kitchen',
-      status: 'PAID',
-      netAmount: 250,
-      reference: 'UTR-OLD-2',
-      createdAt: new Date(Date.now() - 20 * 86_400_000).toISOString()
-    } as any);
-    backfillLegacySettlements();
-
-    const over = overpaidPartners().find(p => p.restaurantId === PARTNER);
+    assert.ok(earnedByOverpaid > 0, 'this fixture earned nothing, so it cannot be overpaid');
+    const over = overpaidPartners().find(p => p.restaurantId === OVERPAID);
     assert.ok(over, `no overpayment was reported: ${JSON.stringify(overpaidPartners())}`);
-    assert.equal(over!.overpaidPaise, toPaise(250), `reported ${formatPaise(over!.overpaidPaise)}`);
+    assert.equal(
+      over!.overpaidPaise,
+      toPaise(100),
+      `reported ${formatPaise(over!.overpaidPaise)} rather than the Rs 100.00 overpaid`
+    );
     assert.equal(ledger.audit().balanced, true);
   });
+
 } finally {
   (razorpayAdapter as any).refund = realRefund;
 }
