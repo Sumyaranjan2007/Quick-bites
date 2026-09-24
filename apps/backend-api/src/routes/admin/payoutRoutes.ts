@@ -63,6 +63,7 @@ import {
 import { gatewayReceivablePaise, recordGatewaySettlement, gatewayFeesPaise } from '../../modules/payments/gatewaySettlements.ts';
 import { customerPrepaidPaise } from '../../modules/payments/capture.ts';
 import { backfillIncentiveAwards } from '../../modules/payments/incentives.ts';
+import { overpaidPartners } from '../../modules/payments/legacySettlements.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import {
   listRequests,
@@ -159,7 +160,24 @@ payoutRoutes.get(
             riderHoldDays: rates.riderHoldDays
           },
           rails: railCatalogue(),
-          defaultRail: defaultRail()
+          defaultRail: defaultRail(),
+          /*
+           * Partners whose payable is NEGATIVE, and why that is not an error.
+           *
+           * Settlements used to be paid without the ledger being told, and the
+           * backfill has now written those transfers down. Where a settlement paid
+           * more than the ledger says a partner earned — its formula ignored packaging
+           * and used a different TDS base — the payable goes below zero. That is an
+           * overpayment which nets off their next run, exactly as a refund clawback
+           * does.
+           *
+           * Surfaced here rather than logged, because a figure that looks wrong needs
+           * its explanation on the screen where somebody sees it.
+           */
+          overpaid: overpaidPartners().map(row => ({
+            restaurantId: row.restaurantId,
+            overpaid: toRupees(row.overpaidPaise)
+          }))
         }
       });
     } catch (err) {

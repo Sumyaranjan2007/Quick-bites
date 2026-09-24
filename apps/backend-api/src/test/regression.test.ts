@@ -484,6 +484,30 @@ async function run() {
   check('The console lists restaurant settlements', settlements.status === 200, String(settlements.status));
   const bbh = (settlements.json?.data?.settlements || []).find((r: any) => r.restaurantId === 'rst_bbh_01');
   check('with the delivered order outstanding for that kitchen', Number(bbh?.pendingAmount) > 0, String(bbh?.pendingAmount));
+  /*
+   * ADDED WITH THE LEDGER CHANGE, and it is the point of that change.
+   *
+   * These figures used to come from a formula local to this screen: TDS at 1% of
+   * commission where the ledger uses the bill's own figure, no packaging at all, and
+   * no sight of refund clawbacks. So Settlements and Pay reported different numbers
+   * for the same kitchen on the same morning, and whichever screen somebody opened
+   * was the one they believed.
+   *
+   * Payable-now is shown separately because it is the payout GATE — a delivery from
+   * ten minutes ago is owed but not yet payable, and collapsing the two is what made
+   * a hold period invisible here.
+   */
+  check(
+    'and its figures agree with the Pay screen, which is the whole point',
+    Number(bbh?.outstandingAmount) === Number(bbh?.pendingAmount) &&
+      Number(bbh?.payableNowAmount) + Number(bbh?.heldAmount) === Number(bbh?.outstandingAmount),
+    JSON.stringify({
+      pending: bbh?.pendingAmount,
+      payableNow: bbh?.payableNowAmount,
+      held: bbh?.heldAmount,
+      outstanding: bbh?.outstandingAmount
+    })
+  );
 
   const breakdown = await api('/admin/settlements/rst_bbh_01', {}, superAdmin.token);
   check('A per-order breakdown is available', (breakdown.json?.data?.lines || []).length > 0);
@@ -492,18 +516,77 @@ async function run() {
     breakdown.json?.data?.lines?.[0]?.grossSales > 0 && breakdown.json?.data?.lines?.[0]?.commission > 0
   );
 
-  const draft = await api('/admin/settlements', { method: 'POST', body: { restaurantId: 'rst_bbh_01' } }, superAdmin.token);
-  check('A settlement can be drafted', draft.status === 201, String(draft.status));
-  const settlementId = draft.json?.data?.settlement?.id;
+  /*
+   * DRAFTING INSIDE THE HOLD PERIOD IS NOW REFUSED, AND THAT IS NEW BEHAVIOUR.
+   *
+   * The order above was delivered seconds ago, and the default partner hold is a day.
+   * This screen used to draft and pay it anyway, because it computed its own figure
+   * and never consulted the hold — so the one control that stops the platform paying
+   * out money it has not yet been settled for did not apply on the screen most likely
+   * to be used to pay a restaurant.
+   */
+  const tooSoon = await api('/admin/settlements', { method: 'POST', body: { restaurantId: 'rst_bbh_01' } }, superAdmin.token);
+  check('Drafting inside the hold period is refused', tooSoon.status === 409, String(tooSoon.status));
   check(
-    'Net pays sales less commission and TDS',
-    Math.abs(
-      Number(draft.json?.data?.settlement?.netAmount) -
-        (Number(draft.json?.data?.settlement?.grossSales) -
-          Number(draft.json?.data?.settlement?.commission) -
-          Number(draft.json?.data?.settlement?.tds))
-    ) < 0.011,
-    JSON.stringify(draft.json?.data?.settlement)
+    'and the refusal names the hold rather than saying nothing is owed',
+    /hold period/i.test(JSON.stringify(tooSoon.json)),
+    JSON.stringify(tooSoon.json).slice(0, 200)
+  );
+
+  // Released the way an administrator would, on the Rates screen.
+  await api(
+    '/admin/pricing/config',
+    { method: 'PUT', body: { rates: { partnerHoldDays: 0 }, note: 'Same-day settlement for this check' } },
+    superAdmin.token
+  );
+
+  // And an account to pay into, which a real deployment has and the seed does not.
+  memoryStore.payeeAccounts.set('acc_regress_bbh', {
+    id: 'acc_regress_bbh',
+    ownerType: 'RESTAURANT',
+    ownerId: 'rst_bbh_01',
+    ownerUserId: 'usr_partner_01',
+    method: 'BANK',
+    holderName: 'Biryani By Heart',
+    accountLast4: '9911',
+    ifsc: 'HDFC0001234',
+    validationStatus: 'VERIFIED',
+    appliedAt: new Date().toISOString(),
+    isDefault: true,
+    createdAt: new Date().toISOString(),
+    createdByUserId: 'usr_admin_01'
+  } as any);
+
+  const draft = await api('/admin/settlements', { method: 'POST', body: { restaurantId: 'rst_bbh_01' } }, superAdmin.token);
+  check('A settlement can be drafted once released', draft.status === 201, String(draft.status));
+  const settlementId = draft.json?.data?.settlement?.id;
+
+  /*
+   * THIS ASSERTION CHANGED. It used to check the screen's own arithmetic —
+   * net = gross − commission − TDS — which was a SECOND formula that disagreed with
+   * the ledger about packaging and about the TDS base. Checking a formula against
+   * itself passes however wrong the formula is.
+   *
+   * What matters is that the amount about to be paid is the amount the books say is
+   * owed, so that is what is asserted now.
+   */
+  const dues = await api('/admin/payouts/dues', {}, superAdmin.token);
+  const payRow = (dues.json?.data?.dues || []).find((d: any) => d.ownerType === 'RESTAURANT' && d.ownerId === 'rst_bbh_01');
+  check(
+    'and the amount drafted is the amount the Pay screen says is owed',
+    Number(draft.json?.data?.settlement?.netAmount) === Number(payRow?.payable),
+    JSON.stringify({ drafted: draft.json?.data?.settlement?.netAmount, pay: payRow?.payable })
+  );
+
+  const withAdjustment = await api(
+    '/admin/settlements',
+    { method: 'POST', body: { restaurantId: 'rst_bbh_01', adjustments: 50 } },
+    superAdmin.token
+  );
+  check(
+    'An adjustment is refused, because refunds are already deducted',
+    withAdjustment.status === 400 && /twice/i.test(JSON.stringify(withAdjustment.json)),
+    `${withAdjustment.status} ${JSON.stringify(withAdjustment.json).slice(0, 180)}`
   );
 
   const secondDraft = await api('/admin/settlements', { method: 'POST', body: { restaurantId: 'rst_bbh_01' } }, superAdmin.token);
@@ -526,6 +609,30 @@ async function run() {
     superAdmin.token
   );
   check('A settlement can be marked paid with a reference', markedPaid.json?.data?.settlement?.status === 'PAID');
+
+  /*
+   * AND IT ACTUALLY PAYS, WHICH IS THE PART THAT WAS MISSING.
+   *
+   * Marking a settlement PAID used to write the record and an audit line and post
+   * NOTHING to the ledger. The payable stayed standing, so the Pay screen still showed
+   * the money owed and the next run paid the same kitchen AGAIN.
+   *
+   * Driven through the ROUTE rather than the module on purpose: the module-level checks
+   * in settlementsAgree pass whether or not this route is wired to them, and that gap
+   * is exactly where the defect lived.
+   */
+  const duesAfterPaid = await api('/admin/payouts/dues', {}, superAdmin.token);
+  const rowAfterPaid = (duesAfterPaid.json?.data?.dues || []).find(
+    (d: any) => d.ownerType === 'RESTAURANT' && d.ownerId === 'rst_bbh_01'
+  );
+  check(
+    'and the Pay screen no longer offers to pay the same trading again',
+    // Absent OR zero. `allDues` only lists payees with something outstanding, so a
+    // kitchen that has just been paid in full drops off the list entirely — and both
+    // answers mean the same thing.
+    !rowAfterPaid || Number(rowAfterPaid.payable) === 0,
+    `Pay still says ${rowAfterPaid?.payable} is owed after the settlement was paid`
+  );
 
   const afterPayment = await api('/restaurants/rst_bbh_01/settlements', {}, partnerForChat.token);
   check(

@@ -228,9 +228,43 @@ async function run() {
    *  WHAT BLOCKS A PAYOUT                                             *
    * ---------------------------------------------------------------- */
 
-  await check('No verified account blocks it, and says so', () => {
+  await check('No verified account blocks it, and says what to do about it', () => {
+    /*
+     * THIS ASSERTION CHANGED, AND THE OLD WORDING WAS THE WEAKER ONE.
+     *
+     * It used to match /verified account/, against the sentence "No verified account to
+     * pay into." That was accurate and useless: it does not distinguish a partner who
+     * has given us nothing from one whose account is verified and simply waiting for
+     * somebody to press apply — and the second is a five-second job.
+     *
+     * `duesFor` now carries `accountBlockReason`'s wording, which the People screen
+     * already showed for the same partner while Pay showed the worse one. So the check
+     * asserts the ACTIONABLE half: it names an account, and it names where to go.
+     */
     const due = duesFor('RESTAURANT', RESTAURANT, 'Nandini Kitchen');
-    assert.match(due.blockedReason || '', /verified account/i);
+    assert.equal(due.blockedCode, 'NO_ACCOUNT', `blocked as ${due.blockedCode}`);
+    assert.match(due.blockedReason || '', /account/i);
+    assert.match(
+      due.blockedReason || '',
+      /have not given us|apply it|waiting to be checked|refused by the bank/i,
+      `the reason does not say what to do: "${due.blockedReason}"`
+    );
+  });
+
+  await check('and every blocker is carried, not just the first', () => {
+    /*
+     * Three screens used to answer "can this partner be paid" three different ways,
+     * and two of them knew only about accounts. The whole list is carried now so no
+     * screen has to work one out for itself.
+     */
+    const due = duesFor('RESTAURANT', RESTAURANT, 'Nandini Kitchen');
+    assert.ok(Array.isArray(due.blockers) && due.blockers.length > 0, 'no blockers were listed');
+    assert.equal(due.blockers[0].code, due.blockedCode, 'the headline is not the first blocker');
+    assert.equal(
+      due.blockers.some(b => b.code === 'NO_ACCOUNT'),
+      true,
+      `the account blocker is missing: ${JSON.stringify(due.blockers)}`
+    );
   });
 
   await rejects('and drafting is refused', 'NOTHING_PAYABLE', () =>

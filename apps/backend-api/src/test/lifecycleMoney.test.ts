@@ -88,6 +88,28 @@ async function login(email: string, password = 'pass123') {
   return { token: json?.data?.token as string, user: json?.data?.user };
 }
 
+/**
+ * The two places the platform records how much cash a rider is carrying.
+ *
+ * `duesFor` reads `rider.codCashInHand`, a counter written by riderRepository and
+ * cashDeposits. The cash-locations work made the ledger's RIDER_CASH the truth. Two
+ * sources for one number will drift, and the one that decides whether a rider can be
+ * paid is the counter — so a drift means either a rider blocked from a payout they
+ * have earned, or paid while still holding platform money.
+ *
+ * Asserted equal after every step of the cash lifecycle rather than assumed.
+ */
+function cashSourcesAgree(riderId: string, step: string) {
+  const inLedger = ledger.balanceOf(accountFor('RIDER_CASH', riderId));
+  const onCounter = toPaise(Number((memoryStore.riders.get(riderId) as any)?.codCashInHand) || 0);
+  assert.equal(
+    onCounter,
+    inLedger,
+    `after ${step} the rider's counter says ${formatPaise(onCounter)} and the ledger says ` +
+      `${formatPaise(inLedger)} — and the counter is what decides whether they can be paid`
+  );
+}
+
 /** Where all the money is right now. */
 function books(riderId: string) {
   return {
@@ -247,6 +269,7 @@ try {
     assert.equal(b.bank, 0, 'cash in a rider’s pocket was recorded as bank money');
     assert.ok(b.partnerPayable > 0, 'the kitchen was not paid for the food');
     balancedAfter('a cash delivery');
+    cashSourcesAgree(RIDER_ID, 'a cash delivery');
   });
 
   it('and nothing at the gateway moved, because no gateway was involved', () => {
@@ -270,6 +293,7 @@ try {
       'declaring an intention moved the money before anybody counted it');
     assert.equal(b.officeCash, 0);
     balancedAfter('declaring a deposit');
+    cashSourcesAgree(RIDER_ID, 'declaring a deposit');
   });
 
   const confirmed = await api(
@@ -286,6 +310,7 @@ try {
       `the office holds ${formatPaise(b.officeCash)} of ${formatPaise(codTotalPaise)}`);
     assert.equal(b.bank, 0, 'cash in a drawer was recorded as being in the bank');
     balancedAfter('counting cash in');
+    cashSourcesAgree(RIDER_ID, 'counting cash in');
   });
 
   const banked = await api(
@@ -307,6 +332,7 @@ try {
     assert.equal(b.bank, codTotalPaise, `the bank holds ${formatPaise(b.bank)}`);
     assert.equal(b.riderCash, 0);
     balancedAfter('banking office cash');
+    cashSourcesAgree(RIDER_ID, 'banking office cash');
   });
 
   /* ================================================================ *

@@ -18,6 +18,7 @@ import { startPaymentReconciliation, stopPaymentReconciliation } from './modules
 import { startPaymentsHealthCheck, stopPaymentsHealthCheck } from './modules/payments/paymentsHealth.ts';
 import { startAdminDigest, stopAdminDigest } from './notifications/adminDigest.ts';
 import { backfillIncentiveAwards } from './modules/payments/incentives.ts';
+import { backfillLegacySettlements } from './modules/payments/legacySettlements.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -155,6 +156,15 @@ startAdminDigest();
  * money either way. Idempotent, so a restart posts nothing twice.
  */
 backfillIncentiveAwards();
+
+/*
+ * And the restaurant settlements that were marked paid before the ledger knew.
+ *
+ * Money that really left the bank with nothing recording it, so the books overstate
+ * the bank and the Pay screen still shows the same money as owed. Writing it down is
+ * the difference between books that are behind and books that are wrong.
+ */
+backfillLegacySettlements();
 
 // Graceful Shutdown
 async function handleShutdown(signal: string) {

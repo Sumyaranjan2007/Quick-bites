@@ -487,16 +487,25 @@ const SettlementSheet: React.FC<{
             <Card>
               <Text style={s.cardHeading}>Draft a settlement</Text>
               <Text style={s.muted}>
-                Covers every delivered order not already settled. Use adjustments to recover a refund or apply a
-                penalty; the amount is deducted from what is transferred.
+                The amount comes from the ledger — the same figure the Pay screen shows, so the two cannot
+                disagree. Refunds are already deducted automatically when the refund is sent.
               </Text>
+              {/*
+                THE HINT HERE USED TO CAUSE A DOUBLE DEDUCTION.
+                It said "use adjustments to recover a refund". But a refund already debits
+                the kitchen's share from what they are owed, the moment it is sent — so
+                following that instruction deducted the same refund twice, against the
+                partner. The field is kept so an older app build still renders, and the
+                server now refuses a non-zero value and says why.
+              */}
               <View style={{ height: tokens.space[4] }} />
               <Field
-                label="Adjustments (₹, optional)"
+                label="Adjustments (₹) — no longer used"
                 value={adjustments}
                 onChangeText={setAdjustments}
                 keyboardType="numeric"
                 placeholder="0"
+                hint="Leave this at zero. Refunds already come off what a restaurant is owed."
               />
               <Button
                 label={

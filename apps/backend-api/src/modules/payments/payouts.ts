@@ -88,6 +88,8 @@ export interface PayoutRecord {
   claimUrl?: string;
   failureReason?: string;
   note?: string;
+  /** The restaurant settlement this payout pays, when it came from that screen. */
+  settlementId?: string;
 }
 
 function rows(): PayoutRecord[] {
@@ -152,6 +154,13 @@ export interface DueRow {
    * statement about an amount they can already see.
    */
   blockedCode: 'NOTHING_OWED' | 'CASH_IN_HAND' | 'NO_ACCOUNT' | 'BELOW_MINIMUM' | null;
+  /**
+   * EVERY reason, primary first, so no screen has to work one out for itself.
+   *
+   * Three surfaces used to answer "can this partner be paid" three different ways,
+   * and two of them knew only about accounts.
+   */
+  blockers: Array<{ code: NonNullable<DueRow['blockedCode']>; reason: string }>;
   /** Ledger entries making up the payable figure. */
   ledgerIds: string[];
 }
@@ -241,25 +250,62 @@ export function duesFor(
   const account_ = payableAccountFor(ownerType, ownerId);
   const hasVerifiedAccount = Boolean(account_);
 
-  let blockedReason: string | null = null;
-  let blockedCode: DueRow['blockedCode'] = null;
+  /*
+   * EVERY REASON THIS PAYEE CANNOT BE PAID, IN ORDER, NOT JUST THE FIRST.
+   *
+   * The first is still `blockedReason`, because that is what a row shows and what
+   * every existing caller reads. But the whole list is carried too, for one reason:
+   * three screens used to answer "can this partner be paid" three different ways.
+   * Pay asked `duesFor`; Settlements and the People profile asked
+   * `accountBlockReason`, which knows about accounts and nothing about hold periods,
+   * cash in hand or the minimum. So a partner inside their hold period read as
+   * payable on two screens out of three.
+   *
+   * With the list, a screen that wants to show more than the headline reason can,
+   * and none of them has to compute a blocker of its own to do it.
+   */
+  const blockers: Array<{ code: NonNullable<DueRow['blockedCode']>; reason: string }> = [];
+
   if (payablePaise <= 0) {
-    blockedCode = 'NOTHING_OWED';
-    blockedReason = heldPaise > 0 ? 'Everything earned is still inside the hold period.' : 'Nothing owed.';
-  } else if (cashInHandPaise > 0) {
+    blockers.push({
+      code: 'NOTHING_OWED',
+      reason: heldPaise > 0 ? 'Everything earned is still inside the hold period.' : 'Nothing owed.'
+    });
+  }
+  if (cashInHandPaise > 0) {
     // The rule the owner asked for, and it is the right way round. A rider
     // holding Rs 2,000 of platform cash is not paid Rs 1,800 of earnings; that
     // is a net position, not a payment, and settling it by transfer means the
     // platform sending out money it is owed.
-    blockedCode = 'CASH_IN_HAND';
-    blockedReason = `Holding ${formatPaise(cashInHandPaise)} of platform cash. It must be deposited before any payout.`;
-  } else if (!hasVerifiedAccount) {
-    blockedCode = 'NO_ACCOUNT';
-    blockedReason = 'No verified account to pay into.';
-  } else if (payablePaise < toPaise(rates.minPayoutAmount)) {
-    blockedCode = 'BELOW_MINIMUM';
-    blockedReason = `Below the ${formatPaise(toPaise(rates.minPayoutAmount))} minimum. Carries to the next run.`;
+    blockers.push({
+      code: 'CASH_IN_HAND',
+      reason: `Holding ${formatPaise(cashInHandPaise)} of platform cash. It must be deposited before any payout.`
+    });
   }
+  if (!hasVerifiedAccount) {
+    /*
+     * `accountBlockReason`'s wording, not a generic sentence.
+     *
+     * It distinguishes "they have given us nothing" from "it is verified and nobody
+     * has applied it" from "the bank refused every account" — and the second of
+     * those is somebody's five-second job, which "No verified account to pay into"
+     * gives no hint of. The People screen already showed the better text; Pay showed
+     * the worse one for the same partner.
+     */
+    blockers.push({
+      code: 'NO_ACCOUNT',
+      reason: accountBlockReason(ownerType, ownerId) || 'No verified account to pay into.'
+    });
+  }
+  if (payablePaise > 0 && payablePaise < toPaise(rates.minPayoutAmount)) {
+    blockers.push({
+      code: 'BELOW_MINIMUM',
+      reason: `Below the ${formatPaise(toPaise(rates.minPayoutAmount))} minimum. Carries to the next run.`
+    });
+  }
+
+  const blockedReason: string | null = blockers.length > 0 ? blockers[0].reason : null;
+  const blockedCode: DueRow['blockedCode'] = blockers.length > 0 ? blockers[0].code : null;
 
   return {
     ownerType,
@@ -281,6 +327,7 @@ export function duesFor(
       : null,
     blockedReason,
     blockedCode,
+    blockers,
     ledgerIds
   };
 }
@@ -318,6 +365,14 @@ export function draftPayout(input: {
   actorUserId: string;
   rail?: PayoutRailId;
   note?: string;
+  /**
+   * The restaurant settlement this payout pays, when it came from that screen.
+   *
+   * Carried so that marking one settlement PAID twice sends once. The settlement id
+   * is the natural key for that: it is the thing the administrator pressed, and it
+   * does not change if the amount does.
+   */
+  settlementId?: string;
 }): PayoutRecord {
   const due = duesFor(input.ownerType, input.ownerId, input.ownerName);
 
@@ -347,7 +402,8 @@ export function draftPayout(input: {
     idempotencyKey: `payout:${input.ownerType}:${input.ownerId}:${Date.now()}`,
     draftedByUserId: input.actorUserId,
     draftedAt: new Date().toISOString(),
-    note: input.note
+    note: input.note,
+    ...(input.settlementId ? { settlementId: input.settlementId } : {})
   };
 
   memoryStore.payouts.set(payout.id, payout);

@@ -20,7 +20,8 @@ import { economicsOf, revenueSeries, revenueForPeriod, istDayStart } from '../..
 import { matchesQuery, paginate, shapeOrderDetail } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { sendRefund } from '../../modules/payments/refunds.ts';
-import { toPaise } from '../../modules/payments/money.ts';
+import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
+import { duesFor, draftPayout, executePayout, listPayouts } from '../../modules/payments/payouts.ts';
 import { settlementEvidence } from '../../modules/payments/earnings.ts';
 import { connectedAccountFor, accountBlockReason } from '../../modules/payments/payeeAccounts.ts';
 import type { Order, RefundRequest } from '@quick-bites/shared-types';
@@ -632,7 +633,29 @@ financeRoutes.get('/settlements', requirePermission('finance.settlements.view'),
       restaurants.map(async restaurant => {
         const unsettled = await unsettledOrdersFor(restaurant.id);
         const shares = unsettled.map(restaurantShareOf);
-        const pending = Math.round(shares.reduce((t, s) => t + s.net, 0) * 100) / 100;
+        /*
+         * WHAT THEY ARE OWED COMES FROM THE LEDGER, NOT FROM HERE.
+         *
+         * `restaurantShareOf` is a SECOND formula: TDS at 1% of commission where
+         * earnings.ts uses the bill's own figure, no packaging at all, and no sight of
+         * anything else posted to PARTNER_PAYABLE — refund clawbacks, corrections, the
+         * negative adjustment that nets off an overpayment. So this screen's "pending"
+         * and the Pay screen's "owed" were two different numbers for the same partner,
+         * and an administrator had no way to know which to believe.
+         *
+         * The breakdown below stays, because a statement should show gross, commission
+         * and TDS. What changes is that the FIGURE is the ledger's.
+         */
+        const dues = duesFor('RESTAURANT', restaurant.id, restaurant.name);
+        /*
+         * `pendingAmount` keeps meaning WHAT THEY ARE OWED, held or not.
+         *
+         * That is what the label says and what the screen has always shown, so mapping
+         * it to payable-now would have made a kitchen with a day-old delivery read as
+         * owed nothing — true of the payout gate, false of the money. The gate is
+         * `payableNowAmount`, beside it, which is the figure the pay action uses.
+         */
+        const pending = toRupees(dues.outstandingPaise);
         const allDelivered = (await orderRepository.listByRestaurantId(restaurant.id)).filter(
           o => o.status === 'DELIVERED'
         );
@@ -646,6 +669,9 @@ financeRoutes.get('/settlements', requirePermission('finance.settlements.view'),
           grossPending: Math.round(shares.reduce((t, s) => t + s.grossSales, 0) * 100) / 100,
           commissionPending: Math.round(shares.reduce((t, s) => t + s.commission, 0) * 100) / 100,
           pendingAmount: pending,
+          heldAmount: toRupees(dues.heldPaise),
+          outstandingAmount: toRupees(dues.outstandingPaise),
+          payableNowAmount: toRupees(dues.payablePaise),
           paidToDate: await settlementRepository.paidTotal(restaurant.id),
           /*
            * Where a settlement would actually land.
@@ -671,7 +697,18 @@ financeRoutes.get('/settlements', requirePermission('finance.settlements.view'),
                 }
               : null;
           })(),
-          payoutBlockedReason: accountBlockReason('RESTAURANT', restaurant.id),
+          /*
+           * The SAME blocker Pay uses, from the same function.
+           *
+           * This asked `accountBlockReason`, which knows about accounts and nothing
+           * about hold periods, cash or the minimum — so a partner inside their hold
+           * period read as payable here and blocked on Pay. `duesFor` now carries
+           * `accountBlockReason`'s wording for the account case, so nothing is lost:
+           * the better sentence is the one both screens show.
+           */
+          payoutBlockedReason: dues.blockedReason,
+          payoutBlockedCode: dues.blockedCode,
+          payoutBlockers: dues.blockers,
           settlements: await settlementRepository.list({ restaurantId: restaurant.id })
         };
       })
@@ -765,6 +802,38 @@ financeRoutes.post(
   validate({ body: DraftSettlementSchema }),
   async (req, res, next) => {
     try {
+      /*
+       * A NON-ZERO ADJUSTMENT IS REFUSED, AND THAT IS NOT PEDANTRY.
+       *
+       * This screen's own hint said "use adjustments to recover a refund". But
+       * `refunds.ts` already posts SETTLEMENT_ADJUSTMENT debiting PARTNER_PAYABLE for
+       * the kitchen's share of every refund, automatically, the moment the refund is
+       * sent. So an administrator following that hint deducts the same refund TWICE —
+       * the mirror image of the payout defect, pointed at the partner instead of the
+       * platform.
+       *
+       * Silently ignoring it would be worse than either: the screen would show a
+       * deduction that did nothing, which is the exact shape of lie this work has
+       * spent its time removing. So it refuses and says where the money already went.
+       *
+       * If a genuine deduction the ledger cannot express turns up — a penalty, damages
+       * — it needs its own ledger event and its own audit trail, not a free-text
+       * number on a settlement form.
+       *
+       * Checked BEFORE anything is looked up, because it is a fact about the request
+       * rather than about the restaurant. Behind the "nothing outstanding" check it
+       * would report the wrong problem to anybody who sent it on a settled kitchen.
+       */
+      const adjustments = Number(req.body.adjustments) || 0;
+      if (adjustments !== 0) {
+        throw new AppError(
+          'Refunds are already deducted from what a restaurant is owed, automatically, when the refund is sent — ' +
+            'entering them here would deduct them twice. Anything else needs recording against the order it relates to.',
+          400,
+          'ADJUSTMENTS_ALREADY_APPLIED'
+        );
+      }
+
       const restaurant = await restaurantRepository.findById(req.body.restaurantId);
       if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
 
@@ -777,11 +846,24 @@ financeRoutes.post(
       const grossSales = Math.round(shares.reduce((t, s) => t + s.grossSales, 0) * 100) / 100;
       const commission = Math.round(shares.reduce((t, s) => t + s.commission, 0) * 100) / 100;
       const tds = Math.round(shares.reduce((t, s) => t + s.tds, 0) * 100) / 100;
-      const adjustments = Number(req.body.adjustments) || 0;
-      const netAmount = Math.round((grossSales - commission - tds - adjustments) * 100) / 100;
 
-      if (netAmount < 0) {
-        throw new AppError('Deductions exceed the amount outstanding.', 400, 'NEGATIVE_SETTLEMENT');
+      /*
+       * THE AMOUNT IS THE LEDGER'S, NOT THIS FORMULA'S.
+       *
+       * The breakdown above is the statement — gross, commission, TDS — and it stays.
+       * But `netAmount` is what will actually be PAID, and paying a figure computed
+       * here would mean showing an administrator one number and sending another: this
+       * formula has a different TDS base, no packaging, and no sight of clawbacks.
+       */
+      const dues = duesFor('RESTAURANT', restaurant.id, restaurant.name);
+      const netAmount = toRupees(dues.payablePaise);
+
+      if (netAmount <= 0) {
+        throw new AppError(
+          dues.blockedReason || 'There is nothing payable for this restaurant right now.',
+          409,
+          'NOTHING_TO_SETTLE'
+        );
       }
 
       const timestamps = orders
@@ -844,6 +926,83 @@ financeRoutes.post(
       if (!existing) throw new AppError('Settlement not found.', 404, 'SETTLEMENT_NOT_FOUND');
       if (existing.status === 'PAID' && req.body.status !== 'PAID') {
         throw new AppError('A settlement that has been paid cannot be reopened.', 409, 'SETTLEMENT_ALREADY_PAID');
+      }
+
+      /*
+       * MARKING IT PAID NOW ACTUALLY PAYS IT.
+       *
+       * This wrote the record, released orders on FAILED, recorded an audit line, and
+       * posted NOTHING to the ledger. So PARTNER_PAYABLE was untouched: `duesFor` still
+       * showed the money owed, and the next Pay run paid the same partner AGAIN.
+       *
+       * That was masked until today by a second defect — after a partner's first payout
+       * they were owed "nothing" regardless, so the second payment never happened.
+       * Fixing that one made this one live, which is why they had to be fixed together.
+       *
+       * It goes through `payouts.ts` rather than posting here, so this button gets the
+       * hold period, the cash-in-hand rule, the minimum, the daily cap, maker-checker,
+       * the ledger entry and the payee's notification — every control the Pay screen
+       * has. The button, its reference field and its response shape are unchanged,
+       * because the shipped admin app cannot be rebuilt yet and a button that starts
+       * failing reads as the app breaking.
+       *
+       * Keyed on the SETTLEMENT, so marking it paid twice sends once.
+       */
+      if (req.body.status === 'PAID' && existing.status !== 'PAID') {
+        const alreadySent = listPayouts({}).find(
+          p => p.ownerType === 'RESTAURANT' && p.settlementId === existing.id
+        );
+
+        if (!alreadySent) {
+          const dues = duesFor('RESTAURANT', existing.restaurantId, existing.restaurantName);
+          if (dues.blockedReason) {
+            /*
+             * It can now refuse where it used to "succeed", and that is the point. The
+             * refusal names which rule and what to do about it, because the app shows
+             * this message and an administrator cannot act on "could not pay".
+             */
+            throw new AppError(
+              `${existing.restaurantName} cannot be paid right now: ${dues.blockedReason}`,
+              409,
+              dues.blockedCode || 'PAYOUT_BLOCKED'
+            );
+          }
+
+          const drafted = draftPayout({
+            ownerType: 'RESTAURANT',
+            ownerId: existing.restaurantId,
+            ownerName: existing.restaurantName,
+            actorUserId: req.user!.id,
+            rail: 'MANUAL_BANK',
+            note: `Settlement ${existing.id}`,
+            settlementId: existing.id
+          });
+
+          if (drafted.state === 'AWAITING_APPROVAL') {
+            throw new AppError(
+              `${formatPaise(drafted.amountPaise)} is over the amount one person may send alone. ` +
+                'It has been drafted and needs a second administrator to approve it on the Pay screen.',
+              409,
+              'SECOND_APPROVER_REQUIRED'
+            );
+          }
+
+          await executePayout({
+            id: drafted.id,
+            actorUserId: req.user!.id,
+            manualReference: req.body.reference
+          });
+
+          /*
+           * Stamped on the settlement so the legacy backfill can tell these apart from
+           * the ones that were paid before any of this existed. Without it, a
+           * settlement paid properly today would be posted a second time at the next
+           * boot — the same double-count this whole change is about.
+           */
+          (existing as any).payoutId = drafted.id;
+          memoryStore.restaurantSettlements.set(existing.id, existing);
+          triggerAutoSave();
+        }
       }
 
       const settlement = await settlementRepository.setStatus(
