@@ -543,6 +543,21 @@ seconds must not send two messages. And push when a rider is assigned, with thei
 first name. **Check that fails:** ACCEPTED then PREPARING within a minute produces
 one push, not two.
 
+### W4 — accepted `f0c081c` (24 Sep, Session B review)
+
+Payee "you've been paid", customer "refund sent" (only when settled), a single
+"kitchen has your order" message keyed on the order (so PREPARING no longer
+sends its own), and "rider assigned" from the single `assignRider` caller.
+**V6 correction:** the transport always sends a channel id (`'default'`, which no
+app creates), so FCM uses the app's fallback channel. The assertion is "never
+an alarm channel", enforced by a source check. My claim that an unknown channel
+is dropped was wrong; the fallback is documented by Firebase.
+- **G1** — `paymentsHealth` resolving UNCERTAIN→PAID is a second place a payout
+  becomes PAID, and it told the payee nothing. Fix: one function for PAID,
+  posting and notifying, called from both places.
+- **G2** — QUEUED says "on its way", not "paid". Wording only until RazorpayX.
+- **G3** — no reversal webhook. This is a RazorpayX prerequisite (§5).
+
 ### W5 — the rest of "everything" to admin (F6) · **needs the admin APK**
 
 - The digest: orders placed, delivered, cancelled, new sign-ups — twice a day.
@@ -639,7 +654,7 @@ what only they can prove.
 | | |
 | --- | --- |
 | **Razorpay is in TEST mode** (`rzp_test_`) | No real customer payment can be taken until live keys are set on Railway. |
-| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. |
+| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. **Before turning RazorpayX on**, the server must handle `payout.reversed` / `payout.failed` webhooks (W4 review G3). Today a queued payout that later reverses would stay PAID, and the payee would already have been told they were paid. |
 | **The bank defect** | Run the diagnostic command. |
 | **"Fix the Pay section"** | Say what was wrong with it. |
 | **A push on a closed phone** | The only real test of every notification in this plan. |

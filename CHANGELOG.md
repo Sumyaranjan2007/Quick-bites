@@ -143,8 +143,10 @@ the partner sees and is paid their own.
 - **The kitchen was never notified of anything** — every push targeted the
   customer. `notifyRestaurant*` added (`23ceaa0`).
 - **The channel ids never matched**: server `new_orders`, rider app
-  `new-orders`, partner app `kitchen-orders`. Android 8+ drops a message naming
-  an unknown channel. Fixed server-side; **verified against the shipped APKs**, so
+  `new-orders`, partner app `kitchen-orders`. *(Corrected 24 Sep: per Firebase's docs, a
+  channel the app never created falls back to the manifest default channel. It is
+  not dropped. The real loss was the alarm: kitchen orders arrived as ordinary
+  notifications.)* Fixed server-side; **verified against the shipped APKs**, so
   the kitchen push works on phones already installed.
 - Delivery is fire-and-forget (`void this.deliver(record)`); Google calls are
   bounded at 5s.
