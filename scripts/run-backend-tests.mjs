@@ -57,6 +57,7 @@ const SUITES = [
   'adminPush',
   'orderMap',
   'riderTripPush',
+  'carryingWatch',
   'platformReset',
   'accountBlocking',
   'profileEdits',
