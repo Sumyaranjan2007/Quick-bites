@@ -326,8 +326,17 @@ export function appCalls(
       }
     }
 
-    // A raw fetch against the base URL: apiFetch(`${base}/x`, { method })
-    for (const m of code.matchAll(/\bapiFetch\s*\(\s*`\$\{[^}]*\}(\/[^`]*)`/g)) {
+    /*
+     * A raw fetch or apiFetch against the base URL: fetch(`${apiUrl}/x`, { method }).
+     *
+     * `fetch` matters as much as the helpers and was missed at first, because it is
+     * neither a method-named helper nor `request()`. All four apps register their
+     * push tokens this way — `POST /devices` and `DELETE /devices/:token` — so those
+     * two calls, which every notification on the platform depends on, were the only
+     * ones nothing checked. A renamed device route would have silently stopped every
+     * push and passed the gate.
+     */
+    for (const m of code.matchAll(/\b(?:api)?[fF]etch\s*\(\s*`\$\{[^}]*\}(\/[^`]*)`/g)) {
       record(m[1], methodIn(restOfCall(m.index! + m[0].length)));
     }
   }

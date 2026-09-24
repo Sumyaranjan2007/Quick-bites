@@ -60,6 +60,7 @@ const SUITES = [
   'moneyPaths',
   'adminErrorStates',
   'routeContract',
+  'lifecycleMoney',
   'adminPush',
   'orderMap',
   'riderTripPush',

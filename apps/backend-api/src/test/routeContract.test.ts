@@ -102,9 +102,32 @@ it('and the scan actually read the server, so a clean result is not an empty one
    * given a floor.
    */
   assert.ok(mounted.length > 300, `only ${mounted.length} routes were found on the server`);
-  assert.ok(allCalls.length > 150, `only ${allCalls.length} app calls were read`);
+  assert.ok(allCalls.length > 180, `only ${allCalls.length} app calls were read`);
   for (const one of scanned) {
     assert.ok(one.calls.length > 10, `only ${one.calls.length} calls found in ${one.name}`);
+  }
+});
+
+it('THE PUSH-TOKEN CALLS EVERY NOTIFICATION DEPENDS ON ARE COVERED', () => {
+  /*
+   * All four apps register their push token with a RAW `fetch`, not a helper and not
+   * `request()`, so the first version of this scan read none of them. They are the
+   * two calls the entire notification system rests on: a renamed device route would
+   * have stopped every push on the platform and passed the gate in silence.
+   *
+   * Asserted by name rather than left to the totals, because the totals move for a
+   * dozen innocent reasons and these two must never drop out.
+   */
+  for (const appName of APPS) {
+    const mine = scanned.find(s => s.name === appName)!.calls;
+    assert.ok(
+      mine.some(c => c.method === 'POST' && c.path === '/devices'),
+      `${appName} does not register a push token through any call this scan can read`
+    );
+    assert.ok(
+      mine.some(c => c.method === 'DELETE' && c.path === '/devices/:param'),
+      `${appName} does not unregister a push token through any call this scan can read`
+    );
   }
 });
 
