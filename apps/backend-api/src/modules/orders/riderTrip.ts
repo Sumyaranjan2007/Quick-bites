@@ -1,5 +1,6 @@
 import type { Order, RiderTripStage } from '@quick-bites/shared-types';
 import { memoryStore } from '../../db/client.ts';
+import { cashStanding } from '../payments/cashDeposits.ts';
 
 /*
  * ---------------------------------------------------------------------------
@@ -95,4 +96,43 @@ export function offerableNow(order: Pick<Order, 'status' | 'restaurantId'>): boo
 export function isCarrying(order: Pick<Order, 'riderId' | 'riderStage'>): boolean {
   if (!order.riderId || !order.riderStage) return false;
   return CARRYING.includes(order.riderStage);
+}
+
+/**
+ * Whether the cash this rider is holding stops them taking THIS order.
+ *
+ * -------------------------------------------------------------------------
+ * THE OFFER LIST AND THE GATE USED TO DISAGREE
+ * -------------------------------------------------------------------------
+ * The claim gate refuses a cash order to a rider at the ceiling
+ * (`riderRouter.ts`), and the offer list did not filter for it. So a rider who
+ * had reached the limit was shown cash trips, tapped one, and got a 409. They
+ * did nothing wrong and the app told them off for it.
+ *
+ * That was survivable while the list was the only way a trip reached anybody.
+ * It stops being survivable the moment a PUSH offers the trip: a notification
+ * that wakes somebody up for a job the server will refuse is worse than no
+ * notification, and it arrives when the phone is in their pocket and they
+ * cannot see why.
+ *
+ * So the list, the gate and the push all ask this one function. Three copies of
+ * an eligibility rule is three chances for the one nobody is looking at to drift
+ * — and the one nobody is looking at is the push.
+ *
+ * ONLY CASH ORDERS. Online-paid trips still reach a rider who is carrying cash,
+ * because the ceiling exists to stop cash accumulating, not to stop somebody
+ * earning.
+ */
+export function cashCeilingBlocks(
+  riderId: string,
+  order: Pick<Order, 'paymentMethod'>
+): { blocked: boolean; message: string | null } {
+  if (order.paymentMethod !== 'CASH_ON_DELIVERY') return { blocked: false, message: null };
+  const standing = cashStanding(riderId);
+  if (standing.canTakeCod) return { blocked: false, message: null };
+  return {
+    blocked: true,
+    message:
+      standing.message || 'Deposit the cash you are carrying before taking another cash order.'
+  };
 }

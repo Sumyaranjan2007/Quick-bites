@@ -38,7 +38,8 @@ import { AppError } from '../utils/AppError.ts';
 import type { DeliveryRider, Order, SosAlert } from '@quick-bites/shared-types';
 import { requireFeature } from '../middlewares/featureGate.ts';
 import { visibleContact } from '../modules/orders/contactVisibility.ts';
-import { hasActiveTrip } from '../modules/orders/riderTrip.ts';
+import { hasActiveTrip, cashCeilingBlocks } from '../modules/orders/riderTrip.ts';
+import { offerTripToNearbyRiders } from '../modules/orders/tripOffers.ts';
 
 export const riderRouter = Router();
 
@@ -763,10 +764,23 @@ riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (r
       return;
     }
 
-    const broadcasts = await orderRepository.listAvailableBroadcasts(
-      rider.id,
-      rider.currentCoordinates
-    );
+    /*
+     * CASH TRIPS ARE FILTERED OUT AT THE CEILING, not just refused on tap.
+     *
+     * This list did not do that, while the claim gate below did. So a rider who
+     * had reached the cash limit was shown cash trips, tapped one, and was
+     * refused with a 409 — told off for accepting an offer this endpoint had
+     * just made them.
+     *
+     * The same function the gate uses, so the offer and the refusal cannot
+     * disagree. Found while wiring the trip push, which would otherwise have
+     * woken riders for jobs the server was going to refuse.
+     */
+    const offerable = (
+      await orderRepository.listAvailableBroadcasts(rider.id, rider.currentCoordinates)
+    ).filter(o => !cashCeilingBlocks(rider.id, o).blocked);
+
+    const broadcasts = offerable;
     const shaped = await Promise.all(broadcasts.map(o => shapeTripForRider(withoutDeliveryOtp(o) as Order)));
 
     for (const order of broadcasts) {
@@ -845,16 +859,9 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
      * rider carrying cash keeps earning — the ceiling exists to stop cash
      * accumulating, not to stop somebody working.
      */
-    if (target.paymentMethod === 'CASH_ON_DELIVERY') {
-      const standing = cashStanding(self.id);
-      if (!standing.canTakeCod) {
-        throw new AppError(
-          standing.message ||
-            'Deposit the cash you are carrying before taking another cash order.',
-          409,
-          'CASH_CEILING_REACHED'
-        );
-      }
+    const cashBlock = cashCeilingBlocks(self.id, target);
+    if (cashBlock.blocked) {
+      throw new AppError(cashBlock.message!, 409, 'CASH_CEILING_REACHED');
     }
 
     const payout = calculateTripPayout(target);
@@ -1187,6 +1194,18 @@ riderRouter.post('/orders/:id/cancel', validate({ body: CancelSchema }), async (
       restaurantId: order.restaurantId,
       restaurantName: order.restaurantName
     });
+
+    /*
+     * A cancelled trip goes back on offer, so the riders who can take it are
+     * woken the same way they are for a newly ready order. This is the case that
+     * most needs it: the food is already cooked and has now lost a rider, so
+     * every minute spent waiting for somebody to refresh a list is a minute it
+     * sits there.
+     *
+     * The rider who just declined is excluded by `declinedByRiderIds`, which the
+     * line above has already recorded.
+     */
+    void offerTripToNearbyRiders(order);
 
     const { metrics } = await computeRiderMetrics((await riderRepository.findById(self.id))!);
     res.json({
