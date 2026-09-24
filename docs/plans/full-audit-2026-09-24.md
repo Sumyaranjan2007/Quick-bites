@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 ✅ → M2 ✅ → P1 ✅ (`3b92ce1`) → W7.1 ✅ (`86dbdab`) → W7 (contract ✅, c1–c4 ✅, c5–c7) → **M3/W8** → W7(b) → W7(a) → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -742,6 +742,16 @@ fix-and-check. This is where "every section works, every case covered, no error
 state" is actually established — by exercising it, not by reading it.
 
 ### W8 — Pay and Settlements agree (F8)
+
+**Upgraded 25 Sep to M3 — CRITICAL — Settlements is a second payout system.**
+Marking a settlement PAID (`financeRoutes` ~:837) posts nothing to the ledger, so
+Pay still sees the partner as owed and the next run **pays them again**. Its owed
+figure comes from its own formula (TDS 1% of commission, no packaging, no refund
+clawback). Fix: one payability source over `duesFor`. Settlements becomes a
+ledger statement whose pay action goes through `payouts.ts`. The old routes
+refuse. Settlements already marked PAID are backfilled to the ledger. Also: the
+rider's cash comes from two sources (the `codCashInHand` counter and the
+`RIDER_CASH` ledger balance). Make it one.
 
 One source for "can this partner be paid right now", both screens reading it, the
 assertion from `admin-revamp-and-inflation.md` §3.1 pasted in.
