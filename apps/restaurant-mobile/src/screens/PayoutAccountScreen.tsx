@@ -48,6 +48,22 @@ const STATUS_COPY: Record<
   INVALID: { label: 'Refused', tone: 'danger', heading: 'Your bank refused this account' }
 };
 
+/**
+ * A date in the words a partner reads, or nothing at all.
+ *
+ * Returns an empty string rather than a dash or "Invalid Date" when the field is
+ * missing. A sentence built around an empty string reads a little oddly; one
+ * built around "Invalid Date" looks like the app is broken, and this is the
+ * screen where a partner least needs to wonder that.
+ */
+const dateOf = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : `on ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+};
+
 export const PayoutAccountScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -215,6 +231,22 @@ export const PayoutAccountScreen: React.FC = () => {
               </View>
 
               {!!live.validationMessage && <Text style={s.statusBody}>{live.validationMessage}</Text>}
+
+              {/*
+                WHEN, NOT JUST WHAT.
+
+                §8.5: a partner whose account is sitting unverified should learn
+                it here rather than from a settlement that never arrives. The
+                pill above says which state; this says how long it has been in
+                it, which is the part that tells them whether to act. "Checking"
+                is reassuring on the day it is added and alarming a fortnight
+                later, and those are the same word.
+              */}
+              <Text style={s.since}>
+                {live.validationStatus === 'VERIFIED'
+                  ? `Connected ${dateOf(live.validatedAt || live.createdAt)}. Replacing it does not affect anything already settled.`
+                  : `Added ${dateOf(live.createdAt)}. If this has not changed in a day or two, tell us from the Help Centre.`}
+              </Text>
 
               {/*
                 A mismatch is only actionable if the partner can see WHAT did not
@@ -400,6 +432,7 @@ const s = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   statusHeading: { color: c.text, fontSize: 14, fontWeight: '700', flex: 1 },
   statusBody: { color: c.textSoft, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
+  since: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: spacing.sm },
 
   compareBox: {
     backgroundColor: c.bg,

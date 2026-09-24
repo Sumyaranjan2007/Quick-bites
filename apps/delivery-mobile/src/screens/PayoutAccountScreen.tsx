@@ -27,7 +27,6 @@ import { api, type ApiContext, type PayeeAccount, type PayeeAccountsResponse } f
  * that nothing is required of them, because a rider who thinks a screen is
  * broken will submit the same account three more times.
  */
-
 const STATUS: Record<
   PayeeAccount['validationStatus'],
   { label: string; tone: 'go' | 'money' | 'danger' | 'neutral'; heading: string }
@@ -37,6 +36,22 @@ const STATUS: Record<
   UNVERIFIED: { label: 'Not checked', tone: 'money', heading: 'Not verified yet' },
   NAME_MISMATCH: { label: 'Being reviewed', tone: 'money', heading: 'Our team is checking the name' },
   INVALID: { label: 'Refused', tone: 'danger', heading: 'Your bank refused this account' }
+};
+
+/**
+ * A date in the words a rider reads, or nothing at all.
+ *
+ * Returns an empty string rather than a dash or "Invalid Date" when the field is
+ * missing. A sentence built around an empty string reads a little oddly; one
+ * built around "Invalid Date" looks like the app is broken, and this screen is
+ * the one where a rider least needs to wonder that.
+ */
+const dateOf = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : `on ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`;
 };
 
 export const PayoutAccountScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
@@ -174,6 +189,22 @@ export const PayoutAccountScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
           </View>
 
           {!!live.validationMessage && <Text style={s.body}>{live.validationMessage}</Text>}
+
+          {/*
+            * WHEN, NOT JUST WHAT.
+            *
+            * §7.3: a rider should be able to see that an account is sitting
+            * unverified, because otherwise the first they learn of it is an
+            * unpaid payday. The state pill above says which state; this says how
+            * long it has been in it, which is the part that tells them whether to
+            * do something. "Checking" is reassuring on the day it is added and
+            * alarming a fortnight later, and those are the same word.
+            */}
+          <Text style={s.since}>
+            {live.validationStatus === 'VERIFIED'
+              ? `Connected ${dateOf(live.validatedAt || live.createdAt)}. Replacing it does not affect anything already paid.`
+              : `Added ${dateOf(live.createdAt)}. If this has not changed in a day or two, tell us from the Help section.`}
+          </Text>
 
           {/* A mismatch the rider cannot see is a mismatch they cannot fix. */}
           {live.validationStatus === 'NAME_MISMATCH' && !!live.registeredName && (
@@ -346,6 +377,7 @@ const s = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusHeading: { color: t.color.text, fontSize: 14, fontWeight: '700', flex: 1 },
   body: { color: t.color.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  since: { color: t.color.textMuted, fontSize: 11, lineHeight: 16, marginTop: 8 },
 
   compare: {
     backgroundColor: t.color.surfaceSunken,

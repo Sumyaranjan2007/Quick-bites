@@ -618,16 +618,18 @@ export interface StatementView {
     executedAt?: string;
   }>;
   holdDays: number;
-}
-
-export interface PayoutRequestView {
-  id: string;
-  status: 'OPEN' | 'SEEN' | 'SETTLED' | 'DECLINED' | 'WITHDRAWN';
-  raisedAt: string;
-  payableAtRequest: number;
-  note?: string;
-  declineReason?: string;
-  settledAt?: string;
+  /**
+   * What we promise about arrival, in words, derived on the server from the live
+   * cadence and hold.
+   *
+   * Sent rather than written here because the version written here said "our
+   * daily run" while the configured cadence was weekly. An app cannot read the
+   * pricing config, so a sentence about a rate it does not hold is a guess.
+   */
+  payoutPromise: {
+    arrival: string;
+    noRequestNeeded: string;
+  };
 }
 
 export function fetchStatement(range?: { from?: string; to?: string }) {
@@ -635,30 +637,16 @@ export function fetchStatement(range?: { from?: string; to?: string }) {
   if (range?.from) params.set('from', range.from);
   if (range?.to) params.set('to', range.to);
   const query = params.toString();
-  return request<{ statement: StatementView; openRequest: PayoutRequestView | null }>(
-    `/earnings/statement${query ? `?${query}` : ''}`
-  );
+  return request<{ statement: StatementView }>(`/earnings/statement${query ? `?${query}` : ''}`);
 }
 
-export function raisePayoutRequest(note?: string) {
-  return request<{ request: PayoutRequestView }>(
-    '/earnings/payout-requests',
-    { method: 'POST', body: JSON.stringify(note ? { note } : {}) },
-    'Could not raise that request.'
-  );
-}
-
-export function withdrawPayoutRequest(requestId: string) {
-  return request<{ request: PayoutRequestView }>(
-    `/earnings/payout-requests/${requestId}`,
-    { method: 'DELETE' },
-    'Could not withdraw that request.'
-  );
-}
-
-export function fetchPayoutRequests() {
-  return request<{ requests: PayoutRequestView[] }>('/earnings/payout-requests');
-}
+/*
+ * `raisePayoutRequest`, `withdrawPayoutRequest` and `fetchPayoutRequests` were
+ * here, and they are gone with the button. Leaving working calls behind a removed
+ * control is how the control comes back: the next person to want one finds
+ * ready-made client functions and routes that still answer, and nothing tells
+ * them the removal was deliberate rather than unfinished.
+ */
 
 // ---------------------------------------------------------------------------
 // Payment policies.

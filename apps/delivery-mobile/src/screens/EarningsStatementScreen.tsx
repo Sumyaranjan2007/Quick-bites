@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, TextInput } from 'react-native';
-import { ReceiptText, ChevronDown, ChevronUp, HandCoins } from 'lucide-react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { ReceiptText, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { t } from '../theme';
 import { Card, SectionTitle, Pill, Button, EmptyState, LoadingBlock } from '../components/ui';
 import {
@@ -8,11 +8,10 @@ import {
   type ApiContext,
   type RiderStatementView,
   type OrderStatementView,
-  type RiderPayoutRequestView
 } from '../lib/api';
 
 /**
- * Trip by trip: what was earned, and asking to be paid it.
+ * Trip by trip: what was earned, and when it arrives.
  *
  * -------------------------------------------------------------------------
  * A RIDER IS OWED THE ARITHMETIC MORE THAN ANYBODY
@@ -26,12 +25,18 @@ import {
  * came off afterwards with the reason as it was recorded.
  *
  * -------------------------------------------------------------------------
- * AND ASKING IS NOT HOW YOU GET PAID
+ * THERE IS NO LONGER ANYTHING TO ASK FOR
  * -------------------------------------------------------------------------
- * The button tells us somebody is waiting. It names no amount and it is not a
- * gate — everything owed is paid on the daily run whether or not anyone asks.
- * The screen says so plainly, because a rider who believes they must ask will
- * assume a quiet week was their own fault.
+ * This screen used to carry an "Ask to be paid" button. It named no amount and
+ * gated nothing, and its own footnote said as much — which is the problem. A
+ * control that does nothing still teaches a rider that asking is part of getting
+ * paid, and a rider who believes that reads a quiet week as their own fault and
+ * asks harder. The money arrives on the run either way.
+ *
+ * The button is gone and the sentence that replaces it comes FROM THE SERVER,
+ * because the version written here said "our daily run" while the configured
+ * cadence was weekly. An app cannot read the pricing config, so the only way it
+ * can tell the truth about a number it does not hold is to be told it.
  */
 
 const rupees = (n: number) =>
@@ -107,15 +112,9 @@ const TripRow: React.FC<{ order: OrderStatementView }> = ({ order }) => {
 
 export const EarningsStatementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const [data, setData] = useState<RiderStatementView | null>(null);
-  const [openRequest, setOpenRequest] = useState<RiderPayoutRequestView | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [asking, setAsking] = useState(false);
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [askError, setAskError] = useState<string | null>(null);
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh') => {
@@ -123,7 +122,6 @@ export const EarningsStatementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) 
       try {
         const next = await earningsApi.statement(ctx);
         setData(next.statement);
-        setOpenRequest(next.openRequest);
         setError(null);
       } catch (err: any) {
         setError(err?.message || 'Could not load your statement.');
@@ -138,43 +136,6 @@ export const EarningsStatementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) 
   useEffect(() => {
     void load('initial');
   }, [load]);
-
-  const ask = async () => {
-    setBusy(true);
-    setAskError(null);
-    try {
-      await earningsApi.raiseRequest(ctx, note.trim() || undefined);
-      setAsking(false);
-      setNote('');
-      await load('refresh');
-    } catch (err: any) {
-      // The server's own words. Every refusal here names what fixes it — cash
-      // still in hand, no verified account, everything still inside the hold —
-      // and rewriting them into something generic would throw that away.
-      setAskError(err?.message || 'That could not be sent.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const withdraw = () => {
-    if (!openRequest) return;
-    Alert.alert('Withdraw this request?', 'What you are owed does not change either way.', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Withdraw',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await earningsApi.withdrawRequest(ctx, openRequest.id);
-            await load('refresh');
-          } catch (err: any) {
-            Alert.alert('Could not withdraw', err?.message || 'Try again in a moment.');
-          }
-        }
-      }
-    ]);
-  };
 
   if (loading) return <LoadingBlock label="Working out your statement…" />;
 
@@ -218,50 +179,18 @@ export const EarningsStatementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) 
               <Text style={s.rowValue}>{data.summary.ordersCount}</Text>
             </View>
 
-            {openRequest ? (
-              <View style={{ marginTop: 14 }}>
-                <Text style={s.askedTitle}>You have asked to be paid</Text>
-                <Text style={s.sub}>
-                  Raised {when(openRequest.raisedAt)}. Our team can see this statement alongside it.
-                </Text>
-                <Button label="Withdraw the request" variant="ghost" onPress={withdraw} style={{ marginTop: 10 }} />
-              </View>
-            ) : (
-              <Button
-                label="Ask to be paid"
-                variant="money"
-                icon={<HandCoins size={16} color="#FFF7E8" />}
-                onPress={() => {
-                  setAsking(true);
-                  setAskError(null);
-                }}
-                style={{ marginTop: 14 }}
-              />
-            )}
-
-            <Text style={s.footnote}>
-              You do not have to ask. Everything owed is paid on our daily run whether or not you raise
-              anything — asking just tells us you are waiting.
-            </Text>
+            {/*
+              * THE PROMISE, IN THE SERVER'S WORDS.
+              *
+              * This screen used to say "paid on our daily run" while the
+              * configured cadence was weekly. It was hardcoded here because an
+              * app cannot read the pricing config — so it is now sent with the
+              * statement, from the one function that derives it from the rates.
+              * Both sentences, both apps, one source.
+              */}
+            <Text style={s.promise}>{data.payoutPromise.arrival}</Text>
+            <Text style={s.footnote}>{data.payoutPromise.noRequestNeeded}</Text>
           </Card>
-
-          {asking && (
-            <Card>
-              <Text style={s.title}>Anything we should know?</Text>
-              <Text style={s.sub}>Optional. A person reads this.</Text>
-              <TextInput
-                style={s.input}
-                value={note}
-                onChangeText={setNote}
-                placeholder="e.g. I need it before the weekend"
-                placeholderTextColor={t.color.textMuted}
-                multiline
-              />
-              {!!askError && <Text style={s.errorText}>{askError}</Text>}
-              <Button label={busy ? 'Sending…' : 'Send the request'} onPress={ask} disabled={busy} />
-              <Button label="Cancel" variant="ghost" onPress={() => setAsking(false)} />
-            </Card>
-          )}
 
           <SectionTitle>Trip by trip</SectionTitle>
           {data.orders.length === 0 ? (
@@ -321,7 +250,7 @@ const s = StyleSheet.create({
   rowLabel: { color: t.color.textSecondary, fontSize: 13 },
   rowValue: { color: t.color.text, fontSize: 13, fontWeight: '700' },
 
-  askedTitle: { color: t.color.text, fontSize: 14, fontWeight: '700' },
+  promise: { color: t.color.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 14 },
 
   orderNumber: { color: t.color.text, fontSize: 15, fontWeight: '700' },
   date: { color: t.color.textMuted, fontSize: 12, marginTop: 2 },
@@ -345,19 +274,6 @@ const s = StyleSheet.create({
   lineTotalValue: { color: t.color.text, fontSize: 16, fontWeight: '800' },
 
   unexplained: { color: t.color.danger, fontSize: 11, lineHeight: 16, marginTop: 10 },
-
-  input: {
-    backgroundColor: t.color.surfaceSunken,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: t.color.border,
-    padding: 12,
-    color: t.color.text,
-    fontSize: 14,
-    minHeight: 72,
-    marginVertical: 12,
-    textAlignVertical: 'top'
-  },
 
   errorText: { color: t.color.danger, fontSize: 13, lineHeight: 18, marginBottom: 10 },
   footnote: { color: t.color.textMuted, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' }

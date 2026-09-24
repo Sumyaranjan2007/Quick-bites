@@ -1,14 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal } from 'react-native';
 import { c } from '../theme';
-import { Card, SectionHeading, Pill, Button, EmptyState, ErrorNote, Field } from '../components/ui';
+import { Card, SectionHeading, Pill, Button, EmptyState, ErrorNote } from '../components/ui';
 import {
   fetchStatement,
-  raisePayoutRequest,
-  withdrawPayoutRequest,
   type StatementView,
   type OrderStatementView,
-  type PayoutRequestView,
   fetchPaymentPolicies,
   fetchPaymentPolicy,
   type PolicySummaryView,
@@ -16,7 +13,7 @@ import {
 } from '../lib/partnerApi';
 
 /**
- * What this kitchen earned, order by order, and asking to be paid it.
+ * What this kitchen earned, order by order, and when it arrives.
  *
  * -------------------------------------------------------------------------
  * WHY EVERY DEDUCTION IS NAMED SEPARATELY
@@ -39,14 +36,18 @@ import {
  * partner would be right to distrust every figure we have ever shown them.
  *
  * -------------------------------------------------------------------------
- * AND ASKING IS NOT HOW YOU GET PAID
+ * THERE IS NO LONGER ANYTHING TO ASK FOR
  * -------------------------------------------------------------------------
- * The button raises a request. It does not name an amount and it does not move
- * a settlement up a queue by itself — what it does is make somebody at our end
- * aware that this kitchen is waiting, with this statement attached. Everything
- * owed is paid on the daily run whether or not anyone asks, and the screen says
- * so, because a partner who believes they must ask will assume the quiet months
- * were their own fault.
+ * This screen used to carry an "Ask to be paid" button. It named no amount and
+ * moved no settlement up any queue, and its own footnote said as much — which is
+ * exactly the problem. A control that changes nothing still teaches a partner
+ * that asking is part of getting paid, and a partner who believes that reads a
+ * quiet month as their own fault.
+ *
+ * The button is gone and the sentence replacing it comes FROM THE SERVER, because
+ * the version written here said "our daily run" while the configured cadence was
+ * weekly. An app cannot read the pricing config, so a sentence about a rate it
+ * does not hold is a guess that nothing will ever correct.
  */
 
 const rupees = (n: number) =>
@@ -126,15 +127,9 @@ const OrderRow: React.FC<{ order: OrderStatementView }> = ({ order }) => {
 
 export const EarningsStatementScreen: React.FC = () => {
   const [data, setData] = useState<StatementView | null>(null);
-  const [openRequest, setOpenRequest] = useState<PayoutRequestView | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [asking, setAsking] = useState(false);
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [askError, setAskError] = useState<string | null>(null);
 
   const [policies, setPolicies] = useState<PolicySummaryView[]>([]);
   const [policyGaps, setPolicyGaps] = useState<string[]>([]);
@@ -145,7 +140,6 @@ export const EarningsStatementScreen: React.FC = () => {
     const result = await fetchStatement();
     if (result.ok && result.data) {
       setData(result.data.statement);
-      setOpenRequest(result.data.openRequest);
       setError(null);
     } else {
       setError(result.message || 'Could not load your statement.');
@@ -172,35 +166,6 @@ export const EarningsStatementScreen: React.FC = () => {
   const openPolicy = async (id: string) => {
     const result = await fetchPaymentPolicy(id);
     if (result.ok && result.data) setOpenPolicyDoc(result.data.policy);
-  };
-
-  const ask = async () => {
-    setBusy(true);
-    setAskError(null);
-    const result = await raisePayoutRequest(note.trim() || undefined);
-    if (result.ok) {
-      setAsking(false);
-      setNote('');
-      await load('refresh');
-    } else {
-      setAskError(result.message || 'That could not be sent.');
-    }
-    setBusy(false);
-  };
-
-  const withdraw = () => {
-    if (!openRequest) return;
-    Alert.alert('Withdraw this request?', 'What you are owed is unchanged either way.', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Withdraw',
-        style: 'destructive',
-        onPress: async () => {
-          await withdrawPayoutRequest(openRequest.id);
-          await load('refresh');
-        }
-      }
-    ]);
   };
 
   if (loading) {
@@ -243,46 +208,17 @@ export const EarningsStatementScreen: React.FC = () => {
               <Text style={s.topRowValue}>{data.summary.ordersCount}</Text>
             </View>
 
-            {openRequest ? (
-              <View style={s.askedBox}>
-                <Text style={s.askedTitle}>You have asked to be paid</Text>
-                <Text style={s.askedBody}>
-                  Raised {when(openRequest.raisedAt)}. Our finance team can see this statement alongside it.
-                </Text>
-                <Button label="Withdraw the request" variant="ghost" onPress={withdraw} />
-              </View>
-            ) : (
-              <Button
-                label="Ask to be paid"
-                onPress={() => {
-                  setAsking(true);
-                  setAskError(null);
-                }}
-                style={{ marginTop: 14 }}
-              />
-            )}
-
-            <Text style={s.reassure}>
-              You do not have to ask. Everything owed is paid on our daily run whether or not a request is
-              raised — asking only tells us you are waiting.
-            </Text>
+            {/*
+              * THE PROMISE, IN THE SERVER'S WORDS.
+              *
+              * This screen used to say "paid on our daily run" while the
+              * configured cadence was weekly. It was hardcoded here because an
+              * app cannot read the pricing config, so it is now sent with the
+              * statement from the one function that derives it from the rates.
+              */}
+            <Text style={s.promise}>{data.payoutPromise.arrival}</Text>
+            <Text style={s.reassure}>{data.payoutPromise.noRequestNeeded}</Text>
           </Card>
-
-          {asking && (
-            <Card>
-              <SectionHeading title="Anything we should know?" sub="Optional, and read by a person." />
-              <Field
-                label="Your note"
-                value={note}
-                onChangeText={setNote}
-                placeholder="e.g. rent is due on the first"
-                multiline
-              />
-              {!!askError && <ErrorNote message={askError} />}
-              <Button label={busy ? 'Sending…' : 'Send the request'} onPress={ask} disabled={busy} />
-              <Button label="Cancel" variant="ghost" onPress={() => setAsking(false)} />
-            </Card>
-          )}
 
           <SectionHeading
             title="Order by order"
@@ -431,9 +367,7 @@ const s = StyleSheet.create({
   topRowLabel: { color: c.textMuted, fontSize: 13 },
   topRowValue: { color: c.text, fontSize: 13, fontWeight: '700' },
 
-  askedBox: { marginTop: 14 },
-  askedTitle: { color: c.text, fontSize: 14, fontWeight: '700' },
-  askedBody: { color: c.textMuted, fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 10 },
+  promise: { color: c.textMuted, fontSize: 12, lineHeight: 18, marginTop: 14 },
 
   reassure: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: 12 },
 
