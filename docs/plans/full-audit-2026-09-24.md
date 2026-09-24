@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 → W4 (+W4.1) → W5 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server; screen in progress) → W4 (+W4.1) → W5 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -483,6 +483,16 @@ the admin app can record a settlement, so the owner needs a screen.
   with two failures in it. New false-pass shape: **the unregistered suite**. The
   fix is a mechanism: the runner fails when a `*.test.ts` file is not listed.
 - **R9 (low)** — legacy wallet orders without a gateway payment stay on the bank.
+
+**Accepted — `2702c81` (24 Sep).** R1–R9 in. Session B re-ran the gate: 47 suites, exit 0,
+and the W3 suite's own banner appears in the output with 22/22. The cancellation
+check drives `orderService.cancelOrder`, not `sendRefund`. The runner now exits 1
+on an unlisted suite. Deviations accepted: three settlement inputs (amount
+settled, fees, tax), since all three are addends; capture keyed on the order id,
+since a door payment can arrive without a payment id. R8 was two faulty checks,
+not faulty code: AppError exposes `.status`, and **`ownOrder`'s bill is a bare
+total, so any check that money reaches a kitchen or rider needs `billFor()`**.
+Still open: the Money screen for recording settlements (needs the admin APK).
 
 ### W4 — tell people money reached them (F5) · **possibly needs APKs — see V6**
 
