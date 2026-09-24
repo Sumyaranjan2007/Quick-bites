@@ -561,6 +561,43 @@ try {
     }
   });
 
+  it('and the app READS that key, rather than it travelling to nothing', () => {
+    /*
+     * The half of §8C.4 I nearly shipped without. The key was in every payload
+     * and nothing in the admin app looked at it: the notification would arrive,
+     * the tap would open the dashboard, and the reader would go hunting for the
+     * thing they had just been interrupted about. A payload field nobody reads
+     * is indistinguishable from one that is not sent.
+     */
+    const app = appSource(ADMIN_APP);
+    assert.ok(
+      app.includes('addNotificationResponseReceivedListener'),
+      'nothing handles a notification tap while the app is open'
+    );
+    assert.ok(
+      app.includes('getLastNotificationResponseAsync'),
+      'a tap that LAUNCHES the app is not handled, which is the SOS-at-3am case'
+    );
+    assert.ok(
+      app.includes('data?.open'),
+      'the tap handler does not read the destination the server sends'
+    );
+  });
+
+  it('and it refuses a destination the account cannot open', () => {
+    /*
+     * Permissions can change between a notification being sent and being tapped.
+     * Navigating anyway would show NoAccess with no explanation of why they were
+     * sent there, so the key is checked against the sections this account can
+     * actually see.
+     */
+    const app = appSource(ADMIN_APP);
+    assert.ok(
+      app.includes('visible.some(section => section.key === key)'),
+      'the tap handler navigates to whatever the payload says, unchecked'
+    );
+  });
+
   it('and every event carries one, so none of them opens the dashboard', () => {
     /*
      * A notification that opens the dashboard makes the reader hunt for what it

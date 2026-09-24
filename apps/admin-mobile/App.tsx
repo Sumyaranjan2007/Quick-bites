@@ -50,6 +50,7 @@ import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
 import { createClient } from './src/lib/api';
 import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
+import * as Notifications from 'expo-notifications';
 import { prepareAdminChannels } from './src/lib/adminChannels';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -383,6 +384,52 @@ const Console: React.FC = () => {
     const first = visible.find(section => section.group === key);
     if (first) setActive(first.key);
   };
+
+  /*
+   * TAPPING A NOTIFICATION OPENS WHAT IT WAS ABOUT.
+   *
+   * Every admin notification carries `data.open` — one of this file's own
+   * section keys. Without this listener the key travelled and nothing read it:
+   * the notification would arrive, the tap would open the dashboard, and the
+   * reader would have to go and find the thing they were just interrupted to be
+   * told about. That is worse than not sending one, because they now have to
+   * look anyway AND they were interrupted.
+   *
+   * `getLastNotificationResponseAsync` covers the case that matters most: the
+   * app was CLOSED, the tap is what launched it, and the live listener was not
+   * attached in time to hear it. An SOS at 3am is exactly that case.
+   *
+   * The destination is checked against `visible` rather than trusted. A
+   * notification is addressed by permission, but permissions can be changed
+   * between sending and tapping, and `setActive` to a section this account
+   * cannot open would show them NoAccess with no way back to why. Falling back
+   * to where they are is the honest failure.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const openFrom = (response: any) => {
+      const key = response?.notification?.request?.content?.data?.open;
+      if (typeof key !== 'string') return;
+      if (!visible.some(section => section.key === key)) return;
+      setActive(key);
+    };
+
+    void Notifications.getLastNotificationResponseAsync()
+      .then(response => {
+        if (!cancelled && response) openFrom(response);
+      })
+      .catch(() => {
+        // No notification permission, or a platform without them. The console
+        // opens on the dashboard as it always has.
+      });
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(openFrom);
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [visible]);
 
   return (
     <Screen>
