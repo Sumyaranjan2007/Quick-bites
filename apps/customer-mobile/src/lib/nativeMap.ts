@@ -33,6 +33,7 @@
  */
 import React from 'react';
 import Constants from 'expo-constants';
+import { boundsFor, FIT_PADDING } from './mapFit';
 
 export interface LatLng {
   latitude: number;
@@ -150,6 +151,21 @@ export interface MapCanvasProps {
    * and would leak the provider straight back through this seam.
    */
   spanMetres?: number;
+  /**
+   * Points that must ALL be visible. Given two or more, the camera fits a box
+   * around them and `centre`/`spanMetres` are ignored.
+   *
+   * This is the fix for the owner's "when its too far it shows outside and it
+   * dosnt fit in the box". A span in metres cannot be turned into a correct zoom
+   * without knowing how wide and how tall the map is, and `zoomForSpan` knew
+   * neither — see `mapFit.ts` for the four compounding errors. Mapbox's own
+   * bounds fitting knows the viewport, the aspect ratio and the latitude,
+   * because it is the thing doing the drawing.
+   *
+   * `centre` and `spanMetres` stay for callers that genuinely want a fixed view
+   * rather than a fit, such as the address picker.
+   */
+  fit?: LatLng[];
   children?: React.ReactNode;
   style?: any;
   /** Fired when the user stops moving the map, with the new centre. */
@@ -179,6 +195,7 @@ function zoomForSpan(spanMetres: number): number {
 export const MapCanvas: React.FC<MapCanvasProps> = ({
   centre,
   spanMetres = 1200,
+  fit,
   children,
   style,
   onSettle,
@@ -187,6 +204,35 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
 }) => {
   if (!Mapbox) return null;
   const { MapView, Camera, UserLocation } = Mapbox;
+
+  /*
+   * A box if there is one, a centre if there is not.
+   *
+   * `boundsFor` returns null for a single point AND for a zero-area box — two
+   * coordinates that are the same, which is what a rider standing at the
+   * customer's door looks like. Mapbox given a zero-area bounds zooms to its
+   * maximum and renders blank grey, and blank is the one thing a tracking map
+   * must never be. So that case falls through to the centre-and-span path with
+   * its floor span, which is a sensible close-up view of one place.
+   */
+  const box = fit ? boundsFor(fit) : null;
+  const cameraProps: any = box
+    ? {
+        bounds: {
+          ne: toMapbox(box.ne),
+          sw: toMapbox(box.sw),
+          paddingTop: FIT_PADDING.top,
+          paddingBottom: FIT_PADDING.bottom,
+          paddingLeft: FIT_PADDING.left,
+          paddingRight: FIT_PADDING.right
+        },
+        animationDuration: 350
+      }
+    : {
+        centerCoordinate: toMapbox(fit && fit.length === 1 ? fit[0] : centre),
+        zoomLevel: zoomForSpan(spanMetres),
+        animationDuration: 350
+      };
 
   return React.createElement(
     MapView,
@@ -209,11 +255,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
           }
         : undefined
     },
-    React.createElement(Camera, {
-      centerCoordinate: toMapbox(centre),
-      zoomLevel: zoomForSpan(spanMetres),
-      animationDuration: 350
-    }),
+    React.createElement(Camera, cameraProps),
     showUserLocation && UserLocation ? React.createElement(UserLocation, { key: 'me' }) : null,
     children
   );
