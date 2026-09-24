@@ -1414,6 +1414,17 @@ export interface PricingRates {
    * to sleep.
    */
   riderOfferWaveMinutes: number;
+  /**
+   * How long a rider carrying food may go without sending a position before
+   * operations are alerted.
+   *
+   * Ten minutes by default. Low enough that a rider who has come off their bike is
+   * found quickly, high enough that riding through an underpass does not ring an
+   * urgent alarm — and an urgent channel that cries wolf is one somebody mutes.
+   */
+  riderLocationSilentMinutes: number;
+  /** Minutes a rider may be carrying food before the delivery is flagged late. */
+  deliveryOverdueMinutes: number;
   /** Percentage of the ceiling at which the rider is warned to deposit. */
   codCashWarnPercent: number;
   /** Days after delivery before a restaurant's money becomes payable. */
@@ -1653,6 +1664,10 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   codCashCeiling: 3000,
   /** Minutes before a waiting trip is offered to the next group of riders. */
   riderOfferWaveMinutes: 3,
+  /** Minutes of silence from a rider carrying food before operations are alerted. */
+  riderLocationSilentMinutes: 10,
+  /** Minutes a rider may be carrying food before the delivery is flagged late. */
+  deliveryOverdueMinutes: 15,
   codCashWarnPercent: 80,
   partnerHoldDays: 1,
   riderHoldDays: 0,

@@ -329,6 +329,44 @@ class FcmNotificationDispatcher {
   }
 
   /**
+   * Told the customer their delivery is late, and told them honestly.
+   *
+   * -------------------------------------------------------------------------
+   * A FROZEN MAP IS THE WORST VERSION OF THIS
+   * -------------------------------------------------------------------------
+   * Until now a rider who stopped moving produced nothing at all: the customer
+   * watched a marker that had stopped, with no idea whether the app was broken,
+   * the rider was lost, or their food was coming. Silence makes them assume the
+   * worst AND phone support, which is the outcome this avoids.
+   *
+   * Two different truths, said differently. Late-with-a-moving-rider is traffic
+   * and reads as such. Lost contact says so — not to alarm anybody, but because
+   * "we are looking into it" is the only sentence that is both true and useful,
+   * and a customer who is told something is wrong before they work it out
+   * themselves is a customer who trusts the next thing the app says.
+   *
+   * No mention of what might have happened to the rider. That is speculation
+   * about a person, on a stranger's lock screen.
+   */
+  async notifyCustomerDeliveryDelayed(
+    userId: string,
+    orderId: string,
+    orderNumber: string,
+    lostContact: boolean
+  ) {
+    return this.sendPushNotification({
+      userId,
+      orderId,
+      orderNumber,
+      title: lostContact ? 'We are checking on your order' : 'Your order is running late',
+      body: lostContact
+        ? `We have lost contact with the rider carrying #${orderNumber} and are looking into it now. We will update you shortly.`
+        : `#${orderNumber} is taking longer than we estimated. Your rider is still on the way.`,
+      data: { type: 'DELIVERY_DELAYED', orderId, orderNumber }
+    });
+  }
+
+  /**
    * Cancelled while the kitchen may already be cooking it.
    *
    * Loud on purpose. Food already on the pass is the cost of finding this out

@@ -36,10 +36,13 @@ import { emitOpsAlert } from '../../sockets/socketServer.ts';
 import {
   notifyAdminsNoRiderFound,
   notifyAdminsRiderNoShow,
-  notifyAdminsOrderAutoCancelled
+  notifyAdminsOrderAutoCancelled,
+  notifyAdminsRiderWentSilent,
+  notifyAdminsDeliveryOverdue
 } from '../../notifications/adminNotifier.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
+import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
 import { isEnabled } from '../platform/featureFlags.ts';
 import type { Order } from '@quick-bites/shared-types';
@@ -71,6 +74,13 @@ export interface SweepResult {
    * riders — two different problems that look identical without this.
    */
   widened: Array<{ orderId: string; riders: number }>;
+  /**
+   * Orders whose CARRYING rider was flagged this sweep, and why.
+   *
+   * Nothing watched these before, so the count is also the answer to "is anybody
+   * being lost mid-delivery" — a question that previously had no source at all.
+   */
+  carryingFlagged: Array<{ orderId: string; tier: 'SILENT' | 'OVERDUE' }>;
   /** Order ids that should have been cancelled but could not be. */
   failed: Array<{ orderId: string; reason: string }>;
   /** Riders reminded that they are holding a trip they have not collected. */
@@ -99,6 +109,7 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
     cancelled: [],
     alerted: [],
     widened: [],
+    carryingFlagged: [],
     failed: [],
     noShowWarned: [],
     released: []
@@ -366,6 +377,151 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
         heldMinutes: Math.round(held)
       }));
     }
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  THE RIDER WHO HAS THE FOOD, WHICH NOTHING WATCHED                  *
+   * ------------------------------------------------------------------ */
+
+  /*
+   * This sweeper iterated exactly two lists: orders awaiting action, and trips
+   * accepted but not collected. AFTER PICKUP, NOBODY WAS LOOKING.
+   *
+   * So a rider who collected the food and then stopped — a crash, a dead phone,
+   * or walking off with a cash order — left the order out for delivery forever.
+   * No alert anywhere. The customer watched a map that had stopped moving, and on
+   * a cash order an unseen person held both the food and the money.
+   *
+   * It is the one case re-offering cannot recover, because the food has left the
+   * building.
+   *
+   * Two tiers, and the distinction is what keeps the urgent one worth reading:
+   * silence while carrying may be somebody hurt, and being late while still
+   * transmitting is traffic.
+   */
+  for (const order of await orderRepository.listCarrying()) {
+    const riderName = (order as Order & { riderName?: string }).riderName;
+
+    /*
+     * Silence measured from the last ping OR from pickup.
+     *
+     * `riderLocationUpdatedAt` alone would miss the worst case: a rider who has
+     * never transmitted at all since collecting. `minutesSince` returns 0 for a
+     * missing timestamp — the safe direction for staleness, and the wrong answer
+     * here — so pickup is the fallback baseline.
+     */
+    const lastSignal = order.riderLocationUpdatedAt || order.pickedUpAt;
+    const silentFor = minutesSince(lastSignal, now);
+    const isCash = order.paymentMethod === 'CASH_ON_DELIVERY';
+
+    /*
+     * LATENESS IS MEASURED FROM PICKUP, NOT FROM THE ETA.
+     *
+     * My first version compared `now` against `estimateArrival().arrivingAt`, and
+     * a check caught that it can never fire: that function recomputes the journey
+     * from the rider's CURRENT position on every call, so `arrivingAt` is always
+     * in the future and "minutes past the estimate" is always negative. The log
+     * said `lateByMinutes: -12` on an order ninety minutes old.
+     *
+     * There is no stored promised arrival anywhere on the order to compare
+     * against, so the only durable fact is how long the food has been out. That is
+     * also what an operator actually wants: "this has been carried for forty
+     * minutes" is checkable and true, where "past its estimate" would have been a
+     * comparison against a number that moves every time it is asked.
+     */
+    const carryingFor = minutesSince(order.pickedUpAt, now);
+
+    /*
+     * WHICH TIER, and only when it CHANGES.
+     *
+     * Stored as the tier rather than a boolean, so an order that was merely late
+     * and has now gone silent raises the urgent one — an escalation is news. The
+     * same tier twice is not, and the sweeper runs every thirty seconds.
+     */
+    const tier: 'SILENT' | 'OVERDUE' | null =
+      silentFor >= rates.riderLocationSilentMinutes
+        ? 'SILENT'
+        : carryingFor >= rates.deliveryOverdueMinutes
+        ? 'OVERDUE'
+        : null;
+
+    if (!tier) continue;
+    if ((order as any).carryingAlertTier === tier) continue;
+
+    (order as any).carryingAlertTier = tier;
+    (order as any).carryingAlertAt = now.toISOString();
+    memoryStore.orders.set(order.id, order);
+    triggerAutoSave();
+
+    result.carryingFlagged.push({ orderId: order.id, tier });
+
+    if (tier === 'SILENT') {
+      emitOpsAlert({
+        kind: 'RIDER_WENT_SILENT',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurantId: order.restaurantId,
+        detail: `No position for ${Math.round(silentFor)} minutes while carrying${isCash ? ', and it is a cash order' : ''}.`,
+        raisedAt: now.toISOString()
+      });
+      void notifyAdminsRiderWentSilent({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        riderName,
+        silentMinutes: Math.round(silentFor),
+        isCash
+      });
+    } else {
+      emitOpsAlert({
+        kind: 'DELIVERY_OVERDUE',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurantId: order.restaurantId,
+        detail: `Carried for ${Math.round(carryingFor)} minutes and still not delivered; rider still transmitting.`,
+        raisedAt: now.toISOString()
+      });
+      void notifyAdminsDeliveryOverdue({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        carryingMinutes: Math.round(carryingFor)
+      });
+    }
+
+    /*
+     * And tell the CUSTOMER, once.
+     *
+     * A frozen map with no explanation is the worst version of this: they cannot
+     * tell whether the app is broken, the rider is lost, or the food is coming, so
+     * they assume the worst and phone support. Said once per order, on whichever
+     * tier fired first, because two messages about one late dinner is worse than
+     * one.
+     */
+    if (order.customerId && !(order as any).customerToldLateAt) {
+      (order as any).customerToldLateAt = now.toISOString();
+      memoryStore.orders.set(order.id, order);
+      try {
+        await fcmDispatcher.notifyCustomerDeliveryDelayed(
+          order.customerId,
+          order.id,
+          order.orderNumber,
+          tier === 'SILENT'
+        );
+      } catch {
+        /* Telling somebody must never be the reason a sweep fails. */
+      }
+    }
+
+    console.log(JSON.stringify({
+      level: tier === 'SILENT' ? 'ERROR' : 'WARN',
+      timestamp: now.toISOString(),
+      event: tier === 'SILENT' ? 'RIDER_WENT_SILENT' : 'DELIVERY_OVERDUE',
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      riderId: order.riderId,
+      silentMinutes: Math.round(silentFor),
+      carryingForMinutes: Math.round(carryingFor),
+      isCash
+    }));
   }
 
   return result;

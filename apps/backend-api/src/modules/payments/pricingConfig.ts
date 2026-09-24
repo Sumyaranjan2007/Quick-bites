@@ -114,6 +114,16 @@ export const RATE_BOUNDS: RateBound[] = [
    * displayed and read by nothing.
    */
   { key: 'riderOfferWaveMinutes', label: 'Widen rider search after', help: 'Minutes to wait before offering a waiting trip to the next group of riders.', unit: 'MINUTES', min: 1, max: 60, affectsCustomerBill: false },
+  /*
+   * The two numbers that decide when a rider carrying food is in trouble.
+   *
+   * Both are judgements about a real city rather than constants. A dense area with
+   * good signal can use ten minutes of silence; somewhere with dead spots cannot,
+   * and setting it too low means an alert every time somebody rides through an
+   * underpass — which is how the urgent channel gets muted.
+   */
+  { key: 'riderLocationSilentMinutes', label: 'Rider silent for', help: 'Minutes without a location from a rider carrying food before operations are alerted.', unit: 'MINUTES', min: 2, max: 120, affectsCustomerBill: false },
+  { key: 'deliveryOverdueMinutes', label: 'Delivery overdue after', help: 'Minutes a rider may be carrying food before the delivery is flagged as late.', unit: 'MINUTES', min: 2, max: 120, affectsCustomerBill: false },
   { key: 'codCashWarnPercent', label: 'Cash warning at', help: 'Percentage of the ceiling at which the rider is told to deposit.', unit: 'PERCENT', min: 1, max: 100, affectsCustomerBill: false },
   { key: 'partnerHoldDays', label: 'Partner hold period', help: 'Days after delivery before a restaurant’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },
   { key: 'riderHoldDays', label: 'Rider hold period', help: 'Days after delivery before a rider’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },

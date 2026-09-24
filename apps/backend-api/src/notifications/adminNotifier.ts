@@ -476,6 +476,64 @@ export function notifyAdminsNoRiderFound(input: {
   });
 }
 
+/**
+ * A rider is carrying food and has stopped sending their position.
+ *
+ * URGENT, and this is the §8C SOS argument arriving without anybody pressing SOS.
+ * A rider who was transmitting every few seconds and then stopped, mid-delivery,
+ * may have come off their bike. That possibility is worth waking somebody for
+ * even though most of the time it will be a flat battery.
+ *
+ * It is also the only case re-offering cannot recover — the food has left the
+ * building — and on a cash order an unseen person is holding both the food and
+ * the money.
+ *
+ * NOTHING WATCHED THIS. The sweeper iterated orders awaiting action and trips
+ * accepted-but-not-collected. After pickup, nobody was looking at all.
+ */
+export function notifyAdminsRiderWentSilent(input: {
+  orderId: string;
+  orderNumber: string;
+  riderName?: string;
+  silentMinutes: number;
+  isCash: boolean;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'orders.deliveries.manage',
+    title: 'Lost contact with a rider mid-delivery',
+    body:
+      `${input.riderName || 'A rider'} has sent no position for ${input.silentMinutes} minutes while carrying #${input.orderNumber}. ` +
+      (input.isCash ? 'This is a cash order. Call them.' : 'Call them.'),
+    channel: ADMIN_CHANNEL.URGENT,
+    open: 'deliveries',
+    subject: input.orderId,
+    type: 'ADMIN_RIDER_WENT_SILENT'
+  });
+}
+
+/** Past the estimate, but the rider is still moving. Traffic, most likely. */
+export function notifyAdminsDeliveryOverdue(input: {
+  orderId: string;
+  orderNumber: string;
+  carryingMinutes: number;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'orders.deliveries.manage',
+    /*
+     * NOT urgent, and the difference from the one above is the whole point of
+     * having two. This rider is still transmitting — they are simply late, which
+     * on a wet Friday evening is most of them. Waking somebody for traffic is how
+     * the channel that carries "we have lost a rider" stops being read.
+     */
+    title: 'A delivery is running late',
+    body: `#${input.orderNumber} has been out for ${input.carryingMinutes} minutes and is not delivered. The rider is still moving.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'deliveries',
+    subject: input.orderId,
+    type: 'ADMIN_DELIVERY_OVERDUE'
+  });
+}
+
 /** A rider accepted a trip and never turned up; it has gone back on offer. */
 export function notifyAdminsRiderNoShow(input: {
   orderId: string;

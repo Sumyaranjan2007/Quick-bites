@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
 import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
-import { isAwaitingPickup, offerableNow } from '../../modules/orders/riderTrip.ts';
+import { isAwaitingPickup, isCarrying, offerableNow } from '../../modules/orders/riderTrip.ts';
 
 /*
  * WHAT DELIVERY IS ALLOWED TO CONCLUDE ABOUT THE MONEY.
@@ -597,6 +597,28 @@ export const orderRepository = {
   /** Every trip a rider has accepted and not yet collected. */
   async listAssignedAwaitingPickup(): Promise<Order[]> {
     return Array.from(memoryStore.orders.values()).filter((o: Order) => isAwaitingPickup(o));
+  },
+
+  /**
+   * Orders a rider has COLLECTED and not yet handed over.
+   *
+   * Nothing watched these. The sweeper iterated exactly two lists — orders
+   * awaiting action, and trips accepted but not collected — so a rider who picked
+   * the food up and then stopped left the order out for delivery forever. No
+   * alert anywhere, the customer watching a map that had stopped moving, and on a
+   * cash order an unseen person holding both the food and the money.
+   *
+   * It is the one case re-offering cannot recover, because the food has left the
+   * building.
+   *
+   * `isCarrying` rather than a status read: the rider's track and the food's
+   * status move independently, and this is a question about the RIDER. It also
+   * means a DELIVERED order is excluded by construction rather than by a filter
+   * somebody has to remember — which matters, because every order ever delivered
+   * carries a `riderLocationUpdatedAt` that a naive staleness check would fire on.
+   */
+  async listCarrying(): Promise<Order[]> {
+    return Array.from(memoryStore.orders.values()).filter((o: Order) => isCarrying(o));
   },
 
   /** So one warning is sent rather than one every thirty seconds. */
