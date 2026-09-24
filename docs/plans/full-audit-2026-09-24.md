@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 → W4 → W5 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 → W4 (+W4.1) → W5 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -451,6 +451,45 @@ recovered by re-offering, because the food has left the building.
 - **Check that fails:** a payout moving to PAID produces one push to its payee; a
   payout that FAILS produces none to the payee (and §8C's admin alert fires).
 
+### W4 addendum — V5 and V6 are both CONFIRMED (24 Sep, Session B)
+
+**V6 — there is no quiet channel.** `restaurant-mobile` and `delivery-mobile` each
+create exactly one channel: the MAX-importance order alarm playing
+`new_order.wav`. A "you were paid" on it would sound like a new order.
+
+**But it does not need a build to arrive.** `customer-mobile` creates **no**
+channels at all, so every customer push already lands in Android's automatic
+fallback channel. A "you were paid" sent with **no channel id** takes the same
+route on the partner and rider apps: delivered, as an ordinary notification,
+without the alarm. Ship that now; a named "Payments" channel comes with the next
+build of those two apps.
+
+> Stated as reasoning from an observable, not as tested: it holds exactly as well
+> as customer pushes hold today, and §8.3's real-phone test is what proves both.
+
+**V5 — the customer misses two moments.** Mapped from `orderService.ts` status
+dispatch:
+
+| Status | Customer push |
+| --- | --- |
+| placed | yes |
+| **ACCEPTED** | **no** |
+| PREPARING | yes |
+| **rider assigned** | **no** |
+| READY_FOR_PICKUP | yes (carries the doorstep code) |
+| OUT_FOR_DELIVERY | yes |
+| DELIVERED | yes |
+
+ACCEPTED matters more since §8B: it is the moment the new map appears, and the
+customer is not told it is there. A rider being assigned is the "Rahul is on his
+way to collect your order" moment the owner means by *"like Zomato"*.
+
+**W4.1 —** push on the kitchen taking the order on, **once** — whichever of
+ACCEPTED or PREPARING comes first — because a kitchen that taps both inside ten
+seconds must not send two messages. And push when a rider is assigned, with their
+first name. **Check that fails:** ACCEPTED then PREPARING within a minute produces
+one push, not two.
+
 ### W5 — the rest of "everything" to admin (F6) · **needs the admin APK**
 
 - The digest: orders placed, delivered, cancelled, new sign-ups — twice a day.
@@ -465,10 +504,59 @@ recovered by re-offering, because the food has left the building.
 - Decide `canTakeCodOrder`, `recordCashRefundAtDoor`, `refundAlreadyPaid`
   individually — keep a wrapper only if it names something the call site does
   not.
-- Then V4: the same scan across the four apps.
+- **V4 is DONE (Session B, 24 Sep) and small.** Genuinely dead in the apps:
+  `nativeMapUnavailableReason` in all **three** `nativeMap.ts` copies (written for
+  a diagnostics screen never built) and `lastKnownShiftLocation` in the rider app.
+  **Not** dead: `allPointsVisible` and `zoomForSpanIgnoringViewport` — the backend
+  suite `orderMap.test.ts` imports them on purpose. **Leave** `MapRoute` and
+  `Maps` in the partner copy and `useBlockHardwareBack` in admin's: each is unused
+  in one app's copy of a file kept identical across apps, and trimming one copy
+  breaks that. Remove only what is dead in every copy.
 - **Removal is the whole of "optimise".** No rewrites of working code in the
   name of tidiness. The owner said do not break anything that works, and the
   cheapest way to honour that is to not touch it.
+
+### W7.1 — V3 CONFIRMED: fourteen admin data sources hide their failures
+
+Found 24 Sep by Session B. `useResource` returns an `error` and displays nothing
+itself — no toast, no global handler. Eleven admin screens never read it for one
+or more of their sources:
+
+| Screen | Silent sources |
+| --- | --- |
+| `CatalogScreen` | `resource` |
+| `DocumentsScreen` | `list` |
+| `FinanceScreen` | `detail` |
+| `GrievanceCard` | `policy` |
+| `MenuPricingTab` | `menu` |
+| `PayeeAccountsScreen` | `coverage` |
+| `PayoutsScreen` | `history`, `requests` |
+| `ProfileApprovalsScreen` | `list` |
+| `RatesScreen` | `rates`, `membership`, `bonuses` |
+| `RefundsScreen` | `resource` |
+| `SupportScreen` | `resource` |
+
+Concretely: if `/admin/rates/restaurants` fails, `rates.data` is null, `rows`
+becomes `[]`, and the Inflation screen says **"No restaurants yet"**. A server
+error presented as an empty list — **exactly the Bank defect the owner reported**,
+in eleven more places. The owner said *"no error state"*; this is the largest
+single source of them.
+
+`useResource`'s own header says it exists so that *"one screen [does not end] up
+silently swallowing its error"*. It cannot enforce that from inside itself.
+
+**Fix it as a mechanism, per §11.2b:**
+- A shared `<ResourceState>` (or equivalent) that renders loading, error with a
+  retry, genuinely-empty, and content — so the three states cannot be confused.
+- **A check that scans the admin screens, comments stripped, and fails when any
+  `useResource` result's `.error` is never referenced.** Then the next screen
+  written cannot reintroduce this. A rule in a comment would not survive the first
+  new screen.
+- **Check that fails:** a source whose request fails renders its error and a
+  retry, never its empty state.
+
+Needs the admin APK to reach the owner. The other three apps use a different
+fetch pattern and passed the coarser check; W7 should confirm them properly.
 
 ### W7 — the verification sweep (§3)
 
