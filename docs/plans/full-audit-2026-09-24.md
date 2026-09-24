@@ -204,6 +204,9 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
+**Order: W1 ✅ → W1.1 → W1.2 → W2 → W3 → W4 → W5 → W7 → W8 → W6.** W1.1 and W1.2
+are not new scope: they are W1 finishing its job, found by reviewing it.
+
 ### W1 — rider trip-offer push (F1) · **no APK needed**
 
 - `notifyRiderTripAvailable` on `fcmDispatcher`, channel `new-orders` (read from
@@ -220,7 +223,66 @@ Order is by harm, then by whether it reaches the owner without a build.
   `new-orders`; a rider already on a trip is **not**; a rider at the cash ceiling
   is **not** pushed a cash trip.
 
+> **W1 DONE** — `74aef19`, `cc05ed7`, `e30632f`. Reviewed: `cashCeilingBlocks`
+> is the one source for the list (`riderRouter.ts:781`), the gate (`:862`) and
+> the push (`tripOffers.ts:72`); and eligibility is filtered **before** the
+> six-rider slice (`tripOffers.ts:128`), so six riders who can actually accept
+> are woken rather than six who might not. **V1 was a real bug** and is fixed by
+> the same function.
+
+### W1.1 — the other five alarms are never stopped · **no APK for the server half**
+
+Found reviewing W1. When the first of the six riders accepts, **nothing tells the
+other five.** No "trip taken" message exists anywhere in the backend or the rider
+app. Their notification stays in the tray; a rider who taps it later opens a trip
+that is gone and is refused — the same *"told off for accepting an offer we just
+made"* that V1 fixed on the list, arriving through the push instead.
+
+- On assignment, send the other woken riders a **data-only** "trip taken"
+  message keyed to the same notification id, so the notification is withdrawn.
+- In the rider app, opening a taken trip says *"Another rider took this one"* —
+  not a 409. That half needs a rider APK; the server half does not, and it is
+  still worth shipping alone.
+- **Check that fails:** six woken, one accepts → exactly five "trip taken"
+  messages, to the five who did not, carrying the id of the original.
+
+### W1.2 — one wave, and then nobody · **no APK needed**
+
+Found reviewing W1. `offerTripToNearbyRiders` fires once, at the two call sites.
+Nothing calls it again — `orderSweeper.ts` does not import `tripOffers` at all. If
+the six nearest riders are asleep or ignoring it, **rider seven is never woken**,
+and the order waits until the sweeper raises `NO_RIDER_FOUND`.
+
+This is the "progressive widening" that `road-to-launch.md` §2.2 listed as not
+built. The sweeper already runs on a timer and already knows which orders are
+waiting for a rider.
+
+- After a configurable wait with no acceptance, wake the **next** six by
+  distance. Never re-wake a rider already woken for that order.
+- Make the wait an admin setting beside the other dispatch rates, not a
+  constant.
+- `NO_RIDER_FOUND` (W2) should fire only once the waves are exhausted, not in
+  parallel with them — otherwise the owner is alerted about a trip the platform
+  is still actively offering.
+- **Check that fails:** nobody accepts wave one → wave two wakes six **different**
+  riders, further out; a rider from wave one is never pushed twice.
+
 ### W2 — admin problem alerts (F2) · **needs the admin APK**
+
+> **Design question from Session A, answered.** `paymentsHealth` raises a batch
+> of alerts per sweep, so one unhealthy morning would become a burst of pushes —
+> the thing that gets a channel muted.
+>
+> **Collapse them.** One push per sweep for payments health, titled with the
+> most severe alert, the count in the body, the detail on the screen it opens.
+> And **fire only when the set changes** — a new alert appearing — never because
+> the same ones are still there on the next tick. An unresolved problem that
+> re-notifies every five minutes trains the reader to swipe it.
+>
+> **Do NOT collapse `NO_RIDER_FOUND` into it.** Different permission
+> (`orders.deliveries.manage`, not finance), different urgency (food is going
+> cold), and it is per order — two stuck orders are two problems with two
+> different fixes. Dedup per order, as above.
 
 - Push, from the same call sites that call `emitOpsAlert`: `NO_RIDER_FOUND`,
   not-accepted-and-cancelled, and each `paymentsHealth` alert.
