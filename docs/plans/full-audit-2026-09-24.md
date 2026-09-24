@@ -575,6 +575,26 @@ is dropped was wrong; the fallback is documented by Firebase.
   latest instruction literally; SOS and `NO_RIDER_FOUND` cannot be switched off.
 - **Check that fails:** turning a category off stops its pushes and nothing else;
   SOS still arrives with every category off.
+- **Added 24 Sep (Session B). I traced every admin alert to every place its record is created:**
+  - **KYC alert unreachable.** `notifyAdminsKycSubmitted` fires only from
+    `POST /kyc/submit` (`kycRouter.ts:138`), which **no app calls**. Restaurants
+    upload via `POST /restaurants/:id/documents` (`restaurantRouter.ts` ~:909) and
+    riders via `POST /riders/documents` (`riderRouter.ts` ~:421). Neither alerts.
+    Wire both. `/kyc/submit` then goes to W6 as a dead route, if nothing else uses it.
+  - **A failed automatic refund alerts nobody.** On cancellation, when the gateway
+    refund fails the case is left PROCESSING, "needs manual settlement"
+    (`orderService` cancel path), and no admin is told. The customer's money is
+    stuck and silent. Problem tier: fire `notifyAdminsRefundRaised` or a dedicated
+    `REFUND_STUCK` alert from the not-settled branch.
+  - **New sign-ups alert nobody.** A partner registers as PENDING_APPROVAL
+    (`authRouter.ts` ~:605) and a rider as kycStatus PENDING_APPROVAL (~:707).
+    Both wait for the owner, and neither alerts. Add them, once per entity.
+  - Checked and fine, one creation site each and alerted: support tickets,
+    customer refund requests, menu requests, profile edits, bank accounts
+    (`addAccount` has one caller), cash declared (the second `declareDeposit` is
+    the admin's own desk entry).
+  - **Check that fails:** drive the route **the app actually calls**, not the
+    module or a sibling route. That is the exact false pass that hid the KYC alert.
 - **Added after W3:** a problem alert when `GATEWAY_RECEIVABLE` has held money
   longer than a setting (default 3 days). Razorpay settles in about 2 days, so
   older money means a settlement was never recorded or never arrived. Fires on
