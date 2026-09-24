@@ -212,7 +212,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 ✅ → W3 ✅ (server `2702c81`, screen `d9daca3` — screen needs admin APK) → W4 (+W4.1) ✅ → W5 ✅ → M1 → M2 → P1 → W7.1 → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -600,6 +600,28 @@ is dropped was wrong; the fallback is documented by Firebase.
   older money means a settlement was never recorded or never arrived. Fires on
   the change, like payments-health. The check: backdate a capture by 4 days and
   it fires; record the settlement and it clears.
+
+### W5 — accepted `a9353cc`; the review found two money bugs (M1, M2), which go before W7.1
+
+- **M1 — CRITICAL — cancelling a paid order from the admin app refunds nothing.**
+  `admin/orderRoutes.ts` ~:251 is a third cancellation implementation. It credits
+  the removed customer wallet, marks REFUNDED, and posts no ledger entry, no
+  gateway refund, no refund case and no push. The admin app calls it
+  (`OrderDetailSheet.tsx:71`). Fix: route to `orderService.cancelOrder`.
+- **M2 — CRITICAL — rider incentives are shown PAID and never paid.**
+  `riderMetrics.ts` ~:380 credits the wallet, which no payout reads. Fix: post to
+  `RIDER_PAYABLE` against a new `EXPENSE_RIDER_INCENTIVE`, and post incentives
+  already marked paid that have no ledger entry.
+- **P1 — persistence.** The digest's sent-slot marker, the notification switches and
+  `savePlans` write the store with no save. The switches survive only because an
+  audit write nearby triggers one. Fix at the data function, plus a source check
+  that every store write has a save, with an explicit allowlist.
+- W6 additions: `/kyc/submit` (no caller), and the staff wallet-credit routes
+  (`walletRouter` `/:userId/credit`, `peopleRoutes` ~:260).
+- **Pattern, third time today:** a second or third copy of a money path that the
+  fix to the first never reached: cancellation's refund (W3 R5), the health
+  check's PAID (G1), the admin cancel (M1). Before closing any money fix, grep
+  for every other place that sets the same state.
 
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
