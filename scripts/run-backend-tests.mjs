@@ -56,6 +56,7 @@ const SUITES = [
   'payoutPromise',
   'adminPush',
   'orderMap',
+  'riderTripPush',
   'platformReset',
   'accountBlocking',
   'profileEdits',
