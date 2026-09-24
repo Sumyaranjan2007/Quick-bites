@@ -1403,7 +1403,15 @@ if they want it.
 | Tier | Behaviour | Events |
 | --- | --- | --- |
 | **Urgent** | Own channel, MAX importance, sound, wakes the phone | A rider's SOS. A payout that failed at the gateway. |
-| **Needs you** | Normal channel, no sound at night | Bank account submitted · KYC document · refund raised · support ticket · payout request · cash deposit declared · menu change request · a profile edit |
+| **Needs you** | Normal channel, no sound at night | Bank account submitted · KYC document · refund raised · support ticket · ~~payout request~~ · cash deposit declared · menu change request · a profile edit |
+
+> **`payout request` is a DEAD EVENT and no notifier was built for it.** Step 9
+> removed the only way to raise one — no app can reach
+> `POST /earnings/payout-requests` any more (verified: the string appears in no
+> app source). The server route stays so an older installed APK keeps working,
+> and the `openPayoutRequests` badge still counts whatever was raised before
+> today. Building a notifier for an event that cannot occur would leave
+> somebody later reading its silence as a bug. Eighth plan miss — §11.2c.
 | **Digest** | One message, twice a day, counts only | Orders placed, orders delivered, new sign-ups — the volume ones |
 
 **Default the digest categories OFF for orders.** The owner can switch them on in
@@ -1619,6 +1627,22 @@ the exit code would have been trusted over correct text. The rule covers both
 directions: the verdict must travel in the channel the decider actually reads,
 and grepping output will not tell you when it did not.
 
+**And the mirror: a check must not say it failed when nothing is wrong.**
+Found 24 Sep when a gate run failed and the suite passed alone straight
+afterwards. `onboarding.test.ts` picked a port from 4900–5199, a range that
+contains **5060 and 5061 — SIP**, on the WHATWG blocked-ports list. undici
+refuses them before opening a socket, so the failure reads
+`TypeError: fetch failed` caused by `bad port`.
+
+Roughly one run in 150, on a different suite each time, with a message pointing
+at the network. **A flake is worse than a failure and worse than a pass**: it
+teaches people to re-run the gate until it is green, which is the habit that
+lets a real intermittent defect through.
+
+The fix is to exclude the two ports rather than move the range, and the reason
+is the better half: the next range somebody picks could contain 5222, and
+nothing would say so.
+
 **The sweep was done on 24 Sep, across all 40 suites. It came back clean, and
 the clean result is worth recording so nobody repeats it:**
 
@@ -1804,6 +1828,26 @@ rule is actually about: **any secondhand account of the code is not the code.**
 A comment, a plan section, a grep result, a test name, another session's
 summary. Open the file.
 
+### 11.2d A notifier belongs at the route, never in the data layer
+
+Found building §8C. The obvious home for the KYC notifier was
+`kycRepository.submitDocument` — one chokepoint, three callers, no risk of a
+fourth being forgotten. It is the same reasoning that made
+`menuRepository.updateItem` the right place for §6.1.6e, and here it is wrong.
+
+`db/seed.ts` calls `submitDocument` three times. So seeding a demo database
+would push *"a document needs checking"* to the owner's phone. `declareDeposit`
+is worse — nine calls in `cash.test.ts`.
+
+**A data layer cannot tell a real event from a fixture.** A repository is called
+by seeds, migrations, backfills and test setup, and every one of those is
+something happening to the data rather than something happening in the world. A
+route is only ever reached by somebody doing the thing.
+
+So: **state changes choke at the data layer; notifications fire at the route.**
+Both rules are right, and which applies depends on whether the thing being
+guarded is a fact about the data or a fact about the world.
+
 ### 11.3 The three numbers that must never converge
 
 Per-item pricing introduces a second price for the same dish. Three totals now
@@ -1882,6 +1926,7 @@ end.
 | ~~Step 9~~ | **Done.** Controls removed at their real location, the payout promise derived in one place, and two money defects fixed in `/riders/settlements` on the way. |
 | **Orphaned payout requests** | Any request raised before step 9 sits in the admin queue with **no way for the payee to withdraw it** — the app can no longer reach the route. An administrator can still decline or settle it, so nothing is stuck permanently. Judged not worth a migration; recorded here so it is a decision rather than an oversight. If the owner sees a stale request they cannot explain, this is why. |
 | §8B — the customer live map | Specced in full, not started. Needs an APK to reach anyone. |
+| **§8C — the DIGEST tier** | **Not built, and the owner asked for "everything".** Tiers 1 and 2 are built and proved — every event that needs a person. The twice-daily digest of order and sign-up counts, and the per-category switch, are not: they need a schedule, a per-admin preference store and a settings screen, which is larger than the rest of §8C together. Deferred deliberately. **The owner must be told this rather than left to infer it from the word "everything".** |
 | **Task 3.1 — Pay and Settlements disagree** | Known, deliberately deferred, assertion written out ready to paste. Not a regression; a pre-existing divergence with no shared source to unify. |
 | Step 10 — build and deliver | **Held on the owner's word.** |
 
