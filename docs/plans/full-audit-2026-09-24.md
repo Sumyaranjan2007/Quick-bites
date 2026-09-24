@@ -246,7 +246,42 @@ made"* that V1 fixed on the list, arriving through the push instead.
 - **Check that fails:** six woken, one accepts → exactly five "trip taken"
   messages, to the five who did not, carrying the id of the original.
 
+> **W1.1 DONE, `974251a` — and my "no APK" claim was wrong.** Tenth plan miss.
+> There is no "delete that notification" message; clearing one means telling the
+> app, and the shipped rider APK has no handler for a data-only withdrawal. It
+> arrives and is ignored. **Clearing waits on a rider build.** It shipped anyway,
+> because it is inert until then and needs no server change later.
+>
+> A visible "that trip is gone" message is not an alternative: a channel's sound
+> is fixed when the app creates it, so it would play the looping alarm again —
+> worse than the stale entry.
+>
+> **What works today** is the Android tag `trip:${orderId}` (`fcmDispatcher.ts:214`):
+> later waves of one trip **replace** the earlier entry instead of stacking. A
+> trip nobody takes for twenty minutes would otherwise leave four identical
+> alarms, which is how a rider learns to clear the channel. That is the larger
+> half of the problem, and it ships on the APK riders already have.
+
 ### W1.2 — one wave, and then nobody · **no APK needed**
+
+> **W1.2 DONE, `ea02296`, `996df16`.** Verified: the sweeper imports
+> `offerTripToNearbyRiders` (`orderSweeper.ts:36`), widens first (`:186`), and a
+> sweep that woke somebody does not also alert (`:198`). The wait is
+> `riderOfferWaveMinutes`, default 3, editable 1–60, and it is in `RATE_BOUNDS`
+> so it is actually read.
+>
+> **The first mutation found something worse than the bug.** Remove the
+> never-re-wake rule and the order does not merely repeat — it widens forever to
+> the same six, and **`NO_RIDER_FOUND` never fires at all.** The rule is
+> load-bearing for the alert existing.
+>
+> It reuses `offeredToRiderIds`, the field the offer list already writes, rather
+> than a second mark for one fact. Consequence, accepted: a rider shown the trip
+> on their open screen is not later woken about it. They have seen it.
+>
+> **For the owner:** `NO_RIDER_FOUND` now arrives **later** than before, by
+> design — only after every wave has been tried. A visible change in when an
+> alert appears.
 
 Found reviewing W1. `offerTripToNearbyRiders` fires once, at the two call sites.
 Nothing calls it again — `orderSweeper.ts` does not import `tripOffers` at all. If
