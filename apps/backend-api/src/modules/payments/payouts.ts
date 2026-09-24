@@ -193,6 +193,35 @@ export function duesFor(
 
   for (const entry of entries) {
     if (covered.has(entry.id)) continue;
+
+    /*
+     * A PAYOUT'S OWN DEBIT IS NOT A SECOND REDUCTION.
+     *
+     * This is where the platform quietly stopped paying people.
+     *
+     * Paying somebody writes TWO things: the payout records which ledger entries it
+     * covered, and the ledger gets a DEBIT clearing the payable. The loop above
+     * already skips the covered credits — so counting the debit as well subtracted
+     * the same money twice, and the debit is never in anybody's `coversLedgerIds`,
+     * so it stayed uncounted-against for ever.
+     *
+     * The effect compounds. After a payee's first payout, what they are owed reads
+     * as their new earnings MINUS everything they have ever been paid. A partner paid
+     * Rs 500 in week one and earning Rs 300 in week two is owed "nothing"; the figure
+     * only goes positive again once a single week's earnings exceed their lifetime
+     * payments, which for a steady partner is never.
+     *
+     * It was invisible because every check on this platform — including the ones I
+     * wrote — paid each payee exactly ONCE. The first payout is always correct. It
+     * was found by a lifecycle check awarding a rider a bonus AFTER paying them, and
+     * getting Rs 60 where Rs 120 was owed.
+     *
+     * Identified by `payoutId`, which only a payout's own postings carry. A refund
+     * clawback is also a debit here and MUST still count — it carries a refund case,
+     * not a payout.
+     */
+    if (entry.payoutId) continue;
+
     // A credit increases what they are owed; a debit reduces it — an
     // adjustment for a refund, or a correction.
     const signed = entry.direction === 'CREDIT' ? entry.amountPaise : -entry.amountPaise;
