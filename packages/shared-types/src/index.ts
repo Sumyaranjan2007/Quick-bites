@@ -659,6 +659,18 @@ export interface Order {
    */
   riderSearchAlertedAt?: string;
   /**
+   * When the customer was told the kitchen had taken this order on.
+   *
+   * ONE message for whichever of ACCEPTED and PREPARING arrives first. A kitchen
+   * that accepts and then taps "start cooking" ten seconds later has done one
+   * thing as far as the customer is concerned, and two notifications about it
+   * reads as a glitch rather than as attentiveness.
+   *
+   * Stored on the order rather than inferred from the status, because by the time
+   * PREPARING arrives the status no longer remembers that ACCEPTED happened.
+   */
+  customerToldKitchenHasItAt?: string;
+  /**
    * Set when the handover was confirmed from somewhere that is not the delivery
    * address. Not an accusation and not a block — the food may genuinely have
    * been handed over at the gate of a large complex — but the distance is

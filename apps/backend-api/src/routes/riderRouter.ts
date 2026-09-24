@@ -40,6 +40,7 @@ import { requireFeature } from '../middlewares/featureGate.ts';
 import { visibleContact } from '../modules/orders/contactVisibility.ts';
 import { hasActiveTrip, cashCeilingBlocks } from '../modules/orders/riderTrip.ts';
 import { offerTripToNearbyRiders, withdrawTripOffers } from '../modules/orders/tripOffers.ts';
+import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
 
 export const riderRouter = Router();
 
@@ -915,6 +916,34 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
       updatedAt: new Date().toISOString(),
       restaurantId: order.restaurantId
     });
+
+    /*
+     * AND TELL THE CUSTOMER SOMEBODY IS COMING.
+     *
+     * The socket above reaches a tracker that is open. This is the moment the
+     * owner means by "like Zomato" — a named person is now on their way — and it
+     * reached nobody whose app was in their pocket.
+     *
+     * On ASSIGNMENT, not on the offer. Several riders are woken for one trip and
+     * only one of them takes it; announcing an offer would tell the customer
+     * somebody was coming who had not agreed to.
+     *
+     * FIRST NAME ONLY. The customer needs to know who is arriving, not a
+     * stranger's full legal name — and the rider never agreed to have theirs
+     * pushed to every customer they deliver to.
+     *
+     * Not awaited: a rider must not be left unable to accept a trip because a
+     * message to somebody else was slow.
+     */
+    if (order.customerId) {
+      const firstName = String(order.riderName || 'Your delivery partner').trim().split(/\s+/)[0];
+      void fcmDispatcher.notifyRiderAssigned(
+        order.customerId,
+        order.id,
+        order.orderNumber,
+        firstName
+      );
+    }
 
     res.json({
       success: true,

@@ -37,6 +37,7 @@ import { AppError } from '../../utils/AppError.ts';
 import { ledger, accountFor } from './ledger.ts';
 import { earningsPosted } from './earnings.ts';
 import { captureBooked } from './capture.ts';
+import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { toPaise, toRupees, formatPaise } from './money.ts';
 import { razorpayAdapter } from './razorpayAdapter.ts';
 import { railFor } from './rails.ts';
@@ -326,6 +327,31 @@ export async function sendRefund(input: {
         refundCaseId: input.caseId
       });
     }
+  }
+
+  /*
+   * AND TELL THE CUSTOMER, BUT ONLY IF IT ACTUALLY WENT.
+   *
+   * The admin is notified when a refund is RAISED; the customer heard nothing
+   * when it was PAID. Of those two people, the one waiting for money is the one
+   * who was not told.
+   *
+   * Inside the `settled` test on purpose. A refund left PROCESSING must never be
+   * announced as sent: a customer told their money is on its way stops chasing
+   * it, and a refund nobody is chasing is one that quietly never happens. The
+   * case stays in the queue instead, where a person will see it.
+   *
+   * Not awaited, and failure is swallowed by the dispatcher. A refund that moved
+   * must not be reported as unsettled because a push could not be delivered —
+   * that would reopen a case over money that has already gone back.
+   */
+  if (settled && order.customerId) {
+    void fcmDispatcher.notifyCustomerRefundSent(order.customerId, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amountLabel: formatPaise(amountPaise),
+      timing: timingFor(route)
+    });
   }
 
   return {

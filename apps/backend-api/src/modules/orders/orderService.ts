@@ -1139,8 +1139,33 @@ export const orderService = {
     }
 
     // 2. Dispatch FCM push notifications per status
-    if (nextStatus === 'PREPARING') {
-      await fcmDispatcher.notifyOrderPreparing(updated.customerId, updated.id, updated.orderNumber, prepMinutes || 20);
+    if (nextStatus === 'ACCEPTED' || nextStatus === 'PREPARING') {
+      /*
+       * THE KITCHEN HAS IT — ONCE, WHICHEVER MOMENT COMES FIRST.
+       *
+       * ACCEPTED had no customer message at all, and that gap grew teeth when the
+       * live map started appearing at exactly that moment: the thing a customer
+       * most wants to look at opened, and nobody told them it was there.
+       *
+       * The obvious fix — add a branch for ACCEPTED beside the one for PREPARING
+       * — sends TWO messages, because a kitchen normally taps accept and then
+       * start-cooking within seconds of each other. So the two statuses share one
+       * message and the order remembers it was sent.
+       *
+       * Keyed on the ORDER, not the status. Keying on the status would let each of
+       * the two fire once and produce exactly the pair of messages this exists to
+       * prevent.
+       */
+      if (!updated.customerToldKitchenHasItAt) {
+        updated.customerToldKitchenHasItAt = new Date().toISOString();
+        await orderRepository.save(updated);
+        await fcmDispatcher.notifyKitchenHasOrder(
+          updated.customerId,
+          updated.id,
+          updated.orderNumber,
+          nextStatus === 'PREPARING' ? prepMinutes || 20 : undefined
+        );
+      }
     } else if (nextStatus === 'READY_FOR_PICKUP') {
       await fcmDispatcher.notifyReadyForPickup(updated.customerId, updated.id, updated.orderNumber, updated.deliveryOtp || '');
     } else if (nextStatus === 'OUT_FOR_DELIVERY') {

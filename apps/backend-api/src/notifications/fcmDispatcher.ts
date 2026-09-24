@@ -490,6 +490,152 @@ class FcmNotificationDispatcher {
     });
   }
 
+  /* ------------------------------------------------------------------ *
+   *  MONEY REACHED YOU                                                  *
+   *                                                                     *
+   *  For "pay everyone", the person being paid was the one who did not   *
+   *  find out. `PAYOUT_SENT` existed as a ledger entry and an audit      *
+   *  line; the partner and the rider learned nothing, so payday          *
+   *  produced a round of "has it gone yet" calls from people who had     *
+   *  already been paid.                                                  *
+   *                                                                     *
+   *  ALL THREE USE CHANNEL.DEFAULT, AND THAT IS THE POINT.               *
+   *                                                                     *
+   *  The partner and rider apps each create exactly ONE channel: the     *
+   *  MAX-importance order alarm that plays `new_order.wav` on a loop.    *
+   *  Channel importance and sound are fixed when a channel is created,   *
+   *  so "you were paid" on that channel would be indistinguishable from  *
+   *  a new order — a kitchen would run to the pass for a bank transfer,  *
+   *  and after twice would start ignoring the alarm that matters.        *
+   *                                                                     *
+   *  `default` is not a channel either app creates, so Android delivers  *
+   *  these through the messaging SDK's own fallback channel: ordinary    *
+   *  importance, no alarm. That is exactly the route every customer      *
+   *  push already takes, because the customer app creates no channels    *
+   *  at all — so this is no more novel than the notifications that work  *
+   *  today, and it needs no new build of anything. A properly named      *
+   *  "Payments" channel is an improvement for whenever those two apps    *
+   *  are next built, not a precondition for telling somebody they were   *
+   *  paid.                                                              *
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Somebody was paid.
+   *
+   * Sent when a payout reaches PAID and never on a draft or an approval — the
+   * distance between "authorised" and "in your account" is a gateway call that
+   * can fail, and a platform that announces the first as the second is lying to
+   * the one person who cannot check.
+   *
+   * The destination is named. "You were paid Rs 4,820" invites the question this
+   * is meant to prevent; "into the account ending 1234" answers it.
+   */
+  async notifyPayeePaid(
+    userId: string,
+    input: { amountLabel: string; destinationLabel: string | null; payoutId: string; reference?: string }
+  ) {
+    return this.sendPushNotification({
+      userId,
+      title: 'You have been paid',
+      body:
+        `${input.amountLabel} has been sent` +
+        (input.destinationLabel ? ` to ${input.destinationLabel}` : '') +
+        '.',
+      androidChannelId: CHANNEL.DEFAULT,
+      data: {
+        type: 'PAYOUT_PAID',
+        payoutId: input.payoutId,
+        ...(input.reference ? { reference: input.reference } : {})
+      }
+    });
+  }
+
+  /**
+   * A refund actually left.
+   *
+   * Only on settlement. The admin is told when a refund is RAISED and the
+   * customer heard nothing when it was PAID, which is the wrong way round: one
+   * of those two people is waiting for money.
+   *
+   * Never sent for a refund left PROCESSING. A refund that has not settled must
+   * never be announced as sent — a customer told their money is on its way stops
+   * chasing it, and that is the one lie that makes the money disappear quietly.
+   */
+  async notifyCustomerRefundSent(
+    userId: string,
+    input: { orderId: string; orderNumber: string; amountLabel: string; timing: string }
+  ) {
+    return this.sendPushNotification({
+      userId,
+      orderId: input.orderId,
+      orderNumber: input.orderNumber,
+      title: 'Your refund has been sent',
+      body: `${input.amountLabel} for order #${input.orderNumber}. ${input.timing}`,
+      androidChannelId: CHANNEL.DEFAULT,
+      data: { type: 'REFUND_SENT', orderId: input.orderId, orderNumber: input.orderNumber }
+    });
+  }
+
+  /**
+   * The kitchen has taken the order on.
+   *
+   * ONE message for whichever of ACCEPTED and PREPARING arrives first. A kitchen
+   * that taps "accept" and then "start cooking" ten seconds later is one event
+   * as far as the customer is concerned, and two notifications about it reads as
+   * a glitch.
+   *
+   * ACCEPTED had no message at all, which mattered more once the live map
+   * appeared at that moment: the thing the customer most wants to look at opened
+   * without anybody telling them it was there.
+   */
+  async notifyKitchenHasOrder(
+    userId: string,
+    orderId: string,
+    orderNumber: string,
+    prepMins?: number
+  ) {
+    return this.sendPushNotification({
+      userId,
+      orderId,
+      orderNumber,
+      title: 'The kitchen has your order',
+      body: prepMins
+        ? `Your food is being prepared — about ${prepMins} minutes. You can follow it on the map.`
+        : 'The restaurant has accepted your order and is starting on it. You can follow it on the map.',
+      androidChannelId: CHANNEL.DEFAULT,
+      data: {
+        type: 'KITCHEN_HAS_ORDER',
+        orderId,
+        orderNumber,
+        ...(prepMins ? { prepTime: String(prepMins) } : {})
+      }
+    });
+  }
+
+  /**
+   * A rider is coming for it.
+   *
+   * FIRST NAME ONLY. A customer needs to know who is arriving, not a stranger's
+   * full legal name — and the rider did not agree to have it pushed to every
+   * customer they deliver to.
+   */
+  async notifyRiderAssigned(
+    userId: string,
+    orderId: string,
+    orderNumber: string,
+    riderFirstName: string
+  ) {
+    return this.sendPushNotification({
+      userId,
+      orderId,
+      orderNumber,
+      title: 'A delivery partner is on the way',
+      body: `${riderFirstName} is heading to the restaurant to collect your order.`,
+      androidChannelId: CHANNEL.DEFAULT,
+      data: { type: 'RIDER_ASSIGNED', orderId, orderNumber, riderFirstName }
+    });
+  }
+
   getSentNotifications(): PushNotificationPayload[] {
     return [...this.dispatchHistory];
   }

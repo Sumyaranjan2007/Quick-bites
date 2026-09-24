@@ -41,6 +41,7 @@ import { payableAccountFor, accountBlockReason } from './payeeAccounts.ts';
 import { railFor, defaultRail } from './rails.ts';
 import type { PayoutRailId, RailResultStatus, PayeeOwnerType } from '@quick-bites/shared-types';
 import { notifyAdminsPayoutFailed } from '../../notifications/adminNotifier.ts';
+import { notifyPayeePaid } from '../../notifications/payeeNotifier.ts';
 
 export type PayoutState =
   /** Drafted. Nothing has moved and nothing is committed. */
@@ -530,6 +531,33 @@ export async function executePayout(input: {
         `${formatPaise(payout.amountPaise)} paid to ${payout.ownerName} via ${rail.displayName}` +
         (result.reference ? ` (${result.reference})` : ''),
       payoutId: payout.id
+    });
+
+    /*
+     * AND TELL THE PERSON WHOSE MONEY IT IS.
+     *
+     * This is the one notification the platform owed and never sent. The ledger
+     * entry above and an audit line were the whole record of a payday, so the
+     * partner and the rider found out by checking their bank — or by ringing to
+     * ask about money that had already arrived.
+     *
+     * Here rather than in the FAILED or UNCERTAIN branches, and that placement is
+     * the rule: PAID means a rail reported the transfer as sent or queued. A
+     * manual rail cannot reach this branch at all without a recorded reference,
+     * because it refuses to report SENT without one — so a hand-made transfer is
+     * announced only once somebody has written down that they made it.
+     *
+     * Not awaited. The money has gone; a slow push service must not turn a
+     * completed transfer into an exception, and the notifier catches its own
+     * errors.
+     */
+    void notifyPayeePaid({
+      ownerType: payout.ownerType,
+      ownerId: payout.ownerId,
+      ownerName: payout.ownerName,
+      amountLabel: formatPaise(payout.amountPaise),
+      payoutId: payout.id,
+      reference: result.reference
     });
   } else if (result.status === 'FAILED') {
     // Definitely did not happen. The entries it covered are released by
