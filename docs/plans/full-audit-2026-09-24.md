@@ -550,6 +550,11 @@ one push, not two.
   latest instruction literally; SOS and `NO_RIDER_FOUND` cannot be switched off.
 - **Check that fails:** turning a category off stops its pushes and nothing else;
   SOS still arrives with every category off.
+- **Added after W3:** a problem alert when `GATEWAY_RECEIVABLE` has held money
+  longer than a setting (default 3 days). Razorpay settles in about 2 days, so
+  older money means a settlement was never recorded or never arrived. Fires on
+  the change, like payments-health. The check: backdate a capture by 4 days and
+  it fires; record the settlement and it clears.
 
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
