@@ -1452,6 +1452,18 @@ export interface PricingRates {
   riderLocationSilentMinutes: number;
   /** Minutes a rider may be carrying food before the delivery is flagged late. */
   deliveryOverdueMinutes: number;
+  /**
+   * Days money may sit at the payment gateway before it is treated as a problem.
+   *
+   * Razorpay settles in about two working days. Money older than that means one of
+   * two things and both need a person: a settlement arrived and nobody recorded
+   * it, so the books understate the bank; or it never arrived, and somebody needs
+   * to ask the gateway why.
+   *
+   * Three by default, which is T+2 plus a day of slack so an ordinary weekend does
+   * not raise an alarm.
+   */
+  gatewaySettlementOverdueDays: number;
   /** Percentage of the ceiling at which the rider is warned to deposit. */
   codCashWarnPercent: number;
   /** Days after delivery before a restaurant's money becomes payable. */
@@ -1744,6 +1756,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   riderLocationSilentMinutes: 10,
   /** Minutes a rider may be carrying food before the delivery is flagged late. */
   deliveryOverdueMinutes: 15,
+  /** Days money may sit at the gateway before it is a problem. Razorpay is T+2. */
+  gatewaySettlementOverdueDays: 3,
   codCashWarnPercent: 80,
   partnerHoldDays: 1,
   riderHoldDays: 0,

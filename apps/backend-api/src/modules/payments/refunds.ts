@@ -38,6 +38,7 @@ import { ledger, accountFor } from './ledger.ts';
 import { earningsPosted } from './earnings.ts';
 import { captureBooked } from './capture.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
+import { notifyAdminsRefundStuck } from '../../notifications/adminNotifier.ts';
 import { toPaise, toRupees, formatPaise } from './money.ts';
 import { razorpayAdapter } from './razorpayAdapter.ts';
 import { railFor } from './rails.ts';
@@ -345,6 +346,28 @@ export async function sendRefund(input: {
    * must not be reported as unsettled because a push could not be delivered —
    * that would reopen a case over money that has already gone back.
    */
+  if (!settled) {
+    /*
+     * AND TELL AN ADMINISTRATOR THE MONEY IS STUCK.
+     *
+     * Leaving the case OPEN rather than reporting it refunded was already right —
+     * it is the rule that stops a green tick appearing over money that has not
+     * moved. But nothing told anybody, so the case sat in a queue somebody has to
+     * think to open, holding a customer's money. The silence was the whole defect:
+     * an open case only helps if a person looks at it.
+     *
+     * Here rather than at the call sites, because both of them — a cancellation
+     * and the admin refund queue — reach this same failure and neither knew about
+     * it. One place that knows the refund did not settle is the place that says so.
+     */
+    void notifyAdminsRefundStuck({
+      caseId: input.caseId || order.id,
+      orderNumber: order.orderNumber,
+      amountLabel: formatPaise(amountPaise),
+      reason: failureReason || 'The gateway gave no reason.'
+    });
+  }
+
   if (settled && order.customerId) {
     void fcmDispatcher.notifyCustomerRefundSent(order.customerId, {
       orderId: order.id,

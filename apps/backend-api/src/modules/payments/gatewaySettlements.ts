@@ -101,6 +101,60 @@ export function gatewayFeesPaise(): number {
   return ledger.balanceOf('EXPENSE_GATEWAY_FEE');
 }
 
+/**
+ * When the OLDEST money the gateway is still holding was taken, or null.
+ *
+ * -------------------------------------------------------------------------
+ * WHY A BALANCE IS NOT ENOUGH TO ANSWER THIS
+ * -------------------------------------------------------------------------
+ * `gatewayReceivablePaise` says how much is there; it cannot say how long it has
+ * been there, and the second question is the one that matters. Razorpay settles in
+ * about two working days, so a positive balance is normal and a positive balance
+ * that has not moved for a week is one of two problems: a settlement arrived and
+ * nobody recorded it, or it never arrived. Nothing else on the platform would
+ * surface either.
+ *
+ * -------------------------------------------------------------------------
+ * FIFO, BECAUSE THAT IS HOW A GATEWAY SETTLES
+ * -------------------------------------------------------------------------
+ * Settlements are not linked to the individual payments they cover, so the age has
+ * to be worked out rather than looked up. Captures are walked oldest-first and
+ * accumulated, and the first one whose running total exceeds everything discharged
+ * so far is the oldest rupee still held. That is exactly right for a gateway that
+ * pays out in order, which Razorpay does.
+ *
+ * Discharges include refunds as well as settlements, which is correct: a reversal
+ * comes out of the same balance, and counting only settlements would report money
+ * as still held that the customer has already been given back.
+ */
+export function oldestUnsettledCaptureAt(): string | null {
+  if (gatewayReceivablePaise() <= 0) return null;
+
+  const entries = ledger.query({}).filter(e => e.account === 'GATEWAY_RECEIVABLE');
+
+  const discharged = entries
+    .filter(e => e.direction === 'CREDIT')
+    .reduce((total, e) => total + e.amountPaise, 0);
+
+  const captures = entries
+    .filter(e => e.direction === 'DEBIT')
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+
+  let running = 0;
+  for (const capture of captures) {
+    running += capture.amountPaise;
+    if (running > discharged) return capture.occurredAt;
+  }
+
+  /*
+   * A positive balance with every capture accounted for. Arithmetically it should
+   * not happen, and returning null rather than a guess is the point: an alert
+   * built on a date this function invented would send somebody looking for a
+   * payment that does not exist.
+   */
+  return null;
+}
+
 /** What a settlement recorded under this reference was, or null. */
 function alreadyRecorded(
   reference: string

@@ -124,6 +124,7 @@ export const RATE_BOUNDS: RateBound[] = [
    */
   { key: 'riderLocationSilentMinutes', label: 'Rider silent for', help: 'Minutes without a location from a rider carrying food before operations are alerted.', unit: 'MINUTES', min: 2, max: 120, affectsCustomerBill: false },
   { key: 'deliveryOverdueMinutes', label: 'Delivery overdue after', help: 'Minutes a rider may be carrying food before the delivery is flagged as late.', unit: 'MINUTES', min: 2, max: 120, affectsCustomerBill: false },
+  { key: 'gatewaySettlementOverdueDays', label: 'Gateway settlement overdue after', help: 'Days money may sit at the payment gateway before it is reported as a problem. Razorpay settles in about two working days.', unit: 'DAYS', min: 1, max: 30, affectsCustomerBill: false },
   { key: 'codCashWarnPercent', label: 'Cash warning at', help: 'Percentage of the ceiling at which the rider is told to deposit.', unit: 'PERCENT', min: 1, max: 100, affectsCustomerBill: false },
   { key: 'partnerHoldDays', label: 'Partner hold period', help: 'Days after delivery before a restaurant’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },
   { key: 'riderHoldDays', label: 'Rider hold period', help: 'Days after delivery before a rider’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },

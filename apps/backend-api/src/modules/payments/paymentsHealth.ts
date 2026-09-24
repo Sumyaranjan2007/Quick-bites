@@ -34,6 +34,7 @@ import { emitOpsAlert } from '../../sockets/socketServer.ts';
 import { notifyAdminsPaymentsHealth } from '../../notifications/adminNotifier.ts';
 import { ledger } from './ledger.ts';
 import { cashAgeing } from './cashDeposits.ts';
+import { gatewayReceivablePaise, oldestUnsettledCaptureAt } from './gatewaySettlements.ts';
 import { listPayouts, markPayoutPaid, type PayoutRecord } from './payouts.ts';
 import { razorpayXAdapter, isRazorpayXConfigured } from './razorpayXAdapter.ts';
 import { getActiveRates } from './pricingConfig.ts';
@@ -62,6 +63,19 @@ export interface HealthReport {
     unbalancedTransactions: number;
     duplicateKeys: number;
     fractionalAmounts: number;
+  };
+  /**
+   * Money at the gateway, and how long the oldest of it has been there.
+   *
+   * On the report rather than only in the alert text, so a check can assert the
+   * age rather than matching on a sentence — a check written against the wording
+   * passes when the wording changes and the threshold is broken.
+   */
+  gateway: {
+    outstandingPaise: number;
+    oldestHeldAt: string | null;
+    heldDays: number;
+    overdue: boolean;
   };
   alerts: string[];
 }
@@ -234,6 +248,43 @@ export async function runPaymentsHealthCheck(
     );
   }
 
+  /* ---- Money the gateway has been sitting on ---- */
+
+  /*
+   * A POSITIVE BALANCE IS NORMAL. AN OLD ONE IS NOT.
+   *
+   * Razorpay settles in about two working days, so money at the gateway is the
+   * ordinary state of things and the amount says nothing on its own. The AGE says
+   * everything, and it is one of exactly two problems, both of which need a person
+   * and neither of which anything else would surface:
+   *
+   *   A settlement arrived and nobody recorded it. The books understate the bank,
+   *   every payday reads a smaller balance than really exists, and the shortfall
+   *   warning blocks runs that would have been funded.
+   *
+   *   It never arrived. Somebody has to ask the gateway why, and the longer that
+   *   takes the harder it is to reconcile against a statement.
+   *
+   * Reported through this job rather than as a new alarm of its own, because the
+   * payments-health push already collapses on the SET of findings changing. A
+   * separate mechanism here would have needed its own suppression, and the one
+   * thing worse than no alert is one that fires every thirty seconds.
+   */
+  const oldestAt = oldestUnsettledCaptureAt();
+  const overdueDays = Math.max(1, Number(rates.gatewaySettlementOverdueDays) || 3);
+  let gatewayHeldDays = 0;
+
+  if (oldestAt) {
+    gatewayHeldDays = Math.floor((Date.now() - new Date(oldestAt).getTime()) / 86_400_000);
+    if (gatewayHeldDays >= overdueDays) {
+      alerts.push(
+        `${formatPaise(gatewayReceivablePaise())} has been at the payment gateway for ` +
+          `${gatewayHeldDays} days. It settles in about two, so either a settlement arrived and was ` +
+          'never recorded, or it never arrived. Check the statement.'
+      );
+    }
+  }
+
   /* ---- The books ---- */
 
   const audit = ledger.audit();
@@ -278,6 +329,12 @@ export async function runPaymentsHealthCheck(
       unbalancedTransactions: audit.unbalancedTransactions.length,
       duplicateKeys: audit.duplicateKeys.length,
       fractionalAmounts: audit.fractionalAmounts.length
+    },
+    gateway: {
+      outstandingPaise: gatewayReceivablePaise(),
+      oldestHeldAt: oldestAt,
+      heldDays: gatewayHeldDays,
+      overdue: Boolean(oldestAt) && gatewayHeldDays >= overdueDays
     },
     alerts
   };

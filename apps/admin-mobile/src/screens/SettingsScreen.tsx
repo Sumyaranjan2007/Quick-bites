@@ -57,17 +57,38 @@ interface Dependency {
  *   - A note is asked for. It is optional, and it is the thing that answers
  *     "why is ordering off?" at 2am when whoever switched it is asleep.
  */
+/**
+ * A kind of notification, and whether the owner wants it.
+ *
+ * `hasAlwaysOn` is carried from the server rather than decided here, because
+ * WHICH events ignore a switch is the notifier's business and a second copy of
+ * that list in the app is a copy that goes stale silently — the screen would keep
+ * promising to mute something the server had started sending again, or the
+ * reverse.
+ */
+interface NotificationCategory {
+  key: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  hasAlwaysOn: boolean;
+  alwaysOnNote?: string;
+  changedAt?: string;
+}
+
 export const SettingsScreen: React.FC = () => {
   const { api, can } = useSession();
   const allowed = can('admin.settings.manage');
 
-  const settings = useResource<{ flags: Flag[]; dependencies: Dependency[] }>(
-    () => api.get('/admin/settings').then(r => r.data),
-    [],
-    { enabled: allowed }
-  );
+  const settings = useResource<{
+    flags: Flag[];
+    dependencies: Dependency[];
+    notifications: NotificationCategory[];
+  }>(() => api.get('/admin/settings').then(r => r.data), [], { enabled: allowed });
 
   const [pending, setPending] = useState<Flag | null>(null);
+  const [mutingKey, setMutingKey] = useState<string | null>(null);
+  const [notifyError, setNotifyError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -85,7 +106,11 @@ export const SettingsScreen: React.FC = () => {
       });
       // The server returns the whole catalogue, so the screen reflects what the
       // platform actually holds rather than what this device assumed.
-      settings.setData({ flags: result.data.flags, dependencies: settings.data?.dependencies || [] });
+      settings.setData({
+        flags: result.data.flags,
+        dependencies: settings.data?.dependencies || [],
+        notifications: settings.data?.notifications || []
+      });
       setPending(null);
       setNote('');
       void settings.silentReload();
@@ -107,8 +132,35 @@ export const SettingsScreen: React.FC = () => {
     void apply(flag, true);
   };
 
+  /*
+   * Muting a notification is not confirmed the way switching off a feature is.
+   *
+   * Closing ordering costs money for as long as nobody notices. Muting a
+   * notification is reversible in one tap and costs nothing until something
+   * happens — so a confirmation sheet here would be ceremony, and ceremony on a
+   * harmless action is what teaches somebody to tap through the one that matters.
+   */
+  const setNotificationCategory = async (category: NotificationCategory, enabled: boolean) => {
+    setMutingKey(category.key);
+    setNotifyError(null);
+    try {
+      const result = await api.put(`/admin/settings/notifications/${category.key}`, { enabled });
+      settings.setData({
+        flags: settings.data?.flags || [],
+        dependencies: settings.data?.dependencies || [],
+        notifications: result.data.notifications
+      });
+    } catch (err: any) {
+      setNotifyError(err?.message || 'That switch could not be changed.');
+    } finally {
+      setMutingKey(null);
+    }
+  };
+
   const flags = settings.data?.flags || [];
   const dependencies = settings.data?.dependencies || [];
+  const notifications = settings.data?.notifications || [];
+  const mutedCount = notifications.filter(n => !n.enabled).length;
   const offCount = flags.filter(f => !f.enabled).length;
 
   return (
@@ -182,6 +234,91 @@ export const SettingsScreen: React.FC = () => {
             )}
           </Card>
         ))}
+
+        <SectionTitle
+          title="What you hear about"
+          subtitle={
+            mutedCount === 0
+              ? 'Everything is on. You are told about every problem the platform notices.'
+              : `${mutedCount} of these are muted. You will not hear about them until you switch them back on.`
+          }
+        />
+
+        {/*
+          The error is rendered. Fourteen admin screens read a failure into a
+          variable and show nothing, so a failed load looks like an empty page —
+          and on this screen an empty page reads as "no switches exist", which is
+          indistinguishable from every switch being on.
+        */}
+        {!!notifyError && (
+          <Card style={s.flagCard}>
+            <Text style={s.offMessage}>{notifyError}</Text>
+          </Card>
+        )}
+
+        {notifications.length === 0 ? (
+          <Card>
+            <Text style={s.meta}>
+              {settings.error
+                ? 'These could not be loaded, which is not the same as everything being on. Pull down to try again.'
+                : 'Nothing to report.'}
+            </Text>
+          </Card>
+        ) : (
+          notifications.map(category => (
+            <Card key={category.key} style={s.flagCard}>
+              <View style={s.flagHead}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={s.flagLabel}>{category.label}</Text>
+                  <Text style={s.flagDescription}>{category.description}</Text>
+                </View>
+                {/*
+                  Toggle has no disabled state, so the guard is in the handler: a
+                  second tap while the first is in flight would fire a second PUT
+                  and the two could land in either order, leaving the screen
+                  showing the opposite of what was stored.
+                */}
+                <Toggle
+                  value={category.enabled}
+                  onChange={next => {
+                    if (mutingKey) return;
+                    void setNotificationCategory(category, next);
+                  }}
+                />
+              </View>
+
+              {/*
+                Said whether it is on or off, and said on the screen rather than
+                discovered afterwards. Somebody who mutes Deliveries and then
+                receives a stranded order concludes the switch is broken — and a
+                switch you believe is broken is one you stop trusting for the
+                things it DOES control.
+              */}
+              {category.hasAlwaysOn && !!category.alwaysOnNote && (
+                <View style={s.offRow}>
+                  <Badge label="ALWAYS ON" tone="info" />
+                  <Text style={s.offMessage}>{category.alwaysOnNote}</Text>
+                </View>
+              )}
+
+              {!category.enabled && !category.hasAlwaysOn && (
+                <>
+                  <Divider style={{ marginVertical: 10 }} />
+                  <View style={s.offRow}>
+                    <Badge label="MUTED" tone="danger" />
+                    <Text style={s.offMessage}>You will not be told about these at all.</Text>
+                  </View>
+                </>
+              )}
+
+              {!!category.changedAt && (
+                <Text style={s.meta}>
+                  {category.enabled ? 'Switched on' : 'Muted'} {timeAgo(category.changedAt)}
+                </Text>
+              )}
+            </Card>
+          ))
+        )}
 
         <SectionTitle
           title="Dependencies"

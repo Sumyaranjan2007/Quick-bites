@@ -16,6 +16,7 @@ import { ensureBootstrapAdmin } from './db/bootstrapAdmin.ts';
 import { startOrderSweeper, stopOrderSweeper } from './modules/orders/orderSweeper.ts';
 import { startPaymentReconciliation, stopPaymentReconciliation } from './modules/payments/reconciliation.ts';
 import { startPaymentsHealthCheck, stopPaymentsHealthCheck } from './modules/payments/paymentsHealth.ts';
+import { startAdminDigest, stopAdminDigest } from './notifications/adminDigest.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -135,6 +136,11 @@ startPaymentReconciliation();
 // two — it never retries a payment and never corrects the ledger.
 startPaymentsHealthCheck();
 
+// And the only thing here that is not a problem: how the day is going, twice a
+// day. Everything else on this list speaks up when something is wrong, and a
+// platform that never says anything else is one nobody wants to hear from.
+startAdminDigest();
+
 // Graceful Shutdown
 async function handleShutdown(signal: string) {
   console.log(`\nReceived ${signal}. Gracefully closing Quick Bites HTTP and Socket servers...`);
@@ -148,6 +154,7 @@ async function handleShutdown(signal: string) {
   stopOrderSweeper();
   stopPaymentReconciliation();
   stopPaymentsHealthCheck();
+  stopAdminDigest();
   await closeSocketServer();
   if (usingDatabase) await closeDatabase();
   server.close(() => {

@@ -11,7 +11,7 @@ import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { riderEarningsBalance } from '../modules/payments/earnings.ts';
 import { cashStanding, cashInHandPaise } from '../modules/payments/cashDeposits.ts';
 import { duesFor } from '../modules/payments/payouts.ts';
-import { notifyAdminsSosRaised } from '../notifications/adminNotifier.ts';
+import { notifyAdminsSosRaised, notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
 import { toRupees } from '../modules/payments/money.ts';
 import { getActiveRates } from '../modules/payments/pricingConfig.ts';
 import { payoutRepository } from '../db/repositories/payoutRepository.ts';
@@ -460,6 +460,20 @@ riderRouter.post('/documents', validate({ body: DocumentUploadSchema }), async (
 
     const refreshed = (await riderRepository.findById(rider.id))!;
     const completion = await refreshProfileCompletion(refreshed);
+
+    /*
+     * AND TELL SOMEBODY IT IS WAITING.
+     *
+     * Same gap as the partner app's uploads: the notification was wired to
+     * `POST /kyc/submit`, which no app calls. A rider cannot go on shift until
+     * their licence is approved, so an unwatched review queue is a rider who
+     * signed up, uploaded everything asked of them, and cannot earn.
+     */
+    void notifyAdminsKycSubmitted({
+      documentId: doc.id,
+      ownerName: rider.fullName || 'A rider',
+      documentLabel: String(documentType).toLowerCase().replace(/_/g, ' ')
+    });
 
     res.status(201).json({
       success: true,

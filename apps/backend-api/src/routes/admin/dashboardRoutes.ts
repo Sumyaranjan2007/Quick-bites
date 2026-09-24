@@ -12,6 +12,13 @@ import { restaurantRepository } from '../../db/repositories/restaurantRepository
 import { memoryStore } from '../../db/client.ts';
 import { listFlags, setFlag, isEnabled } from '../../modules/platform/featureFlags.ts';
 import { breakerSnapshots } from '../../modules/platform/circuitBreaker.ts';
+import {
+  NOTIFICATION_CATEGORIES,
+  allCategoryPreferences,
+  isCategoryEnabled,
+  setCategoryEnabled,
+  type AdminNotificationCategory
+} from '../../notifications/adminNotificationPrefs.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { ADMIN_PERMISSION_GROUPS } from '@quick-bites/shared-types';
@@ -277,9 +284,81 @@ dashboardRoutes.get('/settings', requirePermission('admin.settings.manage'), asy
     // The breakers ride along with the switches because they answer the same
     // question at a glance: is anything currently off, and did a person do it
     // or did a dependency do it?
-    data: { flags: listFlags(), dependencies: breakerSnapshots(), roles: await adminRoleRepository.list() }
+    data: {
+      flags: listFlags(),
+      dependencies: breakerSnapshots(),
+      roles: await adminRoleRepository.list(),
+      /*
+       * Which notifications are switched on, alongside the feature flags, because
+       * they answer the same question: what is currently off, and did a person
+       * turn it off? A notifications screen somewhere else in the app is a screen
+       * nobody checks when they stop hearing about something.
+       */
+      notifications: allCategoryPreferences()
+    }
   });
 });
+
+/**
+ * PUT /api/admin/settings/notifications/:category — mute a kind of notification.
+ *
+ * Separate from the feature flags, because they are different things that happen
+ * to live on one screen: a flag stops the platform DOING something, and this stops
+ * it TELLING you. Sharing an endpoint would mean one permission for both, and
+ * muting a notification is a smaller decision than closing ordering.
+ *
+ * Two things cannot be muted here and the refusal says which: a rider's SOS, and
+ * an order no rider has taken. Enforced in the notifier rather than only here, so
+ * a category switched off cannot suppress them however it was switched off.
+ */
+dashboardRoutes.put(
+  '/settings/notifications/:category',
+  requirePermission('admin.settings.manage'),
+  async (req, res, next) => {
+    try {
+      const { enabled } = req.body ?? {};
+      if (typeof enabled !== 'boolean') {
+        throw new AppError('Send enabled as true or false.', 400, 'INVALID_SWITCH_VALUE');
+      }
+
+      const category = String(req.params.category) as AdminNotificationCategory;
+      const descriptor = NOTIFICATION_CATEGORIES.find(c => c.key === category);
+      if (!descriptor) {
+        throw new AppError(
+          `There is no notification category called "${req.params.category}".`,
+          400,
+          'UNKNOWN_NOTIFICATION_CATEGORY'
+        );
+      }
+
+      const before = isCategoryEnabled(category);
+      setCategoryEnabled(category, enabled, req.user!.id);
+
+      await auditRepository.record({
+        actorUserId: req.user!.id,
+        actorName: req.user?.fullName || 'admin',
+        actorRole: req.user?.role || 'admin',
+        action: enabled ? 'NOTIFICATIONS_ENABLED' : 'NOTIFICATIONS_DISABLED',
+        entityType: 'notification_category',
+        entityId: category,
+        before: { enabled: before },
+        after: { enabled },
+        summary: `${enabled ? 'Switched on' : 'Muted'} "${descriptor.label}" notifications.`
+      });
+
+      res.json({
+        success: true,
+        data: { notifications: allCategoryPreferences() },
+        message: enabled
+          ? `${descriptor.label} notifications are on.`
+          : `${descriptor.label} notifications are muted.` +
+            (descriptor.alwaysOnNote ? ` ${descriptor.alwaysOnNote}` : '')
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
  * PUT /api/admin/settings/flags/:key — throw a switch.

@@ -19,6 +19,7 @@ import { otpService } from '../modules/auth/otpService.ts';
 import { maskPhone } from '../modules/auth/otpDrivers.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
+import { notifyAdminsNewSignup } from '../notifications/adminNotifier.ts';
 
 export const authRouter = Router();
 
@@ -646,6 +647,21 @@ authRouter.post(
         restaurantId: restaurant.id
       }));
 
+      /*
+       * AND TELL SOMEBODY THEY ARE WAITING.
+       *
+       * This announced nothing at all. A restaurant registered, landed in
+       * PENDING_APPROVAL, and waited for somebody to happen to open the People
+       * screen — so the platform's own growth was the one thing it never
+       * mentioned. A partner who waits three days has usually signed up with
+       * somebody else by then.
+       */
+      void notifyAdminsNewSignup({
+        entityId: restaurant.id,
+        entityName: restaurant.name,
+        kind: 'RESTAURANT'
+      });
+
       res.status(201).json({
         success: true,
         data: {
@@ -727,6 +743,14 @@ authRouter.post(
         userId: user.id,
         riderId: rider.id
       }));
+
+      // Same silence as a partner signing up. A rider cannot earn until they are
+      // approved, so nobody knowing they are there is a rider who gives up.
+      void notifyAdminsNewSignup({
+        entityId: rider.id,
+        entityName: rider.fullName || 'A new rider',
+        kind: 'RIDER'
+      });
 
       res.status(201).json({
         success: true,

@@ -41,6 +41,7 @@ import { userRepository } from '../db/repositories/userRepository.ts';
 import { resolveAccess } from '../modules/admin/permissions.ts';
 import type { AdminPermission } from '@quick-bites/shared-types';
 import { fcmDispatcher } from './fcmDispatcher.ts';
+import { shouldSend, type AdminNotificationCategory } from './adminNotificationPrefs.ts';
 
 /**
  * The channel ids, spelled exactly as the ADMIN app creates them.
@@ -80,7 +81,8 @@ type NavKey =
   | 'profileChanges'
   | 'orders'
   | 'deliveries'
-  | 'finance';
+  | 'finance'
+  | 'people';
 
 interface AdminEvent {
   /**
@@ -104,6 +106,15 @@ interface AdminEvent {
   subject: string;
   /** Machine-readable event name, carried in the payload. */
   type: string;
+  /**
+   * Which switch on the settings screen governs this.
+   *
+   * Required rather than optional. An optional category would default to
+   * "ungoverned", so a new event would silently ignore every switch — and the
+   * person who turned a category off would keep receiving something they had
+   * asked not to, with no way to tell which switch was supposed to cover it.
+   */
+  category: AdminNotificationCategory;
   /**
    * Skip the ten-minute per-subject suppression.
    *
@@ -208,6 +219,20 @@ export function resetAdminNotificationDedupeForTesting(): void {
  */
 export async function notifyAdmins(event: AdminEvent): Promise<string[]> {
   try {
+    /*
+     * THE SWITCH, CHECKED BEFORE THE DEDUPE AND BEFORE THE AUDIENCE.
+     *
+     * Before the dedupe because a suppressed event must not consume its subject's
+     * ten-minute window: switch a category back on and the first thing that
+     * happens should be a notification, not ten minutes of silence left behind by
+     * messages nobody received.
+     *
+     * `shouldSend` owns both halves of the question — is this category on, and is
+     * this event one that ignores the switch — so an always-on event cannot be
+     * made switchable by a caller forgetting a condition.
+     */
+    if (!shouldSend(event.type, event.category)) return [];
+
     if (!event.skipTimeDedupe && alreadyAnnounced(`${event.type}:${event.subject}`)) return [];
 
     const recipients = await recipientsFor(event.permission);
@@ -271,7 +296,8 @@ export function notifyAdminsSosRaised(input: {
     channel: ADMIN_CHANNEL.URGENT,
     open: 'support',
     subject: input.alertId,
-    type: 'ADMIN_SOS_RAISED'
+    type: 'ADMIN_SOS_RAISED',
+    category: 'SAFETY'
   });
 }
 
@@ -296,7 +322,8 @@ export function notifyAdminsPayoutFailed(input: {
     channel: ADMIN_CHANNEL.URGENT,
     open: 'payouts',
     subject: input.payoutId,
-    type: 'ADMIN_PAYOUT_FAILED'
+    type: 'ADMIN_PAYOUT_FAILED',
+    category: 'MONEY'
   });
 }
 
@@ -323,7 +350,8 @@ export function notifyAdminsBankAccountFiled(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'payees',
     subject: input.accountId,
-    type: 'ADMIN_BANK_ACCOUNT_FILED'
+    type: 'ADMIN_BANK_ACCOUNT_FILED',
+    category: 'APPROVALS'
   });
 }
 
@@ -340,7 +368,8 @@ export function notifyAdminsKycSubmitted(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'documents',
     subject: input.documentId,
-    type: 'ADMIN_KYC_SUBMITTED'
+    type: 'ADMIN_KYC_SUBMITTED',
+    category: 'APPROVALS'
   });
 }
 
@@ -363,7 +392,8 @@ export function notifyAdminsRefundRaised(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'refunds',
     subject: input.requestId,
-    type: 'ADMIN_REFUND_RAISED'
+    type: 'ADMIN_REFUND_RAISED',
+    category: 'CUSTOMER_CARE'
   });
 }
 
@@ -380,7 +410,8 @@ export function notifyAdminsSupportTicketOpened(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'support',
     subject: input.ticketId,
-    type: 'ADMIN_SUPPORT_TICKET'
+    type: 'ADMIN_SUPPORT_TICKET',
+    category: 'CUSTOMER_CARE'
   });
 }
 
@@ -403,7 +434,8 @@ export function notifyAdminsCashDeclared(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'payouts',
     subject: input.depositId,
-    type: 'ADMIN_CASH_DECLARED'
+    type: 'ADMIN_CASH_DECLARED',
+    category: 'MONEY'
   });
 }
 
@@ -420,7 +452,8 @@ export function notifyAdminsMenuRequestRaised(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'catalog',
     subject: input.requestId,
-    type: 'ADMIN_MENU_REQUEST'
+    type: 'ADMIN_MENU_REQUEST',
+    category: 'APPROVALS'
   });
 }
 
@@ -472,7 +505,8 @@ export function notifyAdminsNoRiderFound(input: {
      * collapsing them would hide the second one.
      */
     subject: input.orderId,
-    type: 'ADMIN_NO_RIDER_FOUND'
+    type: 'ADMIN_NO_RIDER_FOUND',
+    category: 'DISPATCH'
   });
 }
 
@@ -507,7 +541,8 @@ export function notifyAdminsRiderWentSilent(input: {
     channel: ADMIN_CHANNEL.URGENT,
     open: 'deliveries',
     subject: input.orderId,
-    type: 'ADMIN_RIDER_WENT_SILENT'
+    type: 'ADMIN_RIDER_WENT_SILENT',
+    category: 'DISPATCH'
   });
 }
 
@@ -530,7 +565,8 @@ export function notifyAdminsDeliveryOverdue(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'deliveries',
     subject: input.orderId,
-    type: 'ADMIN_DELIVERY_OVERDUE'
+    type: 'ADMIN_DELIVERY_OVERDUE',
+    category: 'DISPATCH'
   });
 }
 
@@ -554,7 +590,8 @@ export function notifyAdminsRiderNoShow(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'deliveries',
     subject: input.orderId,
-    type: 'ADMIN_RIDER_NO_SHOW'
+    type: 'ADMIN_RIDER_NO_SHOW',
+    category: 'DISPATCH'
   });
 }
 
@@ -572,7 +609,76 @@ export function notifyAdminsOrderAutoCancelled(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'orders',
     subject: input.orderId,
-    type: 'ADMIN_ORDER_AUTO_CANCELLED'
+    type: 'ADMIN_ORDER_AUTO_CANCELLED',
+    category: 'DISPATCH'
+  });
+}
+
+/**
+ * An automatic refund could not be sent.
+ *
+ * -------------------------------------------------------------------------
+ * A CUSTOMER'S MONEY IS STUCK AND NOTHING SURFACED IT
+ * -------------------------------------------------------------------------
+ * When a refund fails to settle, the case is deliberately left OPEN rather than
+ * reported as refunded — that part was right, and it is the rule that stops a
+ * green tick appearing over money that has not moved.
+ *
+ * But nothing told anybody. The case sat in a queue that somebody has to think to
+ * open, holding a customer's money, on a platform where a failed refund is
+ * exactly the thing that produces a chargeback and a review. The silence was the
+ * whole defect: leaving the case open only helps if somebody looks.
+ *
+ * SEPARATE FROM "a customer asked for a refund", because the two need different
+ * things done. A request needs a decision. This needs somebody to move money by
+ * hand, and it has already been decided.
+ */
+export function notifyAdminsRefundStuck(input: {
+  caseId: string;
+  orderNumber: string;
+  amountLabel: string;
+  reason: string;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'finance.refunds.manage',
+    title: 'A refund could not be sent',
+    body:
+      `${input.amountLabel} on #${input.orderNumber} has NOT reached the customer. ${input.reason} ` +
+      'It needs settling by hand.',
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'refunds',
+    subject: input.caseId,
+    type: 'ADMIN_REFUND_STUCK',
+    category: 'MONEY'
+  });
+}
+
+/**
+ * Somebody new has signed up and is waiting to be let in.
+ *
+ * Nothing announced this at all. A restaurant or a rider registered, landed in
+ * PENDING_APPROVAL, and waited for somebody to happen to look at the People
+ * screen — so the platform's own growth was the one thing it never mentioned.
+ * A partner who waits three days for approval has usually signed up with somebody
+ * else by then.
+ *
+ * One per entity, keyed on their id, because registration finishes once.
+ */
+export function notifyAdminsNewSignup(input: {
+  entityId: string;
+  entityName: string;
+  kind: 'RESTAURANT' | 'RIDER';
+}): Promise<string[]> {
+  const isKitchen = input.kind === 'RESTAURANT';
+  return notifyAdmins({
+    permission: isKitchen ? 'users.restaurants.manage' : 'users.drivers.manage',
+    title: isKitchen ? 'A new restaurant has signed up' : 'A new rider has signed up',
+    body: `${input.entityName} is waiting to be approved.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'people',
+    subject: input.entityId,
+    type: 'ADMIN_NEW_SIGNUP',
+    category: 'APPROVALS'
   });
 }
 
@@ -589,7 +695,8 @@ export function notifyAdminsDeliveryLocationMismatch(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'deliveries',
     subject: input.orderId,
-    type: 'ADMIN_DELIVERY_LOCATION_MISMATCH'
+    type: 'ADMIN_DELIVERY_LOCATION_MISMATCH',
+    category: 'DISPATCH'
   });
 }
 
@@ -606,7 +713,8 @@ export function notifyAdminsPaymentRecovered(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'finance',
     subject: input.orderId,
-    type: 'ADMIN_PAYMENT_RECOVERED'
+    type: 'ADMIN_PAYMENT_RECOVERED',
+    category: 'MONEY'
   });
 }
 
@@ -692,6 +800,7 @@ export async function notifyAdminsPaymentsHealth(input: {
      */
     subject: fingerprint,
     type: 'ADMIN_PAYMENTS_HEALTH',
+    category: 'MONEY',
     /*
      * This function's own suppression is stronger than the ten-minute window —
      * set-based and unbounded in time — and the two overlapping let the weaker one
@@ -714,6 +823,7 @@ export function notifyAdminsProfileEditRaised(input: {
     channel: ADMIN_CHANNEL.ATTENTION,
     open: 'profileChanges',
     subject: input.editId,
-    type: 'ADMIN_PROFILE_EDIT'
+    type: 'ADMIN_PROFILE_EDIT',
+    category: 'APPROVALS'
   });
 }

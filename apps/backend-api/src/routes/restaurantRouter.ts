@@ -53,6 +53,7 @@ import {
   validateProfileChanges
 } from '../modules/restaurants/profileEdits.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
+import { notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
 
 export const restaurantRouter = Router();
 
@@ -952,6 +953,24 @@ restaurantRouter.post(
       if (restaurant.kycStatus !== 'ACTIVE') {
         await restaurantRepository.updateKycStatus(restaurant.id, 'PENDING_APPROVAL');
       }
+
+      /*
+       * AND TELL SOMEBODY IT IS WAITING.
+       *
+       * The notification for this existed and was wired to `POST /kyc/submit`,
+       * which NO app calls. The partner app uploads here. So a restaurant that
+       * submitted its FSSAI licence and waited was waiting on a queue nobody had
+       * been told about — and the alert looked built, because it was, against a
+       * route with no callers.
+       *
+       * Not awaited: an upload must not fail because a push service is slow, and
+       * the notifier catches its own errors.
+       */
+      void notifyAdminsKycSubmitted({
+        documentId: doc.id,
+        ownerName: restaurant.name,
+        documentLabel: String(documentType).toLowerCase().replace(/_/g, ' ')
+      });
 
       res.status(201).json({
         success: true,
