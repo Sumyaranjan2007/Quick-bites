@@ -77,7 +77,10 @@ type NavKey =
   | 'support'
   | 'payouts'
   | 'catalog'
-  | 'profileChanges';
+  | 'profileChanges'
+  | 'orders'
+  | 'deliveries'
+  | 'finance';
 
 interface AdminEvent {
   /**
@@ -101,6 +104,22 @@ interface AdminEvent {
   subject: string;
   /** Machine-readable event name, carried in the payload. */
   type: string;
+  /**
+   * Skip the ten-minute per-subject suppression.
+   *
+   * For callers that do their own, BETTER, suppression — and there is exactly one:
+   * the payments-health push, which fires only when the SET of findings changes
+   * and has no time window at all.
+   *
+   * Without this the two mechanisms overlap and the weaker one silently wins. A
+   * problem that cleared and came back inside ten minutes was swallowed as a
+   * duplicate, which is the worst of the three possible behaviours: the first
+   * occurrence was announced, so the silence reads as "it never came back".
+   *
+   * Found by a check, not by reading. Do not add a second caller without a
+   * suppression rule at least as strong.
+   */
+  skipTimeDedupe?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -189,7 +208,7 @@ export function resetAdminNotificationDedupeForTesting(): void {
  */
 export async function notifyAdmins(event: AdminEvent): Promise<string[]> {
   try {
-    if (alreadyAnnounced(`${event.type}:${event.subject}`)) return [];
+    if (!event.skipTimeDedupe && alreadyAnnounced(`${event.type}:${event.subject}`)) return [];
 
     const recipients = await recipientsFor(event.permission);
     for (const userId of recipients) {
@@ -402,6 +421,226 @@ export function notifyAdminsMenuRequestRaised(input: {
     open: 'catalog',
     subject: input.requestId,
     type: 'ADMIN_MENU_REQUEST'
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  THE PROBLEMS THE PLATFORM DETECTS BY ITSELF                       *
+ * ------------------------------------------------------------------ */
+
+/*
+ * Everything above is somebody ASKING for something — a document, a refund, a
+ * bank account. What follows is the platform noticing that something has gone
+ * WRONG on its own, and it is the half the owner meant by "main is solving
+ * problems".
+ *
+ * All of it was already detected. Every one of these went out through
+ * `emitOpsAlert` — a socket event to a console that happens to be open — so a
+ * problem found at 9pm on a Saturday waited for somebody to open a laptop.
+ *
+ * The socket stays. It is what makes an open console update live. This is the
+ * second path, for a phone.
+ */
+
+/**
+ * Cooked food and nobody to carry it.
+ *
+ * URGENT, and it is the only operational alert that earns that: the food is
+ * going cold, the customer is watching a tracker, and every minute is a minute
+ * the platform could have spent phoning a rider.
+ *
+ * Since W1.2 this fires only once the search has been WIDENED to exhaustion, so
+ * it now means "everybody who could take this has been asked and none of them
+ * took it" rather than "we asked six people once". That is the difference between
+ * an alert somebody can act on and one they learn to ignore.
+ */
+export function notifyAdminsNoRiderFound(input: {
+  orderId: string;
+  orderNumber: string;
+  restaurantName?: string;
+  waitingMinutes: number;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'orders.deliveries.manage',
+    title: 'No rider for a cooked order',
+    body: `#${input.orderNumber}${input.restaurantName ? ` at ${input.restaurantName}` : ''} has waited ${input.waitingMinutes} minutes. Every available rider has been asked.`,
+    channel: ADMIN_CHANNEL.URGENT,
+    open: 'deliveries',
+    /*
+     * PER ORDER, deliberately. Two stuck orders are two problems with two
+     * different fixes — a different restaurant, a different rider to phone — and
+     * collapsing them would hide the second one.
+     */
+    subject: input.orderId,
+    type: 'ADMIN_NO_RIDER_FOUND'
+  });
+}
+
+/** A rider accepted a trip and never turned up; it has gone back on offer. */
+export function notifyAdminsRiderNoShow(input: {
+  orderId: string;
+  orderNumber: string;
+  riderName?: string;
+  waitingMinutes: number;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'orders.deliveries.manage',
+    /*
+     * NOT urgent, and the distinction is worth stating: the platform has already
+     * recovered — the trip was taken back and returned to the pool, so riders are
+     * being asked again. Somebody should know it happened; nobody needs to be
+     * woken for it.
+     */
+    title: 'A rider did not collect',
+    body: `${input.riderName || 'A rider'} held #${input.orderNumber} for ${input.waitingMinutes} minutes without collecting it. It is back on offer.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'deliveries',
+    subject: input.orderId,
+    type: 'ADMIN_RIDER_NO_SHOW'
+  });
+}
+
+/** A kitchen never answered, so the order was cancelled and the customer refunded. */
+export function notifyAdminsOrderAutoCancelled(input: {
+  orderId: string;
+  orderNumber: string;
+  restaurantName?: string;
+  waitedMinutes: number;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'orders.deliveries.manage',
+    title: 'An order was cancelled automatically',
+    body: `${input.restaurantName || 'A restaurant'} did not accept #${input.orderNumber} within ${input.waitedMinutes} minutes. The customer has been refunded.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'orders',
+    subject: input.orderId,
+    type: 'ADMIN_ORDER_AUTO_CANCELLED'
+  });
+}
+
+/** Marked delivered a long way from the delivery address. */
+export function notifyAdminsDeliveryLocationMismatch(input: {
+  orderId: string;
+  orderNumber: string;
+  distanceMetres: number;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'orders.deliveries.manage',
+    title: 'Delivered from the wrong place',
+    body: `#${input.orderNumber} was marked delivered ${input.distanceMetres} m from the address.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'deliveries',
+    subject: input.orderId,
+    type: 'ADMIN_DELIVERY_LOCATION_MISMATCH'
+  });
+}
+
+/** A payment was taken at the gateway and the webhook never arrived. */
+export function notifyAdminsPaymentRecovered(input: {
+  orderId: string;
+  orderNumber: string;
+  minutesLate: number;
+}): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'finance.payments.view',
+    title: 'A payment arrived late',
+    body: `#${input.orderNumber} was paid ${input.minutesLate} minutes before we heard about it. One lost message is a curiosity; several is an incident.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'finance',
+    subject: input.orderId,
+    type: 'ADMIN_PAYMENT_RECOVERED'
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  THE BOOKS, AS ONE MESSAGE                                          *
+ * ------------------------------------------------------------------ */
+
+/**
+ * The set of health alerts the last push described, or null before the first.
+ *
+ * Not a timestamp and not a count — the SET. See below.
+ */
+let lastHealthFingerprint: string | null = null;
+
+/** Test seam: the fingerprint is process state, so a suite must be able to clear it. */
+export function resetPaymentsHealthNotificationForTesting(): void {
+  lastHealthFingerprint = null;
+}
+
+/**
+ * One push for the whole of the payments health sweep.
+ *
+ * -------------------------------------------------------------------------
+ * ONE MESSAGE, NOT ONE PER ALERT
+ * -------------------------------------------------------------------------
+ * A single bad state produces several alerts at once — an unbalanced ledger, the
+ * duplicate keys behind it, and the uncertain payouts that caused both. Pushing
+ * each would make one bad morning a burst of six notifications, which is exactly
+ * how a channel gets muted, and the channel that gets muted is the one carrying
+ * the SOS.
+ *
+ * So: one push, titled with the worst of them, the count in the body, and the
+ * detail on the screen it opens.
+ *
+ * -------------------------------------------------------------------------
+ * AND ONLY WHEN THE SET CHANGES
+ * -------------------------------------------------------------------------
+ * The sweep runs every fifteen minutes and an unresolved problem is still there
+ * next time. Notifying again because nothing has changed trains the reader to
+ * swipe it away — and a reader who swipes these by reflex is worse off than one
+ * who was never notified, because now they are practised at it.
+ *
+ * Keyed on the set of alert lines rather than their number: two alerts becoming
+ * two DIFFERENT alerts is news, and a count would miss it.
+ *
+ * The fingerprint is cleared when the alerts clear, so the same problem coming
+ * BACK is announced again. Remembering it forever would silence a recurrence,
+ * which is a different and worse failure than a repeat.
+ *
+ * `worst` is chosen by the caller, not guessed from the text here. The health
+ * check knows which of its findings is the loudest — it says so in its own
+ * comments — and a notifier ranking prose by keyword would get it wrong the first
+ * time somebody reworded an alert.
+ */
+export async function notifyAdminsPaymentsHealth(input: {
+  alerts: string[];
+  worst: string;
+}): Promise<string[]> {
+  const alerts = (input.alerts || []).filter(a => typeof a === 'string' && a.trim().length > 0);
+
+  if (alerts.length === 0) {
+    // Resolved. Forget it, so a recurrence is news again.
+    lastHealthFingerprint = null;
+    return [];
+  }
+
+  const fingerprint = [...alerts].sort().join(' || ');
+  if (fingerprint === lastHealthFingerprint) return [];
+  lastHealthFingerprint = fingerprint;
+
+  const others = alerts.length - 1;
+  return notifyAdmins({
+    permission: 'finance.payouts.manage',
+    title: alerts.length === 1 ? 'The books need you' : `The books need you (${alerts.length})`,
+    body: others > 0 ? `${input.worst} And ${others} more.` : input.worst,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'finance',
+    /*
+     * The fingerprint IS the subject, so the ordinary per-subject dedup cannot
+     * suppress a genuinely new set — and the change check above is what stops a
+     * repeat. Using a fixed subject would have made the 10-minute window the rule
+     * instead, and the sweep is every 15 minutes.
+     */
+    subject: fingerprint,
+    type: 'ADMIN_PAYMENTS_HEALTH',
+    /*
+     * This function's own suppression is stronger than the ten-minute window —
+     * set-based and unbounded in time — and the two overlapping let the weaker one
+     * win: a problem that cleared and came back inside ten minutes was swallowed.
+     * A check caught it.
+     */
+    skipTimeDedupe: true
   });
 }
 
