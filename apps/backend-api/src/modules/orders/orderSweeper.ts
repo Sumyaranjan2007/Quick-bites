@@ -33,6 +33,8 @@ import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from './orderService.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import { offerTripToNearbyRiders } from './tripOffers.ts';
+import { getActiveRates } from '../payments/pricingConfig.ts';
 import { config } from '../../config/env.ts';
 import { isEnabled } from '../platform/featureFlags.ts';
 import type { Order } from '@quick-bites/shared-types';
@@ -56,6 +58,14 @@ export interface SweepResult {
   cancelled: string[];
   /** Order ids raised with operations because no rider took them. */
   alerted: string[];
+  /**
+   * Trips offered to a further group of riders this sweep.
+   *
+   * Reported rather than silent: if this grows while the alert list stays empty the
+   * widening is working, and if both grow together there genuinely are not enough
+   * riders — two different problems that look identical without this.
+   */
+  widened: Array<{ orderId: string; riders: number }>;
   /** Order ids that should have been cancelled but could not be. */
   failed: Array<{ orderId: string; reason: string }>;
   /** Riders reminded that they are holding a trip they have not collected. */
@@ -83,10 +93,15 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
     scanned: 0,
     cancelled: [],
     alerted: [],
+    widened: [],
     failed: [],
     noShowWarned: [],
     released: []
   };
+
+  // Read once per sweep rather than per order: it is one value and a sweep can
+  // walk hundreds of orders.
+  const rates = getActiveRates();
 
   const orders = await orderRepository.listAwaitingAction();
   result.scanned = orders.length;
@@ -148,6 +163,44 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
     // Counted from acceptance rather than from when the order was placed: the
     // clock on finding a rider starts when there is something to collect.
     const waiting = minutesSince(order.acceptedAt || order.createdAt, now);
+
+    /*
+     * ---------------------------------------------------------------------
+     * WIDEN THE SEARCH BEFORE GIVING UP ON IT.
+     * ---------------------------------------------------------------------
+     * `offerTripToNearbyRiders` fires once, from the two places a trip becomes
+     * available. It wakes the nearest few. If those riders are asleep, NOBODY
+     * ELSE IS EVER ASKED — rider seven never hears about it and the order waits
+     * here for NO_RIDER_FOUND while riders are still available.
+     *
+     * So each sweep offers it to the next group. The riders already asked are
+     * skipped by `offeredToRiderIds`, which is what makes this widen rather than
+     * repeat.
+     *
+     * AND IT RUNS BEFORE THE ALERT. Telling the owner "no rider found" while the
+     * platform is still actively offering the trip is an alert about a problem
+     * that may not exist yet, and one they cannot do anything useful about. The
+     * alert now means what it says: everybody who could take this has been asked.
+     */
+    if (waiting >= rates.riderOfferWaveMinutes) {
+      const woken = await offerTripToNearbyRiders(order);
+      if (woken.length > 0) {
+        result.widened.push({ orderId: order.id, riders: woken.length });
+        console.log(JSON.stringify({
+          level: 'INFO',
+          timestamp: now.toISOString(),
+          event: 'RIDER_SEARCH_WIDENED',
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          riders: woken.length,
+          waitedMinutes: Math.round(waiting)
+        }));
+        // Somebody new has just been asked. Raising NO_RIDER_FOUND in the same
+        // tick would alert on a search that is still in progress.
+        continue;
+      }
+    }
+
     if (waiting < config.RIDER_ASSIGN_ALERT_MINUTES) continue;
 
     const alertedAt = now.toISOString();

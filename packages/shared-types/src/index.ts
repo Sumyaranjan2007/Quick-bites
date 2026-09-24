@@ -1405,6 +1405,15 @@ export interface PricingRates {
   riderDeliveryMarkupPercent: number;
   /** Cash a rider may hold before the platform stops offering them COD orders. */
   codCashCeiling: number;
+  /**
+   * How long dispatch waits before offering a waiting trip to the NEXT group of
+   * riders.
+   *
+   * Three minutes by default: long enough that somebody looks at their phone,
+   * short enough that cooked food is not waiting on six riders who have all gone
+   * to sleep.
+   */
+  riderOfferWaveMinutes: number;
   /** Percentage of the ceiling at which the rider is warned to deposit. */
   codCashWarnPercent: number;
   /** Days after delivery before a restaurant's money becomes payable. */
@@ -1642,6 +1651,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   // New controls. Nothing enforced any of these before, because until the
   // payouts rebuild nothing on this platform could pay anybody.
   codCashCeiling: 3000,
+  /** Minutes before a waiting trip is offered to the next group of riders. */
+  riderOfferWaveMinutes: 3,
   codCashWarnPercent: 80,
   partnerHoldDays: 1,
   riderHoldDays: 0,

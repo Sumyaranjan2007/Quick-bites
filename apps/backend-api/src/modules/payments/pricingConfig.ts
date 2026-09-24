@@ -100,6 +100,20 @@ export const RATE_BOUNDS: RateBound[] = [
     affectsCustomerBill: true
   },
   { key: 'codCashCeiling', label: 'Rider cash ceiling', help: 'Cash a rider may hold before the platform stops offering them COD orders.', unit: 'RUPEES', min: 0, max: 100000, affectsCustomerBill: false },
+  /*
+   * How long dispatch waits before widening the search.
+   *
+   * A rate rather than an environment constant because it is the number the owner
+   * will actually want to move: too short and riders three streets away are
+   * skipped past before they look at their phone, too long and cooked food sits
+   * while the next six are not asked. That is an operational judgement about a
+   * real city, and it should not need a deploy.
+   *
+   * It has to be in RATE_BOUNDS to exist at all — `createVersion` silently drops
+   * any key not listed here, so a rate added without this line is editable,
+   * displayed and read by nothing.
+   */
+  { key: 'riderOfferWaveMinutes', label: 'Widen rider search after', help: 'Minutes to wait before offering a waiting trip to the next group of riders.', unit: 'MINUTES', min: 1, max: 60, affectsCustomerBill: false },
   { key: 'codCashWarnPercent', label: 'Cash warning at', help: 'Percentage of the ceiling at which the rider is told to deposit.', unit: 'PERCENT', min: 1, max: 100, affectsCustomerBill: false },
   { key: 'partnerHoldDays', label: 'Partner hold period', help: 'Days after delivery before a restaurant’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },
   { key: 'riderHoldDays', label: 'Rider hold period', help: 'Days after delivery before a rider’s money becomes payable.', unit: 'DAYS', min: 0, max: 30, affectsCustomerBill: false },
