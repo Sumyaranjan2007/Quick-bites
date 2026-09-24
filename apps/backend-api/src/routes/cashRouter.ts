@@ -17,6 +17,7 @@ import { AppError } from '../utils/AppError.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { toPaise, toRupees } from '../modules/payments/money.ts';
+import { bookCapture } from '../modules/payments/capture.ts';
 import {
   cashStanding,
   declareDeposit,
@@ -131,6 +132,10 @@ cashRouter.get('/orders/:orderId/door-payment', authMiddleware('rider'), async (
       order.updatedAt = new Date().toISOString();
       memoryStore.orders.set(order.id, order);
       triggerAutoSave();
+
+      // Whichever of this route and the webhook gets there first books the
+      // money; the second is a no-op on the same key.
+      bookCapture(order, result.amountReceivedPaise);
 
       console.log(
         JSON.stringify({

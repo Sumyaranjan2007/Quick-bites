@@ -54,6 +54,7 @@ const SUITES = [
   'statements',
   'policies',
   'payoutPromise',
+  'gatewaySettlements',
   'adminPush',
   'orderMap',
   'riderTripPush',
@@ -81,6 +82,45 @@ const SUITES = [
   'flows',
   'regression'
 ];
+
+/*
+ * EVERY SUITE ON DISK IS NAMED ABOVE, AND THAT IS CHECKED.
+ *
+ * The list already refuses a name with no file. The reverse — a FILE with no
+ * name — was silent, and it is the dangerous direction: the gate prints "ALL
+ * SUITES PASSED" and exits 0 while a suite that would have failed never ran.
+ * It happened. A workstream's own suite was written, was failing, and the gate
+ * was green.
+ *
+ * A rule saying "remember to add it to the runner" is exactly how that
+ * happened, so it is a check instead. Deleting a suite from the list is still
+ * allowed; doing it silently is not.
+ */
+function assertEverySuiteIsListed() {
+  const dir = path.join(BACKEND, 'src/test');
+  const onDisk = fs
+    .readdirSync(dir)
+    .filter(name => name.endsWith('.test.ts'))
+    .map(name => name.slice(0, -'.test.ts'.length));
+
+  const listed = new Set(SUITES);
+  const unlisted = onDisk.filter(name => !listed.has(name));
+  if (unlisted.length === 0) return;
+
+  console.log('');
+  console.log('====================================================');
+  console.log(`  ${unlisted.length} SUITE(S) EXIST BUT ARE NOT IN THE RUNNER`);
+  for (const name of unlisted) {
+    console.log(`    src/test/${name}.test.ts`);
+  }
+  console.log('  They would never run, and this gate would be green.');
+  console.log('  Add them to SUITES above, or delete the files.');
+  console.log('====================================================');
+  console.log('');
+  process.exit(1);
+}
+
+assertEverySuiteIsListed();
 
 const SANDBOX = path.join(os.tmpdir(), 'quick-bites-test-data');
 fs.rmSync(SANDBOX, { recursive: true, force: true });

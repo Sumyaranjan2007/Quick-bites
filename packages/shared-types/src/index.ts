@@ -1528,15 +1528,64 @@ export type LedgerAccountKind =
   | 'TDS_WITHHELD'
   | 'REVENUE_COMMISSION'
   | 'REVENUE_FEES'
+  /**
+   * What the payment gateway keeps out of every online payment.
+   *
+   * Roughly 2% plus GST, deducted before the money is settled to the bank — and
+   * recorded NOWHERE before this account existed. So the ledger believed the
+   * platform received the full amount a customer paid, and the gap between the
+   * books and the real bank statement grew with every online order.
+   *
+   * That gap is not a rounding error anybody could reconcile away. The owner
+   * would read their statement, find it short, and have nothing in the system
+   * that explains why. "Genuinely ours" overstated by the fee on every order.
+   *
+   * An EXPENSE, so it grows with a debit: the money left the platform, it is not
+   * owed to anybody, and it is never coming back.
+   */
+  | 'EXPENSE_GATEWAY_FEE'
+  /**
+   * Money a customer has paid for food that has not been delivered yet.
+   *
+   * A LIABILITY, so it grows with a credit. Until the food arrives, that money
+   * is not the platform's in any sense that matters: the customer can cancel and
+   * it goes straight back to them.
+   *
+   * It exists because online money used to enter the books only at DELIVERY. An
+   * order that was paid and then cancelled had its refund recorded with no
+   * payment ever recorded against it, so the refund read as a pure loss — and
+   * once `GATEWAY_RECEIVABLE` came into use, worse: the refund drove the
+   * receivable BELOW what the gateway was really holding, and the day's
+   * settlement could then never be recorded at all, because it looked larger
+   * than the outstanding balance.
+   *
+   * So the payment is booked when the payment happens, which is also simply the
+   * truthful order of events.
+   */
+  | 'CUSTOMER_PREPAID'
   | 'REFUNDS_PAID';
 
 export type LedgerEvent =
+  /**
+   * The gateway took the customer's money, before any food moved.
+   *
+   * Distinct from ORDER_PAID_ONLINE, which is the moment the platform EARNS it
+   * at delivery and splits it between the kitchen, the rider, the taxes and the
+   * platform. These are two different events about the same money and the books
+   * used to record only the second.
+   */
+  | 'PAYMENT_CAPTURED'
   | 'ORDER_PAID_ONLINE'
   | 'ORDER_PAID_AT_DOOR'
   | 'COD_COLLECTED'
   | 'CASH_DEPOSIT_CONFIRMED'
   /** The office cash reached the bank. */
   | 'CASH_BANKED'
+  /**
+   * The gateway paid us. Money moves from what they owed us into the bank, and
+   * their fee is recognised as the expense it has always silently been.
+   */
+  | 'GATEWAY_SETTLED'
   | 'CASH_RETURNED_AT_DOOR'
   | 'PARTNER_EARNED'
   | 'RIDER_EARNED'

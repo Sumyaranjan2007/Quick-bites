@@ -6,6 +6,8 @@ import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates } from '../payments/pricingConfig.ts';
+import { bookCapture } from '../payments/capture.ts';
+import { sendRefund } from '../payments/refunds.ts';
 import {
   effectiveCharges,
   customerDishPrice,
@@ -831,38 +833,40 @@ export const orderService = {
 
       updated.refundRequestId = request.id;
 
-      // Money goes back the way it came. An online payment is refunded at the
-      // gateway so it reaches the card or the bank the customer actually used;
-      // a wallet payment is credited back to the wallet. Crediting a wallet for
-      // a card payment would be handing out store credit instead of a refund,
-      // which is not the same thing and is not what was agreed.
-      let gatewayRefundId: string | undefined;
-      let settled = false;
+      /*
+       * ONE REFUND FUNCTION, AND THIS USED NOT TO BE IT.
+       *
+       * Cancelling called the gateway here directly and WROTE NOTHING TO THE
+       * LEDGER. That was accidentally consistent while online money was only
+       * booked at delivery — nothing had been recorded coming in, so nothing
+       * needed recording going out, and the two silences cancelled.
+       *
+       * They stopped cancelling the moment payments were booked when the gateway
+       * took them. A cancelled prepaid order would leave its capture sitting in
+       * GATEWAY_RECEIVABLE and CUSTOMER_PREPAID for ever: the owner's "at
+       * Razorpay" figure overstated by every cancellation, showing money that is
+       * never going to arrive, and every settlement afterwards measured against
+       * it.
+       *
+       * So this goes through `sendRefund` like every other refund on the
+       * platform. It decides the route from the order, posts the ledger entries,
+       * and — for a wallet order, which has no gateway payment to reverse —
+       * leaves the case unsettled when no payout rail is configured, which is
+       * exactly what the branch here used to do by hand. Where a rail IS
+       * configured the customer now gets their money by link instead of waiting
+       * on a queue, which is the point of there being one implementation.
+       */
+      const outcome = await sendRefund({
+        order: updated,
+        amountPaise: Math.round(refundable * 100),
+        reason: `Order cancelled: ${reasonText}`,
+        actorUserId: actor.userId,
+        caseId: request.id,
+        customerPhone: updated.customerPhone
+      });
 
-      if (updated.razorpayPaymentId) {
-        const result = await razorpayAdapter
-          .refund(updated.razorpayPaymentId, Math.round(refundable * 100))
-          .catch(() => null);
-        if (result) {
-          gatewayRefundId = result.id;
-          settled = true;
-        }
-      } else if (updated.paymentMethod === 'WALLET') {
-        /*
-         * An order paid from the customer wallet, which no longer exists.
-         *
-         * The wallet is gone: refunds return down the rail the money arrived
-         * on, and there is nothing to credit. Orders placed from a wallet
-         * balance before it was removed can still reach here, so rather than
-         * crediting a balance nobody can spend, this leaves the case OPEN for
-         * an administrator to settle by payout link.
-         *
-         * Deliberately not marked settled. Money that has not moved must never
-         * be displayed as refunded — that is the one lie that stops anybody
-         * looking for it.
-         */
-        settled = false;
-      }
+      const gatewayRefundId = outcome.reference;
+      const settled = outcome.settled;
 
       if (settled) {
         await refundRepository.transition(
@@ -949,6 +953,12 @@ export const orderService = {
     order.razorpayPaymentId = razorpayPaymentId;
     order.updatedAt = new Date().toISOString();
 
+    // The gateway is now holding the customer's money and we owe them food for
+    // it. Booked here rather than at delivery, because an order that never
+    // arrives still had its money taken. Idempotent: the webhook will report
+    // this same payment and must not book it twice.
+    bookCapture(order);
+
     // Broadcast to kitchen terminal and notify customer
     emitOrderCreated(order.restaurantId, order);
     emitOrderStatusUpdate(order.id, {
@@ -987,6 +997,10 @@ export const orderService = {
     order.paymentStatus = 'PAID';
     order.status = 'ORDER_PLACED';
     order.razorpayPaymentId = detail.razorpayPaymentId;
+
+    // The gateway's own amount, where the webhook carried one. It is what
+    // Razorpay is actually holding, and the settlement is checked against it.
+    bookCapture(order, detail.amountPaise);
 
     // Saved rather than mutated in place. The object here is the same reference
     // the store holds, so memory was already correct — but nothing scheduled a

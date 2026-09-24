@@ -80,6 +80,15 @@ const DEBIT_POSITIVE: ReadonlySet<LedgerAccountKind> = new Set<LedgerAccountKind
   // -Rs 434.90" -- which is the shape of a number nobody can act on.
   'PLATFORM_CASH',
   'TDS_WITHHELD',
+  /*
+   * An EXPENSE grows with a debit, like an asset and unlike revenue.
+   *
+   * The gateway's fee is money that left and is not owed to anybody. Omitting it
+   * here would report every rupee Razorpay kept as a NEGATIVE expense — which
+   * reads on a screen as the platform having been paid its own fees back, and is
+   * the same mistake PLATFORM_CASH made one line above.
+   */
+  'EXPENSE_GATEWAY_FEE',
   'REFUNDS_PAID'
 ]);
 
@@ -101,6 +110,28 @@ function entriesArray(): LedgerEntry[] {
  */
 function findByIdempotencyKey(key: string): LedgerEntry[] {
   return entriesArray().filter(e => e.idempotencyKey === key);
+}
+
+/**
+ * The entries already recorded under this key, if any.
+ *
+ * Exported because `post` treats a repeat as success and hands back what was
+ * already there. That is right for a replayed webhook, and wrong for a person
+ * re-submitting a form: the caller writes an audit line and answers with the
+ * figures from the NEW request, so a second submission with a different amount
+ * is confirmed in words that were never recorded.
+ *
+ * A caller that a HUMAN drives should check this first and refuse, naming what
+ * was recorded the first time. `post` cannot do that itself, because the same
+ * repeat from a machine is correct behaviour.
+ */
+export function entriesForKey(key: string): LedgerEntry[] {
+  return findByIdempotencyKey(key).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Whether this exact movement has already been recorded. */
+export function hasTransaction(key: string): boolean {
+  return findByIdempotencyKey(key).length > 0;
 }
 
 /**
@@ -396,6 +427,8 @@ export function resetLedgerForTesting(): void {
 
 export const ledger = {
   post,
+  entriesForKey,
+  hasTransaction,
   balanceOf,
   balancesByKind,
   query,

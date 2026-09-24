@@ -28,6 +28,7 @@ import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
 import { razorpayAdapter, isRazorpayConfigured } from '../modules/payments/razorpayAdapter.ts';
+import { bookCapture } from '../modules/payments/capture.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { orderService } from '../modules/orders/orderService.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
@@ -200,6 +201,11 @@ paymentRouter.post('/webhook', async (req, res, next) => {
           order.updatedAt = new Date().toISOString();
           memoryStore.orders.set(order.id, order);
           triggerAutoSave();
+
+          // A door QR goes through Razorpay like any other online payment, so
+          // the money is at the gateway and not in the bank. Booked here, and
+          // idempotent against the rider's polling route seeing it too.
+          bookCapture(order, Number(qrPayment?.amount) || 0);
 
           console.log(JSON.stringify({
             level: 'INFO',

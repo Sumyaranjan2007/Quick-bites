@@ -35,6 +35,8 @@
 import { memoryStore } from '../../db/client.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { ledger, accountFor } from './ledger.ts';
+import { earningsPosted } from './earnings.ts';
+import { captureBooked } from './capture.ts';
 import { toPaise, toRupees, formatPaise } from './money.ts';
 import { razorpayAdapter } from './razorpayAdapter.ts';
 import { railFor } from './rails.ts';
@@ -168,6 +170,17 @@ export async function sendRefund(input: {
   let reference: string | undefined;
   let claimUrl: string | undefined;
   let failureReason: string | undefined;
+  /*
+   * WHETHER THE GATEWAY REVERSED IT, WHICH IS NOT THE SAME QUESTION AS THE ROUTE.
+   *
+   * A SOURCE refund normally goes back through Razorpay, which takes it out of
+   * the balance it is holding for us and deducts it from the next settlement.
+   * But `manualReference` short-circuits BEFORE that branch: an administrator has
+   * already moved the money out of the bank by hand and is recording it. Same
+   * route, different account, and deciding from `route` alone would credit the
+   * gateway for money that left the current account.
+   */
+  let reversedAtGateway = false;
 
   if (input.manualReference && input.manualReference.trim().length >= 4) {
     // Recorded by hand. The money has already moved; this writes it down.
@@ -179,6 +192,7 @@ export async function sendRefund(input: {
       .catch(() => null);
     if (result) {
       settled = true;
+      reversedAtGateway = true;
       reference = result.id;
     } else {
       failureReason = 'The payment gateway could not be reached to reverse this payment.';
@@ -213,10 +227,60 @@ export async function sendRefund(input: {
 
   if (settled) {
     /*
-     * The money is out. Posted against REFUNDS_PAID rather than reducing
-     * revenue directly, so a period's refunds are a figure somebody can look
-     * at rather than a silent dent in the takings.
+     * WHERE THE MONEY CAME FROM.
      *
+     * Razorpay does not invoice us for a refund. It takes it out of the balance
+     * it is holding and deducts it from the next settlement, so a reversal at the
+     * gateway reduces GATEWAY_RECEIVABLE and never touches the bank. Crediting
+     * the bank for it — which is what this did — left the bank understated by
+     * every refund, permanently, and the derived settlement fee absorbed the
+     * difference, so the same refund was booked twice: once as REFUNDS_PAID and
+     * again as a gateway fee that was never charged.
+     *
+     * A payout link is the other way round: RazorpayX pays it out of the current
+     * account. So does a hand transfer recorded with `manualReference`.
+     */
+    const cameFrom = reversedAtGateway ? 'GATEWAY_RECEIVABLE' : 'PLATFORM_BANK';
+
+    /*
+     * AND WHAT IT CAME OUT OF, WHICH DEPENDS ON WHETHER ANYTHING WAS EARNED.
+     *
+     * A refund on a DELIVERED order is a loss: the food was made, the kitchen and
+     * the rider were credited, and the money is going back out. REFUNDS_PAID is
+     * where that belongs, and the kitchen's share comes back off what they are
+     * owed.
+     *
+     * A refund on an order that never arrived is not a loss and not a refund in
+     * any accounting sense. The platform took money, owed food, and gave the
+     * money back. Nothing was earned, nobody was credited, and nothing was lost.
+     * It discharges the CUSTOMER_PREPAID liability and stops there. Recording it
+     * as REFUNDS_PAID would report a cancelled order as a day's shrinkage, and
+     * clawing back a kitchen's share would leave them owing us money for food
+     * they were never asked to cook.
+     *
+     * Asked of the LEDGER rather than of the order's status, because the question
+     * is precisely "were earnings posted", and status is a proxy that has already
+     * been wrong about this money once.
+     */
+    const earned = earningsPosted(order.id);
+
+    /*
+     * BOTH conditions, and the second is not belt-and-braces.
+     *
+     * "Not earned" alone is wrong for money the ledger never took in: an order
+     * paid before captures were recorded and cancelled afterwards, or one
+     * delivered before the ledger existed at all. Neither has a CUSTOMER_PREPAID
+     * balance to discharge, so debiting one drives the liability NEGATIVE — the
+     * books would say customers had prepaid us a negative amount, which is the
+     * same shape of mistake as a negative gateway fee and just as unreadable.
+     *
+     * Where no capture was booked, the old behaviour is the right one: the money
+     * was never recorded coming in, so a refund is recorded as the loss it looks
+     * like from the ledger's point of view.
+     */
+    const outOf = captureBooked(order.id) && !earned ? 'CUSTOMER_PREPAID' : 'REFUNDS_PAID';
+
+    /*
      * Keyed on the case, so a retried decision cannot refund twice — which
      * matters more here than almost anywhere, because the gateway would
      * cheerfully process a second refund against the same payment.
@@ -224,8 +288,8 @@ export async function sendRefund(input: {
     ledger.post({
       event: route === 'SOURCE' ? 'REFUND_TO_SOURCE' : 'REFUND_BY_LINK',
       postings: [
-        { account: 'REFUNDS_PAID', direction: 'DEBIT', amountPaise },
-        { account: 'PLATFORM_BANK', direction: 'CREDIT', amountPaise }
+        { account: outOf, direction: 'DEBIT', amountPaise },
+        { account: cameFrom, direction: 'CREDIT', amountPaise }
       ],
       idempotencyKey: `refund_paid:${input.caseId || order.id}`,
       actorUserId: input.actorUserId,
@@ -243,7 +307,7 @@ export async function sendRefund(input: {
      * chase. Either way the platform does not absorb a refund on food a
      * kitchen was paid for.
      */
-    const partnerSharePaise = partnerShareOfRefund(order, amountPaise);
+    const partnerSharePaise = earned ? partnerShareOfRefund(order, amountPaise) : 0;
     if (partnerSharePaise > 0) {
       ledger.post({
         event: 'SETTLEMENT_ADJUSTMENT',

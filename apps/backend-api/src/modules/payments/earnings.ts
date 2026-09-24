@@ -25,6 +25,7 @@
  */
 import { memoryStore } from '../../db/client.ts';
 import { ledger, accountFor } from './ledger.ts';
+import { captureBooked } from './capture.ts';
 import { toPaise, toRupees, percentOf } from './money.ts';
 import { getActiveRates, commissionPercentFor } from './pricingConfig.ts';
 import type { Order, PricingRates } from '@quick-bites/shared-types';
@@ -279,13 +280,69 @@ export function recordOrderEarnings(
   /*
    * Where the money physically is.
    *
-   * Online: in the platform's account. Cash: in the rider's pocket, which is
-   * the platform's money that a person is carrying. Recording the second as
-   * though it were in the bank is how a platform believes it holds cash it has
-   * never seen.
+   * Cash: in the rider's pocket, which is the platform's money that a person is
+   * carrying. Recording that as though it were in the bank is how a platform
+   * believes it holds cash it has never seen.
+   *
+   * ONLINE: AT THE GATEWAY, NOT IN THE BANK. This said PLATFORM_BANK, and it was
+   * the same mistake one step earlier in the chain. Razorpay holds the money for
+   * a day or more before settling it, so from the moment a customer paid, the
+   * books claimed funds that were somebody else's to release.
+   *
+   * That is not a bookkeeping nicety. Nothing checks whether PLATFORM_BANK
+   * actually holds the money before a payout run, so a run funded by today's
+   * card payments is marked sent, bounces at the gateway, and our own books say
+   * the funds were there. The payday shortfall warning reads the same overstated
+   * figure, so it says the money is present while it is at Razorpay.
+   *
+   * `GATEWAY_RECEIVABLE` has existed for exactly this since the ledger was
+   * written and was posted to by nothing.
+   *
+   * FORWARD ONLY. Entries already written are not touched — the ledger is
+   * append-only and rewriting history would destroy the evidence of what the
+   * platform believed at the time. Orders paid before this change keep their
+   * PLATFORM_BANK entry and settle as they always did.
    */
+  /*
+   * ONLINE, AND WHETHER THE MONEY HAS ALREADY BEEN BOOKED IN.
+   *
+   * Since captures are recorded when the gateway takes the money, by the time an
+   * order is delivered the receivable has usually ALREADY been debited and the
+   * platform is carrying a `CUSTOMER_PREPAID` liability: we hold their money and
+   * owe them food. Delivery is where that debt is discharged, not where the money
+   * arrives — debiting the receivable a second time here would count every online
+   * payment twice.
+   *
+   * Where no capture exists, the receivable is debited as before. That is not a
+   * fallback nobody hits: every order paid before captures were recorded is in
+   * exactly that state, and those orders still have to be able to deliver.
+   */
+  const prepaid = paidOnline && captureBooked(order.id);
+
+  /*
+   * A WALLET order's money was never at Razorpay.
+   *
+   * `paidOnline` means only "not cash", so it sweeps up the legacy WALLET and
+   * SPLIT methods along with card and UPI. Wallet balance was the platform's own
+   * money that the customer had already handed over; there is no gateway holding
+   * it and no settlement that will ever release it. Booking it as a receivable
+   * would leave a balance on the "at Razorpay" panel that can never be cleared,
+   * and every settlement afterwards measured against a figure inflated by it.
+   *
+   * A gateway reference is the test rather than the method, because a wallet
+   * order that was topped up and charged at the gateway does have one.
+   */
+  const throughGateway = Boolean(order.razorpayPaymentId) || order.paymentMethod !== 'WALLET';
+
   const moneyHolder = paidOnline
-    ? { account: 'PLATFORM_BANK', event: 'ORDER_PAID_ONLINE' as const }
+    ? {
+        account: prepaid
+          ? 'CUSTOMER_PREPAID'
+          : throughGateway
+            ? 'GATEWAY_RECEIVABLE'
+            : 'PLATFORM_BANK',
+        event: 'ORDER_PAID_ONLINE' as const
+      }
     : { account: accountFor('RIDER_CASH', order.riderId || 'unassigned'), event: 'COD_COLLECTED' as const };
 
   // Everything owed out of that gross, as credits. What is left over is the

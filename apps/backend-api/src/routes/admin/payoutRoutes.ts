@@ -60,6 +60,7 @@ import {
   bankOfficeCash,
   officeCashPaise
 } from '../../modules/payments/cashDeposits.ts';
+import { gatewayReceivablePaise, recordGatewaySettlement, gatewayFeesPaise } from '../../modules/payments/gatewaySettlements.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import {
   listRequests,
@@ -891,6 +892,121 @@ payoutRoutes.post(
   }
 );
 
+/*
+ * Named in the words Razorpay's own settlement row uses, because every one of
+ * these is transcribed from it and a label that does not match the page it is
+ * copied from is how the wrong column gets typed.
+ */
+const GatewaySettlementSchema = z.object({
+  amountSettled: z.number().positive('Enter the amount settled, from the settlement row.'),
+  fees: z.number().min(0, 'Fees cannot be negative.'),
+  tax: z.number().min(0, 'Tax cannot be negative.'),
+  reference: z.string().trim().min(1, 'Record the settlement id from the statement.').max(120),
+  note: z.string().trim().max(300).optional()
+});
+
+/**
+ * GET /api/admin/gateway/receivable
+ *
+ * What the payment gateway is holding, and what it has kept in fees.
+ *
+ * Both figures were invisible before this: online payments booked straight to the
+ * bank, so money at the gateway looked like money in the account, and the fee was
+ * recorded nowhere at all.
+ */
+payoutRoutes.get(
+  '/gateway/receivable',
+  requirePermission('finance.payouts.view', 'finance.payouts.manage', 'finance.reports.view'),
+  async (_req, res, next) => {
+    try {
+      const outstandingPaise = gatewayReceivablePaise();
+      res.json({
+        success: true,
+        data: {
+          atGateway: toRupees(outstandingPaise),
+          feesKeptToDate: toRupees(gatewayFeesPaise()),
+          /*
+           * Said plainly, because the number will look wrong to anybody who
+           * remembers the old screen. Orders paid before this was switched on
+           * were booked straight to the bank and are not part of any settlement.
+           */
+          note:
+            outstandingPaise > 0
+              ? 'Money the gateway has taken from customers and not yet paid into the bank. It usually arrives within a day or two.'
+              : 'The gateway is not holding anything. Everything it has collected has been settled.'
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/admin/gateway/settlements
+ *
+ * The gateway paid us, and this is where its fee stops being invisible.
+ *
+ * EVERY FIGURE IS TRANSCRIBED, NONE IS COMPUTED BY THE PERSON TYPING. The amount
+ * settled, the fees and the tax are the three columns the settlement row prints.
+ * What the gateway discharged is derived from them, so no input can contradict
+ * another and nobody has to do arithmetic to use this screen.
+ *
+ * Recorded by a person from the statement for the same reason §4.5 records a bank
+ * deposit that way: Razorpay's settlement API can be read and should be one day,
+ * but there are no live keys yet, and a feature that only works once there are is
+ * a feature that does not work.
+ */
+payoutRoutes.post(
+  '/gateway/settlements',
+  requirePermission('finance.payouts.manage'),
+  validate({ body: GatewaySettlementSchema }),
+  async (req, res, next) => {
+    try {
+      /*
+       * Recorded FIRST, and the audit line written only after it succeeds. A
+       * re-submitted form throws here, so it cannot leave an audit entry claiming
+       * a settlement that was never written.
+       */
+      const result = recordGatewaySettlement({
+        netPaise: toPaise(req.body.amountSettled),
+        feesPaise: toPaise(req.body.fees),
+        taxPaise: toPaise(req.body.tax),
+        reference: req.body.reference,
+        actorUserId: req.user!.id,
+        note: req.body.note
+      });
+
+      recordAudit(req, {
+        action: 'GATEWAY_SETTLED',
+        entityType: 'LEDGER',
+        entityId: result.reference,
+        summary:
+          `Gateway settled ${formatPaise(result.netPaise)} to the bank, keeping ` +
+          `${formatPaise(result.feeTotalPaise)} out of ${formatPaise(result.dischargedPaise)}.`,
+        after: result
+      });
+
+      res.json({
+        success: true,
+        data: {
+          amountSettled: toRupees(result.netPaise),
+          fees: toRupees(result.feesPaise),
+          tax: toRupees(result.taxPaise),
+          keptByGateway: toRupees(result.feeTotalPaise),
+          discharged: toRupees(result.dischargedPaise),
+          stillAtGateway: toRupees(gatewayReceivablePaise())
+        },
+        message:
+          `${formatPaise(result.netPaise)} reached the bank. The gateway kept ${formatPaise(result.feeTotalPaise)}, ` +
+          'which is now recorded as an expense rather than quietly missing from the books.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 /* ------------------------------------------------------------------ *
  *  WHY IS THIS SCREEN EMPTY, AND WHAT DID WE EARN                     *
  * ------------------------------------------------------------------ */
@@ -1122,16 +1238,49 @@ payoutRoutes.get(
       const readyPaiseTotal = ready.reduce((total, d) => total + d.payablePaise, 0);
       const bankPaise = ledger.balanceOf('PLATFORM_BANK');
       const officePaise = officeCashPaise();
+      /*
+       * THE FOURTH PLACE MONEY CAN BE, and until now the least visible.
+       *
+       * Card payments used to book straight to PLATFORM_BANK, so money sitting at
+       * Razorpay for a day or two was counted as bank. This warning then read the
+       * overstated figure and said the funds were present while they were at the
+       * gateway — a payday funded by it is marked sent and bounces.
+       *
+       * Now it is its own number, and it goes in the fix line for the same reason
+       * the office cash does: "insufficient balance" sends somebody to check a
+       * bank statement that is perfectly correct, and the real answer — the money
+       * is at the gateway and arrives tomorrow — is nowhere on the screen.
+       */
+      const atGatewayPaise = gatewayReceivablePaise();
       if (readyPaiseTotal > bankPaise) {
         const shortfall = readyPaiseTotal - bankPaise;
+
+        /*
+         * The causes, in the order somebody can act on them. Cash in the office
+         * can be banked this afternoon; money at the gateway arrives by itself and
+         * only needs waiting for. Both are better news than "top up the account",
+         * so both are said before it.
+         */
+        const causes: string[] = [];
+        if (officePaise > 0) {
+          causes.push(
+            `${formatPaise(officePaise)} of cash is in the office and has not been paid in — bank it and record the slip.`
+          );
+        }
+        if (atGatewayPaise > 0) {
+          causes.push(
+            `${formatPaise(atGatewayPaise)} is still at the payment gateway and has not settled yet — it usually arrives within a day or two, and nothing needs doing.`
+          );
+        }
+
         blockers.push({
           what:
             `${formatPaise(readyPaiseTotal)} is ready to pay and the bank holds ` +
             `${formatPaise(bankPaise)} — ${formatPaise(shortfall)} short.`,
           count: 1,
           fix:
-            officePaise > 0
-              ? `${formatPaise(officePaise)} of cash is in the office and has not been paid in. Bank it and record the slip, then run payday.`
+            causes.length > 0
+              ? `${causes.join(' ')} Then run payday.`
               : 'Top up the payout account before running payday, or the run will stop partway and some partners will go unpaid with no visible cause.',
           where: 'CASH'
         });
