@@ -1237,6 +1237,28 @@ Two separate pieces: a fit bug, and a second map phase that does not exist.
 
 ### 8B.1 Why the rider falls outside the box
 
+> **THIS DIAGNOSIS IS WRONG — ninth plan miss, and the first that is arithmetic
+> rather than a location.** Built and corrected in `66c407c`.
+>
+> The four errors below do **not** grow with distance. The span is 1.6× the
+> distance and the zoom is a log of that span, so they scale together and the
+> pixel separation is **constant**: 164px at 500m, at 2km, at 30km. In a 190px
+> box that leaves 12.9px each side, and the marker is a 14px dot in a 2.5px ring —
+> so the **art clips while the coordinate sits just inside the edge**.
+>
+> The distance-dependence the owner saw came entirely from the `max(400, …)`
+> floor: under about 250m it takes over and the margin opens to 29px. Short trips
+> looked fine; everything longer did not. Same symptom, reached from the opposite
+> direction.
+>
+> What is actually wrong: `zoomForSpan` is **viewport-blind** — one argument, the
+> same answer for a 320×190 box and a 190×320 box. Wrong by construction, and it
+> needs no distance to show it. That is the check that was kept.
+>
+> Session A's first check asserted the plan's claim and **failed** — which is how
+> it was found. The numbered list below is kept only as the record of what was
+> believed.
+
 `NativeRiderMap` (`LiveRiderMap.tsx:136–143`) picks a centre and a span:
 
 ```
@@ -1925,7 +1947,7 @@ end.
 | --- | --- |
 | ~~Step 9~~ | **Done.** Controls removed at their real location, the payout promise derived in one place, and two money defects fixed in `/riders/settlements` on the way. |
 | **Orphaned payout requests** | Any request raised before step 9 sits in the admin queue with **no way for the payee to withdraw it** — the app can no longer reach the route. An administrator can still decline or settle it, so nothing is stuck permanently. Judged not worth a migration; recorded here so it is a decision rather than an oversight. If the owner sees a stale request they cannot explain, this is why. |
-| §8B — the customer live map | Specced in full, not started. Needs an APK to reach anyone. |
+| ~~§8B~~ | **Done** (`66c407c`, `d8d76da`, `d0af361`). Needs an APK to reach anyone. |
 | **§8C — the DIGEST tier** | **Not built, and the owner asked for "everything".** Tiers 1 and 2 are built and proved — every event that needs a person. The twice-daily digest of order and sign-up counts, and the per-category switch, are not: they need a schedule, a per-admin preference store and a settings screen, which is larger than the rest of §8C together. Deferred deliberately. **The owner must be told this rather than left to infer it from the word "everything".** |
 | **Task 3.1 — Pay and Settlements disagree** | Known, deliberately deferred, assertion written out ready to paste. Not a regression; a pre-existing divergence with no shared source to unify. |
 | Step 10 — build and deliver | **Held on the owner's word.** |

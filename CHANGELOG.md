@@ -8,7 +8,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [2026-09-24] -- Claude Opus 5 -- Session 34: order flow rebuilt, the money chain made honest, and the admin revamp
 
-**Covers 114 commits, `e53f944` through `66c407c`, 22–24 Sep 2026.** Two Claude
+**Covers 117 commits, `e53f944` through `d0af361`, 22–24 Sep 2026.** Two Claude
 sessions worked in one git tree. Session A ("money") wrote the code; Session B
 ("experience", later "plan and review") wrote `docs/plans/` and reviewed every
 commit. **No APK was built during this period, on the owner's instruction.**
@@ -161,6 +161,24 @@ the partner sees and is paid their own.
 - **Diagnostic** `GET /api/payee-accounts/me/diagnostic` reports which process
   answered, what each admin screen would show, and whether the store is durable.
 
+### 7. Customer live map (`66c407c`, `d8d76da`, `d0af361`)
+
+- **The map now fits the box.** The cause was NOT what the plan said. The plan
+  described four errors compounding with distance; Session A measured it and the
+  pixel separation is **constant** (164px at 500m, 2km and 30km alike), because
+  span and zoom scale together. In a 190px box that leaves 12.9px, and the 14px
+  marker art clips. The distance-dependence the owner saw came entirely from the
+  `max(400, …)` floor, which opened the margin only on trips under ~250m. The
+  real defect: `zoomForSpan` is **viewport-blind** — same answer for any box.
+  Geometry now lives in `mapFit.ts`, which imports nothing and so can be tested.
+- **Two phases.** From the kitchen accepting: customer + restaurant. From pickup:
+  customer + rider, live. `LiveRiderMap` renamed `LiveOrderMap`.
+- **The rider's position is withheld until pickup.** The tracking endpoint had
+  been sending every customer with an accepted order the live coordinates, bearing
+  and timestamp of a rider who had not collected their food. Now gated server-side.
+- **Open question, unverifiable without a device:** Mapbox vector styles use
+  512px tiles, which would double the original error. Check on a real phone.
+
 ---
 
 ### What is NOT done — do not report these as working
@@ -171,7 +189,6 @@ the partner sees and is paid their own.
 | **§5.1 "fix the pay section"** | The owner never said what is wrong. Two defects in Pay were fixed; the complaint itself is undiagnosed. |
 | **§8.3 push on a closed phone** | Unprovable without a real device. |
 | **§8C digest tier** | **Not built.** The owner has since asked that admin receive **all** notifications — back in scope. |
-| **§8B customer map** | In progress at the time of writing. |
 | **Task 3.1** | Pay and Settlements derive "why can't this partner be paid" from different sources and can disagree. Known, deferred. |
 | **Any APK** | None built since 23 Sep. Admin push and the map **need** a new APK. |
 
