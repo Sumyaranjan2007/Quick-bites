@@ -424,7 +424,7 @@ recovered by re-offering, because the food has left the building.
 > no accessor for an existing fixture, and deliberately no clean-up — a check that
 > only passes because an earlier one tidied is the same bug pointing the other way.
 
-### W3 — money in (F3 + F4) · **no APK needed**
+### W3 — money in (F3 + F4) · **server: no APK · recording screen: admin APK**
 
 - Online payment books to `GATEWAY_RECEIVABLE`, not `PLATFORM_BANK`.
 - A settlement event moves `GATEWAY_RECEIVABLE → PLATFORM_BANK` for the amount
@@ -440,6 +440,36 @@ recovered by re-offering, because the food has left the building.
   until settlement; settling ₹976.40 raises it by exactly ₹976.40 and books
   ₹23.60 as fee; revenue excludes the fee. Assert **all four accounts** move —
   a check on the bank alone passes while the fee vanishes.
+
+### W3 review of the draft (24 Sep, Session B) — four defects, and a plan miss
+
+**Plan miss (mine).** The spec above follows the money in and never follows it
+back out. Razorpay takes a card **refund** out of the balance it is holding,
+and the ledger books an online payment only at **delivery**. So an order that is
+paid and then cancelled never enters the books. The ₹1,000 check above passes
+while both of these are broken. The "no APK needed" label was also wrong: nothing in
+the admin app can record a settlement, so the owner needs a screen.
+
+- **R1** — SOURCE refunds credit `PLATFORM_BANK` (`refunds.ts` ~:228). A
+  gateway refund must credit `GATEWAY_RECEIVABLE`; LINK and manual refunds stay
+  bank. Without this the bank is understated forever and the refund is counted
+  twice (in `REFUNDS_PAID` and again inside the derived fee).
+- **R2** — book the **capture** when payment is confirmed, through one function
+  called by all four paths that set PAID for gateway money: DEBIT
+  `GATEWAY_RECEIVABLE` / CREDIT `CUSTOMER_PREPAID` (a new liability). Delivery
+  draws from `CUSTOMER_PREPAID`. Refunding an undelivered order reverses the
+  capture and posts no `REFUNDS_PAID`. Worked day: ₹500 delivered + ₹300 paid
+  then refunded. Without R2 the settlement is **refused** as above outstanding.
+- **R3** — the settlement takes the two figures Razorpay's statement prints
+  (**amount settled** and **fees + tax**), not a "gross" the admin must work
+  out. The receivable credit is their sum.
+- **R4** — a replayed reference must be refused (409), not silently re-announced
+  with the new request's figures.
+- **Checks:** settlement moves exactly three accounts with revenue and payables
+  byte-identical; pay → cancel → refund returns receivable and prepaid to
+  their before-values; pay → deliver → refund by source vs by link; a double
+  confirm books one capture; the worked day records; a replay gets 409.
+- **Admin screen** under Money with the W7.1 four states. It needs the admin APK.
 
 ### W4 — tell people money reached them (F5) · **possibly needs APKs — see V6**
 
