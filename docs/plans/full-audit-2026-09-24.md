@@ -204,7 +204,7 @@ Checked and inconclusive. Confirm each against the file before building.
 
 Order is by harm, then by whether it reaches the owner without a build.
 
-**Order: W1 ✅ → W1.1 → W1.2 → W2 → W3 → W4 → W5 → W7 → W8 → W6.** W1.1 and W1.2
+**Order: W1 ✅ → W1.1 ✅ → W1.2 ✅ → W2 ✅ → W2.1 → W3 → W4 → W5 → W7 → W8 → W6.** W1.1 and W1.2
 are not new scope: they are W1 finishing its job, found by reviewing it.
 
 ### W1 — rider trip-offer push (F1) · **no APK needed**
@@ -329,6 +329,66 @@ waiting for a rider.
   payments health → `finance.payouts.manage`.
 - **Check that fails:** one stuck order across three sweeper ticks produces
   **one** push, to an admin who can act on it, and none to one who cannot.
+
+> **W2 DONE** — `b589f52`, `0e2e446`, `d66f298`. Six events: `NO_RIDER_FOUND`
+> (urgent), `RIDER_NO_SHOW`, auto-cancel, `DELIVERY_LOCATION_MISMATCH`,
+> `PAYMENT_RECOVERED`, and the collapsed payments-health push. Session A found a
+> sixth problem that had no ops alert at all: an order cancelled because the
+> kitchen never answered wrote a log line and an audit row, both of which need
+> somebody to go looking.
+>
+> **`RIDER_NO_SHOW` is correctly NOT urgent**, confirmed by reading the rule
+> rather than the name. It is **pre-pickup only**
+> (`listAssignedAwaitingPickup`, `orderSweeper.ts:280`) — the food is still on
+> the counter and `releaseRider` puts it straight back on offer, where W1.2's
+> widening picks it up. The platform has recovered; somebody should know, nobody
+> needs waking.
+>
+> **Two findings from the build, both worth keeping.** The generic ten-minute
+> per-subject suppression from §8C silently overrode the set-based change
+> detection — two mechanisms on one event and the weaker one won, so a problem
+> that cleared and came back inside ten minutes was swallowed. And the order of
+> `paymentsHealth`'s alerts is **not** severity: the ledger imbalance, which its
+> own comment calls *"the loudest thing this job can say"*, is pushed near the
+> end. A notifier taking `alerts[0]` as worst would have led with a cash-ageing
+> line while the books were broken. The worst is now named explicitly.
+
+### W2.1 — NEW: nothing watches a rider who has the food · **no APK needed**
+
+**F9, found reviewing W2.** The sweeper iterates exactly two lists:
+
+| `orderSweeper.ts` | Stage |
+| --- | --- |
+| `:111` `listAwaitingAction` | waiting for the kitchen, or for a rider |
+| `:280` `listAssignedAwaitingPickup` | a rider accepted and has not collected |
+
+**After pickup, nothing watches.** A rider who has collected the food and then
+stops — a crash, a dead phone, a rider who walks off with a cash order — leaves
+the order at out-for-delivery **forever**, with no alert anywhere. The customer
+watches a map that has stopped moving. On a cash order, a person the platform
+cannot see is holding both the food and the money.
+
+This is the one `RIDER_NO_SHOW` cannot be: after pickup nothing can be
+recovered by re-offering, because the food has left the building.
+
+**Both signals already exist on the order**, so detection is cheap:
+`riderLocationUpdatedAt`, and the ETA from `estimateArrival` (`eta.ts`).
+
+- **Location gone silent** — no update for N minutes while carrying — **URGENT**.
+  A rider who has stopped transmitting mid-delivery may be hurt. This is the
+  case where the §8C argument for SOS applies without anybody pressing SOS.
+- **Running late but still moving** — past ETA by a margin, location still
+  updating — **ATTENTION**. Traffic, not an emergency.
+- Both thresholds are admin settings in `RATE_BOUNDS`, not constants — and in
+  that list, or they are editable and read by nothing (§6.2).
+- Per order, deduped, cleared the moment the order is delivered.
+- **Tell the customer too.** They are already watching the map stop; an honest
+  *"we've lost contact with your rider and are looking into it"* is better than a
+  map that silently freezes.
+- **Check that fails:** a carrying rider whose last location is older than the
+  threshold raises one urgent alert; the same rider **with** a fresh location but
+  past ETA raises attention and not urgent; a **delivered** order raises neither.
+  The last one matters — a detector that fires on every old order is noise.
 
 ### W3 — money in (F3 + F4) · **no APK needed**
 
