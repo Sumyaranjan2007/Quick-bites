@@ -435,6 +435,58 @@ try {
   check('and the refusal says what they are actually carrying',
     JSON.stringify(overReturn.json).toLowerCase().includes('carrying'),
     JSON.stringify(overReturn.json).slice(0, 220));
+
+  // ----------------------------------------------------------------
+  console.log('\n-- Money at the gateway, over the wire');
+
+  /*
+   * THE FIELD NAMES, CHECKED ACROSS THE WIRE.
+   *
+   * The admin screen reads these three off the payload by name. Everything about
+   * whether the arithmetic is right is settled in gatewaySettlements.test.ts, at
+   * the ledger, with mutations. What THAT suite cannot see is a field being
+   * renamed on one side: the screen would render "Rs 0.00" for a gateway holding
+   * real money, and every ledger check would still pass.
+   */
+  const receivable = await api('/admin/gateway/receivable', {}, admin.token);
+  check('The gateway panel loads', receivable.status === 200, `status ${receivable.status}`);
+  for (const field of ['atGateway', 'feesKeptToDate', 'prepaidForUndeliveredFood', 'note']) {
+    check(`and carries ${field}, which the admin screen reads by name`,
+      !!receivable.json?.data && field in receivable.json.data,
+      JSON.stringify(Object.keys(receivable.json?.data || {})));
+  }
+
+  /*
+   * Support admin holds finance.refunds.manage and nothing else in finance, so
+   * both of these are refusals rather than faults. The screen distinguishes the
+   * two — a refusal says which permission is missing, a fault says we could not
+   * ask — and it can only do that if the server really answers 403 here.
+   */
+  const support = await login('support@quickbite.app');
+  const supportSees = await api('/admin/gateway/receivable', {}, support.token);
+  check('Somebody without finance access cannot see gateway money',
+    supportSees.status === 403, `status ${supportSees.status}`);
+
+  const supportRecords = await api('/admin/gateway/settlements', {
+    method: 'POST',
+    body: { amountSettled: 100, fees: 2, tax: 0.36, reference: 'setl_support_attempt' }
+  }, support.token);
+  check('and cannot record a settlement either, which is why the button is hidden for them',
+    supportRecords.status === 403, `status ${supportRecords.status}`);
+
+  const noReference = await api('/admin/gateway/settlements', {
+    method: 'POST',
+    body: { amountSettled: 100, fees: 2, tax: 0.36 }
+  }, admin.token);
+  check('A settlement with no settlement id is refused before it reaches the ledger',
+    noReference.status === 400, `status ${noReference.status}`);
+
+  const negativeFees = await api('/admin/gateway/settlements', {
+    method: 'POST',
+    body: { amountSettled: 100, fees: -2, tax: 0, reference: 'setl_negative_fees' }
+  }, admin.token);
+  check('and so are negative fees, which would book the gateway paying us its own charge',
+    negativeFees.status === 400, `status ${negativeFees.status}`);
 } finally {
   server.close();
 }

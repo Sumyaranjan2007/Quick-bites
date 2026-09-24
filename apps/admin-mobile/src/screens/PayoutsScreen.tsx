@@ -188,6 +188,15 @@ export const PayoutsScreen: React.FC = () => {
   const { api, can, user } = useSession();
   const canView = can('finance.payouts.view', 'finance.settlements.view');
   const canPay = can('finance.payouts.manage', 'finance.settlements.manage');
+  /*
+   * Narrower than `canPay` on purpose.
+   *
+   * POST /gateway/settlements requires `finance.payouts.manage` alone, so
+   * somebody holding only `finance.settlements.manage` would be shown a button
+   * that returns 403 — which reads as a broken app rather than as a permission
+   * they do not have.
+   */
+  const canRecordSettlement = can('finance.payouts.manage');
 
   const dues = useResource<DuesPayload>(() => api.get('/admin/payouts/dues').then(r => r.data), [], {
     enabled: canView
@@ -205,6 +214,22 @@ export const PayoutsScreen: React.FC = () => {
   const overview = useResource<any>(() => api.get('/admin/payments/overview').then(r => r.data), [], {
     enabled: canView
   });
+
+  /*
+   * What Razorpay is holding, and what it has kept.
+   *
+   * Both figures were invisible until money in was fixed: an online payment
+   * booked straight to the bank, so money still at the gateway looked like money
+   * in the account, and the gateway's fee was recorded nowhere at all. The owner
+   * would read their statement, find it short, and have nothing here explaining
+   * why.
+   */
+  const gateway = useResource<{
+    atGateway: number;
+    feesKeptToDate: number;
+    prepaidForUndeliveredFood: number;
+    note: string;
+  }>(() => api.get('/admin/gateway/receivable').then(r => r.data), [], { enabled: canView });
 
   /*
    * What people have actually ASKED for.
@@ -246,6 +271,22 @@ export const PayoutsScreen: React.FC = () => {
   const [countedAmount, setCountedAmount] = useState('');
   const [varianceNote, setVarianceNote] = useState('');
 
+  /*
+   * Recording a settlement. Three fields, and all three are TRANSCRIBED.
+   *
+   * The names match the columns on Razorpay's settlement page exactly, because
+   * every one of them is copied off it and a label that does not match the page
+   * it is read from is how the wrong column gets typed. Nothing here is worked
+   * out by the person at the keyboard: what the gateway discharged is derived on
+   * the server from these three, so no two entries can disagree.
+   */
+  const [recordingSettlement, setRecordingSettlement] = useState(false);
+  const [settledAmount, setSettledAmount] = useState('');
+  const [settledFees, setSettledFees] = useState('');
+  const [settledTax, setSettledTax] = useState('');
+  const [settlementRef, setSettlementRef] = useState('');
+  const [settlementNote, setSettlementNote] = useState('');
+
   if (!canView) return <NoAccess permission="finance.payouts.view" />;
   if (dues.loading && !dues.data) return <Loading label="Working out who is owed what…" />;
 
@@ -258,6 +299,7 @@ export const PayoutsScreen: React.FC = () => {
     void history.silentReload();
     void cash.silentReload();
     void overview.silentReload();
+    void gateway.silentReload();
   };
 
   const draft = async () => {
@@ -347,6 +389,61 @@ export const PayoutsScreen: React.FC = () => {
     }
   };
 
+  /*
+   * Recording what the gateway actually paid in.
+   *
+   * A person reads the statement and types what is on it, and the server checks
+   * the arithmetic rather than trusting it: a settlement larger than the gateway
+   * is holding is refused, and so is the same settlement id twice. Both refusals
+   * come back as readable sentences, which is why `actionError` is shown rather
+   * than swallowed.
+   *
+   * Razorpay's settlement API could do this without a person one day. There are
+   * no live keys yet, and a feature that only works once there are is a feature
+   * that does not work.
+   */
+  const settledNum = Number(settledAmount.replace(/[^0-9.]/g, ''));
+  const feesNum = Number(settledFees.replace(/[^0-9.]/g, '') || 0);
+  const taxNum = Number(settledTax.replace(/[^0-9.]/g, '') || 0);
+  const settlementValid =
+    Number.isFinite(settledNum) &&
+    settledNum > 0 &&
+    Number.isFinite(feesNum) &&
+    feesNum >= 0 &&
+    Number.isFinite(taxNum) &&
+    taxNum >= 0 &&
+    settlementRef.trim().length >= 3;
+  /** What the gateway took out of what it was holding. Shown, never typed. */
+  const settlementDischarged = settlementValid
+    ? Math.round((settledNum + feesNum + taxNum) * 100) / 100
+    : 0;
+
+  const recordSettlement = async () => {
+    if (!settlementValid) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await api.post('/admin/gateway/settlements', {
+        amountSettled: Number(settledNum.toFixed(2)),
+        fees: Number(feesNum.toFixed(2)),
+        tax: Number(taxNum.toFixed(2)),
+        reference: settlementRef.trim(),
+        ...(settlementNote.trim() ? { note: settlementNote.trim() } : {})
+      });
+      setRecordingSettlement(false);
+      setSettledAmount('');
+      setSettledFees('');
+      setSettledTax('');
+      setSettlementRef('');
+      setSettlementNote('');
+      await reloadAll();
+    } catch (err: any) {
+      setActionError(err?.message || 'That settlement could not be recorded.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const railFor = (id: string) => rails.find(r => r.id === id);
   const pendingApproval = (history.data?.payouts || []).filter(p => p.state === 'AWAITING_APPROVAL');
   const readyToSend = (history.data?.payouts || []).filter(p => p.state === 'APPROVED');
@@ -405,7 +502,8 @@ export const PayoutsScreen: React.FC = () => {
             {
               key: 'cash',
               label: `Cash in${cash.data?.awaiting.length ? ` (${cash.data.awaiting.length})` : ''}`
-            }
+            },
+            { key: 'gateway', label: 'Card & UPI in' }
           ]}
           value={tab}
           onChange={setTab}
@@ -911,7 +1009,224 @@ export const PayoutsScreen: React.FC = () => {
             )}
           </>
         )}
+
+        {/* --------------------------- Card & UPI in -------------------------- */}
+        {tab === 'gateway' && (
+          <>
+            {/*
+              FOUR STATES, EACH SAID OUT LOUD.
+
+              Fourteen admin screens render `useResource().error` nowhere at all,
+              so a failed load shows as an empty page and whoever is looking
+              concludes there is nothing to do. On this tab that conclusion is
+              expensive: "the gateway is holding nothing" and "we could not ask"
+              look identical, and one of them means a settlement is sitting
+              unrecorded.
+
+              So loading, refused, failed and empty are four different things, and
+              each one says which it is.
+            */}
+            {gateway.loading && !gateway.data ? (
+              <Loading label="Asking what the gateway is holding…" />
+            ) : gateway.denied ? (
+              <EmptyState
+                title="You cannot see gateway money"
+                message="This needs the finance payouts or reports permission. Ask whoever manages roles."
+                icon={<CircleSlash size={28} color={c.text.muted} />}
+              />
+            ) : gateway.error ? (
+              <Card style={s.errorCard}>
+                <Text style={s.errorText}>{gateway.error}</Text>
+                <Text style={s.confirmNote}>
+                  This is not the same as the gateway holding nothing — we could not ask it. Nothing has been
+                  lost; try again.
+                </Text>
+                <Button label="Try again" variant="secondary" onPress={() => void gateway.reload()} />
+              </Card>
+            ) : (
+              <>
+                <Card style={s.dueCard}>
+                  <View style={s.dueHead}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.dueType}>At Razorpay, not yet settled</Text>
+                      <Text style={s.summaryValue}>{rupees(gateway.data!.atGateway)}</Text>
+                    </View>
+                    <Landmark size={26} color={c.text.muted} />
+                  </View>
+                  <Text style={s.confirmNote}>{gateway.data!.note}</Text>
+
+                  <Divider />
+
+                  <View style={s.confirmRow}>
+                    <Text style={s.confirmLabel}>Fees kept to date</Text>
+                    <Text style={s.confirmValue}>{rupees(gateway.data!.feesKeptToDate)}</Text>
+                  </View>
+                  <Text style={s.confirmNote}>
+                    About 2% plus GST on every card and UPI order. This was recorded nowhere at all until now,
+                    which is why your bank statement never quite matched.
+                  </Text>
+
+                  <Divider />
+
+                  <View style={s.confirmRow}>
+                    <Text style={s.confirmLabel}>Paid by customers for food not yet delivered</Text>
+                    <Text style={s.confirmValue}>{rupees(gateway.data!.prepaidForUndeliveredFood)}</Text>
+                  </View>
+                  <Text style={s.confirmNote}>
+                    Normal while orders are out. If it stays high when nothing is on the road, a cancelled
+                    order’s refund did not go through and somebody is owed their money back.
+                  </Text>
+                </Card>
+
+                {gateway.data!.atGateway <= 0 ? (
+                  <EmptyState
+                    title="The gateway is not holding anything"
+                    message="Everything it has collected has been settled. There is nothing to record today."
+                    icon={<Banknote size={28} color={c.text.muted} />}
+                  />
+                ) : (
+                  <Card style={s.dueCard}>
+                    <Text style={s.dueName}>Has money landed in your bank?</Text>
+                    <Text style={s.confirmNote}>
+                      Open Settlements on your Razorpay dashboard, find the row for the money that arrived, and
+                      copy the three figures it shows. Recording it moves the amount above into your bank and
+                      puts the gateway’s fee on the books as the expense it is.
+                    </Text>
+                    {canRecordSettlement ? (
+                      <Button
+                        label="Record a settlement"
+                        onPress={() => {
+                          setRecordingSettlement(true);
+                          setSettledAmount('');
+                          setSettledFees('');
+                          setSettledTax('');
+                          setSettlementRef('');
+                          setSettlementNote('');
+                          setActionError(null);
+                        }}
+                        disabled={busy}
+                        style={{ marginTop: 10 }}
+                      />
+                    ) : (
+                      /*
+                       * Not shown rather than shown-and-refused. A button that
+                       * 403s teaches somebody that the app is broken, when what
+                       * is actually true is that this is not their job.
+                       */
+                      <View style={s.blockRow}>
+                        <Info size={14} color={c.text.muted} />
+                        <Text style={s.blockTextMuted}>
+                          Recording a settlement needs the finance payouts permission.
+                        </Text>
+                      </View>
+                    )}
+                  </Card>
+                )}
+              </>
+            )}
+          </>
+        )}
       </ScrollView>
+
+      {/* Recording what the gateway actually paid in */}
+      <Sheet
+        visible={recordingSettlement}
+        onClose={() => setRecordingSettlement(false)}
+        title="Record a settlement"
+        subtitle="Copy the three figures from Razorpay’s settlement row"
+      >
+        <Text style={s.confirmNote}>
+          Type what the statement says, not what you expect. Do NOT use the “collected” figure from the
+          dashboard — that is payments before refunds, and on a day with a refund it is far larger than what
+          actually arrived.
+        </Text>
+
+        <Field
+          label="Amount settled"
+          value={settledAmount}
+          onChangeText={text => setSettledAmount(text.replace(/[^0-9.]/g, ''))}
+          keyboardType="numeric"
+          placeholder="0.00"
+          hint="What reached your bank account."
+        />
+        <Field
+          label="Fees"
+          value={settledFees}
+          onChangeText={text => setSettledFees(text.replace(/[^0-9.]/g, ''))}
+          keyboardType="numeric"
+          placeholder="0.00"
+          hint="The gateway’s own charge, from the Fees column."
+        />
+        <Field
+          label="Tax"
+          value={settledTax}
+          onChangeText={text => setSettledTax(text.replace(/[^0-9.]/g, ''))}
+          keyboardType="numeric"
+          placeholder="0.00"
+          hint="GST on those fees, from the Tax column."
+        />
+        <Field
+          label="Settlement id"
+          value={settlementRef}
+          onChangeText={setSettlementRef}
+          placeholder="setl_XXXXXXXXXXXX"
+          hint="From the same row. It is what stops one settlement being recorded twice."
+        />
+        <Field
+          label="Note (optional)"
+          value={settlementNote}
+          onChangeText={setSettlementNote}
+          multiline
+          placeholder="Anything worth remembering about this one"
+        />
+
+        {/*
+          The total, shown BEFORE anything is sent.
+
+          Nothing here is typed — it is the three figures above added up. A typo
+          in the amount settled shows up as a total that does not match what the
+          gateway is holding, which is visible on this screen a moment before the
+          server would have refused it.
+        */}
+        {settlementValid && (
+          <View style={s.confirmBox}>
+            <View style={s.confirmRow}>
+              <Text style={s.confirmLabel}>Leaves “At Razorpay”</Text>
+              <Text style={s.confirmValue}>{rupees(settlementDischarged)}</Text>
+            </View>
+            <View style={s.confirmRow}>
+              <Text style={s.confirmLabel}>Razorpay is holding</Text>
+              <Text style={s.confirmValue}>{rupees(gateway.data?.atGateway || 0)}</Text>
+            </View>
+          </View>
+        )}
+
+        {settlementValid && settlementDischarged > (gateway.data?.atGateway || 0) && (
+          <View style={s.warnBox}>
+            <TriangleAlert size={16} color={c.state.warning} />
+            <Text style={s.warnText}>
+              That adds up to more than the gateway is holding, so it will be refused. Check the amount settled
+              came from the settlement row and not from the day’s payments.
+            </Text>
+          </View>
+        )}
+
+        {/*
+          The server's own words, not a generic failure.
+
+          Both refusals here are written to be acted on: one names what the
+          gateway is holding against what was asked for, and the other names what
+          was recorded the first time and on what date. Replacing either with
+          "Something went wrong" throws away the only useful part.
+        */}
+        {!!actionError && <Text style={s.errorText}>{actionError}</Text>}
+
+        <Button
+          label={busy ? 'Recording…' : 'Record it'}
+          onPress={recordSettlement}
+          disabled={busy || !settlementValid}
+        />
+      </Sheet>
 
       {/* Drafting */}
       <Sheet

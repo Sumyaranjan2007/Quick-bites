@@ -61,6 +61,7 @@ import {
   officeCashPaise
 } from '../../modules/payments/cashDeposits.ts';
 import { gatewayReceivablePaise, recordGatewaySettlement, gatewayFeesPaise } from '../../modules/payments/gatewaySettlements.ts';
+import { customerPrepaidPaise } from '../../modules/payments/capture.ts';
 import { ledger, accountFor } from '../../modules/payments/ledger.ts';
 import {
   listRequests,
@@ -920,11 +921,22 @@ payoutRoutes.get(
   async (_req, res, next) => {
     try {
       const outstandingPaise = gatewayReceivablePaise();
+      const prepaidPaise = customerPrepaidPaise();
       res.json({
         success: true,
         data: {
           atGateway: toRupees(outstandingPaise),
           feesKeptToDate: toRupees(gatewayFeesPaise()),
+          /*
+           * What customers have paid for food that has not been delivered.
+           *
+           * Included because it is the figure that says a cancelled order's
+           * refund never went through. A cancellation discharges this debt at the
+           * same moment it reverses the payment, so a balance that sits here
+           * while nothing is out for delivery is money owed to somebody who has
+           * not been given it back — and nothing else on any screen would say so.
+           */
+          prepaidForUndeliveredFood: toRupees(prepaidPaise),
           /*
            * Said plainly, because the number will look wrong to anybody who
            * remembers the old screen. Orders paid before this was switched on
