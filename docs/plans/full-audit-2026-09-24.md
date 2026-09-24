@@ -641,6 +641,23 @@ is dropped was wrong; the fallback is documented by Firebase.
 - **W7 adds an app ↔ server route contract check** before the manual sweep:
   every path the four apps call must match a mounted route and method.
 
+### W7 part 1 — route contract accepted `33baae2` (25 Sep)
+
+186 app calls across the four apps, and every one matches a mounted route and
+method. The first run reported 20 unmatched, and **all 20 were scanner bugs**
+(three of the four would have reported a CLEAN app). Reporting before fixing
+avoided "fixing" twenty working calls. The check has seven planted probes, plus
+floors on the routes found, the calls found, and the calls per app.
+- A hole that picks between string literals (`${isResend ? 'resend' : 'request'}`)
+  expands to **every** branch, and passes only if all are mounted.
+- **Blind spot:** direct `fetch(`${apiUrl}/devices…`)` in the four
+  `pushRegistration.ts` files isn't read. Checked by hand (POST `/devices`,
+  DELETE `/devices/:token`, both mounted). To be added to the scanner.
+- **§11 shape:** *a check that holds on one date.* W5's digest check used the real
+  clock for orders and a hardcoded day for the query, so it failed the next
+  morning. A check that reports a defect nobody introduced gets switched off
+  rather than read.
+
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
 - Remove the twelve dead exports in §F7 one commit each, gate green between.
