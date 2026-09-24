@@ -769,6 +769,27 @@ state" is actually established — by exercising it, not by reading it.
 ### W8 — Pay and Settlements agree (F8)
 
 **Upgraded 25 Sep to M3 — CRITICAL — Settlements is a second payout system.**
+**M3 and M4 were covering for each other.** Before M4, a partner was owed
+"nothing" after their first payout, so a Settlements payment that left the
+payable standing produced no second payment. With M4 fixed, `duesFor` reports the
+full amount, so marking a settlement PAID and then running Pay **pays twice, for
+real**. Fixing the safest-looking one alone would have been worse than fixing
+neither: money defects in one surface get fixed in one pass.
+
+**Decided 25 Sep:** the pay button KEEPS working (a shipped APK whose button
+starts failing reads as the app breaking, and no rebuild until the owner says).
+It drafts a single-payee payout through `payouts.ts`. Three conditions:
+- **C1** the amount is `duesFor`'s payable-now, and the DRAFT's `netAmount`
+  matches it. Otherwise the admin is shown one figure and another goes out.
+- **C2 — a live double-deduction.** `FinanceScreen`:496 collects `adjustments`
+  and its hint says "use adjustments to recover a refund", but `refunds.ts`
+  already claws the partner's share back automatically. Once Settlements reads
+  the ledger, following that hint deducts the same refund twice — M4's mirror
+  image, against the partner. **Refuse** a non-zero adjustment and fix the hint.
+- **C3** the hold period, cash in hand, the minimum and the daily cap now apply,
+  so the button can refuse; the refusal must name which and what to do. Marking
+  PAID twice sends once.
+
 Marking a settlement PAID (`financeRoutes` ~:837) posts nothing to the ledger, so
 Pay still sees the partner as owed and the next run **pays them again**. Its owed
 figure comes from its own formula (TDS 1% of commission, no packaging, no refund
