@@ -54,6 +54,7 @@ const SUITES = [
   'statements',
   'policies',
   'payoutPromise',
+  'adminPush',
   'platformReset',
   'accountBlocking',
   'profileEdits',

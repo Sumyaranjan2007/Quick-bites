@@ -22,7 +22,32 @@ console.log('====================================================');
 console.log('     RUNNING ONBOARDING & APPROVAL TESTS            ');
 console.log('====================================================\n');
 
-const PORT = 4900 + Math.floor(Math.random() * 300);
+/*
+ * A RANDOM PORT, MINUS THE TWO THAT CANNOT WORK.
+ *
+ * This range is 4900-5199 and it contains 5060 and 5061, which are SIP. They are
+ * on the WHATWG fetch "bad ports" list, so undici refuses to connect to them
+ * before a socket is ever opened — `TypeError: fetch failed`, caused by
+ * `Error: bad port`. The server starts fine and listens fine; only the test's own
+ * fetch refuses.
+ *
+ * That is roughly a 1-in-150 chance of this suite crashing for a reason nothing
+ * in it has anything to do with, on a different run each time, with a message
+ * that points at the network. Found when a full gate run failed here and the
+ * suite passed on its own immediately afterwards.
+ *
+ * Skipped rather than the range being moved, because the next range somebody
+ * picks could contain 5222 or 6000 and nothing would say so.
+ */
+const BLOCKED_PORTS = new Set([5060, 5061]);
+function pickPort(): number {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = 4900 + Math.floor(Math.random() * 300);
+    if (!BLOCKED_PORTS.has(candidate)) return candidate;
+  }
+  return 4901;
+}
+const PORT = pickPort();
 const API = `http://127.0.0.1:${PORT}/api`;
 
 let passed = 0;
