@@ -180,6 +180,19 @@ try {
     assert.equal(kitchen().isOpen, false);
     assert.ok(kitchen().pausedForRejectionsAt);
   });
+
+  // ------------------------------------------------------------ owner lookup
+  console.log('\n-- The partner app\'s restaurant lookup answers only the owner');
+  const ownerId = (memoryStore.restaurants.get(RESTAURANT_ID) as any).ownerId;
+  const own = await api(`/restaurants/owner/${ownerId}`, {}, partner.token);
+  const stranger = await api(`/restaurants/owner/${ownerId}`, {}, customer.token);
+  const anonymous = await api(`/restaurants/owner/${ownerId}`);
+  it('The owner reads their restaurant; another account and no account are refused', () => {
+    assert.equal(own.status, 200, JSON.stringify(own.json).slice(0, 200));
+    assert.equal(own.json?.data?.restaurant?.id, RESTAURANT_ID);
+    assert.equal(stranger.status, 403);
+    assert.equal(anonymous.status, 401);
+  });
 } finally {
   server.close();
 }

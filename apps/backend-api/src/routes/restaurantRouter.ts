@@ -347,12 +347,24 @@ restaurantRouter.get('/', async (req, res) => {
 });
 
 // GET /api/restaurants/owner/:ownerId
-restaurantRouter.get('/owner/:ownerId', async (req, res) => {
+restaurantRouter.get('/owner/:ownerId', authMiddleware(), async (req: any, res) => {
   try {
+    // Only the owner, or staff. It returns the kitchen's own prices and full
+    // record, and used to answer anybody who knew an owner's user id.
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
+    if (!isStaff && req.user?.id !== req.params.ownerId) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'NOT_RESTAURANT_OWNER', message: 'You do not manage this restaurant.' }
+      });
+    }
     const all = await restaurantRepository.listAll();
     const found = all.find((r: Restaurant) => r.ownerId === req.params.ownerId);
     if (!found) {
-      return res.status(404).json({ success: false, error: 'No restaurant found for this owner' });
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NO_RESTAURANT_LINKED', message: 'No restaurant is linked to this account yet.' }
+      });
     }
     const menu = await menuRepository.findByRestaurantId(found.id);
     return res.json({ success: true, data: { restaurant: found, menu } });

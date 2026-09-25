@@ -26,6 +26,28 @@ to review the code line by line. Session C informs you of everything, merges to
 
 ---
 
+## 0. Last check (the owner asked for it): read `docs/plans/CONNECTION-MAP.md`
+
+Session C called **every route each of the four apps uses, signed in as that
+app's real user** (220 calls), and every admin call again as ops, finance and
+support.
+
+- All calls reach a working route. There are no server errors and no
+  wrong-role refusals.
+- Every screen or button a staff role cannot use is hidden from it.
+
+The map lists each action app by app, and the live links between the apps.
+**Section 3 of the map lists the issues found.** Two are fixed (an
+unauthenticated owner lookup, and a red pricing test on `main`). The rest are
+one low item and things only your build machine or a real phone can verify
+(including the `MAPBOX_DOWNLOAD_TOKEN` the APK build needs). Rerun the probe
+any time:
+
+`PROBE_OUT=/tmp/probe.json node --experimental-strip-types apps/backend-api/src/test/connectionProbe.ts`
+
+Use the map as the starting skeleton for the full four-app flow document the
+owner asked you to write.
+
 ## 1. State at handoff
 
 - `npm run verify` is green: secrets, hardcoded URLs, i18n, 34/34 diagnostics,
