@@ -24,6 +24,7 @@ import { refundableRemaining } from '../modules/payments/refundCap.ts';
 import { toPaise } from '../modules/payments/money.ts';
 import { sendRefund } from '../modules/payments/refunds.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
+import { config } from '../config/env.ts';
 
 const PORT = 5265;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -415,6 +416,141 @@ try {
     assert.equal(o.status, 'DELIVERED');
     assert.equal(o.paymentMethod, 'CASH_ON_DELIVERY');
   });
+
+  /* ================================================================ */
+  console.log("\n-- A door payment the poll saw WITHOUT its id is the order's own, not a duplicate");
+
+  /*
+   * The rider's poll asks Razorpay twice: is the QR paid, and by which payment.
+   * The second call's failure is swallowed, so the poll can mark the order PAID
+   * with no payment id, and at a doorstep it normally arrives before the webhook.
+   * Driven through the real poll and the real webhook, with only Razorpay's two
+   * QR endpoints stubbed.
+   */
+  const savedKeys = { id: (config as any).RAZORPAY_KEY_ID, secret: (config as any).RAZORPAY_KEY_SECRET };
+  (config as any).RAZORPAY_KEY_ID = 'rzp_test_door';
+  (config as any).RAZORPAY_KEY_SECRET = 'door_test_secret';
+  const realFetch = globalThis.fetch;
+  const qrState = new Map<string, { amount: number; paymentId: string; idLookupFails: boolean }>();
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input?.url ?? input);
+    const m = url.match(/\/payments\/qr_codes\/([^/?]+)(\/payments)?/);
+    if (!url.startsWith('https://api.razorpay.com/') || !m) return realFetch(input, init);
+    const qr = qrState.get(m[1]);
+    if (!qr) return new Response('{}', { status: 404 });
+    if (m[2]) {
+      if (qr.idLookupFails) throw new Error('network blip on the payments lookup');
+      return new Response(JSON.stringify({ items: [{ id: qr.paymentId }] }), { status: 200 });
+    }
+    return new Response(
+      JSON.stringify({ status: 'closed', close_reason: 'paid', payments_amount_received: qr.amount }),
+      { status: 200 }
+    );
+  }) as any;
+
+  try {
+    /** A cash order out for delivery with a door QR showing. */
+    async function atTheDoor(qrId: string, paymentId: string, idLookupFails: boolean) {
+      const res = await api('/orders', {
+        method: 'POST',
+        body: {
+          restaurantId: RESTAURANT_ID,
+          deliveryAddressId: ADDRESS,
+          items: [{ dishId: DISH, quantity: 1, selectedOptions: [] }],
+          paymentMethod: 'CASH_ON_DELIVERY',
+          idempotencyKey: crypto.randomUUID()
+        }
+      }, customer.token);
+      const placed = res.json?.data?.order ?? res.json?.data;
+      for (const next of ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP']) {
+        await api(`/orders/${placed.id}/status`, { method: 'PUT', body: { status: next, preparationMinutes: 20 } }, partner.token);
+      }
+      await api(`/riders/orders/${placed.id}/claim`, { method: 'POST', body: {} }, riderLogin.token);
+      await api(`/riders/orders/${placed.id}/verify-pickup`, { method: 'POST', body: { pickupCode: (memoryStore.orders.get(placed.id) as any).pickupCode } }, riderLogin.token);
+      (memoryStore.orders.get(placed.id) as any).doorQrId = qrId;
+      const amount = toPaise(Number(placed.bill.totalAmount));
+      qrState.set(qrId, { amount, paymentId, idLookupFails });
+      return { id: placed.id as string, amount };
+    }
+    const poll = (orderId: string) => api(`/cash/orders/${orderId}/door-payment`, {}, riderLogin.token);
+    // The rider holds one trip at a time, so each door order is handed over
+    // before the next is claimed.
+    const handOver = (orderId: string) =>
+      api(`/riders/orders/${orderId}/verify-otp`, { method: 'POST', body: { deliveryOtp: (memoryStore.orders.get(orderId) as any).deliveryOtp } }, riderLogin.token);
+    const credited = (qrId: string, orderId: string, paymentId: string, amount: number) => {
+      const eventId = crypto.randomUUID();
+      return api('/payments/webhook', {
+        method: 'POST',
+        headers: { 'x-razorpay-signature': 'sig', 'x-razorpay-event-id': eventId },
+        body: {
+          id: eventId,
+          event: 'qr_code.credited',
+          payload: {
+            qr_code: { entity: { id: qrId, notes: { orderId } } },
+            payment: { entity: { id: paymentId, amount } }
+          }
+        }
+      });
+    };
+
+    // 1. The poll first, its id lookup failing; then the webhook with the id.
+    const a = await atTheDoor('qr_adopt_a', 'pay_door_a', true);
+    const firstPoll = await poll(a.id);
+    it('Control: the poll marks the door payment PAID, and its id lookup failed so none is recorded', () => {
+      assert.equal(firstPoll.status, 200, JSON.stringify(firstPoll.json).slice(0, 200));
+      const o = memoryStore.orders.get(a.id) as any;
+      assert.equal(o.paymentStatus, 'PAID');
+      assert.equal(o.paymentMethod, 'UPI_AT_DOOR');
+      assert.equal(o.razorpayPaymentId, undefined);
+    });
+    await credited('qr_adopt_a', a.id, 'pay_door_a', a.amount);
+    it("The webhook's id is ADOPTED as the order's own payment: nothing refunded, no case", () => {
+      assert.equal(callsFor('pay_door_a').length, 0, "the customer's only payment was refunded");
+      assert.equal(casesFor(a.id).length, 0, `cases: ${casesFor(a.id).length}`);
+      assert.equal((memoryStore.orders.get(a.id) as any).razorpayPaymentId, 'pay_door_a');
+    });
+    await credited('qr_adopt_a', a.id, 'pay_door_a', a.amount);
+    it('and the same payment reported again is still nothing to do', () => {
+      assert.equal(callsFor('pay_door_a').length, 0);
+      assert.equal(casesFor(a.id).length, 0);
+    });
+    const handedA = await handOver(a.id);
+    it('Control: the door-paid order is handed over', () => {
+      assert.equal(handedA.status, 200, JSON.stringify(handedA.json).slice(0, 200));
+    });
+
+    // 2. The same, but the SECOND poll is what finally sees the id.
+    const b = await atTheDoor('qr_adopt_b', 'pay_door_b', true);
+    await poll(b.id);
+    qrState.get('qr_adopt_b')!.idLookupFails = false;
+    const secondPoll = await poll(b.id);
+    it("A second poll that finds the id also ADOPTS it: nothing refunded, no case", () => {
+      assert.equal(secondPoll.status, 200);
+      assert.equal(callsFor('pay_door_b').length, 0, "the customer's only payment was refunded");
+      assert.equal(casesFor(b.id).length, 0);
+      assert.equal((memoryStore.orders.get(b.id) as any).razorpayPaymentId, 'pay_door_b');
+    });
+    await handOver(b.id);
+
+    // 3. A recorded door payment, then a DIFFERENT payment on the same QR.
+    const c = await atTheDoor('qr_twice_c', 'pay_door_c1', false);
+    await poll(c.id);
+    await handOver(c.id);
+    await credited('qr_twice_c', c.id, 'pay_door_c2', c.amount);
+    it('A different payment on a door order whose payment is recorded is refunded, once', () => {
+      assert.equal((memoryStore.orders.get(c.id) as any).razorpayPaymentId, 'pay_door_c1');
+      assert.equal(callsFor('pay_door_c2').length, 1, JSON.stringify(refundCalls.slice(-3)));
+      assert.equal(callsFor('pay_door_c1').length, 0, "the order's own payment was refunded");
+    });
+    await credited('qr_twice_c', c.id, 'pay_door_c2', c.amount);
+    it('and reported again, refunds nothing more', () => {
+      assert.equal(callsFor('pay_door_c2').length, 1);
+    });
+  } finally {
+    globalThis.fetch = realFetch;
+    (config as any).RAZORPAY_KEY_ID = savedKeys.id;
+    (config as any).RAZORPAY_KEY_SECRET = savedKeys.secret;
+  }
 } catch (err: any) {
   failed++;
   console.log(`[FAIL] The suite could not complete: ${err?.stack || err}`);

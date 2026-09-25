@@ -28,6 +28,7 @@ import { duplicateCaptureKeyFor } from './capture.ts';
 import { sendRefund } from './refunds.ts';
 import { toPaise, toRupees, formatPaise } from './money.ts';
 import { refundRepository } from '../../db/repositories/refundRepository.ts';
+import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
 import type { Order } from '@quick-bites/shared-types';
 
@@ -147,4 +148,66 @@ export async function refundDuplicateCapture(
   });
 
   return outcome.settled ? 'refunded' : 'refund-pending';
+}
+
+/*
+ * -------------------------------------------------------------------------
+ * A DOOR-QR PAYMENT REPORTED ON AN ORDER ALREADY MARKED PAID
+ * -------------------------------------------------------------------------
+ * Two routes see a door payment: the rider's poll and the qr_code.credited
+ * webhook. Whichever comes first marks the order paid; the other then finds it
+ * PAID and must decide what the payment it is holding IS.
+ *
+ * The trap: the poll can mark an order PAID WITHOUT a payment id. It reads the
+ * id from a second Razorpay call whose failure is swallowed, and at a doorstep
+ * the poll normally arrives before the webhook. Comparing the webhook's id with
+ * "no id" called the customer's ONLY payment a duplicate and refunded it.
+ *
+ * So a door payment is a duplicate only when the order was already paid by
+ * something else: a DIFFERENT recorded payment id, or cash the rider recorded.
+ * A door-paid order with no id yet ADOPTS the id. Anything else is left alone
+ * and put in front of a person, because refunding a payment we cannot place is
+ * worse than asking.
+ */
+export type DoorPaymentVerdict = 'same' | 'adopt' | 'duplicate' | 'unclear';
+
+export function classifyDoorPayment(
+  order: Pick<Order, 'razorpayPaymentId' | 'paymentMethod' | 'codCashRecordedAt'>,
+  paymentId: string
+): DoorPaymentVerdict {
+  if (order.razorpayPaymentId) return order.razorpayPaymentId === paymentId ? 'same' : 'duplicate';
+  if (order.paymentMethod === 'CASH_ON_DELIVERY' && order.codCashRecordedAt) return 'duplicate';
+  if ((order.paymentMethod as string) === 'UPI_AT_DOOR') return 'adopt';
+  return 'unclear';
+}
+
+/** Settles a door-QR payment reported on an order that is already PAID. */
+export async function settleLateDoorPayment(
+  order: Order,
+  paymentId: string | undefined,
+  amountPaise: number
+): Promise<DoorPaymentVerdict | 'no-id'> {
+  if (!paymentId) return 'no-id';
+  const verdict = classifyDoorPayment(order, paymentId);
+
+  if (verdict === 'adopt') {
+    // The order's own payment, finally identified. Recorded so a later refund
+    // on this order reverses it at the gateway rather than by link.
+    order.razorpayPaymentId = paymentId;
+    await orderRepository.save(order);
+  } else if (verdict === 'duplicate') {
+    await refundDuplicateCapture(order, paymentId, amountPaise);
+  } else if (verdict === 'unclear') {
+    emitOpsAlert({
+      kind: 'DOOR_PAYMENT_UNMATCHED',
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      restaurantId: order.restaurantId,
+      detail:
+        `A door QR payment (${paymentId}) arrived for order #${order.orderNumber}, which is already ` +
+        `marked paid with no payment recorded. It has NOT been refunded; check it in the Razorpay dashboard.`,
+      raisedAt: new Date().toISOString()
+    });
+  }
+  return verdict;
 }
