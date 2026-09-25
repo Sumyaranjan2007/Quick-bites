@@ -42,6 +42,15 @@ entries below this one, and was reviewed after the fact.
   `app.json` files** the build changed. See `SIGNING_KEYS.md` → "What the build
   checks for you".
 
+### Before Session C's merge: the gap between Session 35 and `063a4a2`
+
+| Commit | What |
+| --- | --- |
+| `17d62f0` | **One gate run at a time per machine.** A lock in the OS temp directory (not in the repo, so a second worktree sees it too), taken before the sandbox is wiped. A second run WAITS and names the holder. A stale lock whose process is gone is taken over; there is a 15-minute timeout. The runner runs the lock's own 14 checks before taking it. Two sessions running the gate at once had been crashing each other's suites with `EADDRINUSE`. |
+| `7410f3e` | **Session C's first branch merged**, after review: replayed payments, rider cancels, code lockouts, refund stacking, the super-admin takeover, the rates-screen `{ changes }` shim, and the office desk buttons. Gate 58/58. |
+| `6425810` | **N23: a customer charged twice gets the second payment back.** Razorpay can capture two payments on one order when a customer retries. The second (a different payment id on an already-paid order) is booked and refunded once, keyed on that payment id. The order and its first payment are untouched. The webhook route had its own `paymentStatus !== 'PAID'` guard, which also had to go: fixing only the function would have changed nothing. |
+| `4dab54b` | **The body-shape contract suite (S5) merged**: every body the four apps send is checked against the route's real schema. Removing the rates alias makes it name `RatesScreen.tsx:454`. |
+
 ### What the review of `063a4a2` found, and what was done
 
 | Finding | Fix |
