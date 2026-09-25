@@ -69,6 +69,33 @@ let failed = 0;
  * async" is advisory and this is enforceable. Anything returning a thenable is a
  * FAILURE with a message saying why, not a silent pass.
  */
+/**
+ * Where, if anywhere, a customer price of Rs 300 appears in a response: a number
+ * 300, a string that is exactly "300"/"300.00", or 300 written as money in text.
+ * Returns the path to the first one, or null.
+ */
+function customerPriceIn(value: unknown, path = '$'): string | null {
+  if (typeof value === 'number') return value === 300 ? path : null;
+  if (typeof value === 'string') {
+    if (/^300(?:\.0+)?$/.test(value.trim())) return path;
+    return /(?:Rs\.?\s?|₹\s?)300(?:\.00?)?(?![\d])/.test(value) ? path : null;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const found = customerPriceIn(value[i], `${path}[${i}]`);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, inner] of Object.entries(value)) {
+      const found = customerPriceIn(inner, `${path}.${key}`);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function check(label: string, fn: () => void) {
   try {
     const result: any = fn();
@@ -576,7 +603,27 @@ async function partnerToken() {
     }
 
     // And the figure itself, in case a field is ever named something else.
-    assert.ok(!serialised.includes('300'), 'the customer price Rs 300 appears in a partner response');
+    const leak = customerPriceIn(partnerHistory.json);
+    assert.equal(leak, null, `the customer price Rs 300 appears in a partner response, at ${leak}`);
+  });
+
+  /*
+   * The figure is looked for as a PRICE, not as three digits. This was a
+   * substring test over the whole JSON, so a timestamp ("…:52.300Z") or a
+   * time-based id containing 300 failed the gate at random, and a red nobody
+   * caused teaches people to re-run until it is green.
+   *
+   * A price is: a number 300; a string that is exactly "300" or "300.00"; or 300
+   * written as money inside any text ("Customer pays Rs 300", "₹300"), because a
+   * message or narration is where a markup most easily leaks in words.
+   */
+  check('The markup detector finds the price in every form and ignores times and ids', () => {
+    assert.equal(customerPriceIn({ createdAt: '2026-09-25T09:54:52.300Z', id: 'mr_1727300123', n: 1300 }), null);
+    assert.ok(customerPriceIn({ amount: 300 }), 'a number 300');
+    assert.ok(customerPriceIn({ nested: [{ v: '300.00' }] }), 'a string "300.00"');
+    assert.ok(customerPriceIn({ message: 'Customer pays Rs 300 for this' }), '"Rs 300" in text');
+    assert.ok(customerPriceIn({ message: 'shown at ₹300.00 on the app' }), '"₹300.00" in text');
+    assert.ok(customerPriceIn({ message: 'Rs.300' }), '"Rs.300" in text');
   });
 
   check('The customer never pays less than the kitchen is paid', () => {
