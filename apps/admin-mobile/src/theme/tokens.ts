@@ -156,3 +156,29 @@ export function formatDateTime(iso: string | undefined | null): string {
     minute: '2-digit'
   });
 }
+
+/**
+ * Where a refund went, in one sentence, from the route the server took.
+ *
+ * Both refund screens used to say "credited to the customer's wallet" whatever
+ * happened. The wallet is retired: money goes back the way it came, and a cash
+ * order is refunded by a link the customer opens. An administrator reading the
+ * old sentence would tell a customer to look in a wallet that no longer exists.
+ */
+export function refundSentence(result: { route?: string; claimUrl?: string } | null | undefined, amount: number): string {
+  const money = formatMoney(amount, true);
+  switch (result?.route) {
+    case 'SOURCE':
+      return `${money} is going back to the card or UPI the customer paid with.`;
+    case 'LINK':
+      return result.claimUrl
+        ? `${money}: the customer claims it with their own UPI at ${result.claimUrl}. Send them this link.`
+        : `${money}: the customer is sent a link to claim it with their own UPI.`;
+    case 'CASH_AT_DOOR':
+      return `${money} was handed back in cash at the door, and is recorded against this order.`;
+    case 'NOTHING_TO_REFUND':
+      return 'Nothing was taken for this order, so nothing needed to go back.';
+    default:
+      return `${money} refunded, and recorded against this order.`;
+  }
+}

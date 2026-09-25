@@ -419,7 +419,7 @@ const SettlementsTab: React.FC = () => {
                   {row.restaurantName}
                 </Text>
                 <Text style={s.sub} numberOfLines={1}>
-                  {row.city} · {row.ordersAllTime} orders delivered
+                  {row.city} · {row.ordersAllTime} order{row.ordersAllTime === 1 ? '' : 's'} delivered
                 </Text>
               </View>
               {row.pendingAmount > 0 ? <Badge label="Due" tone="warning" /> : <Badge label="Settled" tone="success" />}
@@ -631,7 +631,7 @@ const SettlementSheet: React.FC<{
                 <View style={{ flex: 1 }}>
                   <Text style={s.title}>{formatMoney(row.netAmount)}</Text>
                   <Text style={s.sub}>
-                    {row.ordersCount} orders · {formatDateTime(row.createdAt)}
+                    {row.ordersCount} order{row.ordersCount === 1 ? '' : 's'} · {formatDateTime(row.createdAt)}
                   </Text>
                   <Text style={s.payoutBreakdown}>
                     {formatMoney(row.grossSales)} sales − {formatMoney(row.commission)} commission

@@ -59,7 +59,7 @@ export const OrdersScreen: React.FC = () => {
         />
         {totals ? (
           <Text style={s.summary}>
-            {pagination?.total ?? 0} orders · {formatMoney(totals.value)} billed · {totals.delivered} delivered ·{' '}
+            {pagination?.total ?? 0} order{(pagination?.total ?? 0) === 1 ? '' : 's'} · {formatMoney(totals.value)} billed · {totals.delivered} delivered ·{' '}
             {totals.cancelled} cancelled
           </Text>
         ) : null}

@@ -177,7 +177,6 @@ const CustomersTab: React.FC = () => {
             <View style={s.statRow}>
               <MiniStat label="Orders" value={String(customer.orderCount)} />
               <MiniStat label="Lifetime" value={formatMoney(customer.lifetimeValue)} />
-              <MiniStat label="Wallet" value={formatMoney(customer.walletBalance)} />
               <MiniStat label="Last order" value={customer.lastOrderAt ? timeAgo(customer.lastOrderAt) : '—'} />
             </View>
           </Card>
@@ -196,12 +195,12 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
   canManage
 }) => {
   const { api } = useSession();
-  const [mode, setMode] = useState<'view' | 'edit' | 'wallet'>('view');
+  // The customer wallet is retired (it could never be spent), so there is no
+  // balance to show and nothing to adjust: a goodwill gesture is a refund.
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [blockReason, setBlockReason] = useState('');
-  const [creditAmount, setCreditAmount] = useState('');
-  const [creditReason, setCreditReason] = useState('');
   const [busy, setBusy] = useState(false);
 
   const resource = useResource(() => api.get<any>(`/admin/customers/${id}`), [id], { enabled: Boolean(id) });
@@ -267,27 +266,6 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
     }
   };
 
-  const adjustWallet = async (direction: 'CREDIT' | 'DEBIT') => {
-    const amount = Number(creditAmount);
-    if (!amount || amount <= 0 || !creditReason.trim()) {
-      Alert.alert('Check the details', 'An amount and a reason are both required.');
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.post(`/admin/customers/${id}/wallet`, { amount, direction, reason: creditReason });
-      setCreditAmount('');
-      setCreditReason('');
-      setMode('view');
-      await resource.reload();
-      onChanged();
-    } catch (err: any) {
-      Alert.alert('Could not adjust the wallet', err?.message || 'Nothing was changed.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <Sheet visible={Boolean(id)} onClose={close} title={customer?.fullName || 'Customer'} subtitle={customer?.email}>
       {resource.loading && !resource.data ? <Loading /> : null}
@@ -309,7 +287,6 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
             <KeyValue label="Cancelled" value={resource.data.stats.cancelled} />
             <KeyValue label="Lifetime spend" value={formatMoney(resource.data.stats.spend)} tone="money" />
             <Divider />
-            <KeyValue label="Wallet balance" value={formatMoney(resource.data.wallet?.balance)} tone="money" />
           </Card>
 
           {resource.data.cash ? (
@@ -390,7 +367,6 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
                     setMode('edit');
                   }}
                 />
-                <Button label="Adjust wallet" variant="secondary" full onPress={() => setMode('wallet')} />
               </View>
               <Divider />
               {customer.isBlocked ? (
@@ -418,21 +394,6 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
         </Card>
       ) : null}
 
-      {resource.data && mode === 'wallet' ? (
-        <Card>
-          <Text style={s.cardHeading}>Adjust wallet</Text>
-          <Text style={s.muted}>Current balance {formatMoney(resource.data.wallet?.balance)}</Text>
-          <View style={{ height: tokens.space[4] }} />
-          <Field label="Amount (₹)" value={creditAmount} onChangeText={setCreditAmount} keyboardType="numeric" />
-          <Field label="Reason" value={creditReason} onChangeText={setCreditReason} placeholder="Goodwill credit for a late delivery" />
-          <View style={s.actionRow}>
-            <Button label="Debit" variant="danger" full loading={busy} onPress={() => adjustWallet('DEBIT')} />
-            <Button label="Credit" variant="success" full loading={busy} onPress={() => adjustWallet('CREDIT')} />
-          </View>
-          <View style={{ height: tokens.space[3] }} />
-          <Button label="Back" variant="ghost" onPress={() => setMode('view')} />
-        </Card>
-      ) : null}
     </Sheet>
   );
 };
@@ -742,7 +703,6 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             <KeyValue label="Earned in trip fees" value={formatMoney(resource.data.stats.earnings)} tone="money" />
             <KeyValue label="Paid out to date" value={formatMoney(resource.data.stats.paidOut)} />
             <KeyValue label="Cash in hand (COD)" value={formatMoney(resource.data.stats.codCashInHand)} />
-            <KeyValue label="Wallet balance" value={formatMoney(resource.data.wallet?.balance)} />
           </Card>
 
           {canTakeCash && Number(resource.data.stats.codCashInHand) > 0 ? (
@@ -800,7 +760,7 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
                   <View style={{ flex: 1 }}>
                     <Text style={s.miniTitle}>{formatMoney(payout.netAmount)}</Text>
                     <Text style={s.miniMeta}>
-                      {payout.tripsCompleted} trips · {formatDateTime(payout.createdAt)}
+                      {payout.tripsCompleted} trip{payout.tripsCompleted === 1 ? '' : 's'} · {formatDateTime(payout.createdAt)}
                     </Text>
                   </View>
                   <Badge label={payout.status} />

@@ -261,7 +261,7 @@ export const DashboardScreen: React.FC<{ onNavigate: (section: string) => void }
         <StatTile label="Delivery partners" value={d.people.totalDrivers} hint={`${d.people.activeDrivers} approved`} icon={<Bike size={16} color={c.text.secondary} />} onPress={() => onNavigate('people')} />
         <StatTile label="Restaurants" value={d.people.totalRestaurants} hint={`${d.people.activeRestaurants} active`} icon={<Store size={16} color={c.text.secondary} />} onPress={() => onNavigate('people')} />
         {can('catalog.menus.view') ? (
-          <StatTile label="Menu items" value={d.catalogue.menuItems} hint={`${d.catalogue.categories} categories`} icon={<Tag size={16} color={c.text.secondary} />} onPress={() => onNavigate('catalog')} />
+          <StatTile label="Menu items" value={d.catalogue.menuItems} hint={`${d.catalogue.categories} ${d.catalogue.categories === 1 ? 'category' : 'categories'}`} icon={<Tag size={16} color={c.text.secondary} />} onPress={() => onNavigate('catalog')} />
         ) : null}
         {can('marketing.coupons.manage') ? (
           <StatTile label="Active coupons" value={d.catalogue.activeCoupons} hint={`${d.catalogue.totalCoupons} created`} tone="amber" icon={<IndianRupee size={16} color={c.brand.amber} />} onPress={() => onNavigate('marketing')} />

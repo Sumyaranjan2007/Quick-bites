@@ -34,7 +34,7 @@ export const MenuPricingTab: React.FC = () => {
   const [search, setSearch] = useState('');
   const [openRestaurant, setOpenRestaurant] = useState<{ id: string; name: string } | null>(null);
 
-  const list = useResource<any>(() => api.get('/admin/rates/restaurants').then(r => r.data), []);
+  const list = useResource<any>(() => api.get('/admin/rates/restaurants'), []);
 
   if (openRestaurant) {
     return (
@@ -101,7 +101,7 @@ const RestaurantMenuPrices: React.FC<{
   const [rowDone, setRowDone] = useState<Record<string, string>>({});
 
   const menu = useResource<any>(
-    () => api.get(`/admin/rates/restaurants/${restaurant.id}/menu`).then(r => r.data),
+    () => api.get(`/admin/rates/restaurants/${restaurant.id}/menu`),
     [restaurant.id]
   );
 

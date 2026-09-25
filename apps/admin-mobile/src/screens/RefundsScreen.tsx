@@ -14,7 +14,7 @@ import {
   ResourceError,
   EmptyState
 } from '../components/ui';
-import { tokens, formatMoney, humanise, formatDateTime, timeAgo } from '../theme/tokens';
+import { tokens, formatMoney, humanise, formatDateTime, timeAgo, refundSentence } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
@@ -136,7 +136,7 @@ const RefundCaseSheet: React.FC<{ id: string | null; onClose: () => void; onChan
       await resource.reload();
       onChanged();
       if (action === 'REFUND') {
-        Alert.alert('Refund paid', `${formatMoney(result.refundedAmount)} credited to the customer's wallet.`);
+        Alert.alert('Refund paid', refundSentence(result, result.refundedAmount));
       }
     } catch (err: any) {
       Alert.alert('Could not update the case', err?.message || 'Nothing was changed.');

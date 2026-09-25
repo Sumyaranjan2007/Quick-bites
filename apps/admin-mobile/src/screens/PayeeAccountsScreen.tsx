@@ -85,10 +85,10 @@ export const PayeeAccountsScreen: React.FC = () => {
     applied: number;
     thresholds: { accept: number; review: number };
     verificationAvailable: boolean;
-  }>(() => api.get('/admin/payee-accounts').then(r => r.data), [], { enabled: allowed });
+  }>(() => api.get('/admin/payee-accounts'), [], { enabled: allowed });
 
   const coverage = useResource<{ riders: CoverageGroup; restaurants: CoverageGroup }>(
-    () => api.get('/admin/payee-accounts/coverage').then(r => r.data),
+    () => api.get('/admin/payee-accounts/coverage'),
     [],
     { enabled: canSeeCoverage }
   );

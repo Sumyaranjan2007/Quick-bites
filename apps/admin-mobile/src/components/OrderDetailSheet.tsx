@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Linking } from 'react-native';
 import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState, Segmented, CheckRow } from './ui';
-import { tokens, formatMoney, formatDateTime, humanise, toneForStatus } from '../theme/tokens';
+import { tokens, formatMoney, formatDateTime, humanise, toneForStatus, refundSentence } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 
@@ -173,7 +173,7 @@ export const OrderDetailSheet: React.FC<{
         ...(amount ? { amount: Number(amount) } : {}),
         reason: reason || 'Admin dispute resolution'
       });
-      Alert.alert('Refund issued', `${formatMoney(result.refundAmount)} credited to the customer's wallet.`);
+      Alert.alert('Refund issued', refundSentence(result, result.refundAmount));
       setAction('none');
       await resource.reload();
       onChanged?.();
@@ -262,13 +262,14 @@ export const OrderDetailSheet: React.FC<{
         <Card>
           <Text style={s.blockTitle}>Issue a refund</Text>
           <Text style={s.blockBody}>
-            The amount is credited to the customer's Quick Bites wallet immediately and recorded against this order.
+            The money goes back the way the customer paid: to their card or UPI, or for a cash order by a link they
+            claim with their own UPI. It is recorded against this order.
           </Text>
           <Field label="Amount (₹)" value={amount} onChangeText={setAmount} keyboardType="numeric" hint={`Order total ${formatMoney(order.bill?.totalAmount)}`} />
           <Field label="Reason" value={reason} onChangeText={setReason} placeholder="Missing item, spilled food, late delivery…" multiline />
           <View style={s.actionRow}>
             <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
-            <Button label="Credit the wallet" full loading={busy} onPress={submitRefund} />
+            <Button label="Refund" full loading={busy} onPress={submitRefund} />
           </View>
         </Card>
       ) : null}

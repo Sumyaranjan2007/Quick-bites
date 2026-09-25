@@ -48,6 +48,22 @@ export function useResource<T>(
       try {
         const result = await loaderRef.current();
         if (id !== requestId.current) return;
+        /*
+         * AN ANSWER THAT READS AS NOTHING IS AN ERROR, NOT AN EMPTY SCREEN.
+         *
+         * The client already unwraps `data`, and seventeen loaders unwrapped it
+         * a second time. They got `undefined`, stored it without complaint, and
+         * seven money screens said "Nobody is owed anything" and "No bank
+         * accounts yet" for four days while people were owed and accounts were
+         * waiting. An empty list comes back as an empty list; `undefined` only
+         * ever means the loader read the answer wrongly, and saying so is what
+         * would have caught it on the first day.
+         */
+        if (result === undefined) {
+          setError('The server answered, but this screen could not read the answer. Nothing here is accurate; tell the developer.');
+          setDenied(false);
+          return;
+        }
         setData(result);
         setError(null);
         setDenied(false);

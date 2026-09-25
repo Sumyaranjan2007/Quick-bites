@@ -23,6 +23,7 @@ import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
 
 const c = tokens.colors;
+const dishCount = (n: number) => `${n} dish${n === 1 ? '' : 'es'}`;
 
 type Tab = 'menus' | 'requests' | 'categories';
 
@@ -81,7 +82,7 @@ const MenusTab: React.FC = () => {
                   {menu.restaurantName}
                 </Text>
                 <Text style={s.sub} numberOfLines={1}>
-                  {menu.itemCount} dishes in {menu.categoryCount} categories
+                  {menu.itemCount} dish{menu.itemCount === 1 ? '' : 'es'} in {menu.categoryCount} {menu.categoryCount === 1 ? 'category' : 'categories'}
                   {menu.outOfStock ? ` · ${menu.outOfStock} out of stock` : ''}
                 </Text>
               </View>
@@ -194,7 +195,7 @@ const MenuSheet: React.FC<{ restaurantId: string | null; onClose: () => void; on
         onClose();
       }}
       title={resource.data?.restaurant?.name || 'Menu'}
-      subtitle={menu ? `${(menu.categories || []).reduce((n: number, cat: any) => n + cat.items.length, 0)} dishes` : undefined}
+      subtitle={menu ? dishCount((menu.categories || []).reduce((n: number, cat: any) => n + cat.items.length, 0)) : undefined}
       footer={
         canEdit && !editing && !adding ? (
           <Button label="Add a dish" full onPress={() => setAdding(true)} />

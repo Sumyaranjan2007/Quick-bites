@@ -85,7 +85,7 @@ export const SettingsScreen: React.FC = () => {
     flags: Flag[];
     dependencies: Dependency[];
     notifications: NotificationCategory[];
-  }>(() => api.get('/admin/settings').then(r => r.data), [], { enabled: allowed });
+  }>(() => api.get('/admin/settings'), [], { enabled: allowed });
 
   const [pending, setPending] = useState<Flag | null>(null);
   const [mutingKey, setMutingKey] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export const SettingsScreen: React.FC = () => {
       // The server returns the whole catalogue, so the screen reflects what the
       // platform actually holds rather than what this device assumed.
       settings.setData({
-        flags: result.data.flags,
+        flags: (result as any).flags,
         dependencies: settings.data?.dependencies || [],
         notifications: settings.data?.notifications || []
       });
@@ -149,7 +149,7 @@ export const SettingsScreen: React.FC = () => {
       settings.setData({
         flags: settings.data?.flags || [],
         dependencies: settings.data?.dependencies || [],
-        notifications: result.data.notifications
+        notifications: (result as any).notifications
       });
     } catch (err: any) {
       setNotifyError(err?.message || 'That switch could not be changed.');

@@ -62,7 +62,11 @@ interface Incentive {
   target: number;
 }
 
-const rupees = (n: number) => `Rs ${(Number(n) || 0).toLocaleString('en-IN')}`;
+const rupees = (n: number) => {
+  const v = Number(n) || 0;
+  // Two decimals whenever there are paise: "Rs 582.9" reads as a typo.
+  return `Rs ${v.toLocaleString('en-IN', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 })}`;
+};
 
 const INCENTIVE_LABEL: Record<string, string> = {
   DAILY_8: 'Daily Dash — trips in one day',
@@ -104,17 +108,17 @@ export const RatesScreen: React.FC = () => {
   const [tab, setTab] = useState('restaurants');
   const [search, setSearch] = useState('');
 
-  const rates = useResource<RatesPayload>(() => api.get('/admin/rates/restaurants').then(r => r.data), [], {
+  const rates = useResource<RatesPayload>(() => api.get('/admin/rates/restaurants'), [], {
     enabled: canView
   });
-  const platform = useResource<any>(() => api.get('/admin/pricing/config').then(r => r.data), [], {
+  const platform = useResource<any>(() => api.get('/admin/pricing/config'), [], {
     enabled: canView
   });
-  const membership = useResource<any>(() => api.get('/admin/rates/membership').then(r => r.data), [], {
+  const membership = useResource<any>(() => api.get('/admin/rates/membership'), [], {
     enabled: canView
   });
   const bonuses = useResource<{ incentives: Incentive[]; note: string }>(
-    () => api.get('/admin/rates/incentives').then(r => r.data),
+    () => api.get('/admin/rates/incentives'),
     [],
     { enabled: canView }
   );

@@ -37,7 +37,7 @@ export const SettlementsScreen: React.FC = () => {
   const allowed = can('finance.settlements.view') || can('finance.payouts.view');
 
   const dues = useResource<any>(
-    () => api.get('/admin/payouts/dues').then(r => r.data),
+    () => api.get('/admin/payouts/dues'),
     [],
     { enabled: allowed }
   );

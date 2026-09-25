@@ -42,7 +42,7 @@ export const GrievanceCard: React.FC = () => {
   const canEdit = can('finance.config.edit');
 
   const policy = useResource<{ contact: GrievanceContact | null; gaps: string[] }>(
-    () => api.get('/admin/policies/grievance').then(r => r.data),
+    () => api.get('/admin/policies/grievance'),
     [],
     { enabled: canView }
   );

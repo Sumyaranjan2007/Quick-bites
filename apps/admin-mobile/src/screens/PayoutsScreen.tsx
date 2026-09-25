@@ -202,20 +202,20 @@ export const PayoutsScreen: React.FC = () => {
    */
   const canRecordSettlement = can('finance.payouts.manage');
 
-  const dues = useResource<DuesPayload>(() => api.get('/admin/payouts/dues').then(r => r.data), [], {
+  const dues = useResource<DuesPayload>(() => api.get('/admin/payouts/dues'), [], {
     enabled: canView
   });
   const history = useResource<{ payouts: PayoutRow[] }>(
-    () => api.get('/admin/payouts/list').then(r => r.data),
+    () => api.get('/admin/payouts/list'),
     [],
     { enabled: canView }
   );
 
-  const cash = useResource<CashPayload>(() => api.get('/admin/cash/deposits').then(r => r.data), [], {
+  const cash = useResource<CashPayload>(() => api.get('/admin/cash/deposits'), [], {
     enabled: canView
   });
 
-  const overview = useResource<any>(() => api.get('/admin/payments/overview').then(r => r.data), [], {
+  const overview = useResource<any>(() => api.get('/admin/payments/overview'), [], {
     enabled: canView
   });
 
@@ -233,7 +233,7 @@ export const PayoutsScreen: React.FC = () => {
     feesKeptToDate: number;
     prepaidForUndeliveredFood: number;
     note: string;
-  }>(() => api.get('/admin/gateway/receivable').then(r => r.data), [], { enabled: canView });
+  }>(() => api.get('/admin/gateway/receivable'), [], { enabled: canView });
 
   /*
    * What people have actually ASKED for.
@@ -260,7 +260,7 @@ export const PayoutsScreen: React.FC = () => {
       blockedReason: string | null;
       willPayInto: DueRow['willPayInto'];
     }>;
-  }>(() => api.get('/admin/payouts/requests').then(r => r.data), [], { enabled: canView });
+  }>(() => api.get('/admin/payouts/requests'), [], { enabled: canView });
 
   const [tab, setTab] = useState('overview');
   const [drafting, setDrafting] = useState<DueRow | null>(null);

@@ -112,10 +112,9 @@ export interface RailItem {
 /**
  * The section switcher.
  *
- * The console has more sections than fit across a phone, and the previous fixed
- * row simply ran off the edge — the last tab was unreachable and clipped. A
- * horizontal ScrollView shows the overflow honestly and keeps the page itself
- * from scrolling sideways.
+ * Seventeen sections once lived in one row that ran off the edge. They are now
+ * grouped (at most six groups, a handful of sections each), which is what lets
+ * both rows be fixed instead of scrolling — see the note inside.
  */
 export const SectionRail: React.FC<{
   items: RailItem[];
@@ -129,18 +128,32 @@ export const SectionRail: React.FC<{
    */
   variant?: 'section' | 'group';
 }> = ({ items, active, onSelect, variant = 'section' }) => (
-  <View style={[s.railWrap, variant === 'group' && s.railWrapGroup]}>
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={s.railContent}
-      keyboardShouldPersistTaps="handled"
-    >
+  /*
+   * NO SCROLL VIEW, ON PURPOSE (QA #9, 26 Sep).
+   *
+   * Both tiers used to be horizontal ScrollViews. After a while in the app the
+   * group row stopped answering taps until a restart, while the row beneath
+   * it (a separate ScrollView) went on working, and nothing was drawn over it.
+   * That is Android's scroll responder believing a fling is still running: it
+   * spends each tap stopping a scroll that is not happening, so onPress never
+   * fires. Six groups fit across a phone, and a group's sections wrap to a
+   * second line if they must, so neither row needs to scroll, and a row that
+   * cannot scroll cannot get stuck scrolling.
+   */
+  <View
+    style={[s.railWrap, variant === 'group' && s.railWrapGroup]}
+    accessibilityRole="tablist"
+    testID={variant === 'group' ? 'rail-groups' : 'rail-sections'}
+  >
+    <View style={[s.railContent, variant === 'group' ? s.railContentGroup : s.railContentWrap]}>
       {items.map(item => {
         const isActive = item.key === active;
         return (
           <TouchableOpacity
             key={item.key}
+            testID={`rail-${item.key}`}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
             style={[
               s.railItem,
               variant === 'group' && s.railItemGroup,
@@ -148,6 +161,7 @@ export const SectionRail: React.FC<{
             ]}
             onPress={() => onSelect(item.key)}
             activeOpacity={0.8}
+            hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
           >
             {item.icon}
             <Text
@@ -157,6 +171,8 @@ export const SectionRail: React.FC<{
                 isActive && s.railLabelActive
               ]}
               numberOfLines={1}
+              adjustsFontSizeToFit={variant === 'group'}
+              minimumFontScale={0.8}
             >
               {item.label}
             </Text>
@@ -168,7 +184,7 @@ export const SectionRail: React.FC<{
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+    </View>
   </View>
 );
 
@@ -422,7 +438,8 @@ export const Segmented: React.FC<{
   value: string;
   onChange: (key: string) => void;
 }> = ({ options, value, onChange }) => (
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.segmentScroll} contentContainerStyle={s.segmented}>
+  // Wraps rather than scrolls, for the same reason as SectionRail (QA #9).
+  <View style={[s.segmentScroll, s.segmented]}>
     {options.map(option => {
       const active = option.key === value;
       return (
@@ -438,7 +455,7 @@ export const Segmented: React.FC<{
         </TouchableOpacity>
       );
     })}
-  </ScrollView>
+  </View>
 );
 
 /* --------------------------------- States --------------------------------- */
@@ -864,6 +881,9 @@ const s = StyleSheet.create({
 
   railWrap: { borderBottomWidth: 1, borderBottomColor: c.border.subtle, backgroundColor: c.bg.raised },
   railContent: { paddingHorizontal: tokens.space[3], paddingVertical: tokens.space[2], gap: tokens.space[2] },
+  // Six groups share the width equally; sections wrap rather than scroll.
+  railContentGroup: { flexDirection: 'row', paddingHorizontal: tokens.space[1], gap: 0 },
+  railContentWrap: { flexDirection: 'row', flexWrap: 'wrap', rowGap: tokens.space[1] },
   railItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -878,9 +898,17 @@ const s = StyleSheet.create({
   // section tier keeps the filled chip, so at a glance the two rows are
   // obviously a heading and its contents rather than two sets of buttons.
   railWrapGroup: { borderBottomWidth: 0 },
-  railItemGroup: { paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  railItemGroup: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: tokens.space[1],
+    paddingVertical: 10,
+    borderRadius: 0,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent'
+  },
   railItemGroupActive: { borderBottomColor: c.brand.amberText, backgroundColor: 'transparent' },
-  railLabelGroup: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
+  railLabelGroup: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
   railLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: tokens.font.weight.semibold },
   railLabelActive: { color: c.brand.amberText, fontWeight: tokens.font.weight.bold },
   railBadge: {
@@ -985,7 +1013,7 @@ const s = StyleSheet.create({
   searchClear: { color: c.text.muted, fontSize: 14, paddingHorizontal: 4 },
 
   segmentScroll: { marginBottom: tokens.space[3], flexGrow: 0 },
-  segmented: { flexDirection: 'row', gap: tokens.space[2], paddingRight: tokens.space[4] },
+  segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[2] },
   segment: {
     paddingHorizontal: tokens.space[4],
     paddingVertical: tokens.space[2],
