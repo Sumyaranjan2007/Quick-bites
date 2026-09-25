@@ -830,6 +830,36 @@ step repairs* (S1, and before it the ledger's balanced-after-every-step rule).
 *The installed APKs are the compatibility target, not the current source*: scan
 the release commit's sources, not HEAD.
 
+### B's review of Session C's work — complete (25 Sep)
+
+**Authority confirmed:** C's brain-sync log records the owner's instruction to
+build the plan while B was out of usage and then merge; the owner has since
+retired C. From here it is only the builder and B.
+
+Mutation-tested by B (each caught by a named check unless noted): A2 reassign
+ignores the cash ceiling; A3 "customer refused cash" treated as collected; A4
+admin status route allows DELIVERED/CANCELLED; A9 cancel-fee lock removed; A8
+staff "cash OFF" ignored; U6 account deletion allowed mid-order; A6 auto-pause
+forced on (caught only by a crash in `adminTools`, so it needs a named check);
+plus the earlier S2, S5, S10, S11, N24 and S1 rounds.
+
+Checked by reading:
+- R1's background task can't crash the rider app at launch: `expo-task-manager`
+  is already a dependency, and the same pattern already ships (`shiftService`
+  defineTask). `registerTaskAsync` is wrapped.
+- **U2 is live:** a self password change bumps `tokenVersion`. The 23 Sep apps
+  don't store the returned token, so until the new APKs, a person changing their
+  own password is signed out on that phone too and signs in again. That's an
+  annoyance, not a risk.
+- **A2 rider pay, flagged for the owner:** on a reassign after pickup,
+  `riderPayout` goes wholly to the rider who delivers, and the first rider gets
+  nothing for the half-trip (and gets a no-show).
+- **P1 (review replies): struck by the owner** (recorded by C).
+
+Not mutation-tested, covered by C's suites, typecheck and the contract suites,
+and needing a phone for the UI: A7, A31, A32, U1, U4, U5, P7, and F05's app
+screens. They're all on the owner's phone checklist.
+
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
 - Remove the twelve dead exports in §F7 one commit each, gate green between.
