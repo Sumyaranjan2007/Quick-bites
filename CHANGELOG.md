@@ -6,9 +6,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
-## [2026-09-25] -- Claude Opus 5.5 -- Session 36: Session C's merge reviewed, what the review found, and a build that can only install as an update
+## [2026-09-25] -- Claude Opus 5.5 -- Session 36: Session C's merge reviewed, the fixes it needed, and v8 of all four apps
 
-**Covers `063a4a2` (Session C's merge) through the release guards (`679e986`).** Two sessions
+**Covers `063a4a2` (Session C's merge) through `f67571f`, including the v8 build of all four apps (`70fa4b6`).** Two sessions
 remain: the review session (the owner's "Session A") and the builder (the
 owner's "Session B"). **Session C is retired.** Its work is described in the two
 entries below this one, and was reviewed after the fact.
@@ -20,7 +20,9 @@ entries below this one, and was reviewed after the fact.
 > And the "delivered from far away" fraud check had never run on a real delivery.
 > The build now refuses to make an APK that wouldn't install as an update over the
 > apps on your phones: the wrong key, the debug key, two signers, or a version
-> number that doesn't go up.
+> number that doesn't go up. **Version 8 of all four apps is built and verified
+> twice.** It installs as an update: don't uninstall first. Then work through the
+> phone checklist and report any step that doesn't behave as described.
 
 ---
 
@@ -52,6 +54,8 @@ entries below this one, and was reviewed after the fact.
 | S11: account deletion didn't close a live connection, and the demo reset bypassed the hook. | Both revoke. A source check means only `userRepository` removes users or writes `isBlocked`/`tokenVersion`. `4e090a8` |
 | A gate check failed at random ("300" found inside a timestamp). | It walks the JSON for price values and money in text instead. `d872b22` |
 | The reset-password card showed to roles the route refuses. | Gated on the route's own permission, with a source check that ties the two. `c2e32d1` |
+| A6's "auto-pause stays off" was caught only by a test crash. | A named check that the kitchen stays OPEN at auto-pause 0. `f67571f` |
+| `DOWNLOAD.md` still told testers to **uninstall first**, which is wrong since the key stopped changing and would sign everyone out. | It now says install over the existing app, and stop if Android says "App not installed". `91a1419` |
 
 ### The build: an APK can only install as an update (U-1..U-3)
 
@@ -68,7 +72,67 @@ entries below this one, and was reviewed after the fact.
   machine's own record, and the installed floor, whichever is highest. It was 7 on
   every build since 17 Sep.
 
+### v8: the four apps, built and verified (25 Sep)
+
+Built from **`679e986`** by `scripts/build-apks.sh` (universal APKs), after
+`npm run verify` passed on the same code: secrets, hardcoded URLs, i18n,
+diagnostics, typecheck 9/9, 73/73 suites. The 23 Sep apps' request bodies were
+re-scanned against the live schemas first: 0 findings.
+
+| App | Package | Size | SHA-256 |
+| --- | --- | --- | --- |
+| Customer | `com.quickbite.app` | 95,522,327 B | `c6d2cf403231ca70a6c862e1e728ea8e515bf513662fb120f1b18b4a7a36211f` |
+| Partner | `com.quickbite.partner` | 94,902,099 B | `0cb5a25d141e17ce60675a76934966f253ac24c250c4feedbfeee3253828bf5f` |
+| Rider | `com.quickbite.rider` | 94,935,107 B | `fd27026522f71dcd45ee559ea08a778a19f3435650d9df297f9ee5668ff52504` |
+| Admin | `com.quickbite.admin` | 56,458,216 B | `f1cae3cd1ccf4b69cf7bd8e4f7b410605dc4dda18b23edfdccfd174ac350254d` |
+
+All four have **versionCode 8**, versionName `1.3.0-20260925.8`.
+
+- **The build's own checks:** exactly one signer, certificate equal to the 23 Sep
+  pin, package and versionCode as claimed. `check-apk-secrets.mjs`: no
+  credentials in any artifact.
+- **Re-verified independently by the builder session:** apksigner and aapt2 on
+  each file, the hashes and sizes above, and new-code strings found in each Hermes
+  bundle that are ABSENT from the 23 Sep bundle ("Accept within", 
+  `RIDER_TRIP_WITHDRAWN`, "Card & UPI in", and the account-deletion and live-map
+  strings). So no app shipped a stale bundle.
+- **Where they are:** `build/apk/` on the build machine (not in git), and archived
+  with `BUILT-FROM.txt` at
+  `D:\my all projects\quick-bites-release-archive\2026-09-25-v8\`. **This is now
+  the compatibility target** for any server change: scan
+  `git archive 679e986 apps/<app>/src`.
+- **Not published.** The repository is public, so a GitHub Release makes the APKs
+  downloadable by anyone. That needs the owner's yes. Until then the owner copies
+  them to phones.
+- The version record is committed (`70fa4b6`). The next build takes versionCode 9.
+
+### Made for the owner, and for the next AI
+
+- **Phone checklist** (owner, on the phone, ticks saved there):
+  https://claude.ai/artifact/WkswM3Y3e89S8FiUHp1F7C. Ten sections, from "install as
+  an update" through launch blockers. Screen names match the apps.
+- **What's new since 23 Sep** (owner): https://claude.ai/artifact/5RkKAVWz6q262QrLMu654r.
+  48 features and fixes, marked live now / new APK / proven / needs a phone.
+- **`docs/plans/FOUR-APP-FLOWS.md`**: every case, for customer, partner, rider and
+  admin, with 👤 for steps a person does outside the app and 📱 for what only a
+  phone proves.
+- **`docs/plans/CONNECTION-MAP.md`** (Session C): all 220 app calls made as the
+  real user.
+
+### Where the platform is (25 Sep, evening)
+
+| | |
+| --- | --- |
+| Backend | `quick-bites-production.up.railway.app`, deploys `main` on push, Postgres via `DATABASE_URL` |
+| Gate | 73 suites, green on `f67571f` |
+| Apps on phones | 23 Sep build (versionCode 7) until the owner installs v8 |
+| Latest build | v8 (versionCode 8), from `679e986`, verified, archived, not yet installed |
+| Sessions | The review session (owner's "A") and the builder (owner's "B"). Session C retired. |
+| Next | The owner installs v8 over the existing apps and works the phone checklist, then reports failing steps by number |
+
 ### Open decisions for the owner
+
+- **Publish v8 on GitHub Releases?** The repository is public.
 
 - A trip reassigned after pickup pays the whole trip to the rider who delivers.
   Split it?
