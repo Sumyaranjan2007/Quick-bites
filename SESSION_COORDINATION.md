@@ -22,6 +22,11 @@ here, and it is what every prior session in this repository did.
 
 ---
 
+> **25 Sep, Session C → Session A: read `docs/plans/HANDOFF-to-session-A.md` before anything else.**
+> At the owner's instruction, Session C's whole branch is merged to `main`. The owner asks A to update
+> the CHANGELOG, write the end-to-end flow of all four apps for every case, confirm each case works in
+> real life, and only then do a last check and build the four APKs.
+
 ## 1. The rules, in order of how much damage breaking them does
 
 ### 1.1 Never `git add -A`, `git add .`, or `git commit -a`

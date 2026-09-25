@@ -17,14 +17,15 @@ if (bill1.gstAmount !== 22.50) throw new Error('GST mismatch: ' + bill1.gstAmoun
 if (bill1.deliveryFee !== 50.00) throw new Error('Delivery fee mismatch: ' + bill1.deliveryFee); // 30 + 20 = 50
 console.log('[PASS] Test 1: Standard Order Pricing');
 
-// Test 2: Gold Member Free Delivery
-const bill2 = calculateOrderPricing({
-  items: [{ unitPrice: 250, quantity: 1 }],
-  isGold: true,
-  distanceKm: 5.0
-});
-if (bill2.deliveryFee !== 0.00) throw new Error('Gold delivery fee should be 0: ' + bill2.deliveryFee);
-console.log('[PASS] Test 2: Gold Free Delivery');
+// Test 2: Gold takes a PERCENTAGE off delivery (3cbe959), not free delivery.
+const goldNone = calculateOrderPricing({ items: [{ unitPrice: 250, quantity: 1 }], isGold: true, distanceKm: 5.0, memberFreeDeliveryMinOrder: 0 });
+const goldHalf = calculateOrderPricing({ items: [{ unitPrice: 250, quantity: 1 }], isGold: true, distanceKm: 5.0, memberFreeDeliveryMinOrder: 0, memberDeliveryDiscountPercent: 50 });
+const goldAll = calculateOrderPricing({ items: [{ unitPrice: 250, quantity: 1 }], isGold: true, distanceKm: 5.0, memberFreeDeliveryMinOrder: 0, memberDeliveryDiscountPercent: 100 });
+const notGold = calculateOrderPricing({ items: [{ unitPrice: 250, quantity: 1 }], isGold: false, distanceKm: 5.0, memberFreeDeliveryMinOrder: 0, memberDeliveryDiscountPercent: 100 });
+if (goldNone.deliveryFee !== notGold.deliveryFee) throw new Error('Gold with no percentage set should pay full delivery: ' + goldNone.deliveryFee);
+if (goldHalf.deliveryFee !== Math.round(notGold.deliveryFee * 50) / 100) throw new Error('Gold at 50% should pay half delivery: ' + goldHalf.deliveryFee);
+if (goldAll.deliveryFee !== 0) throw new Error('Gold at 100% should pay no delivery: ' + goldAll.deliveryFee);
+console.log('[PASS] Test 2: Gold takes its percentage off delivery');
 
 // Test 3: Coupon Discount with Cap
 const bill3 = calculateOrderPricing({
