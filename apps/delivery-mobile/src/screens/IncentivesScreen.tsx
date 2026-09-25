@@ -73,7 +73,7 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
               : `${incentive.progress} / ${incentive.target} trips`}
           </Text>
           {incentive.paid ? (
-            <Pill label="Paid to wallet" tone="go" />
+            <Pill label="Earned" tone="go" />
           ) : incentive.unit === 'rating' ? (
             <Text style={s.remaining}>Hold {incentive.target.toFixed(1)} to qualify</Text>
           ) : (
@@ -92,7 +92,8 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
         <Text style={s.summaryLabel}>Bonuses earned this week</Text>
         <Text style={s.summaryValue}>{rupees(earned)}</Text>
         <Text style={s.summarySub}>
-          Paid into your wallet automatically the moment a target is met. Daily targets reset at midnight,
+          Earned the moment a target is met, and added to your earnings. It reaches your bank with your next
+          payout. Daily targets reset at midnight,
           weekly targets on Monday.
         </Text>
       </Card>

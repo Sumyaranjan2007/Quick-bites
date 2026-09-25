@@ -409,7 +409,17 @@ restaurantRouter.get('/:id/orders', authMiddleware('restaurant_owner'), async (r
     // most obvious thing the kitchen must not have; the same shaping also stops
     // a delivered order leaving the customer's phone number on a kitchen tablet
     // indefinitely, which deleting one field did not.
-    const safeOrders = orders.map((order: any) => shapeOrderForViewer(order, 'restaurant'));
+    // P7: an order nobody accepts is cancelled automatically after
+    // ORDER_ACCEPT_TIMEOUT_MINUTES. The kitchen is told the deadline, so the
+    // app can count it down instead of the order vanishing without warning.
+    const acceptMs = config.ORDER_ACCEPT_TIMEOUT_MINUTES * 60_000;
+    const safeOrders = orders.map((order: any) => {
+      const shaped: any = shapeOrderForViewer(order, 'restaurant');
+      if (order.status === 'ORDER_PLACED' && order.createdAt) {
+        shaped.acceptBy = new Date(new Date(order.createdAt).getTime() + acceptMs).toISOString();
+      }
+      return shaped;
+    });
     return res.json({ success: true, data: { orders: safeOrders } });
   } catch (err) {
     next(err);

@@ -36,6 +36,18 @@ export async function registerForPush(apiUrl: string, token: string): Promise<vo
     // how an app gets its notifications switched off at the OS level.
     if (!granted) return;
 
+    // U5: order updates get their own channel, so Android files them as
+    // "Order updates" (heads-up, with sound) and not as "Miscellaneous". The
+    // id matches CHANNEL.ORDER_UPDATES in the server's fcmDispatcher.
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('order-updates', {
+        name: 'Order updates',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 150, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC
+      }).catch(() => undefined);
+    }
+
     const device = await Notifications.getDevicePushTokenAsync();
     const value = String(device?.data || '');
     if (!value) return;

@@ -255,8 +255,23 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   // button later would offer something that can only fail.
   const canCancel = ['PAYMENT_PENDING', 'ORDER_PLACED', 'ACCEPTED', 'PREPARING'].includes(status);
 
+  // What cancelling NOW costs and returns (U1). Asked every time the sheet
+  // opens, because the answer changes the moment the kitchen starts cooking.
+  const [cancelQuote, setCancelQuote] = useState<{ canCancel: boolean; fee: number; refund: number; message: string } | null>(null);
+
   const openCancel = async () => {
     setCancelOpen(true);
+    setCancelQuote(null);
+    if (apiUrl && token && orderId) {
+      apiFetch(`${apiUrl}/orders/${orderId}/cancellation-quote`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (data?.success && data.data) setCancelQuote(data.data);
+        })
+        .catch(() => {
+          // Without a quote the server still decides; the sheet just cannot say the fee first.
+        });
+    }
     if (cancelReasons.length || !apiUrl || !token) return;
     try {
       const res = await apiFetch(`${apiUrl}/orders/cancellation-reasons?language=${language}`, {
@@ -620,6 +635,13 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           <View style={styles.cancelSheet}>
             <Text style={styles.cancelTitle}>{t('tracking.cancelTitle')}</Text>
             <Text style={styles.cancelBody}>{t('tracking.cancelBody')}</Text>
+            {cancelQuote ? (
+              <View style={[styles.cancelQuote, cancelQuote.fee > 0 && styles.cancelQuoteFee]}>
+                <Text style={styles.cancelQuoteText}>
+                  {cancelQuote.canCancel ? cancelQuote.message : t('tracking.cancelTooLate')}
+                </Text>
+              </View>
+            ) : null}
 
             <ScrollView style={{ maxHeight: 260 }}>
               {cancelReasons.map(reason => {
@@ -659,8 +681,11 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.cancelConfirm, (!cancelCode || cancelling) && styles.cancelDisabled]}
-              disabled={!cancelCode || cancelling}
+              style={[
+                styles.cancelConfirm,
+                (!cancelCode || cancelling || cancelQuote?.canCancel === false) && styles.cancelDisabled
+              ]}
+              disabled={!cancelCode || cancelling || cancelQuote?.canCancel === false}
               onPress={confirmCancel}
               activeOpacity={0.9}
             >
@@ -885,6 +910,9 @@ const styles = StyleSheet.create({
     color: c.text.primary
   },
   cancelBody: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, marginBottom: 14 },
+  cancelQuote: { borderRadius: 10, padding: 12, marginBottom: 12, backgroundColor: c.surface.subtle ?? '#F4F1EE' },
+  cancelQuoteFee: { backgroundColor: '#FFF4E5' },
+  cancelQuoteText: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 19 },
   cancelReason: {
     flexDirection: 'row',
     alignItems: 'center',

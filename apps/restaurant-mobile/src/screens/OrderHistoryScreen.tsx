@@ -94,7 +94,11 @@ export const OrderHistoryScreen: React.FC<Props> = ({ restaurantId }) => {
               </View>
             )}
             {cancelled && !!item.cancellationReason && (
-              <Text style={styles.cancelReason}>{item.cancellationReason}</Text>
+              <Text style={styles.cancelReason}>
+                {item.cancellationReasonCode === 'RESTAURANT_DID_NOT_RESPOND'
+                  ? 'Cancelled automatically: it was not accepted in time. Accept new orders as soon as they ring to avoid this.'
+                  : item.cancellationReason}
+              </Text>
             )}
           </View>
           <View style={{ alignItems: 'flex-end' }}>

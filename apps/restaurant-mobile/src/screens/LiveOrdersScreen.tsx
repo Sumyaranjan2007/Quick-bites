@@ -56,6 +56,14 @@ export const LiveOrdersScreen: React.FC<Props> = ({
   const [rejectReasons, setRejectReasons] = useState<Array<{ code: string; label: string; allowsNote: boolean }>>([]);
   const [rejectCode, setRejectCode] = useState('');
   const [prepMinutes, setPrepMinutes] = useState(DEFAULT_PREP_MINUTES);
+  // Ticks once a second while any order is waiting to be accepted (P7).
+  const [now, setNow] = useState(Date.now());
+  const waiting = orders.some((o: any) => o.status === 'ORDER_PLACED' && o.acceptBy);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [waiting]);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -239,8 +247,19 @@ export const LiveOrdersScreen: React.FC<Props> = ({
 
   const renderOrder = ({ item }: { item: any }) => {
     const status = item.status as string;
+    // P7: time left to accept before the order is cancelled automatically.
+    const leftMs = status === 'ORDER_PLACED' && item.acceptBy ? new Date(item.acceptBy).getTime() - now : null;
     return (
       <Card>
+        {leftMs !== null && (
+          <View style={[styles.acceptBar, leftMs < 120_000 && styles.acceptBarUrgent]}>
+            <Text style={styles.acceptBarText}>
+              {leftMs > 0
+                ? `Accept within ${Math.floor(leftMs / 60_000)}:${String(Math.floor((leftMs % 60_000) / 1000)).padStart(2, '0')} or it is cancelled automatically`
+                : 'Time is up. This order is being cancelled because it was not accepted.'}
+            </Text>
+          </View>
+        )}
         <View style={styles.orderTop}>
           <View style={{ flex: 1 }}>
             <Text style={styles.orderNumber}>Order {item.orderNumber}</Text>
@@ -488,6 +507,9 @@ const styles = StyleSheet.create({
   itemQty: { fontSize: 14, fontWeight: '800', color: c.brand, width: 34 },
   itemName: { fontSize: 14, color: c.text, flex: 1 },
   itemOptions: { fontSize: 13, color: c.brand, fontWeight: '700' },
+  acceptBar: { backgroundColor: '#FFF4E5', borderRadius: radii.md, padding: spacing.sm, marginBottom: spacing.sm },
+  acceptBarUrgent: { backgroundColor: '#FDECEC' },
+  acceptBarText: { fontSize: 13, fontWeight: '700', color: c.text },
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   billTotal: { fontSize: 16, fontWeight: '800', color: c.text },
   pickupCode: { fontSize: 13, color: c.info, fontWeight: '700' },

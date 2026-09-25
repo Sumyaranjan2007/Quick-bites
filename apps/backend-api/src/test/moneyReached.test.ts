@@ -246,8 +246,10 @@ async function run(): Promise<void> {
       false,
       `a payment notification was sent to ${paid[0].androidChannelId}, which plays the order alarm`
     );
-    assert.equal(paid[0].androidChannelId, 'default',
-      'a payment must go by the quiet route the customer app already uses');
+    // R2: the rider and partner apps create a quiet 'payments' channel
+    // (normal importance, no sound) for exactly this.
+    assert.equal(paid[0].androidChannelId, 'payments',
+      'a payment must go by the quiet payments channel');
   });
 
   /* ================================================================ *
@@ -647,7 +649,11 @@ async function run(): Promise<void> {
         false,
         `${method} sends to an order-alarm channel`
       );
-      assert.match(body, /CHANNEL\.DEFAULT/, `${method} does not name the quiet channel explicitly`);
+      assert.match(
+        body,
+        /CHANNEL\.(DEFAULT|PAYMENTS|ORDER_UPDATES)/,
+        `${method} does not name a non-alarm channel explicitly`
+      );
     }
   });
 

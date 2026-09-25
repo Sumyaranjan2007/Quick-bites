@@ -134,6 +134,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   onChooseAddress
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  // Type-ahead suggestions under the search box (U4): dishes, restaurants, cuisines.
+  const [suggestions, setSuggestions] = useState<Array<{ type: string; text: string; subtext?: string }>>([]);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState('relevance');
   const [restaurants, setRestaurants] = useState<RestaurantItem[]>([]);
@@ -374,6 +376,31 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
    */
   useEffect(() => {
     const q = searchQuery.trim();
+    if (q.length < 2 || !apiUrl) {
+      setSuggestions([]);
+      return;
+    }
+    let stale = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch(`${apiUrl}/search/suggestions?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (stale) return;
+        const list = Array.isArray(data?.data?.suggestions) ? data.data.suggestions : [];
+        // Nothing to suggest once the box already holds exactly one of them.
+        setSuggestions(list.some((s: any) => String(s.text).toLowerCase() === q.toLowerCase()) ? [] : list.slice(0, 6));
+      } catch {
+        if (!stale) setSuggestions([]);
+      }
+    }, 250);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, apiUrl]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
     if (q.length < 3 || !apiUrl) {
       setDishMatches(new Map());
       return;
@@ -565,6 +592,28 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
           <View style={[styles.vegDot, activeFilters.has('pureVeg') && { backgroundColor: '#FFFFFF' }]} />
         </TouchableOpacity>
       </View>
+
+      {suggestions.length > 0 && (
+        <View style={styles.suggestBox}>
+          {suggestions.map(sug => (
+            <TouchableOpacity
+              key={`${sug.type}:${sug.text}`}
+              style={styles.suggestRow}
+              onPress={() => {
+                setSearchQuery(sug.text);
+                setSuggestions([]);
+              }}
+              activeOpacity={0.75}
+            >
+              <Search size={14} color={c.text.muted} />
+              <Text style={styles.suggestText} numberOfLines={1}>
+                {sug.text}
+                {sug.subtext ? <Text style={styles.suggestSub}>{`  ${sug.subtext}`}</Text> : null}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Categories */}
       <ScrollView
@@ -886,6 +935,18 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  suggestBox: {
+    marginHorizontal: 16,
+    marginTop: -4,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: c.surface.card,
+    borderWidth: 1,
+    borderColor: c.border.subtle
+  },
+  suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  suggestText: { flex: 1, fontSize: 14, color: c.text.primary },
+  suggestSub: { fontSize: 12, color: c.text.muted },
   dishMatch: {
     fontSize: tokens.font.size.xs,
     color: c.dietary.veg,

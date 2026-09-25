@@ -57,7 +57,17 @@ const CHANNEL = {
   KITCHEN: 'kitchen-orders',
   /** apps/delivery-mobile/src/lib/orderAlert.ts. */
   RIDER: 'new-orders',
-  /** The customer app creates no channel of its own and does not need one. */
+  /**
+   * apps/customer-mobile/src/lib/pushRegistration.ts (U5): the customer's order
+   * updates, high importance, so they are not filed as "Miscellaneous".
+   */
+  ORDER_UPDATES: 'order-updates',
+  /**
+   * apps/delivery-mobile and apps/restaurant-mobile (R2): money news. Quiet,
+   * normal importance, no alarm: a payout is not an order to rush to.
+   */
+  PAYMENTS: 'payments',
+  /** An app that has not created a named channel falls back to this. */
   DEFAULT: 'default'
 } as const;
 
@@ -153,6 +163,7 @@ class FcmNotificationDispatcher {
 
   async notifyOrderPlaced(userId: string, orderId: string, orderNumber: string) {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -272,7 +283,7 @@ class FcmNotificationDispatcher {
       title: 'Still collecting?',
       body: `Order #${orderNumber} is waiting at ${restaurantName}. It will be offered to another rider shortly.`,
       data: { type: 'NO_SHOW_WARNING', orderId, orderNumber },
-      androidChannelId: 'new_orders'
+      androidChannelId: CHANNEL.RIDER
     });
   }
 
@@ -355,6 +366,7 @@ class FcmNotificationDispatcher {
     lostContact: boolean
   ) {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -434,6 +446,7 @@ class FcmNotificationDispatcher {
 
   async notifyOrderPreparing(userId: string, orderId: string, orderNumber: string, prepMins: number = 20) {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -445,6 +458,7 @@ class FcmNotificationDispatcher {
 
   async notifyReadyForPickup(userId: string, orderId: string, orderNumber: string, otp: string) {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -456,6 +470,7 @@ class FcmNotificationDispatcher {
 
   async notifyOutForDelivery(userId: string, orderId: string, orderNumber: string, riderName: string = 'Delivery Partner') {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -467,6 +482,7 @@ class FcmNotificationDispatcher {
 
   async notifyDelivered(userId: string, orderId: string, orderNumber: string) {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -478,6 +494,7 @@ class FcmNotificationDispatcher {
 
   async notifyOrderCancelled(userId: string, orderId: string, orderNumber: string, reason: string) {
     return this.sendPushNotification({
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       userId,
       orderId,
       orderNumber,
@@ -560,7 +577,7 @@ class FcmNotificationDispatcher {
         : `${input.amountLabel} is on its way` +
           (input.destinationLabel ? ` to ${input.destinationLabel}` : '') +
           '. It usually arrives within a few hours.',
-      androidChannelId: CHANNEL.DEFAULT,
+      androidChannelId: CHANNEL.PAYMENTS,
       data: {
         type: 'PAYOUT_PAID',
         payoutId: input.payoutId,
@@ -590,7 +607,7 @@ class FcmNotificationDispatcher {
       orderNumber: input.orderNumber,
       title: 'Your refund has been sent',
       body: `${input.amountLabel} for order #${input.orderNumber}. ${input.timing}`,
-      androidChannelId: CHANNEL.DEFAULT,
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       data: { type: 'REFUND_SENT', orderId: input.orderId, orderNumber: input.orderNumber }
     });
   }
@@ -650,7 +667,7 @@ class FcmNotificationDispatcher {
       orderNumber,
       title: 'A delivery partner is on the way',
       body: `${riderFirstName} is heading to the restaurant to collect your order.`,
-      androidChannelId: CHANNEL.DEFAULT,
+      androidChannelId: CHANNEL.ORDER_UPDATES,
       data: { type: 'RIDER_ASSIGNED', orderId, orderNumber, riderFirstName }
     });
   }

@@ -361,8 +361,10 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
       if (!isNew) continue;
 
       result.noShowWarned.push(order.id);
+      // Phones are registered against the rider's USER id, not the rider
+      // record's id; addressed by the latter, this warning reached nobody.
       await fcmDispatcher.notifyRiderNoShowWarning(
-        riderId,
+        (await riderRepository.findById(riderId))?.userId || riderId,
         order.id,
         order.orderNumber,
         restaurantName || 'the restaurant'

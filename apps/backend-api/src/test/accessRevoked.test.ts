@@ -128,6 +128,31 @@ try {
   it('The new password signs in', () => {
     assert.ok(relogin.token);
   });
+
+  // ------------------------------------------------------------- U6
+  console.log('\n-- Deleting an account from the app (U6)');
+  const again2 = await login('rahul.sharma@quickbite.app');
+  memoryStore.orders.set('ord_u6_live', {
+    id: 'ord_u6_live', orderNumber: 'QB-U6', customerId: again2.user.id, status: 'PREPARING',
+    restaurantId: 'rst_bbh_01', items: [], bill: { totalAmount: 100 }, createdAt: new Date().toISOString()
+  } as any);
+  const tooSoon = await api('/auth/me', { method: 'DELETE', body: { password: 'pass123' } }, again2.token);
+  it('Refused while one of their orders is still on its way', () => {
+    assert.equal(tooSoon.status, 409);
+    assert.equal(tooSoon.json?.error?.code, 'ORDER_IN_PROGRESS');
+  });
+  (memoryStore.orders.get('ord_u6_live') as any).status = 'DELIVERED';
+  const wrongPw = await api('/auth/me', { method: 'DELETE', body: { password: 'nope' } }, again2.token);
+  const gone = await api('/auth/me', { method: 'DELETE', body: { password: 'pass123' } }, again2.token);
+  it('Needs the password, then deletes the account', () => {
+    assert.equal(wrongPw.status, 401);
+    assert.equal(gone.status, 200, JSON.stringify(gone.json).slice(0, 200));
+    assert.equal(memoryStore.users.get(again2.user.id), undefined);
+  });
+  const ghost = await login('rahul.sharma@quickbite.app');
+  it('and signing in with it again fails', () => {
+    assert.equal(ghost.token, undefined);
+  });
 } finally {
   closeSocketServer?.();
   server.close();

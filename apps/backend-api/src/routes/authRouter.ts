@@ -295,6 +295,28 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
       throw new AppError('Password is incorrect. Account was not deleted.', 401, 'INVALID_PASSWORD');
     }
 
+    // Not while money or food is in flight: a live order would lose its
+    // customer mid-delivery, and a rider would walk away with platform cash.
+    const CLOSED = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
+    const live = (Array.from(memoryStore.orders.values()) as any[]).find(
+      o => o.customerId === userId && !CLOSED.includes(o.status)
+    );
+    if (live) {
+      throw new AppError(
+        `Order #${live.orderNumber} is still in progress. You can delete your account once it is delivered or cancelled.`,
+        409,
+        'ORDER_IN_PROGRESS'
+      );
+    }
+    const riderRow = (Array.from(memoryStore.riders.values()) as any[]).find(r => r.userId === userId);
+    if (riderRow && Number(riderRow.codCashInHand) > 0) {
+      throw new AppError(
+        'You are still holding cash from deliveries. Deposit it first, then delete your account.',
+        409,
+        'CASH_IN_HAND'
+      );
+    }
+
     const deleted = await userRepository.deleteAccount(userId);
     if (!deleted) {
       throw new AppError('Account could not be deleted.', 500, 'DELETE_FAILED');

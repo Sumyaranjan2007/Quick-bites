@@ -70,6 +70,15 @@ export async function prepareOrderAlerts(): Promise<void> {
         enableVibrate: true,
         bypassDnd: false
       });
+      // R2: payouts and other money news. Quiet and normal importance, so a
+      // payment never sounds like an order the rider or kitchen must rush to.
+      // The id matches CHANNEL.PAYMENTS in the server's fcmDispatcher.
+      await Notifications.setNotificationChannelAsync('payments', {
+        name: 'Payments',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        sound: null,
+        enableVibrate: false
+      });
     }
   } catch {
     // Without notification permission the in-app alert still works.

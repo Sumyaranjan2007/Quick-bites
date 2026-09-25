@@ -53,6 +53,8 @@ import {
   type Trip,
   type TripStage
 } from './src/lib/api';
+import * as Notifications from 'expo-notifications';
+import { registerTripWithdrawnTask, withdrawnOrderId, clearWithdrawnTrip } from './src/lib/tripWithdrawn';
 import { clearSession, loadSession, saveSession } from './src/lib/session';
 import {
   notifyNewOrder,
@@ -238,6 +240,22 @@ function DeliveryApp() {
     setTab('home');
     setSubScreen(null);
     announcedOffers.current.clear();
+  }, []);
+
+  /*
+   * R1: another rider took a trip this phone is ringing for. The alarm, the
+   * shade entry and (if it is the one on screen) the offer card all go.
+   */
+  useEffect(() => {
+    void registerTripWithdrawnTask();
+    const sub = Notifications.addNotificationReceivedListener(event => {
+      const orderId = withdrawnOrderId(event);
+      if (!orderId) return;
+      void clearWithdrawnTrip(orderId);
+      setPendingOffer(current => (current?.id === orderId ? null : current));
+      setOffers(list => list.filter(o => o.id !== orderId));
+    });
+    return () => sub.remove();
   }, []);
 
   /*

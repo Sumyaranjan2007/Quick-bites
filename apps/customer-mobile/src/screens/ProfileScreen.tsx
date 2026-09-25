@@ -60,10 +60,9 @@ interface Props {
  * The customer's own area.
  *
  * Organised by what the person is trying to do - their activity, their account,
- * their preferences, then help - rather than as one flat list of switches. There
- * is deliberately no delete-account control: deletion is handled through customer
- * care, which keeps a route to deletion available without putting an irreversible
- * action one tap away.
+ * their preferences, then help - rather than as one flat list of switches.
+ * Deleting the account is in the app, as Google Play requires (U6), at the very
+ * bottom and behind the password, so it is never one careless tap away.
  */
 export const ProfileScreen: React.FC<Props> = ({
   onBack,
@@ -126,6 +125,39 @@ export const ProfileScreen: React.FC<Props> = ({
   // Changing a password without losing the session: the current password is
   // required, so an unlocked phone left on a table cannot lock its owner out.
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const deleteAccount = async () => {
+    if (!apiUrl || !token) return;
+    if (!deletePassword) {
+      setDeleteError('Enter your password to confirm.');
+      return;
+    }
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/me`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: deletePassword })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        setDeleteError(parseApiError(data, 'Your account could not be deleted.').message);
+        return;
+      }
+      setDeleteOpen(false);
+      setDeletePassword('');
+      onLogout?.();
+    } catch {
+      setDeleteError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
   const [policiesOpen, setPoliciesOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -453,7 +485,56 @@ export const ProfileScreen: React.FC<Props> = ({
         </TouchableOpacity>
       )}
 
+      <TouchableOpacity
+        style={styles.deleteLink}
+        onPress={() => {
+          setDeleteError(null);
+          setDeletePassword('');
+          setDeleteOpen(true);
+        }}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.deleteLinkText}>Delete my account</Text>
+      </TouchableOpacity>
+
       <Text style={styles.version}>Quick Bites · Harohalli, Kanakapura Road</Text>
+
+      {/* Delete account (U6) */}
+      <Modal visible={deleteOpen} animationType="slide" transparent onRequestClose={() => setDeleteOpen(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Delete your account?</Text>
+              <TouchableOpacity onPress={() => setDeleteOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.helper}>
+              This cannot be undone. Your profile, saved addresses and membership are removed. Past orders stay on
+              the restaurant's tax records without your name, phone or address. If an order is on its way, wait until
+              it is delivered.
+            </Text>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              secureTextEntry
+              placeholder="Your password, to confirm"
+              placeholderTextColor={c.text.muted}
+            />
+            {!!deleteError && <Text style={styles.error}>{deleteError}</Text>}
+            <TouchableOpacity
+              style={[styles.primaryBtn, styles.dangerBtn, deleteBusy && { opacity: 0.5 }]}
+              onPress={deleteAccount}
+              disabled={deleteBusy}
+              activeOpacity={0.88}
+            >
+              {deleteBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Delete my account</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit profile */}
       <Modal visible={editOpen} animationType="slide" transparent onRequestClose={() => setEditOpen(false)}>
@@ -595,6 +676,9 @@ export const ProfileScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  deleteLink: { alignSelf: 'center', paddingVertical: 10, marginTop: 4 },
+  deleteLinkText: { fontSize: 13, color: c.semantic.error, textDecorationLine: 'underline' },
+  dangerBtn: { backgroundColor: c.semantic.error },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },

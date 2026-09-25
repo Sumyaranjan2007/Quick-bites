@@ -133,6 +133,23 @@ try {
     return o;
   };
 
+  // ------------------------------------------------------------------ P7
+  console.log('-- P7: the kitchen is told how long it has to accept');
+  const fresh = await place();
+  const kitchenView = await api(`/restaurants/${RESTAURANT_ID}/orders`, {}, partner);
+  const row = (kitchenView.json?.data?.orders || []).find((o: any) => o.id === fresh.id);
+  it('A new order carries the time it is cancelled automatically if nobody accepts it', () => {
+    assert.ok(row?.acceptBy, JSON.stringify(row || kitchenView.json).slice(0, 200));
+    const gap = new Date(row.acceptBy).getTime() - new Date(row.createdAt).getTime();
+    assert.equal(gap, 8 * 60_000);
+  });
+  await status(fresh.id, 'ACCEPTED');
+  const afterAccept = await api(`/restaurants/${RESTAURANT_ID}/orders`, {}, partner);
+  it('and an accepted order no longer does', () => {
+    const r = (afterAccept.json?.data?.orders || []).find((o: any) => o.id === fresh.id);
+    assert.equal(r?.acceptBy, undefined);
+  });
+
   // ------------------------------------------------------------------ A1
   console.log('-- A1: take a trip off a rider before pickup');
   const a1 = await claimed();
