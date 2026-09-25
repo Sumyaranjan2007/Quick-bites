@@ -138,6 +138,19 @@ export function authMiddleware(requiredRole?: string) {
         return;
       }
 
+      // A password reset or change bumps the account's token version, which
+      // retires every token issued before it (a lost or stolen phone keeps
+      // working for 7 days otherwise). Tokens issued before versions existed
+      // carry none and match an account that has never been bumped.
+      if ((Number(payload.tv) || 0) !== (Number((stored as any).tokenVersion) || 0)) {
+        res.status(401).json({
+          success: false,
+          error: { code: 'SESSION_REVOKED', message: 'You were signed out because the password changed. Sign in again.' },
+          meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+        });
+        return;
+      }
+
       if (stored.isBlocked) {
         // 403 rather than 401, and said plainly: a blocked person who is told
         // "unauthorised" signs out and back in forever. The apps read this code

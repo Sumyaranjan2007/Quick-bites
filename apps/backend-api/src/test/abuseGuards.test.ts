@@ -330,6 +330,42 @@ try {
     assert.ok(collectDead.status >= 400, `status ${collectDead.status}`);
     assert.equal((memoryStore.orders.get(dead.id) as any).status, 'CANCELLED');
   });
+
+  // ---------------------------------------------------------------------
+  console.log('\n-- Staff password reset cannot reach an administrator');
+
+  const ops = await login('ops@quickbite.app');
+  const riderTokenBefore = riderLogin.token;
+  const takeover = await api(
+    '/admin/staff/usr_admin_01/reset-password',
+    { method: 'POST', body: { temporaryPassword: 'owned-the-platform-1' } },
+    ops.token
+  );
+  it('An operations admin cannot reset the SUPER ADMIN password', () => {
+    assert.equal(takeover.status, 403, `status ${takeover.status}: ${JSON.stringify(takeover.json).slice(0, 200)}`);
+  });
+  const superStill = await login('admin@quickbite.app');
+  it('and the super admin still signs in with their own password', () => {
+    assert.ok(superStill.token, 'the super admin password was changed by an operations admin');
+  });
+
+  const riderReset = await api(
+    `/admin/staff/${riderLogin.user.id}/reset-password`,
+    { method: 'POST', body: { temporaryPassword: 'rider-temp-pass-9' } },
+    ops.token
+  );
+  it('Control: an operations admin can reset a RIDER’s password', () => {
+    assert.equal(riderReset.status, 200, `status ${riderReset.status}: ${JSON.stringify(riderReset.json).slice(0, 200)}`);
+  });
+  const oldTokenUse = await api('/riders/me', {}, riderTokenBefore);
+  it('and the rider’s old token (a lost phone) stops working at once', () => {
+    assert.equal(oldTokenUse.status, 401, `status ${oldTokenUse.status}`);
+  });
+  const riderAgain = await login('rider@quickbite.app', 'rider-temp-pass-9');
+  const newTokenUse = await api('/riders/me', {}, riderAgain.token);
+  it('Control: signing in with the new password works', () => {
+    assert.equal(newTokenUse.status, 200, `status ${newTokenUse.status}`);
+  });
 } finally {
   server.close();
 }

@@ -58,6 +58,8 @@ const EMPTY_COUPON = {
   maxDiscountCap: '',
   usageLimit: '',
   perUserLimit: '',
+  budget: '',
+  newCustomersOnly: false,
   days: '',
   isActive: true
 };
@@ -94,6 +96,8 @@ const CouponsTab: React.FC = () => {
         ...(Number(form.maxDiscountCap) ? { maxDiscountCap: Number(form.maxDiscountCap) } : {}),
         ...(Number(form.usageLimit) ? { usageLimit: Number(form.usageLimit) } : {}),
         ...(Number(form.perUserLimit) ? { perUserLimit: Number(form.perUserLimit) } : {}),
+        ...(Number(form.budget) ? { budget: Number(form.budget) } : {}),
+        ...(form.newCustomersOnly ? { newCustomersOnly: true } : {}),
         ...(days
           ? {
               startsAt: new Date().toISOString(),
@@ -180,6 +184,8 @@ const CouponsTab: React.FC = () => {
               <KeyValue label="Used" value={`${coupon.timesUsed} time${coupon.timesUsed === 1 ? '' : 's'}`} />
             )}
             {coupon.perUserLimit ? <KeyValue label="Per customer" value={`${coupon.perUserLimit} use(s)`} /> : null}
+            {coupon.budget ? <KeyValue label="Budget" value={`Rs ${coupon.spent || 0} of Rs ${coupon.budget} spent`} /> : null}
+            {coupon.newCustomersOnly ? <KeyValue label="Who" value="First order only" /> : null}
             {coupon.expiresAt ? <KeyValue label="Ends" value={formatDateTime(coupon.expiresAt)} /> : null}
             <KeyValue label="Discount given" value={formatMoney(coupon.discountGiven)} tone="money" />
             <KeyValue label="Revenue influenced" value={formatMoney(coupon.revenueInfluenced)} />
@@ -247,6 +253,8 @@ const CouponsTab: React.FC = () => {
           <Field label="Total redemptions" value={form.usageLimit} onChangeText={v => setForm(f => ({ ...f, usageLimit: v }))} keyboardType="numeric" placeholder="Leave blank for unlimited" />
           <Field label="Per customer" value={form.perUserLimit} onChangeText={v => setForm(f => ({ ...f, perUserLimit: v }))} keyboardType="numeric" placeholder="Leave blank for unlimited" />
           <Field label="Runs for (days)" value={form.days} onChangeText={v => setForm(f => ({ ...f, days: v }))} keyboardType="numeric" placeholder="Leave blank for no end date" />
+          <Field label="Campaign budget (Rs)" value={form.budget} onChangeText={v => setForm(f => ({ ...f, budget: v }))} keyboardType="numeric" placeholder="Most this offer may cost in discounts. Blank = no cap" />
+          <Toggle label="First order only (new customers)" value={form.newCustomersOnly} onChange={v => setForm(f => ({ ...f, newCustomersOnly: v }))} />
           <Toggle label="Start it live" value={form.isActive} onChange={v => setForm(f => ({ ...f, isActive: v }))} />
         </Card>
       </Sheet>

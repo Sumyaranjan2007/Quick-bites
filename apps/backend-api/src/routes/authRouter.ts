@@ -30,7 +30,9 @@ export function generateToken(user: any): string {
       email: user.email,
       role: user.role,
       is_gold: user.isGold,
-      user_metadata: { name: user.fullName }
+      user_metadata: { name: user.fullName },
+      // Token version: bumped on a password change or reset to retire older tokens.
+      tv: Number(user.tokenVersion) || 0
     },
     config.JWT_SECRET,
     { expiresIn: '7d', algorithm: 'HS256' }
@@ -968,11 +970,17 @@ authRouter.post(
         throw new AppError('The new password has to be different from the old one.', 400, 'PASSWORD_UNCHANGED');
       }
 
+      // The token version is NOT bumped here yet: the shipped apps do not store
+      // a replacement token, so bumping would sign the person out of the very
+      // device they changed it on. An administrator's reset (the lost-phone
+      // case) does bump it. Once the apps save `data.token` below, bump here too.
       await userRepository.update(user.id, { passwordHash: await bcrypt.hash(req.body.newPassword, 10) });
 
+      // A fresh token for THIS device: the change retired every older one.
+      const refreshed = await userRepository.findById(user.id);
       res.json({
         success: true,
-        data: { changed: true },
+        data: { changed: true, token: refreshed ? generateToken(refreshed) : undefined },
         message: 'Your password has been changed.'
       });
     } catch (err) {

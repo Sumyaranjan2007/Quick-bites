@@ -738,7 +738,10 @@ payoutRoutes.get(
               declared: toRupees(d.declaredPaise),
               received: d.receivedPaise != null ? toRupees(d.receivedPaise) : null
             })),
-          ageing: cashAgeing()
+          ageing: cashAgeing(),
+          // Counted in at the office and not yet walked to the bank. The admin
+          // app's "Banked" card shows it, so the owner knows what to deposit.
+          officeCash: toRupees(officeCashPaise())
         }
       });
     } catch (err) {
