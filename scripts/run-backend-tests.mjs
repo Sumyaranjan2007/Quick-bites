@@ -26,6 +26,7 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { acquireGateLock } from './gateLock.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -131,34 +132,56 @@ function assertEverySuiteIsListed() {
 
 assertEverySuiteIsListed();
 
-const SANDBOX = path.join(os.tmpdir(), 'quick-bites-test-data');
-fs.rmSync(SANDBOX, { recursive: true, force: true });
+// The lock's own check, run here because a check that runs only when somebody remembers
+// is the unregistered-suite problem again. It uses lock files of its own, so it runs
+// BEFORE the real lock is taken: under it, it would wait on this run. About four seconds.
+{
+  const lockCheck = spawnSync(process.execPath, [path.join(__dirname, 'test-gate-lock.mjs')], {
+    stdio: 'inherit'
+  });
+  if (lockCheck.status !== 0) {
+    console.log('\n  The gate lock\'s own check failed (scripts/test-gate-lock.mjs). Not running the suites.\n');
+    process.exit(1);
+  }
+}
 
+// Before the sandbox is cleared, not after: a second run clearing it would delete the
+// data directories of the run already in progress, as well as fighting it for ports.
+// See scripts/gateLock.mjs.
+const releaseGateLock = await acquireGateLock();
+
+const SANDBOX = path.join(os.tmpdir(), 'quick-bites-test-data');
 const failures = [];
 const started = Date.now();
 
-for (const suite of SUITES) {
-  const file = path.join(BACKEND, `src/test/${suite}.test.ts`);
-  if (!fs.existsSync(file)) {
-    console.log(`\n[MISSING] src/test/${suite}.test.ts — the runner names a suite that is not there`);
-    failures.push(suite);
-    continue;
-  }
+try {
+  fs.rmSync(SANDBOX, { recursive: true, force: true });
 
-  const dataDir = path.join(SANDBOX, suite);
-  fs.mkdirSync(dataDir, { recursive: true });
-
-  const result = spawnSync(
-    process.execPath,
-    ['--experimental-strip-types', `src/test/${suite}.test.ts`],
-    {
-      cwd: BACKEND,
-      stdio: 'inherit',
-      env: { ...process.env, QB_DATA_DIR: dataDir }
+  for (const suite of SUITES) {
+    const file = path.join(BACKEND, `src/test/${suite}.test.ts`);
+    if (!fs.existsSync(file)) {
+      console.log(`\n[MISSING] src/test/${suite}.test.ts — the runner names a suite that is not there`);
+      failures.push(suite);
+      continue;
     }
-  );
 
-  if (result.status !== 0) failures.push(suite);
+    const dataDir = path.join(SANDBOX, suite);
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    const result = spawnSync(
+      process.execPath,
+      ['--experimental-strip-types', `src/test/${suite}.test.ts`],
+      {
+        cwd: BACKEND,
+        stdio: 'inherit',
+        env: { ...process.env, QB_DATA_DIR: dataDir }
+      }
+    );
+
+    if (result.status !== 0) failures.push(suite);
+  }
+} finally {
+  releaseGateLock();
 }
 
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
