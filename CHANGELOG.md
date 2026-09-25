@@ -6,6 +6,93 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-25] -- Claude Opus 5.5 -- Session 36: Session C's merge reviewed, what the review found, and a build that can only install as an update
+
+**Covers `063a4a2` (Session C's merge) through the release guards (`679e986`).** Two sessions
+remain: the review session (the owner's "Session A") and the builder (the
+owner's "Session B"). **Session C is retired.** Its work is described in the two
+entries below this one, and was reviewed after the fact.
+
+> **For the owner, in one paragraph.** Session C's work went live without review.
+> It was checked afterwards, and the apps already on your phones still work with
+> it. The review found three real problems and fixed them. A door UPI payment
+> could be refunded when it was genuine. The saving system's own test was blind.
+> And the "delivered from far away" fraud check had never run on a real delivery.
+> The build now refuses to make an APK that wouldn't install as an update over the
+> apps on your phones: the wrong key, the debug key, two signers, or a version
+> number that doesn't go up.
+
+---
+
+### How to resume safely (updated)
+
+- **Two sessions now**: review and builder. Never `git add -A`, never `git stash`,
+  and check `git log origin/main..HEAD` after every push.
+- **The gate:** `node scripts/run-backend-tests.mjs`, **73 suites**. It takes a
+  machine-wide lock and waits rather than colliding with another run.
+- **Read first:** `docs/plans/FOUR-APP-FLOWS.md` (every case, for all four people),
+  `docs/plans/full-audit-2026-09-24.md` (the working record), and
+  `docs/plans/CONNECTION-MAP.md` (every app call, as the real user).
+- **The compatibility target is the installed APK, not HEAD.** Railway deploys
+  `main` on push. Phones run the last built APK. Check old app bodies by feeding
+  that release commit's `apps/*/src` to the body scanner (`appBodies`).
+- **After every APK build, commit `release/version.json` and the four
+  `app.json` files** the build changed. See `SIGNING_KEYS.md` → "What the build
+  checks for you".
+
+### What the review of `063a4a2` found, and what was done
+
+| Finding | Fix |
+| --- | --- |
+| **N24 could refund a genuine door payment.** The rider's poll could mark a door payment PAID without its id, when Razorpay's second call failed. The webhook then treated the real id as a second payment. | One classifier for both paths: an order paid by door QR with no recorded id ADOPTS the payment. A duplicate is refunded. Anything unclear raises an ops alert and is not refunded. `6f2f9a6` |
+| **The change-tracking check looked only at the end of the day**, so a later write to the same record hid an unmarked one. | Checked after every one of 31 steps, with floors. A real miss was found and fixed (a card payment confirmed from the phone). Per-writer rows, plus a source rule that every repository writer changing a document in place calls `set()` (41 writers). `5adf03c`, `525eea4` |
+| An unmarked write in production showed up only as a log line. | The backstop reports it to admins through the "books need you" alert, once a day per collection, and "tell Claude". `b08e969` |
+| **The far-handover fraud flag never fired.** It lived only on a route the rider app doesn't use. | Moved into `completeDelivery`, so every DELIVERED path runs it. A stale GPS position records NO_RECENT_POSITION with no alert. Operations-marked deliveries record the distance but don't alert. `7d3c06b` |
+| S10: two implementations (C's and the builder's). | C's `dishOptions` kept; the builder's is on branch `builder/s10-alt`. The quote now returns the chosen options, including a defaulted size. A negative option price is refused where option groups are built. `9847ac9`, `0cfb344` |
+| S11: account deletion didn't close a live connection, and the demo reset bypassed the hook. | Both revoke. A source check means only `userRepository` removes users or writes `isBlocked`/`tokenVersion`. `4e090a8` |
+| A gate check failed at random ("300" found inside a timestamp). | It walks the JSON for price values and money in text instead. `d872b22` |
+| The reset-password card showed to roles the route refuses. | Gated on the route's own permission, with a source check that ties the two. `c2e32d1` |
+
+### The build: an APK can only install as an update (U-1..U-3)
+
+- **Signing identity pinned.** `release/signing-certificates.json` holds the four
+  certificate SHA-256s read with `apksigner` from the 23 Sep APKs, which are
+  archived at `D:\my all projects\quick-bites-release-archive\2026-09-23\`. Every
+  built APK is verified: exactly one signer, the pinned certificate, the right
+  package, the claimed versionCode. Anything else is renamed `*.REJECTED.apk` and
+  the build exits 1. **`keytool` prints nothing for these v2-only APKs**, so the
+  check never uses it.
+- **A missing keystore stops the build.** A debug-signed APK only with
+  `--allow-debug-signing`, named `*-DEBUG-SIGNED.apk`.
+- **versionCode goes up on every build** (`679e986`), from the committed counter, this
+  machine's own record, and the installed floor, whichever is highest. It was 7 on
+  every build since 17 Sep.
+
+### Open decisions for the owner
+
+- A trip reassigned after pickup pays the whole trip to the rider who delivers.
+  Split it?
+- Free extras (price 0) can't be offered. Allow them?
+- After every customer phone has the new app: switch off "Accept addresses
+  without a map pin". Set "Customer app shows the cancel fee" = 1 only if a
+  cancel fee is wanted.
+- Launch blockers: SMS login, live Razorpay keys, reversal handling before
+  RazorpayX, rotating the Mapbox secret token, Railway overlap 0.
+
+### Rules this session added
+
+- **A check that looks once at the end is blind to anything a later step
+  repairs.** Assert after every step.
+- **An unmarked write inside a request that marks the same document loses
+  nothing, so no request-level audit can see it.** Test each writer on its own,
+  and add a source rule.
+- **The installed APKs are the compatibility target.** Scan the release commit's
+  sources, not HEAD.
+- **A refusal to move money it can't place is better than a guess.** When the
+  classifier is unsure, it alerts a person.
+
+---
+
 ## [2026-09-25] -- Session C, part 2 -- the rest of the agreed plan, built
 
 **Same branch, `claude/nice-lamport-vxf4yf`. NOT on `main`; the brain reviews and merges.**
