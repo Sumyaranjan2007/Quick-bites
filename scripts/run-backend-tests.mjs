@@ -90,7 +90,8 @@ const SUITES = [
   'platform',
   'flows',
   'regression',
-  'abuseGuards'
+  'abuseGuards',
+  'profitGuards'
 ];
 
 /*

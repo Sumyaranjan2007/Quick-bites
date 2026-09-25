@@ -42,6 +42,8 @@ import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
+import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
+import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor } from './cancellationFee.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
 
@@ -139,6 +141,47 @@ function clampTip(value: unknown): number {
 }
 
 /**
+ * The distance a trip is priced on.
+ *
+ * Measured between the two real points wherever both exist. Where they do
+ * not, the app's own figure used to be taken as given, so an app sending
+ * `distanceKm: 0.1` bought base-fare delivery from anywhere, and the rider was
+ * paid for 0.1 km off the same number. The app may now only RAISE the nominal
+ * figure (it may know better that the trip is long); it can never lower it.
+ */
+const NOMINAL_TRIP_KM = 3.5;
+function tripDistanceFrom(measuredKm: number | undefined, claimedKm: number | undefined): number {
+  if (typeof measuredKm === 'number' && Number.isFinite(measuredKm)) return measuredKm;
+  const claimed = Number(claimedKm);
+  return Number.isFinite(claimed) && claimed > NOMINAL_TRIP_KM ? claimed : NOMINAL_TRIP_KM;
+}
+
+/**
+ * The owner's minimum order and furthest delivery. Both are 0 (off) by default.
+ * The radius is enforced only on a MEASURED distance: refusing on a guess would
+ * turn away customers whose address simply has no pin.
+ */
+function assertDeliverable(restaurantName: string, distanceKm: number, measured: boolean, foodTotal: number): void {
+  const rates = getActiveRates();
+  const maxKm = Number(rates.maxDeliveryKm) || 0;
+  if (maxKm > 0 && measured && distanceKm > maxKm) {
+    throw new AppError(
+      `${restaurantName} does not deliver this far (${distanceKm.toFixed(1)} km; the limit is ${maxKm} km).`,
+      409,
+      'OUT_OF_DELIVERY_RANGE'
+    );
+  }
+  const minOrder = Number(rates.minOrderValue) || 0;
+  if (minOrder > 0 && foodTotal < minOrder) {
+    throw new AppError(
+      `The minimum order is Rs ${minOrder}. Add Rs ${Math.ceil(minOrder - foodTotal)} more to check out.`,
+      409,
+      'BELOW_MINIMUM_ORDER'
+    );
+  }
+}
+
+/**
  * Returns a paid order's money after it has been cancelled.
  *
  * One implementation for every way a paid order ends up cancelled: a person
@@ -169,7 +212,7 @@ async function refundPaidCancellation(
     description: `Order cancelled before delivery: ${reasonText}`,
     attachments: [],
     requestedAmount: refundable,
-    orderTotal: refundable
+    orderTotal: Number(updated.bill?.totalAmount) || refundable
   });
 
   updated.refundRequestId = request.id;
@@ -351,10 +394,11 @@ export const orderService = {
     // with a river or a railway in it, and the customer was being charged for
     // the short version of a journey the rider actually rides.
     const measured =
-      restaurant.coordinates && address?.coordinates
+      hasRealLocation(restaurant) && address?.coordinates
         ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
-    const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
+    const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
+    assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), pricedItems.reduce((t, i) => t + i.totalPrice, 0));
 
     let validatedCoupon = undefined;
     let couponError: string | undefined;
@@ -441,12 +485,27 @@ export const orderService = {
     // stop orders reaching the kitchens now, and a replay would put one there.
     assertEnabled('ordering');
     if (input.paymentMethod === 'CASH_ON_DELIVERY') assertEnabled('cash_on_delivery');
+    // A customer who keeps cancelling cash orders after the kitchen started
+    // pays online from then on (owner-set limit, 0 = never).
+    if (input.paymentMethod === 'CASH_ON_DELIVERY' && cashSwitchedOffFor(input.customerId)) {
+      throw new AppError(
+        'Cash on delivery is switched off for your account because of cancelled cash orders. Please pay online.',
+        409,
+        'COD_DISABLED_FOR_ACCOUNT'
+      );
+    }
     if (input.paymentMethod === 'RAZORPAY_SANDBOX') assertEnabled('online_payments');
     if (input.couponCode) assertEnabled('coupons');
 
     // 1. Check Idempotency Key (Rule 44 & 45)
     const existing = await orderRepository.findByIdempotencyKey(input.idempotencyKey);
     if (existing) {
+      // A retry is a retry of YOUR checkout. The key was looked up across every
+      // customer, so sending someone else's key returned their order — address,
+      // bill and doorstep code included.
+      if (existing.customerId !== input.customerId) {
+        throw new AppError('That checkout reference has already been used.', 409, 'IDEMPOTENCY_KEY_REUSED');
+      }
       return { order: existing, isDuplicate: true };
     }
 
@@ -612,10 +671,11 @@ export const orderService = {
     // client claimed, falling back to the client's figure (and then to a nominal
     // 3.5 km) only when either end has no coordinates recorded.
     const measured =
-      restaurant.coordinates && address.coordinates
+      hasRealLocation(restaurant) && address.coordinates
         ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
-    const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
+    const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
+    assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), orderItems.reduce((t, i) => t + i.totalPrice, 0));
 
     const charges = effectiveCharges(restaurant.id, getActiveRates());
     const bill = calculateOrderPricing({
@@ -701,13 +761,21 @@ export const orderService = {
       updatedAt: new Date().toISOString()
     };
 
-    await orderRepository.create(order);
-
-    // Counted once the order exists, so a usage limit reflects codes that were
-    // actually spent rather than every checkout that looked at one.
+    /*
+     * The coupon's use is taken HERE, synchronously, re-checking the
+     * campaign's limit and budget with no await in between. Validation ran
+     * before a road-distance lookup, so two checkouts could both pass a limit
+     * with one use left. The use is released again if the order is cancelled
+     * (see cancelOrder), so an abandoned checkout no longer burns a campaign.
+     */
     if (order.couponCode) {
-      await couponRepository.recordRedemption(order.couponCode);
+      if (!couponRepository.redeemNow(order.couponCode, Number(bill.couponDiscount) || 0)) {
+        throw new AppError('This offer has just been fully claimed. Remove it to check out.', 409, 'COUPON_FULLY_CLAIMED');
+      }
+      order.couponRedeemed = true;
     }
+
+    await orderRepository.create(order);
 
     // 8. Payment is started separately, by POST /payments/start.
     //
@@ -910,7 +978,16 @@ export const orderService = {
     const reasonText = trimmedNote ? `${reason.label.en} — ${trimmedNote}` : reason.label.en;
 
     const wasPaid = order.paymentStatus === 'PAID';
-    const refundable = wasPaid ? Number(order.bill?.totalAmount) || 0 : 0;
+    const fromStatus = order.status;
+    /*
+     * A customer cancelling after the kitchen has started pays the owner-set
+     * fee (0 by default, which is today's behaviour). The kitchen, the
+     * restaurant and operations never pay one: their cancellations are the
+     * platform's failure, not the customer's choice.
+     */
+    const feeQuote = actor.role === 'customer' ? quoteCancellation(order) : null;
+    const fee = feeQuote?.fee || 0;
+    const refundable = wasPaid ? Math.round(((Number(order.bill?.totalAmount) || 0) - fee) * 100) / 100 : 0;
 
     const updated = await orderRepository.recordCancellation(orderId, {
       reason: reasonText,
@@ -920,6 +997,20 @@ export const orderService = {
     });
     if (!updated) {
       throw new AppError('Failed to cancel this order.', 500, 'CANCELLATION_FAILED');
+    }
+    updated.cancelledFromStatus = fromStatus;
+    if (fee > 0) {
+      const { kitchenShare } = bookCancellationFee(updated, fee);
+      updated.cancellationFee = { amount: fee, percent: feeQuote!.percent, kitchenShare };
+    }
+    await orderRepository.save(updated);
+
+    // The order never happened, so its coupon use goes back to the campaign
+    // and to the customer.
+    if (updated.couponRedeemed && updated.couponCode) {
+      couponRepository.releaseRedemption(updated.couponCode, Number(updated.bill?.couponDiscount) || 0);
+      updated.couponRedeemed = false;
+      await orderRepository.save(updated);
     }
 
     let refund: { requestId: string; amount: number; status: string; gatewayRefundId?: string } | null = null;

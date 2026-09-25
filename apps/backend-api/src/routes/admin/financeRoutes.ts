@@ -2,6 +2,7 @@
  * Money: what was paid, what the platform earned, what is owed to riders, and
  * the return/refund cases that give some of it back.
  */
+import { refundableRemaining } from '../../modules/payments/refundCap.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
@@ -254,6 +255,17 @@ financeRoutes.post(
           'REFUND_EXCEEDS_ORDER'
         );
       }
+      // Across every case on the order, not just this one.
+      const remaining = await refundableRemaining(order, request.id);
+      if (payable > remaining) {
+        throw new AppError(
+          remaining <= 0
+            ? 'This order has already been refunded in full by another case.'
+            : `Only Rs ${remaining} of this order has not already been refunded.`,
+          409,
+          'REFUND_EXCEEDS_REMAINING'
+        );
+      }
 
       /*
        * Money goes back the way it came.
@@ -386,9 +398,19 @@ financeRoutes.post(
       }
 
       const total = Number(order.bill?.totalAmount) || 0;
-      const amount = req.body.amount ?? total;
+      const remaining = await refundableRemaining(order);
+      const amount = req.body.amount ?? remaining;
       if (amount > total) {
         throw new AppError(`A refund cannot exceed the order total of Rs ${total}.`, 400, 'REFUND_EXCEEDS_ORDER');
+      }
+      if (amount > remaining) {
+        throw new AppError(
+          remaining <= 0
+            ? 'This order has already been refunded in full.'
+            : `Only Rs ${remaining} of this order has not already been refunded.`,
+          409,
+          'REFUND_EXCEEDS_REMAINING'
+        );
       }
       const reason = req.body.reason || 'Admin dispute resolution';
       const actor = { userId: req.user!.id, name: req.user!.fullName || req.user!.email };

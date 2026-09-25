@@ -533,7 +533,19 @@ peopleRoutes.get('/restaurants/:id', requirePermission('users.restaurants.view')
         stats: {
           orders: orders.length,
           delivered: delivered.length,
-          cancelled: orders.filter(o => o.status === 'CANCELLED').length,
+          // A cancelled PAID order moves on to REFUNDED, so counting only
+          // CANCELLED undercounted every prepaid cancellation.
+          cancelled: orders.filter(o => o.status === 'CANCELLED' || Boolean(o.cancelledAt && o.status === 'REFUNDED')).length,
+          /*
+           * Orders the KITCHEN itself cancelled or rejected, and what share of
+           * everything it was sent. The platform refunds these in full and eats
+           * any coupon, so a kitchen that rejects often is costing money; this is
+           * the figure to act on (warn, lower ranking, suspend).
+           */
+          rejectedByKitchen: orders.filter(o => o.cancelledByRole === 'restaurant_owner').length,
+          rejectionRatePercent: orders.length
+            ? Math.round((orders.filter(o => o.cancelledByRole === 'restaurant_owner').length / orders.length) * 1000) / 10
+            : 0,
           revenue: Math.round(delivered.reduce((t, o) => t + (Number(o.bill?.totalAmount) || 0), 0) * 100) / 100,
           payable:
             Math.round(delivered.reduce((t, o) => t + (Number(o.bill?.restaurantNetPayout) || 0), 0) * 100) / 100

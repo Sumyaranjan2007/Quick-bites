@@ -74,6 +74,10 @@ const CouponSchema = z.object({
   expiresAt: z.string().datetime().optional(),
   usageLimit: z.number().int().min(1).max(1000000).optional(),
   perUserLimit: z.number().int().min(1).max(1000).optional(),
+  /** Only for a customer's first delivered order. */
+  newCustomersOnly: z.boolean().optional(),
+  /** The most this campaign may cost in discounts, in rupees. */
+  budget: z.number().min(1).max(10000000).optional(),
   applicableRestaurantIds: z.array(z.string()).max(200).optional(),
   applicableCategories: z.array(z.string().max(60)).max(50).optional(),
   isActive: z.boolean().optional()

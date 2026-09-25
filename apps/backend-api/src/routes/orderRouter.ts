@@ -1,3 +1,5 @@
+import { quoteCancellation } from '../modules/orders/cancellationFee.ts';
+import { canTransition } from '../modules/orders/orderStateMachine.ts';
 import { Router } from 'express';
 import { orderService } from '../modules/orders/orderService.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
@@ -75,6 +77,30 @@ orderRouter.get('/cancellation-reasons', authMiddleware(), async (req, res, next
 });
 
 // GET /api/v1/orders/:id - Single order detail
+/**
+ * GET /api/orders/:id/cancellation-quote
+ *
+ * What cancelling now would cost the customer, and what they get back. The app
+ * shows this BEFORE the cancel button is confirmed: a fee a customer learns
+ * about from their bank statement is a support call and a lost customer.
+ */
+orderRouter.get('/:id/cancellation-quote', authMiddleware('customer'), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.id);
+    if (!order || order.customerId !== req.user!.id) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+    const quote = quoteCancellation(order);
+    res.json({
+      success: true,
+      data: { ...quote, canCancel: canTransition(order.status, 'CANCELLED') },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
   try {
     const order = await orderRepository.findById(req.params.id);
@@ -90,10 +116,24 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
     }
 
     const isCustomer = order.customerId === req.user?.id;
-    const isRider = order.riderId === req.user?.id;
-    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.role === 'restaurant_owner';
+    // `order.riderId` is the rider's own id (rdr_…), not their user id, so the
+    // rider is looked up rather than compared with the token directly.
+    const viewerRider = req.user?.role === 'rider' ? await riderRepository.findByUserId(req.user!.id) : null;
+    const isRider =
+      order.riderId === req.user?.id || Boolean(viewerRider && order.riderId === viewerRider.id);
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
+    /*
+     * A restaurant sees ITS OWN orders. Every restaurant owner used to count as
+     * staff here, so any partner could read any order on the platform by id:
+     * another kitchen's customer, address and bill.
+     */
+    let isKitchen = false;
+    if (req.user?.role === 'restaurant_owner') {
+      const restaurant = await restaurantRepository.findById(order.restaurantId);
+      isKitchen = Boolean(restaurant && restaurant.ownerId === req.user.id);
+    }
 
-    if (!isCustomer && !isRider && !isStaff) {
+    if (!isCustomer && !isRider && !isStaff && !isKitchen) {
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'Forbidden: You do not have permission to view this order.' },
@@ -110,7 +150,7 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
       // OTP, and this route used to hand it to the assigned rider — the one
       // person who must not have it, because it is the only proof that the food
       // reached the customer.
-      data: { order: shapeOrderForViewer(order, viewerFor(order, req.user)) },
+      data: { order: shapeOrderForViewer(order, isRider ? 'rider' : viewerFor(order, req.user)) },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId

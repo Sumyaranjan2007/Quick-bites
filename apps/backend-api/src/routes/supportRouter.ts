@@ -17,6 +17,8 @@ import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { notifyAdminsSupportTicketOpened, notifyAdminsRefundRaised } from '../notifications/adminNotifier.ts';
+import { refundableRemaining } from '../modules/payments/refundCap.ts';
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const supportRouter = Router();
 
@@ -170,9 +172,21 @@ supportRouter.post('/refund-requests', validate({ body: RefundRequestSchema }), 
     }
 
     const total = Number(order.bill?.totalAmount) || 0;
-    const requested = req.body.requestedAmount ?? total;
-    if (requested > total) {
-      throw new AppError(`You cannot ask for more than the order total of Rs ${total}.`, 400, 'AMOUNT_TOO_HIGH');
+    // What has not already gone back. A second case on a refunded order is
+    // how one order used to be refunded twice.
+    const remaining = await refundableRemaining(order);
+    if (remaining <= 0) {
+      throw new AppError('This order has already been refunded in full.', 409, 'ALREADY_REFUNDED');
+    }
+    const requested = req.body.requestedAmount ?? remaining;
+    if (requested > remaining) {
+      throw new AppError(
+        remaining < total
+          ? `Rs ${round2(total - remaining)} of this order has already been refunded. You can ask for up to Rs ${remaining}.`
+          : `You cannot ask for more than the order total of Rs ${total}.`,
+        400,
+        'AMOUNT_TOO_HIGH'
+      );
     }
 
     const user = await userRepository.findById(req.user!.id);
