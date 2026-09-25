@@ -210,6 +210,10 @@ financeRoutes.post(
 
       const actor = { userId: req.user!.id, name: req.user!.fullName || req.user!.email };
       const { action, amount, note } = req.body;
+      // A case returning a customer's SECOND payment (duplicateCapture.ts). Its
+      // money was never the order's, so the order's refund cap does not apply,
+      // it is reversed against that payment, and it never refunds the order.
+      const duplicateOf = request.duplicatePaymentId;
 
       if (action === 'REJECT' && !note) {
         throw new AppError(
@@ -221,7 +225,7 @@ financeRoutes.post(
 
       // Approving commits money: it is capped by what the OTHER committed cases
       // on the order have not already taken (refundCap counts APPROVED too).
-      if (action === 'APPROVE') {
+      if (action === 'APPROVE' && !duplicateOf) {
         const approving = amount ?? request.requestedAmount;
         const forOrder = await orderRepository.findById(request.orderId);
         if (forOrder) {
@@ -276,7 +280,7 @@ financeRoutes.post(
       }
       // Across every case on the order, not just this one.
       const remaining = await refundableRemaining(order, request.id);
-      if (payable > remaining) {
+      if (!duplicateOf && payable > remaining) {
         throw new AppError(
           remaining <= 0
             ? 'This order has already been refunded in full by another case.'
@@ -308,7 +312,8 @@ financeRoutes.post(
         actorUserId: req.user!.id,
         caseId: request.id,
         customerPhone: order.customerPhone,
-        manualReference: req.body.manualReference
+        manualReference: req.body.manualReference,
+        duplicatePaymentId: duplicateOf
       });
 
       if (!outcome.settled) {
@@ -339,7 +344,7 @@ financeRoutes.post(
 
       // A partial refund leaves the order delivered — the customer kept the food.
       // Only a full refund reverses the order itself.
-      const isFullRefund = payable >= request.orderTotal - 0.01;
+      const isFullRefund = !duplicateOf && payable >= request.orderTotal - 0.01;
       if (isFullRefund) {
         order.status = 'REFUNDED';
         order.paymentStatus = 'REFUNDED';

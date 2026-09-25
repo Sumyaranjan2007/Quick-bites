@@ -161,7 +161,9 @@ supportRouter.post('/refund-requests', validate({ body: RefundRequestSchema }), 
     }
 
     const existing = (await refundRepository.listByOrder(order.id)).find(
-      r => r.status !== 'REJECTED' && r.status !== 'REFUNDED'
+      // A case returning a duplicate payment is the platform's, not the customer's
+      // complaint, and waiting on the gateway must not stop them raising one.
+      r => r.status !== 'REJECTED' && r.status !== 'REFUNDED' && !r.duplicatePaymentId
     );
     if (existing) {
       throw new AppError(

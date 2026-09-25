@@ -169,7 +169,10 @@ paymentRouter.post('/webhook', async (req, res, next) => {
 
     if (eventType === 'payment.captured' && quickBitesOrderId) {
       const order = await orderRepository.findById(quickBitesOrderId);
-      if (order && order.paymentStatus !== 'PAID') {
+      // Passed on even when the order is already PAID: a capture with a
+      // different payment id is the customer paying twice, and skipping it
+      // here is what kept that money. markPaidByGateway tells the two apart.
+      if (order) {
         await orderService.markPaidByGateway(order.id, {
           razorpayPaymentId: entity.id,
           amountPaise: entity.amount

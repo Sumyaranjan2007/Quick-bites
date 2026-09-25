@@ -1253,6 +1253,12 @@ export interface RefundRequest {
   decisionNote?: string;
   /** Set once the wallet credit has actually been written. */
   refundTransactionId?: string;
+  /**
+   * A case returning a SECOND gateway payment on an order that was already paid.
+   * That money was never part of the order, so the case does not count against
+   * what the order can still have refunded.
+   */
+  duplicatePaymentId?: string;
 }
 
 export type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';

@@ -774,6 +774,22 @@ B's finding on C's branch: the socket role came from `stored.role`, which
 `grantRole` never changes, so a customer who later registers a kitchen would lose
 live orders on the kitchen terminal. Must be fixed before merge.
 
+### Session C's branch merged into `main` — `7410f3e` (25 Sep)
+
+B approved `bba2c5c` (58/58, tsc clean, 12 mutations across two review rounds).
+The builder committed the gate lock (`17d62f0`) and then merged `--no-ff` with
+no conflicts. B re-ran the gate on `7410f3e` in a separate worktree: lock check
+14/14, then 58/58, exit 0. **What's next is in `platform-inventory.md` §7**
+(the joint B+C plan): server fixes N23, S10 and S11 go to the builder, S5 to C
+first, then the app-side list, then the owner's "make APK".
+
+**APK update safety:** the 23 Sep APKs (what the owner's phones run) are archived
+at `D:\my all projects\quick-bites-release-archive\2026-09-23\`. Their v2
+certificate SHA-256s were extracted twice, independently, with `apksigner`: customer
+`3a31fead…fe1d`, partner `3e6d32d2…f576`, rider `070e4fb4…f881`, admin
+`d4294353…d92b`. `keytool -printcert` returns NOTHING for v2-only APKs, so the
+build check must use `apksigner` and fail closed.
+
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
 - Remove the twelve dead exports in §F7 one commit each, gate green between.

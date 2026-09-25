@@ -94,7 +94,8 @@ const SUITES = [
   'abuseGuards',
   'profitGuards',
   'bodyContract',
-  'durableMoney'
+  'durableMoney',
+  'duplicateCapture'
 ];
 
 /*

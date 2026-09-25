@@ -32,6 +32,9 @@ export async function refundedSoFar(orderId: string, exceptCaseId?: string): Pro
      * settling, and two approvals in a row both saw the whole bill available.
      */
     if (!COMMITTED.has(c.status)) continue;
+    // Returning a customer's second payment is not a refund of the order: it
+    // must not stop a genuine complaint about the food being paid.
+    if (c.duplicatePaymentId) continue;
     total += Number(c.approvedAmount ?? c.requestedAmount) || 0;
   }
   return round2(total);

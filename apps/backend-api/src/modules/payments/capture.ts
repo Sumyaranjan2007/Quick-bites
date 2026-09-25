@@ -68,6 +68,19 @@ export function captureKeyFor(orderId: string): string {
   return `capture:order:${orderId}`;
 }
 
+/**
+ * A SECOND payment on an order that was already paid, keyed on the payment.
+ *
+ * The exception to "one order, one payment": Razorpay lets a customer pay one
+ * checkout twice (a retry after a timeout that had in fact gone through), and both
+ * payments are captured. The first is the order's; the second is money we must give
+ * back, and its payment id is the only thing that tells it apart from a redelivery of
+ * the first.
+ */
+export function duplicateCaptureKeyFor(paymentId: string): string {
+  return `capture:payment:${paymentId}`;
+}
+
 /** Whether this order's payment has been booked as received. */
 export function captureBooked(orderId: string): boolean {
   return ledger.hasTransaction(captureKeyFor(orderId));
