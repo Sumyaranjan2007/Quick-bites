@@ -8,6 +8,7 @@ import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 import { bookCapture } from '../payments/capture.ts';
 import { sendRefund } from '../payments/refunds.ts';
+import { refundDuplicateCapture } from '../payments/duplicateCapture.ts';
 import {
   effectiveCharges,
   customerDishPrice,
@@ -1147,8 +1148,18 @@ export const orderService = {
   ) {
     const order = await orderRepository.findById(orderId);
     if (!order) return null;
-    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED') return order;
-    if (order.status === 'REFUNDED') return order;
+    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED' || order.status === 'REFUNDED') {
+      /*
+       * Already paid. The same payment reported again is nothing to do. A
+       * DIFFERENT payment is the customer paying twice, and returning early for
+       * it kept their money silently: it is booked and sent back instead, and
+       * the order is left exactly as it is.
+       */
+      if (detail.razorpayPaymentId && detail.razorpayPaymentId !== order.razorpayPaymentId) {
+        await refundDuplicateCapture(order, detail.razorpayPaymentId, detail.amountPaise);
+      }
+      return order;
+    }
 
     const wasPending = order.status === 'PAYMENT_PENDING';
 

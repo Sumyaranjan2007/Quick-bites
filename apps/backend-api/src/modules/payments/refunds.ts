@@ -135,8 +135,23 @@ export async function sendRefund(input: {
    * who.
    */
   manualReference?: string;
+  /**
+   * Return a SECOND gateway payment on this order rather than the order's own.
+   *
+   * The customer paid twice and the order kept the first. This money was never
+   * the order's: it is reversed against its own payment id, it was never earned
+   * (so it comes out of CUSTOMER_PREPAID, where its capture was booked, and no
+   * kitchen share is clawed back), and it is not capped by the order total.
+   * Keyed on the payment, so a redelivered webhook or a retry from the queue can
+   * never send it twice.
+   */
+  duplicatePaymentId?: string;
 }): Promise<RefundOutcome> {
   const { order, amountPaise } = input;
+  const duplicateOf = input.duplicatePaymentId;
+  const refundKey = duplicateOf
+    ? `refund_paid:duplicate:${duplicateOf}`
+    : `refund_paid:${input.caseId || order.id}`;
 
   if (amountPaise <= 0) {
     return {
@@ -147,8 +162,19 @@ export async function sendRefund(input: {
     };
   }
 
+  if (duplicateOf && ledger.hasTransaction(refundKey)) {
+    // Already sent. The gateway would process a second refund of the same
+    // payment without complaint, so this is the check that stops it.
+    return {
+      route: 'SOURCE',
+      settled: true,
+      amountPaise,
+      message: `${formatPaise(amountPaise)} from the second payment has already been sent back.`
+    };
+  }
+
   const orderTotalPaise = toPaise(Number(order.bill?.totalAmount) || 0);
-  if (amountPaise > orderTotalPaise) {
+  if (!duplicateOf && amountPaise > orderTotalPaise) {
     throw new AppError(
       `A refund cannot exceed the order total of ${formatPaise(orderTotalPaise)}.`,
       400,
@@ -156,7 +182,8 @@ export async function sendRefund(input: {
     );
   }
 
-  const route = routeFor(order);
+  // A duplicate always came through the gateway: it has a payment to reverse.
+  const route: RefundRoute = duplicateOf ? 'SOURCE' : routeFor(order);
 
   if (route === 'NOTHING_TO_REFUND') {
     return {
@@ -190,7 +217,7 @@ export async function sendRefund(input: {
     reference = input.manualReference.trim();
   } else if (route === 'SOURCE') {
     const result = await razorpayAdapter
-      .refund(order.razorpayPaymentId!, amountPaise)
+      .refund(duplicateOf || order.razorpayPaymentId!, amountPaise)
       .catch(() => null);
     if (result) {
       settled = true;
@@ -280,7 +307,7 @@ export async function sendRefund(input: {
      * was never recorded coming in, so a refund is recorded as the loss it looks
      * like from the ledger's point of view.
      */
-    const outOf = captureBooked(order.id) && !earned ? 'CUSTOMER_PREPAID' : 'REFUNDS_PAID';
+    const outOf = duplicateOf || (captureBooked(order.id) && !earned) ? 'CUSTOMER_PREPAID' : 'REFUNDS_PAID';
 
     /*
      * Keyed on the case, so a retried decision cannot refund twice — which
@@ -293,7 +320,7 @@ export async function sendRefund(input: {
         { account: outOf, direction: 'DEBIT', amountPaise },
         { account: cameFrom, direction: 'CREDIT', amountPaise }
       ],
-      idempotencyKey: `refund_paid:${input.caseId || order.id}`,
+      idempotencyKey: refundKey,
       actorUserId: input.actorUserId,
       narration: `${formatPaise(amountPaise)} refunded on order #${order.orderNumber}: ${input.reason}`,
       orderId: order.id,
@@ -309,7 +336,7 @@ export async function sendRefund(input: {
      * chase. Either way the platform does not absorb a refund on food a
      * kitchen was paid for.
      */
-    const partnerSharePaise = earned ? partnerShareOfRefund(order, amountPaise) : 0;
+    const partnerSharePaise = earned && !duplicateOf ? partnerShareOfRefund(order, amountPaise) : 0;
     if (partnerSharePaise > 0) {
       ledger.post({
         event: 'SETTLEMENT_ADJUSTMENT',
