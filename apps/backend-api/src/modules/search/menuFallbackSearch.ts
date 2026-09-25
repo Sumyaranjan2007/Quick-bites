@@ -24,6 +24,7 @@
  */
 import { memoryStore } from '../../db/client.ts';
 import type { Restaurant } from '@quick-bites/shared-types';
+import { customerDishPrice } from '../payments/restaurantCharges.ts';
 
 export interface DishHit {
   id: string;
@@ -68,7 +69,8 @@ export function searchDishesInMenus(query: string, limit = 40): DishHit[] {
           id: item.id,
           name: item.name,
           description: item.description,
-          price: Number(item.price) || 0,
+          // The customer's price, as on the menu the hit opens.
+          price: customerDishPrice(restaurant.id, item.id, Number(item.price) || 0),
           isVeg: Boolean(item.isVeg),
           imageUrl: item.imageUrl,
           restaurantId: restaurant.id,

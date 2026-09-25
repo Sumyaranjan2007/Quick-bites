@@ -141,8 +141,23 @@ function partnerLines(order: Order): StatementLine[] {
   const split = splitForOrder(order);
   const rates = getActiveRates();
 
-  const itemsPaise = toPaise(Number(bill.itemsTotal) || 0);
-  const packagingPaise = toPaise(Number(bill.packagingFee) || 0);
+  /*
+   * The KITCHEN's own food and packaging, never the customer's.
+   *
+   * These lines read `itemsTotal` and `packagingFee`, which are what the
+   * CUSTOMER paid after the platform's markup. So the Statement printed a
+   * "Food total" the kitchen never priced, the marked-up difference was left as
+   * an unexplained gap under the net, and any partner could read our markup off
+   * their own statement. Orders from before the markup carry no partner figure,
+   * and the customer's figure was the kitchen's then.
+   */
+  const partnerItems = Number(bill.partnerItemsTotal);
+  const partnerPackaging = Number(bill.partnerPackagingFee);
+  const itemsPaise = toPaise(Number.isFinite(partnerItems) ? partnerItems : Number(bill.itemsTotal) || 0);
+  const packagingPaise = toPaise(
+    Number.isFinite(partnerPackaging) ? partnerPackaging : Number(bill.packagingFee) || 0
+  );
+  const gstSharePaise = toPaise(Number(bill.commissionGstToPartner) || 0);
 
   const frozenPercent = Number(bill.commissionPercent);
   const percentShown = Number.isFinite(frozenPercent) ? frozenPercent : rates.defaultCommissionPercent;
@@ -163,6 +178,14 @@ function partnerLines(order: Order): StatementLine[] {
       ? `${percentShown}% of the food total, the rate on this order`
       : `${percentShown}% — this order predates per-order rates, so today's is shown`
   });
+
+  if (gstSharePaise > 0) {
+    lines.push({
+      label: 'GST on our commission',
+      amountPaise: -gstSharePaise,
+      detail: 'Your share of the GST charged on the commission'
+    });
+  }
 
   if (split.tdsPaise > 0) {
     lines.push({

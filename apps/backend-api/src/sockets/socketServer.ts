@@ -16,6 +16,7 @@ import {
   type SocketIdentity,
   type SocketRole
 } from './socketAuth.ts';
+import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
 
 let ioInstance: SocketIOServer | null = null;
 
@@ -363,15 +364,18 @@ export function closeSocketServer(): Promise<void> {
 export function emitOrderCreated(restaurantId: string, order: Order): void {
   if (!ioInstance) return;
 
-  const payload = {
-    event: 'ORDER_CREATED',
-    restaurantId,
-    order,
-    timestamp: new Date().toISOString()
-  };
+  const timestamp = new Date().toISOString();
+  const payload = { event: 'ORDER_CREATED', restaurantId, timestamp };
 
-  ioInstance.to(`restaurant:${restaurantId}`).emit('order:created', payload);
-  ioInstance.to('admin:control_tower').emit('order:created', payload);
+  // Shaped per room, as the REST routes are. The raw order carries the
+  // customer's doorstep code and the customer's bill; the kitchen's own order
+  // screen hides both, and this alert used to hand them over anyway.
+  ioInstance
+    .to(`restaurant:${restaurantId}`)
+    .emit('order:created', { ...payload, order: shapeOrderForViewer(order, 'restaurant') });
+  ioInstance
+    .to('admin:control_tower')
+    .emit('order:created', { ...payload, order: shapeOrderForViewer(order, 'staff') });
 
   console.log(JSON.stringify({
     level: 'INFO',

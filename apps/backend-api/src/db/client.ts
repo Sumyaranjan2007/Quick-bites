@@ -205,7 +205,38 @@ export const memoryStore: DbStore = {
 const dirtyIds = new Map<string, Set<string>>();
 const wholeCollections = new Set<string>();
 
+/*
+ * Who wants to know when a collection changes, beyond the save.
+ *
+ * The search index is the first reader: it is built from restaurants and
+ * menus, and used to be built only when somebody called POST /search/sync by
+ * hand — which nobody did, so on the live server search found no restaurant
+ * and no cuisine at all. Hooked here, at the one place every `set` and
+ * `delete` passes through, rather than at each route that edits a menu: there
+ * are dozens of those, and the one that was missed would be the bug.
+ */
+const changeListeners: Array<(collection: string) => void> = [];
+
+export function onCollectionChange(listener: (collection: string) => void): () => void {
+  changeListeners.push(listener);
+  return () => {
+    const i = changeListeners.indexOf(listener);
+    if (i >= 0) changeListeners.splice(i, 1);
+  };
+}
+
+function notifyChange(collection: string): void {
+  for (const listener of changeListeners) {
+    try {
+      listener(collection);
+    } catch (err) {
+      console.error('[ERROR] Collection change listener failed:', err);
+    }
+  }
+}
+
 function markDirty(collection: string, id: string): void {
+  notifyChange(collection);
   let ids = dirtyIds.get(collection);
   if (!ids) {
     ids = new Set();
@@ -228,6 +259,7 @@ function trackMap(name: string, map: Map<any, any>): void {
     return del(key);
   };
   (map as any).clear = () => {
+    notifyChange(name);
     wholeCollections.add(name);
     dirtyIds.get(name)?.clear();
     return clear();

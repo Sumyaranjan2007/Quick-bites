@@ -130,10 +130,49 @@ export const ProfileScreen: React.FC<Props> = ({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  /*
+   * A customer who signed up with a phone code has no password. Asking them
+   * for one meant "Password is incorrect" for ever, so no real customer could
+   * delete their account. They confirm with a code sent to their phone instead,
+   * and never see a "Change password" row for a password they do not have.
+   * The address check covers sessions signed in before the server said so.
+   */
+  const passwordless =
+    user?.hasPassword === false || String(user?.email || '').endsWith('@phone.quickbite.app');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [codeBusy, setCodeBusy] = useState(false);
+
+  const sendDeleteCode = async () => {
+    if (!apiUrl || !user?.phone) {
+      setDeleteError('There is no phone number on this account. Contact support to delete it.');
+      return;
+    }
+    setCodeBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch(`${apiUrl}/auth/otp/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: user.phone })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        setDeleteError(parseApiError(data, 'The code could not be sent.').message);
+        return;
+      }
+      setCodeSent(true);
+    } catch {
+      setDeleteError('Could not reach Quick Bites. Check your connection and try again.');
+    } finally {
+      setCodeBusy(false);
+    }
+  };
+
   const deleteAccount = async () => {
     if (!apiUrl || !token) return;
-    if (!deletePassword) {
-      setDeleteError('Enter your password to confirm.');
+    if (passwordless ? !deleteCode.trim() : !deletePassword) {
+      setDeleteError(passwordless ? 'Enter the code sent to your phone.' : 'Enter your password to confirm.');
       return;
     }
     setDeleteBusy(true);
@@ -142,7 +181,7 @@ export const ProfileScreen: React.FC<Props> = ({
       const res = await apiFetch(`${apiUrl}/auth/me`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: deletePassword })
+        body: JSON.stringify(passwordless ? { code: deleteCode.trim() } : { password: deletePassword })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
@@ -151,6 +190,7 @@ export const ProfileScreen: React.FC<Props> = ({
       }
       setDeleteOpen(false);
       setDeletePassword('');
+      setDeleteCode('');
       onLogout?.();
     } catch {
       setDeleteError('Could not reach Quick Bites. Check your connection and try again.');
@@ -387,7 +427,7 @@ export const ProfileScreen: React.FC<Props> = ({
         <Row
           icon={<Crown size={18} color={c.dietary.gold} />}
           title="Quick Bites Gold"
-          sub="Free delivery, a discount on every order, priority support"
+          sub="Money off delivery, a discount on every order, priority support"
           onPress={onOpenMembership}
           last
         />
@@ -442,20 +482,24 @@ export const ProfileScreen: React.FC<Props> = ({
         />
       </Card>
 
-      {/* Security */}
-      <Text style={styles.sectionLabel}>Security</Text>
-      <Card style={styles.group}>
-        <Row
-          icon={<Lock size={18} color={c.primary[500]} />}
-          title="Change password"
-          sub={passwordDone ? 'Your password was changed' : 'Update the password you sign in with'}
-          onPress={() => {
-            setPasswordError(null);
-            setPasswordOpen(true);
-          }}
-          last
-        />
-      </Card>
+      {/* Security: only for an account that has a password to change. */}
+      {!passwordless && (
+        <>
+          <Text style={styles.sectionLabel}>Security</Text>
+          <Card style={styles.group}>
+            <Row
+              icon={<Lock size={18} color={c.primary[500]} />}
+              title="Change password"
+              sub={passwordDone ? 'Your password was changed' : 'Update the password you sign in with'}
+              onPress={() => {
+                setPasswordError(null);
+                setPasswordOpen(true);
+              }}
+              last
+            />
+          </Card>
+        </>
+      )}
 
       {/* Help */}
       <Text style={styles.sectionLabel}>{t('profile.support')}</Text>
@@ -490,6 +534,8 @@ export const ProfileScreen: React.FC<Props> = ({
         onPress={() => {
           setDeleteError(null);
           setDeletePassword('');
+          setDeleteCode('');
+          setCodeSent(false);
           setDeleteOpen(true);
         }}
         activeOpacity={0.8}
@@ -514,20 +560,46 @@ export const ProfileScreen: React.FC<Props> = ({
               the restaurant's tax records without your name, phone or address. If an order is on its way, wait until
               it is delivered.
             </Text>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              secureTextEntry
-              placeholder="Your password, to confirm"
-              placeholderTextColor={c.text.muted}
-            />
+            {passwordless ? (
+              <>
+                <Text style={styles.label}>Code sent to {user?.phone || 'your phone'}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={deleteCode}
+                  onChangeText={setDeleteCode}
+                  keyboardType="number-pad"
+                  maxLength={8}
+                  placeholder={codeSent ? 'Enter the code' : 'Tap "Send code" first'}
+                  placeholderTextColor={c.text.muted}
+                />
+                <TouchableOpacity onPress={sendDeleteCode} disabled={codeBusy} activeOpacity={0.8}>
+                  <Text style={styles.codeLink}>
+                    {codeBusy ? 'Sending…' : codeSent ? 'Send the code again' : 'Send code'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  secureTextEntry
+                  placeholder="Your password, to confirm"
+                  placeholderTextColor={c.text.muted}
+                />
+              </>
+            )}
             {!!deleteError && <Text style={styles.error}>{deleteError}</Text>}
             <TouchableOpacity
-              style={[styles.primaryBtn, styles.dangerBtn, deleteBusy && { opacity: 0.5 }]}
+              style={[
+                styles.primaryBtn,
+                styles.dangerBtn,
+                (deleteBusy || (passwordless && !codeSent)) && { opacity: 0.5 }
+              ]}
               onPress={deleteAccount}
-              disabled={deleteBusy}
+              disabled={deleteBusy || (passwordless && !codeSent)}
               activeOpacity={0.88}
             >
               {deleteBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Delete my account</Text>}
@@ -822,6 +894,7 @@ const styles = StyleSheet.create({
   },
   helper: { fontSize: 11.5, color: c.text.muted, marginTop: 10, lineHeight: 16 },
   error: { color: c.semantic.error, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
+  codeLink: { color: c.primary[600], fontSize: 13, fontWeight: '700', marginTop: 10 },
   primaryBtn: {
     backgroundColor: c.primary[500],
     borderRadius: 13,

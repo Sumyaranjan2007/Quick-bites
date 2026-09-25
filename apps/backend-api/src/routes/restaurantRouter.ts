@@ -53,6 +53,9 @@ import {
   validateProfileChanges
 } from '../modules/restaurants/profileEdits.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
+import { statementFor } from '../modules/payments/statements.ts';
+import { listPayouts } from '../modules/payments/payouts.ts';
+import { toRupees } from '../modules/payments/money.ts';
 import { notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
 
 export const restaurantRouter = Router();
@@ -822,7 +825,13 @@ restaurantRouter.get('/:id/dashboard', authMiddleware('restaurant_owner'), async
       menuRepository.findByRestaurantId(req.params.id)
     ]);
 
-    const dashboard = buildRestaurantDashboard(orders, menu);
+    // The kitchen's own prices: the dashboard's sales and dish revenue used to
+    // sum the customer's marked-up bill, which is the platform's markup shown
+    // to the partner as their own takings.
+    const dashboard = buildRestaurantDashboard(
+      orders.map(o => shapeOrderForViewer(o, 'restaurant') as unknown as typeof o),
+      menu
+    );
     res.json({
       success: true,
       data: {
@@ -1040,26 +1049,80 @@ restaurantRouter.get('/:id/settlements', authMiddleware('restaurant_owner'), asy
     const delivered = (await orderRepository.listByRestaurantId(restaurant.id)).filter(
       o => o.status === 'DELIVERED'
     );
-    const unsettled = delivered.filter(o => !o.settlementId);
 
-    const COMMISSION_RATE = 0.15;
-    const lineOf = (order: any) => {
-      const grossSales = Number(order.bill?.itemsTotal) || 0;
-      const commission = Math.round(grossSales * COMMISSION_RATE * 100) / 100;
-      const tds = Math.round(commission * 0.01 * 100) / 100;
-      return {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        deliveredAt: order.deliveredAt || order.updatedAt,
-        grossSales,
-        commission,
-        tds,
-        net: Math.round((grossSales - commission - tds) * 100) / 100
-      };
+    /*
+     * THE SAME FIGURES AS THE STATEMENT, AND AS THE OWNER'S PAY SCREEN.
+     *
+     * This used to compute its own answer: a hard-coded 15% commission on the
+     * CUSTOMER's food total (so the platform's markup counted as the kitchen's
+     * sales), TDS as 1% of the commission, no packaging, and "unsettled" meaning
+     * "no old settlement id" — which no order has since Pay replaced Settlements.
+     * A partner saw Rs 424.25 here and Rs 445 on the Statement tab beside it, for
+     * the same money, and only the Statement was right.
+     *
+     * Now it reads the ledger through `statementFor`, over the whole history,
+     * and keeps the response shape the installed partner app already reads.
+     */
+    const statement = statementFor('RESTAURANT', restaurant.id, restaurant.name, {
+      from: new Date(0).toISOString()
+    });
+    const amountOf = (lines: Array<{ label: string; amountPaise: number }>, label: string) =>
+      lines.filter(l => l.label === label).reduce((t, l) => t + l.amountPaise, 0);
+
+    const lines = statement.orders
+      .filter(o => !o.settledByPayoutId)
+      .map(o => {
+        const order = memoryStore.orders.get(o.orderId) as any;
+        const salesPaise = amountOf(o.lines, 'Food total') + amountOf(o.lines, 'Packaging');
+        return {
+          orderId: o.orderId,
+          orderNumber: o.orderNumber,
+          deliveredAt: order?.deliveredAt || o.occurredAt,
+          grossSales: toRupees(salesPaise),
+          // Includes the kitchen's share of GST on it, so sales − commission − TDS
+          // is the net on the installed app, which has no line for that share.
+          commission: toRupees(-amountOf(o.lines, 'Our commission') - amountOf(o.lines, 'GST on our commission')),
+          tds: toRupees(-amountOf(o.lines, 'TDS withheld')),
+          net: toRupees(o.netPaise),
+          released: o.released
+        };
+      });
+    const sum = (key: 'grossSales' | 'commission' | 'tds') =>
+      Math.round(lines.reduce((t, l) => t + l[key], 0) * 100) / 100;
+
+    const PAYOUT_STATUS: Record<string, string> = {
+      PAID: 'PAID',
+      FAILED: 'FAILED',
+      CANCELLED: 'FAILED',
+      DRAFT: 'PENDING',
+      AWAITING_APPROVAL: 'PENDING',
+      APPROVED: 'PENDING'
     };
-
-    const lines = unsettled.map(lineOf);
-    const history = await settlementRepository.list({ restaurantId: restaurant.id });
+    /*
+     * Two kinds of record, one list. A settlement drafted on the admin
+     * Settlements screen is shown as that settlement (with its period, sales
+     * and reference); a payout sent from Pay is shown as the payout. A payout
+     * made TO pay a settlement carries its id and is not listed a second time.
+     */
+    const settlements = await settlementRepository.list({ restaurantId: restaurant.id });
+    const settlementIds = new Set(settlements.map((st: any) => st.id));
+    const payouts = listPayouts({ ownerId: restaurant.id }).filter(
+      p => p.ownerType === 'RESTAURANT' && !(p.settlementId && settlementIds.has(p.settlementId))
+    );
+    const payoutRows = payouts.map(p => ({
+      id: p.id,
+      netAmount: toRupees(p.amountPaise),
+      status: PAYOUT_STATUS[p.state] || 'PROCESSING',
+      periodStart: p.draftedAt,
+      periodEnd: p.executedAt || p.draftedAt,
+      ordersCount: p.coversLedgerIds.length,
+      ...(p.reference ? { reference: p.reference } : {}),
+      ...(p.executedAt && p.state === 'PAID' ? { paidAt: p.executedAt } : {}),
+      ...(p.note ? { note: p.note } : {})
+    }));
+    const history = [...settlements, ...payoutRows].sort((a: any, b: any) =>
+      String(b.paidAt || b.periodEnd || '').localeCompare(String(a.paidAt || a.periodEnd || ''))
+    );
 
     res.json({
       success: true,
@@ -1067,12 +1130,15 @@ restaurantRouter.get('/:id/settlements', authMiddleware('restaurant_owner'), asy
         summary: {
           ordersAllTime: delivered.length,
           ordersAwaitingSettlement: lines.length,
-          grossPending: Math.round(lines.reduce((t, l) => t + l.grossSales, 0) * 100) / 100,
-          commissionPending: Math.round(lines.reduce((t, l) => t + l.commission, 0) * 100) / 100,
-          tdsPending: Math.round(lines.reduce((t, l) => t + l.tds, 0) * 100) / 100,
-          netPending: Math.round(lines.reduce((t, l) => t + l.net, 0) * 100) / 100,
-          paidToDate: await settlementRepository.paidTotal(restaurant.id),
-          lastSettledAt: history.find(s => s.status === 'PAID')?.paidAt || null
+          grossPending: sum('grossSales'),
+          commissionPending: sum('commission'),
+          tdsPending: sum('tds'),
+          // Payable now plus still inside the hold period: everything owed.
+          netPending: toRupees(statement.summary.outstandingPaise),
+          payableNow: toRupees(statement.summary.payablePaise),
+          onHold: toRupees(statement.summary.heldPaise),
+          paidToDate: toRupees(statement.summary.paidPaise),
+          lastSettledAt: history.find(h => h.status === 'PAID')?.paidAt || null
         },
         pendingOrders: lines,
         history

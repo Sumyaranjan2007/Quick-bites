@@ -1,6 +1,7 @@
 import { createApp } from './app.ts';
 import { config } from './config/env.ts';
 import { initSocketServer, closeSocketServer } from './sockets/socketServer.ts';
+import { syncService } from './modules/search/syncService.ts';
 import { loadStoreFromFile, clearStore, memoryStore, setPersistenceBackend, flushStore } from './db/client.ts';
 import {
   isDatabaseConfigured,
@@ -111,6 +112,14 @@ await ensureTestRider();
 // Boot writes whatever hydration, migrations and the bootstrap changed, in
 // full: some of it happens before change tracking can see it.
 await flushStore('full');
+
+// Search is built from restaurants and menus, and was never built at all on
+// the live server: nothing called the sync. Filled now, and rebuilt whenever
+// the catalogue changes from here on. A failure costs search, not the boot.
+await syncService
+  .startIndexing()
+  .then(r => console.log(`[INFO] Search index: ${r.restaurantsIndexed} restaurants, ${r.dishesIndexed} dishes.`))
+  .catch(err => console.error('[ERROR] Search index could not be built at boot:', err));
 
 /*
  * The backstop for change tracking (S1): every 10 minutes a full diff saves

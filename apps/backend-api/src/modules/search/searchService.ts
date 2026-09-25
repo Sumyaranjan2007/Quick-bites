@@ -2,6 +2,42 @@ import { meiliClient } from './meiliClient.ts';
 import { searchCache } from './searchCache.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { searchDishesInMenus } from './menuFallbackSearch.ts';
+import { memoryStore } from '../../db/client.ts';
+import { customerDishPrice } from '../payments/restaurantCharges.ts';
+
+/*
+ * The index is a copy, and a copy goes stale between rebuilds. Every hit is
+ * checked against the live store before it is returned: a restaurant that was
+ * suspended, a dish that sold out or was deleted a second ago, or a price the
+ * owner just changed must not be what a customer taps on.
+ */
+function liveRestaurant(hit: any): any | null {
+  const r: any = memoryStore.restaurants.get(String(hit.id));
+  if (!r || r.status !== 'ACTIVE') return null;
+  return { ...hit, name: r.name, isOpen: r.isOpen !== false };
+}
+
+function liveDish(hit: any): any | null {
+  const r: any = memoryStore.restaurants.get(String(hit.restaurantId));
+  if (!r || r.status !== 'ACTIVE') return null;
+  const menu: any = memoryStore.menus.get(String(hit.restaurantId));
+  for (const cat of menu?.categories || []) {
+    for (const item of cat.items || []) {
+      if (item.id !== hit.id) continue;
+      if (item.isAvailable === false) return null;
+      return {
+        ...hit,
+        name: item.name,
+        restaurantName: r.name,
+        price: customerDishPrice(r.id, item.id, item.price)
+      };
+    }
+  }
+  return null;
+}
+
+const keep = <T,>(rows: T[], check: (row: T) => any | null) =>
+  rows.map(check).filter((row): row is NonNullable<typeof row> => row !== null);
 
 export interface SearchCatalogParams {
   query?: string;
@@ -112,6 +148,9 @@ export const searchService = {
       }
     }
 
+    restaurants = keep(restaurants, liveRestaurant);
+    dishes = keep(dishes, liveDish);
+
     // Annotate with spatial delivery estimates if coordinates provided
     if (params.latitude !== undefined && params.longitude !== undefined) {
       const userLat = Number(params.latitude);
@@ -215,7 +254,7 @@ export const searchService = {
 
     // 1. Search dishes
     const dishRes = await meiliClient.search<any>('dishes', q, { limit: 5 });
-    for (const d of dishRes.hits) {
+    for (const d of keep(dishRes.hits, liveDish)) {
       if (!seen.has(d.name)) {
         seen.add(d.name);
         suggestions.push({
@@ -228,7 +267,7 @@ export const searchService = {
 
     // 2. Search restaurants
     const restRes = await meiliClient.search<any>('restaurants', q, { limit: 3 });
-    for (const r of restRes.hits) {
+    for (const r of keep(restRes.hits, liveRestaurant)) {
       if (!seen.has(r.name)) {
         seen.add(r.name);
         suggestions.push({

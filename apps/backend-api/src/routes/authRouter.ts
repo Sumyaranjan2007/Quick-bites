@@ -237,7 +237,10 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
     const { passwordHash, ...safeUser } = user;
-    return res.json({ success: true, data: { user: safeUser } });
+    // Whether this account has a password at all. A customer who signed up with
+    // a phone code never set one, and the app must not ask them for it — to
+    // delete the account, or on a "change password" row.
+    return res.json({ success: true, data: { user: { ...safeUser, hasPassword: Boolean(passwordHash) } } });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }
@@ -273,9 +276,24 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
   }
 });
 
-const DeleteAccountSchema = z.object({
-  password: z.string().min(1, 'Password confirmation is required')
-});
+/*
+ * A password OR a fresh phone code.
+ *
+ * Only a password used to be accepted, and a customer who signs up with a phone
+ * code never has one — so every real customer who tried to delete their account
+ * was told "Password is incorrect", for ever. They now confirm with a code sent
+ * to their number (POST /auth/otp/request), which proves the same thing: that
+ * the person holding the phone is the account's owner, not just somebody who
+ * picked it up unlocked.
+ */
+const DeleteAccountSchema = z
+  .object({
+    password: z.string().min(1).optional(),
+    code: z.string().trim().min(4).max(8).optional()
+  })
+  .refine(b => Boolean(b.password || b.code), {
+    message: 'Confirm with your password, or with the code sent to your phone.'
+  });
 
 /**
  * DELETE /api/auth/me — permanently deletes the authenticated user's account.
@@ -290,9 +308,29 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
       throw new AppError('Account not found.', 404, 'USER_NOT_FOUND');
     }
 
-    const confirmed = await userRepository.verifyCredentials(user.email, req.body.password);
-    if (!confirmed) {
-      throw new AppError('Password is incorrect. Account was not deleted.', 401, 'INVALID_PASSWORD');
+    if (req.body.code) {
+      if (!user.phone) {
+        throw new AppError('This account has no phone number to send a code to. Use your password.', 400, 'NO_PHONE');
+      }
+      const result = await otpService.verify(user.phone, req.body.code);
+      if (!result.ok) {
+        throw new AppError(
+          `${result.reason || 'That code is not valid.'} Account was not deleted.`,
+          401,
+          'INVALID_OTP'
+        );
+      }
+    } else {
+      const confirmed = await userRepository.verifyCredentials(user.email, req.body.password);
+      if (!confirmed) {
+        throw new AppError(
+          user.passwordHash
+            ? 'Password is incorrect. Account was not deleted.'
+            : 'This account has no password. Confirm with the code sent to your phone instead.',
+          401,
+          'INVALID_PASSWORD'
+        );
+      }
     }
 
     // Not while money or food is in flight: a live order would lose its
@@ -960,7 +998,9 @@ authRouter.post(
             role: user.role,
             isGold: user.isGold,
             avatarUrl: user.avatarUrl,
-            favouriteRestaurantIds: user.favouriteRestaurantIds || []
+            favouriteRestaurantIds: user.favouriteRestaurantIds || [],
+            // So the app asks a phone-only customer for a code, not a password.
+            hasPassword: Boolean((user as any).passwordHash)
           },
           token: generateToken(user)
         },

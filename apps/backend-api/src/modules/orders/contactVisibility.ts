@@ -174,9 +174,80 @@ export function shapeOrderForViewer(order: Order, viewer: OrderViewer): Record<s
     shaped.customerPhoneMasked = customer.maskedPhone;
     shaped.riderPhone = rider.phone;
     shaped.riderPhoneMasked = rider.maskedPhone;
+    shaped.items = kitchenItems(order);
+    shaped.bill = kitchenBill(order);
   }
 
   return shaped;
+}
+
+/* -------------------------------------------------------------------------- *
+ *                      THE KITCHEN SEES ITS OWN PRICES                        *
+ * -------------------------------------------------------------------------- */
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const finite = (v: unknown): number | undefined =>
+  v !== undefined && v !== null && Number.isFinite(Number(v)) ? Number(v) : undefined;
+
+/**
+ * The order lines at the kitchen's own prices.
+ *
+ * The stored line carries the CUSTOMER's price (`unitPrice`, marked up by the
+ * platform) beside the kitchen's (`partnerUnitPrice`). The kitchen card used to
+ * receive both, so a partner could read the platform's markup off any order.
+ * The owner's rule is that a restaurant only ever sees its own prices.
+ *
+ * Extras are priced from the chosen options' own `priceDelta`, which is the
+ * kitchen's figure (the customer's extras are marked up separately). Orders
+ * placed before the markup existed carry no `partnerUnitPrice`, and their
+ * customer price was the kitchen's price then.
+ */
+function kitchenItems(order: Order): unknown[] {
+  return (order.items || []).map((line: any) => {
+    const { partnerUnitPrice, ...rest } = line;
+    const unit = finite(partnerUnitPrice);
+    if (unit === undefined) return rest;
+    const addons = (line.selectedOptions || []).reduce(
+      (t: number, o: any) => t + Math.max(0, Number(o?.priceDelta) || 0),
+      0
+    );
+    const qty = Number(line.quantity) || 0;
+    return {
+      ...rest,
+      unitPrice: unit,
+      addonsTotal: round2(addons),
+      totalPrice: round2((unit + addons) * qty)
+    };
+  });
+}
+
+/**
+ * The bill as the kitchen may see it: its food, its packaging, and what it earns.
+ *
+ * An allowlist, like the order itself. The customer's bill carries the marked-up
+ * food total, the delivery fee, the platform fee, the coupon and the tip — none
+ * of which is the kitchen's business, and together they reveal the markup.
+ *
+ * `totalAmount` is what the installed partner app prints on every order card,
+ * so it is REDEFINED here as the order's value to the kitchen (its own food plus
+ * its own packaging) rather than removed. Removing it would show "Rs 0.00" on
+ * the phones already in kitchens.
+ */
+function kitchenBill(order: Order): Record<string, unknown> {
+  const bill: any = order.bill || {};
+  const itemsTotal = finite(bill.partnerItemsTotal) ?? finite(bill.itemsTotal) ?? 0;
+  const packagingFee = finite(bill.partnerPackagingFee) ?? finite(bill.packagingFee) ?? 0;
+  const out: Record<string, unknown> = {
+    itemsTotal,
+    packagingFee,
+    totalAmount: round2(itemsTotal + packagingFee),
+    restaurantNetPayout: finite(bill.restaurantNetPayout) ?? 0
+  };
+  for (const key of ['commissionPercent', 'commissionAmount', 'tdsAmount', 'commissionGstToPartner']) {
+    const v = finite(bill[key]);
+    if (v !== undefined) out[key] = v;
+  }
+  return out;
 }
 
 /** Maps the authenticated role plus the order to the reader it represents. */

@@ -1,5 +1,7 @@
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { menuRepository } from '../../db/repositories/menuRepository.ts';
+import { onCollectionChange } from '../../db/client.ts';
+import { customerDishPrice } from '../payments/restaurantCharges.ts';
 import { meiliClient } from './meiliClient.ts';
 import { searchCache } from './searchCache.ts';
 
@@ -10,6 +12,13 @@ export interface SyncReport {
   durationMs: number;
   timestamp: string;
 }
+
+/** Collections the index is built from. A change to any of them rebuilds it. */
+const CATALOG_COLLECTIONS = new Set(['restaurants', 'menus', 'restaurantCharges']);
+const RESYNC_DELAY_MS = 1_500;
+
+let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+let stopWatching: (() => void) | null = null;
 
 export const syncService = {
   async syncCatalog(): Promise<SyncReport> {
@@ -67,7 +76,10 @@ export const syncService = {
               restaurantRating: r.ratingAverage,
               name: item.name,
               description: item.description,
-              price: item.price,
+              // The CUSTOMER's price. The menu stores the kitchen's, and search
+              // is read by customers: indexing the raw figure showed a dish
+              // cheaper in search than on the menu it opens.
+              price: customerDishPrice(r.id, item.id, item.price),
               isVeg: item.isVeg,
               categoryName: cat.name,
               cuisineTags: r.cuisineTags,
@@ -96,7 +108,10 @@ export const syncService = {
       rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness']
     });
 
-    // 3. Batch index documents
+    // 3. Rebuild, not merge: a deleted dish or restaurant must leave the index
+    //    too, and adding alone kept every document ever indexed.
+    meiliClient.getIndex('restaurants').deleteDocuments();
+    meiliClient.getIndex('dishes').deleteDocuments();
     await meiliClient.addDocuments('restaurants', restaurantDocs);
     await meiliClient.addDocuments('dishes', dishDocs);
 
@@ -112,5 +127,44 @@ export const syncService = {
       durationMs,
       timestamp: new Date().toISOString()
     };
+  },
+
+  /**
+   * Rebuilds the index shortly after the catalogue changes.
+   *
+   * Debounced: approving a menu writes the menu, the request and the
+   * restaurant in one go, and that is one rebuild, not three.
+   */
+  scheduleResync(): void {
+    if (resyncTimer) clearTimeout(resyncTimer);
+    resyncTimer = setTimeout(() => {
+      resyncTimer = null;
+      syncService.syncCatalog().catch(err => console.error('[ERROR] Search index rebuild failed:', err));
+    }, RESYNC_DELAY_MS);
+    resyncTimer.unref?.();
+  },
+
+  /**
+   * Fills the index now and keeps it current from here on.
+   *
+   * THE INDEX WAS NEVER FILLED. Only `POST /search/sync` and a script wrote
+   * it, and nothing called either, so on the live server searching a
+   * restaurant or a cuisine found nothing and suggestions were always empty.
+   * Called once at boot, after the store is loaded.
+   */
+  async startIndexing(): Promise<SyncReport> {
+    stopWatching?.();
+    stopWatching = onCollectionChange(collection => {
+      if (CATALOG_COLLECTIONS.has(collection)) syncService.scheduleResync();
+    });
+    return syncService.syncCatalog();
+  },
+
+  /** For tests: stop watching and drop any pending rebuild. */
+  stopIndexing(): void {
+    stopWatching?.();
+    stopWatching = null;
+    if (resyncTimer) clearTimeout(resyncTimer);
+    resyncTimer = null;
   }
 };
