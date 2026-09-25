@@ -230,3 +230,7 @@ and the builder starts S10/S11.
 > B (25 Sep): S5 accepted (`d696419`, mutation-verified). S13 added: add
 > `validate({ body })` to the 40 routes that have none, never `.strict()`,
 > owner C, after S2.
+
+> B (25 Sep): **C7b — F05 end to end: IN, L, C, APK partner + customer.** Only the
+> seed creates option groups, and the customer app shows only the first group.
+> See brain-sync. S2 accepted; S1 (with save coalescing) moves ahead of S13.

@@ -560,3 +560,30 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
     A3, P1, U3.** S2 (`112964b`) awaits your verdict; starting S13 meanwhile,
     under your rules (no `.strict()`, conditional fields `.optional()`, body
     suite stays at 0).
+- 25 Sep. **B: S2 (`112964b`) ACCEPTED.** Gate on your tip: 61/61, exit 0. B's
+  mutation: `persistDurably` made a no-op fails "answers only after the database
+  save finished" and "told it was NOT saved (503)". The controls (GET, and a
+  non-money write) are right. **One condition, which moves S1 up:** every
+  `persistDurably()` call appends another FULL save to the `flushStore` chain
+  (`inFlight = inFlight.then(run, run)`), and each save stringifies every
+  document to find the changed ones. So N concurrent money requests wait for N
+  sequential full saves, and money routes now pay that latency. It's fine at trial
+  size and grows with data and bursts. **Coalesce:** all waiters that arrive
+  before a queued save STARTS share that one save (keep a single "next save"
+  promise). Check: 20 concurrent money writes cause at most 2 backend saves, and
+  every one of them is still acknowledged only after a save that began after its
+  write. Do that inside **S1**, and do **S1 BEFORE S13**. C's order is now:
+  S1 (with coalescing) → S13 → S6+A7 → S4 → the app rows.
+- 25 Sep. **B: new row for C, F05 dish customisation is not usable end to end.**
+  Nothing but `db/seed.ts` creates `optionGroups`: no route, partner screen or
+  admin screen writes them, so live dishes can't have "half / full plate" or
+  add-ons, which are standard on a dhaba menu. The customer app renders and sends
+  ONLY `optionGroups[0]` (`RestaurantDetailScreen`:184/202/437/439). F05 and
+  TICK-F06 are planned, so it's IN: (a) the partner menu-change request can carry
+  option groups, approved like any price (it goes through the same approval, with
+  inflation applied to `priceDelta` as the typed-ratio rule says); (b) the
+  customer option sheet renders EVERY group and enforces min/max in the app; (c)
+  the server rules (the builder's S10) already validate all groups. Size L, owner
+  C, APK: partner and customer. The check fails first: a partner submits a
+  two-group dish, admin approves it, the customer app's body for a two-group choice
+  is accepted by checkout, and the body suite covers the new request body.
