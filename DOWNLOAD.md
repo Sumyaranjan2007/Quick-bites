@@ -19,16 +19,22 @@ Each app installs under its own name, so you can tell them apart on the phone:
 
 ---
 
-## Before you install: uninstall any older Quick Bites app
+## Installing a new version: install it OVER the app you have
 
-**This build is signed with a different key from v1.2.0 and v1.2.1.** Android
-refuses to install an update whose signature does not match the installed app,
-so an upgrade over an older Quick Bites will fail with a confusing error.
+**Do not uninstall first.** Since v1.3.0 every build is signed with the same key
+as the app already on your phone, and each build has a higher version number
+(v8 = `1.3.0-20260925.8`). So Android installs it as an **update**: you stay
+signed in, and nothing on the phone is lost.
 
-Remove the old apps first: long-press each Quick Bites icon → Uninstall. You
-will lose nothing that matters — the data lives on the server.
+1. Download the new APK and open it.
+2. Android should say **"Do you want to update this app?"**. Tap Update.
+3. If it says **"App not installed"** instead, **stop**. Don't uninstall to get
+   around it: that signs the person out and loses what's on the phone. Report it,
+   because it means the build didn't match the installed app. (The build refuses
+   to produce a mismatched APK, so this shouldn't happen.)
 
-Every future build will keep the signature this one uses.
+Only phones that still have v1.2.0 or v1.2.1 (from before September 2026) need
+the old apps removed first, because those builds used a different key.
 
 ---
 
