@@ -93,6 +93,28 @@ it('and the scan actually read both sides (floors, measured 25 Sep)', () => {
   }
 });
 
+it('every route left without a body schema reads no body (S13)', () => {
+  /*
+   * S13 gave a schema to every route that reads a body. What remains takes none:
+   * logouts, claim/decline, approve/backfill/seen/health-check, collect- and
+   * cancel-online, reorder, call, search sync, and the webhook (verified by its
+   * own HMAC over the raw body). Each is mounted twice (/api and /api/v1).
+   * A NEW route that reads req.body without validate() fails here.
+   */
+  const BODYLESS = new Set([
+    'POST /api/auth/logout', 'POST /api/payments/webhook', 'POST /api/admin/payments/health-check',
+    'POST /api/admin/payouts/:id/approve', 'POST /api/admin/payouts/backfill',
+    'POST /api/admin/payouts/requests/:id/seen', 'POST /api/riders/logout',
+    'POST /api/riders/orders/:id/claim', 'POST /api/riders/orders/:id/decline',
+    'POST /api/cash/orders/:orderId/collect-online', 'POST /api/cash/orders/:orderId/cancel-online',
+    'POST /api/orders/:id/reorder', 'POST /api/orders/:id/call', 'POST /api/search/sync'
+  ]);
+  const unexpected = server.unvalidatedAt
+    .map(r => r.replace('/api/v1/', '/api/'))
+    .filter(r => !BODYLESS.has(r));
+  assert.deepEqual(unexpected, [], `routes that take a body with no schema:\n  ${unexpected.join('\n  ')}`);
+});
+
 it('and what it cannot read is pinned, so a new blind spot fails', () => {
   /*
    * Each of these is checked by hand and listed so the number can only fall.

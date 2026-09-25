@@ -165,7 +165,13 @@ authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registra
 });
 
 // POST /api/auth/login
-authRouter.post('/login', authRateLimiterMiddleware, async (req, res) => {
+/*
+ * Declared for the body contract check (S13) and nothing else: the handler
+ * below keeps its own checks and its own error shape, which the apps display.
+ */
+const LoginBodySchema = z.object({ email: z.unknown(), password: z.unknown(), role: z.unknown() });
+
+authRouter.post('/login', authRateLimiterMiddleware, validate({ body: LoginBodySchema }), async (req, res) => {
   try {
     const { email, password, role } = req.body;
     if (!email || !password) {

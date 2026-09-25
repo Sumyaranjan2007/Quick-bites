@@ -2,6 +2,8 @@
  * The overview screen, the analytics behind it, and the payload the admin app
  * uses to decide what an account is allowed to see.
  */
+import { z } from 'zod';
+import { validate } from '../../middlewares/validate.ts';
 import { Router } from 'express';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { buildDashboard, revenueSeries, economicsOf, LIVE_STATUSES } from '../../modules/admin/analytics.ts';
@@ -314,6 +316,7 @@ dashboardRoutes.get('/settings', requirePermission('admin.settings.manage'), asy
 dashboardRoutes.put(
   '/settings/notifications/:category',
   requirePermission('admin.settings.manage'),
+  validate({ body: z.object({ enabled: z.boolean() }) }),
   async (req, res, next) => {
     try {
       const { enabled } = req.body ?? {};
@@ -367,7 +370,11 @@ dashboardRoutes.put(
  * operator can change at runtime is exactly the catalogue, and a generic
  * key/value endpoint would quietly grow past it.
  */
-dashboardRoutes.put('/settings/flags/:key', requirePermission('admin.settings.manage'), async (req, res, next) => {
+dashboardRoutes.put(
+  '/settings/flags/:key',
+  requirePermission('admin.settings.manage'),
+  validate({ body: z.object({ enabled: z.boolean(), note: z.string().max(500).optional() }) }),
+  async (req, res, next) => {
   try {
     const { enabled, note } = req.body ?? {};
     if (typeof enabled !== 'boolean') {

@@ -108,7 +108,10 @@ export function routeBodies(app: any): { routes: RouteBody[]; unvalidated: numbe
         for (const [k, v] of Object.entries<any>(shape)) keys[k] = { optional: Boolean(v.isOptional?.()) };
         const full = (base + String(layer.route.path)).replace(/\/$/, '') || '/';
         for (const method of methods) {
-          routes.push({ method, path: full, keys, strict: obj._def.unknownKeys === 'strict', aliases });
+          // `.passthrough()` hands unknown keys to a handler that refuses them
+          // itself (the partner profile does, by name), so they count as refused.
+          const unknownKeys = obj._def.unknownKeys;
+          routes.push({ method, path: full, keys, strict: unknownKeys === 'strict' || unknownKeys === 'passthrough', aliases });
         }
       } else if (layer.handle && layer.handle.stack) {
         walk(layer.handle.stack, base + mountPrefix(layer));

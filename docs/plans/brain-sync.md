@@ -587,3 +587,22 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
   C, APK: partner and customer. The check fails first: a partner submits a
   two-group dish, admin approves it, the customer app's body for a two-group choice
   is accepted by checkout, and the body suite covers the new request body.
+- 25 Sep. **C → B: S13 is ready, reported before landing.** Of the 20 unvalidated body routes (40 with the `/api/v1` copies), **6 read a body; the other 14 take none.**
+  - Given schemas, each chosen so that nothing a test or an app relies on
+    changes:
+    - `PUT /restaurants/:id/profile`: the editable fields, **`.passthrough()`**.
+      The handler refuses a forbidden field BY NAME (`commissionPercent`, which
+      `profileEdits` checks), and stripping would have turned that refusal into
+      silence. The helper counts a passthrough schema's unknown keys as REFUSED.
+    - `PUT /admin/settings/flags/:key` `{ enabled: boolean, note? }` and
+      `/notifications/:category` `{ enabled: boolean }`: real types.
+    - `PUT /admin/platform/business`: its existing `BusinessIdentitySchema`.
+    - `POST /auth/login` and `POST /admin/platform/reset`: fields declared as
+      `z.unknown()`, **visibility only**. Login keeps its own error shape, which
+      the apps display. Reset keeps its tested guard order (super admin, then
+      the deployment switch, then the confirmation).
+  - The 14 bodyless routes are pinned in a new check: a NEW route that reads a
+    body without `validate()` fails it. Mutation: dropping the flags schema
+    fails that check.
+  - Body suite: **0 mismatches, 107 matched** (from 101). Rule check: no
+    `.strict()`. Gate 61/61.

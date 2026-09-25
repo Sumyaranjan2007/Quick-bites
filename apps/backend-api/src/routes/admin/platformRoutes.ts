@@ -33,6 +33,7 @@
  * and the audit log — including the entry recording that this happened. An
  * audit trail that can be erased by the action it is auditing is not one.
  */
+import { validate } from '../../middlewares/validate.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { memoryStore, saveStoreToFile } from '../../db/client.ts';
@@ -143,7 +144,9 @@ const WIPED = [
  * authenticated admin route, and the flag's state is something the person
  * holding a super-admin token set themselves.
  */
-platformRoutes.post('/platform/reset', async (req, res, next) => {
+// Visibility only (S13): the handler checks the super admin and the deployment
+// switch BEFORE the confirmation, and that order is tested (platformReset).
+platformRoutes.post('/platform/reset', validate({ body: z.object({ confirm: z.unknown() }) }), async (req, res, next) => {
   try {
     if (req.user?.role !== 'super_admin') {
       throw new AppError(
@@ -308,7 +311,7 @@ platformRoutes.get('/platform/business', async (req, res, next) => {
   }
 });
 
-platformRoutes.put('/platform/business', async (req, res, next) => {
+platformRoutes.put('/platform/business', validate({ body: BusinessIdentitySchema }), async (req, res, next) => {
   try {
     if (req.user?.role !== 'super_admin') {
       throw new AppError(

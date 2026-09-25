@@ -1117,7 +1117,16 @@ restaurantRouter.get('/:id/profile', authMiddleware('restaurant_owner'), async (
  * is told "sent for review" with an empty queue behind it has been told a lie
  * about work they believe is under way.
  */
-restaurantRouter.put('/:id/profile', authMiddleware('restaurant_owner'), async (req, res, next) => {
+/*
+ * Declared for the body contract check (S13). Passthrough, not strip: the
+ * handler REFUSES a field a partner may not change (commissionPercent, say)
+ * by name, and stripping it first would turn that refusal into silence.
+ */
+const ProfileBodySchema = z
+  .object(Object.fromEntries(EDITABLE_PROFILE_FIELDS.map(f => [f, z.unknown()])) as Record<string, z.ZodUnknown>)
+  .passthrough();
+
+restaurantRouter.put('/:id/profile', authMiddleware('restaurant_owner'), validate({ body: ProfileBodySchema }), async (req, res, next) => {
   try {
     const restaurant = await assertOwnsRestaurant(req, req.params.id);
 
