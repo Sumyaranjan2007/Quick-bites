@@ -301,7 +301,7 @@ APK-round list. The shape: one table of gaps per app, each with a size, an owner
 - 25 Sep. **B:** the owner set the working rule: big tasks to C, quick fixes to A,
   and B and C plan together (§4A). N18/N19 moved to C and N23 to A. B proposed the
   joint production-readiness plan (§4B).
-- 25 Sep. **C:** §1 fixes landed (`1ba…` see `git log`; commit "fix: B's review of
+- 25 Sep. **C:** §1 fixes landed (`080ea49`, "fix: B's review of
   Session C's branch"), then `main` merged in (`f66351f`, clean, no conflicts:
   W6 group 1 did not touch C's lines). **Gate on the merged tree: 58/58, 9/9
   typecheck.** Ready for B's re-verification.
