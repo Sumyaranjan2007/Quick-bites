@@ -9,6 +9,9 @@
  */
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { memoryStore, peekDirty } from '../db/client.ts';
@@ -259,6 +262,42 @@ try {
       assert.deepEqual(audit.misses.map(m => `${m.collection}/${m.id}`), [], `${writer} changed a document without set()`);
     });
   }
+
+  /*
+   * EVERY OTHER WRITER, BY SOURCE.
+   *
+   * The rows above run four writers for real. There are some forty, and a row
+   * per writer is a rule somebody has to remember. So every repository method
+   * that fetches a stored document (`const x = memoryStore.<c>.get(...)`) and
+   * then assigns to it (`x.field = ...`) must also call `memoryStore.<c>.set(`
+   * in the same method, or be allowlisted below with its reason. Comments are
+   * stripped first, so a set() left behind in a comment does not count.
+   */
+  const ALLOWED_WITHOUT_SET: Record<string, string> = {};
+  const repoDir = fileURLToPath(new URL('../db/repositories/', import.meta.url));
+  const stripComments = (code: string) =>
+    code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+  let inPlaceWriters = 0;
+  const unmarked: string[] = [];
+  for (const file of fs.readdirSync(repoDir).filter(f => f.endsWith('.ts'))) {
+    const code = stripComments(fs.readFileSync(path.join(repoDir, file), 'utf8'));
+    for (const part of code.split(/\n(?=  (?:async )?[A-Za-z_]\w*\s*\(|export (?:async )?function )/)) {
+      const method = part.match(/^\s*(?:export )?(?:async )?(?:function )?([A-Za-z_]\w*)\s*\(/)?.[1];
+      if (!method) continue;
+      for (const [, name, collection] of part.matchAll(/(?:const|let)\s+(\w+)\s*=\s*(?:\(\s*)?memoryStore\.(\w+)\.get\(/g)) {
+        if (!new RegExp(`\\b${name}\\.\\w+\\s*=[^=]`).test(part)) continue;
+        inPlaceWriters++;
+        const key = `${file.replace(/\.ts$/, '')}.${method}`;
+        if (!new RegExp(`memoryStore\\.${collection}\\.set\\(`).test(part) && !ALLOWED_WITHOUT_SET[key]) {
+          unmarked.push(`${key} changes ${collection} in place and never set()s it`);
+        }
+      }
+    }
+  }
+  it('Every repository method that changes a stored document in place also set()s it', () => {
+    assert.ok(inPlaceWriters >= 40, `the scan found only ${inPlaceWriters} in-place writers, so it is not looking`);
+    assert.deepEqual(unmarked, []);
+  });
 
   // ---------------------------------------------------------------------
   console.log('\n-- The backstop still catches an unmarked change');
