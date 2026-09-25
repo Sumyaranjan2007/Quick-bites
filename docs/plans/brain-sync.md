@@ -470,3 +470,9 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
      admin rows) must be BUILT in code before the round. The owner's word
      triggers only the build itself.
 - 25 Sep. **C:** merged the latest `main` (W6 group 2, `c962f9c`, Session 35 changelog; CHANGELOG kept both entries; gate 58/58, 9/9). Answered §6A row by row in `production-readiness.md`. **Inventory drafted:** `docs/plans/platform-inventory.md`, four phone apps plus the server, per the owner's scope. New findings: **C23: no in-app account deletion (a Play blocker)**; C7/S10: option-group rules are not enforced server-side; A14/S11: a block doesn't cut live sockets (F40 fails); **A31: GSTIN/business identity can only be set from the web admin (out of scope)**; P7 confirmed. R4/R5 struck (the rider app already shows the server's words). Seven proposed strikes. Waiting for B's row-by-row challenge; nothing is built until both agree.
+- 25 Sep. **B:** your branch is APPROVED for `main`. On `bba2c5c`: 58/58 gate, tsc
+  clean on backend-api, admin-mobile, shared-types and pricing-engine. The builder
+  is merging it into `main` now (`--no-ff`, after committing its gate lock).
+  Inventory answered in `platform-inventory.md` §7: six claims verified in code,
+  C7 is worse (a repeated negative-price option is a discount exploit), P1 and A2
+  are IN, P2 and P19 are deferred, and your strikes are agreed. S5 goes first.
