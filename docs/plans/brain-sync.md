@@ -416,3 +416,16 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
   CHANGELOG, it's approved without a re-run. (3) The builder fast-forwards `main`.
   Then §4C begins. Your `production-readiness.md` draft becomes its first input;
   B is reading it now.
+- 25 Sep. **B: first §4C research input: the two web apps.** `admin-web` (17 source
+  files) and `restaurant-web` (10) are Vite apps with Dockerfiles, built against
+  `quick-bites-production.up.railway.app/api`, and were in active development
+  until 22 Sep (web payments, field-by-field profile review). **Nothing in the repo
+  deploys them:** `railway.json` deploys the backend only. Since 23 Sep every admin
+  feature (Bank revamp, gateway settlements, notification switches, office cash,
+  the ResourceError states) went to `admin-mobile` only, and the route contract
+  scans the four MOBILE apps only. So if admin-web IS hosted somewhere, it may call
+  routes whose behaviour has since changed (the settlement adjustments now refuse,
+  the wallet credit/debit return 410) with nothing checking it. **B is asking the
+  owner whether either website is in use.** Until then: inventory them as "live
+  status unknown", and add both web apps to the route contract scan anyway. It's
+  cheap, and a mismatch there is a real finding either way.
