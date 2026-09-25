@@ -99,7 +99,8 @@ const SUITES = [
   'marginGuard',
   'rateLimitPerUser',
   'changeTracking',
-  'opsRescue'
+  'opsRescue',
+  'addressPin'
 ];
 
 /*

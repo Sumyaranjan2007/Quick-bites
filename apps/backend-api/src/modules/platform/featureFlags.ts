@@ -94,6 +94,16 @@ export const FEATURE_FLAGS: FeatureFlagDefinition[] = [
     defaultEnabled: true
   },
   {
+    key: 'unpinned_addresses',
+    label: 'Accept addresses without a map pin',
+    description:
+      'Turn OFF once every customer has the app version that asks for a pin; from then a new address ' +
+      'must carry one. While older apps are in use, leave it on or they cannot save an address at ' +
+      'all. Existing addresses are not affected.',
+    blockedMessage: 'Pin the delivery spot on the map, then save the address.',
+    defaultEnabled: true
+  },
+  {
     key: 'scheduled_reports',
     label: 'Background jobs',
     description:

@@ -1,3 +1,4 @@
+import { isEnabled, findFlagDefinition } from '../modules/platform/featureFlags.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { addressRepository } from '../db/repositories/addressRepository.ts';
@@ -31,6 +32,15 @@ addressRouter.get('/', async (req, res, next) => {
 // POST /api/v1/addresses
 addressRouter.post('/', validate({ body: AddressSchema }), async (req, res, next) => {
   try {
+    // U3: once the owner switches this off (after the pin-asking app ships),
+    // a new address without coordinates is refused.
+    if (!isEnabled('unpinned_addresses') && !req.body.coordinates) {
+      throw new AppError(
+        findFlagDefinition('unpinned_addresses')!.blockedMessage,
+        400,
+        'ADDRESS_PIN_REQUIRED'
+      );
+    }
     const address = await addressRepository.create({ ...req.body, userId: req.user!.id });
     res.status(201).json({ success: true, data: { address } });
   } catch (err) {

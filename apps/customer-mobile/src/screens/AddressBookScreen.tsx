@@ -198,6 +198,12 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
       setFormError('Enter a valid 6-digit PIN code.');
       return;
     }
+    // A new address needs a pin (U3). An old one saved without a pin can still
+    // be edited, so nobody is locked out of fixing a typo.
+    if (!editingId && !coordinates) {
+      setFormError('Pin the delivery spot: search for it, choose it on the map, or use your current location.');
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {

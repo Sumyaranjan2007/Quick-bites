@@ -14,7 +14,8 @@ import { Card, DietMark } from '../components/ui';
 
 const c = tokens.colors;
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
-import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus, Navigation } from 'lucide-react-native';
+import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus, Navigation, Map as MapIcon } from 'lucide-react-native';
+import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 import { CartItem } from './RestaurantDetailScreen';
 import { apiFetch } from '../lib/apiFetch';
 import {
@@ -179,6 +180,19 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   // Coordinates for the address being entered. An address without them cannot be
   // shown on the live map, so they are captured here rather than guessed later.
   const [formCoordinates, setFormCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+
+  /** A point chosen on the map. Fills only EMPTY text fields, like the address book. */
+  const useMapPoint = (picked: PickedLocation) => {
+    setFormCoordinates(picked.coordinates);
+    setForm(prev => ({
+      ...prev,
+      addressLine: prev.addressLine.trim() ? prev.addressLine : picked.addressLine,
+      city: picked.city || prev.city,
+      pincode: picked.pincode || prev.pincode
+    }));
+    setMapOpen(false);
+  };
   const { detect, detecting, error: locationError } = useDeviceLocation();
 
   const useCurrentLocation = async () => {
@@ -221,6 +235,12 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
   const handleSaveAddress = async () => {
     if (!apiUrl || !token) return;
+    // A new address needs a pin (U3): without one the rider has only text to
+    // go on, and the delivery-distance check has nothing to measure.
+    if (!formCoordinates) {
+      setAddressError('Pin the delivery spot first: use your current location or choose it on the map.');
+      return;
+    }
     setIsSavingAddress(true);
     setAddressError(null);
     try {
@@ -911,10 +931,18 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                       : 'Use my current location'}
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.locateBtn, { marginTop: 8 }]}
+                onPress={() => setMapOpen(true)}
+                activeOpacity={0.85}
+              >
+                <MapIcon size={16} color={c.primary[500]} />
+                <Text style={styles.locateText}>{formCoordinates ? 'Adjust the pin on the map' : 'Choose on map'}</Text>
+              </TouchableOpacity>
               {!!locationError && <Text style={styles.locateError}>{locationError}</Text>}
               {!formCoordinates && !locationError && (
                 <Text style={styles.locateHint}>
-                  Pinning the spot lets you watch your rider approach on the map.
+                  A pin is required so your rider finds the exact door.
                 </Text>
               )}
 
@@ -997,6 +1025,16 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           </View>
         </View>
       </Modal>
+
+      {/* After the address sheet: Android stacks Modals in mount order. */}
+      <MapAddressPicker
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onConfirm={useMapPoint}
+        initial={formCoordinates}
+        apiUrl={apiUrl}
+        token={token}
+      />
 
       {/* Sticky pay bar */}
       <View style={styles.payBar}>
