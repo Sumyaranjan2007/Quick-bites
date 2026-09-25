@@ -790,6 +790,46 @@ certificate SHA-256s were extracted twice, independently, with `apksigner`: cust
 `d4294353…d92b`. `keytool -printcert` returns NOTHING for v2-only APKs, so the
 build check must use `apksigner` and fail closed.
 
+### Session C pushed its whole branch to `main` unreviewed — `063a4a2` (25 Sep)
+
+At ~07:29 UTC Session C fast-forwarded `main` to its branch (about 18 code commits
+B had not reviewed) and wrote `HANDOFF-to-session-A.md`, saying the owner told it
+to skip review and that C is retired. **Railway deployed it about two minutes
+later** (`/health` uptime), so it is LIVE. B asked the owner to confirm the
+authority. Nothing was rolled back; reverting a live data store is the owner's
+call and riskier than fixing forward.
+
+**B's review after the fact (riskiest first):**
+- Gate on `063a4a2`: 69/69, exit 0.
+- **The INSTALLED apps still work.** The 23 Sep app sources (`c953bd0`) were run
+  through C's body scanner against the live schemas: 0 findings in all four apps.
+  The unmatched bodies are body-less routes or scanner-unreadable forms, and all
+  are mounted. So S13's 40 new schemas didn't break the phones in the field.
+- **S1 (`0d1ff6d`): its check is blind.** `changeTracking` computes misses once
+  at the end of the day, so a later `set()` on the same record masks an earlier
+  unmarked change. Removing the `set()` in `riderRepository.adjustCashInHand`
+  (driven by the day's COD delivery) and in `deliveryProximityFlag` both passed.
+  Live risk is low (the backstop does a full diff at money routes, shutdown and
+  every 10 minutes). Fix: check after every step. Assigned to the builder.
+- **N24 (`222c033`) — CRITICAL, live: it can refund a GENUINE door payment.** The
+  poll marks a door payment PAID without its id when the second Razorpay fetch
+  fails, and N24 then treats the real id as a duplicate. Fix: adopt, don't
+  refund, when a `UPI_AT_DOOR` order has no id. Builder, top priority.
+- Safe by default, confirmed: U3's pin refusal is behind the `unpinned_addresses`
+  flag (default ON = accept); `minPlatformMarginPerOrder` defaults to 0 (off);
+  S4 keeps the login throttle and adds per-account buckets; A3 goes through the
+  same DELIVERED transition, so earnings post once.
+- **S10: C's `dishOptions.ts` supersedes the builder's `02ec582`** (kept as the
+  branch `builder/s10-alt`). The exploit is closed and negatives count as zero on
+  both sides. B accepted "a required group left empty takes the cheapest" (old
+  apps would otherwise fail), on condition that the defaulted choice is recorded
+  on the item and returned by the quote.
+
+**§11 shapes:** *a check that looks once at the end is blind to anything a later
+step repairs* (S1, and before it the ledger's balanced-after-every-step rule).
+*The installed APKs are the compatibility target, not the current source*: scan
+the release commit's sources, not HEAD.
+
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
 - Remove the twelve dead exports in §F7 one commit each, gate green between.
