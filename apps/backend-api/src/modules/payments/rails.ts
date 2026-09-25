@@ -238,9 +238,4 @@ export function railCatalogue() {
   });
 }
 
-/** Whether payouts can go out at all on this deployment, by any rail. */
-export function payoutsPossible(): boolean {
-  return (Object.keys(RAILS) as PayoutRailId[]).some(id => RAILS[id].available());
-}
-
 export { config };

@@ -239,10 +239,3 @@ export function resolveAccess(user: {
     roleDisabled: false
   };
 }
-
-export function hasPermission(
-  access: ResolvedAccess,
-  permission: AdminPermission
-): boolean {
-  return access.isSuperAdmin || access.permissions.includes(permission);
-}

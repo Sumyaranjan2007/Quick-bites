@@ -750,6 +750,30 @@ them. Feature flags scanned for enforcement, three driven off and on.
 `RIDER_CASH` ledger balance are two sources for the cash in a rider's bag. They
 are asserted equal for now; collapsing them is a deliberate change.
 
+### Session C joined (25 Sep): a cloud session with its own audit
+
+The owner started a third session ("Session C", cloud, title "Quick Bite"). It
+wrote `docs/plans/deep-audit-2026-09-25.md` (N1–N22) and four commits on
+`claude/nice-lamport-vxf4yf`. **The channel is `docs/plans/brain-sync.md` on that
+branch**, because a cloud session cannot send messages; B can message it one way.
+B reviewed the branch: 58 suites green in a separate worktree, nine mutations.
+Verdicts are in brain-sync §1. Merge order: C fixes → C merges `main` → B
+verifies → A fast-forwards.
+
+Two findings against OUR earlier work, confirmed on `main`:
+- **The admin app's platform-rate save never worked.** `RatesScreen` sends
+  `{ changes }` to `PUT /admin/pricing/config`; the schema requires `{ rates }`.
+  W7(b)'s round trip sent the route's own shape, and the route contract compares
+  paths only. **§11 shape: a round trip must send the body the APP sends.** Fixed
+  on C's branch with a shim that accepts both; don't fix it on `main`.
+- **The office cash buttons were listed as built and proved, and no app ever
+  called them** (`admin-revamp-and-inflation.md` §11A). C built the buttons
+  (admin APK).
+
+B's finding on C's branch: the socket role came from `stored.role`, which
+`grantRole` never changes, so a customer who later registers a kitchen would lose
+live orders on the kitchen terminal. Must be fixed before merge.
+
 ### W6 — dead code (F7) · **no APK needed for the backend**
 
 - Remove the twelve dead exports in §F7 one commit each, gate green between.
@@ -863,8 +887,9 @@ what only they can prove.
 
 | | |
 | --- | --- |
+| **Customer login uses one shared code** (N5) | **LAUNCH BLOCKER.** Fine for the closed trial (owner, 25 Sep: only the team is using it). Before any real customer signs up, connect an SMS provider (MSG91 or Twilio) and remove `OTP_ALLOW_FIXED_IN_PRODUCTION`, or anyone with the code can sign in as any phone number. |
 | **Razorpay is in TEST mode** (`rzp_test_`) | No real customer payment can be taken until live keys are set on Railway. |
-| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. **Before turning RazorpayX on**, the server must handle `payout.reversed` / `payout.failed` webhooks (W4 review G3). Today a queued payout that later reverses would stay PAID, and the payee would already have been told they were paid. |
+| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. **Before turning RazorpayX on**, the server must handle `payout.reversed` / `payout.failed` webhooks (W4 review G3). Today a queued payout that later reverses would stay PAID, and the payee would already have been told they were paid. **For G3:** a reversal primitive existed as `ledger.reverse` at `apps/backend-api/src/modules/payments/ledger.ts:403` in commit `0a42496` (removed in W6, no production caller). Lift the shape from there — but **do not copy `payoutId` onto the mirror posting** as it did: `duesFor` skips every entry carrying `payoutId` (M4), so a reversed payout lifted as-is would never be owed again. The reversal must re-credit the payable as an ordinary entry, or the payout record must move to FAILED/REVERSED so its covered entries are released. |
 | **The bank defect** | Run the diagnostic command. |
 | **"Fix the Pay section"** | Say what was wrong with it. |
 | **A push on a closed phone** | The only real test of every notification in this plan. |

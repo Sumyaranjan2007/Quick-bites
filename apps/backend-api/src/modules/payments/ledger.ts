@@ -394,38 +394,6 @@ export function audit(): LedgerAudit {
   };
 }
 
-/**
- * Reverses a transaction by posting its mirror.
- *
- * The original stays. Both movements are on the record, which is what an
- * auditor needs and what an edit would have destroyed.
- */
-export function reverse(
-  transactionId: string,
-  actor: { userId: string },
-  reason: string
-): LedgerEntry[] {
-  const original = entriesArray().filter(e => e.transactionId === transactionId);
-  if (original.length === 0) {
-    throw new AppError('No such ledger transaction.', 404, 'LEDGER_TRANSACTION_NOT_FOUND');
-  }
-
-  return post({
-    event: 'CORRECTION',
-    postings: original.map(e => ({
-      account: e.account,
-      direction: e.direction === 'DEBIT' ? ('CREDIT' as const) : ('DEBIT' as const),
-      amountPaise: e.amountPaise
-    })),
-    idempotencyKey: `reverse:${transactionId}`,
-    actorUserId: actor.userId,
-    narration: `Reversal of ${transactionId}: ${reason}`,
-    orderId: original[0].orderId,
-    payoutId: original[0].payoutId,
-    refundCaseId: original[0].refundCaseId
-  });
-}
-
 /** Only used by tests, which need a clean slate. */
 export function resetLedgerForTesting(): void {
   memoryStore.ledgerEntries.clear();
@@ -439,7 +407,6 @@ export const ledger = {
   balancesByKind,
   query,
   audit,
-  reverse,
   accountFor,
   parseAccount,
   increasesWithDebit

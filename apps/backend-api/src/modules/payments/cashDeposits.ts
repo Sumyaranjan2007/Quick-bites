@@ -108,11 +108,6 @@ export function cashStanding(riderId: string): CashStanding {
   return { cashInHandPaise: held, ceilingPaise, warnAtPaise, canTakeCod, shouldWarn, pendingDeposit, message };
 }
 
-/** Whether this rider may be offered a cash-on-delivery order right now. */
-export function canTakeCodOrder(riderId: string): boolean {
-  return cashStanding(riderId).canTakeCod;
-}
-
 /**
  * The rider says what they are bringing in.
  *

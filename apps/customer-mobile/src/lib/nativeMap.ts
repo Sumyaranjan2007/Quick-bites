@@ -91,15 +91,6 @@ export const Maps = Mapbox;
  */
 export const canRenderNativeMap: boolean = mapsKeyPresent && Mapbox !== null;
 
-/** Why not, in words, for the hidden diagnostics screen. Never shown to a customer. */
-export function nativeMapUnavailableReason(): string | null {
-  if (canRenderNativeMap) return null;
-  if (!mapsKeyPresent && Mapbox === null) {
-    return 'No Mapbox token in this build, and the native map module is not linked.';
-  }
-  if (!mapsKeyPresent) return 'This build carries no Mapbox access token.';
-  return 'The native map module is not linked into this build.';
-}
 
 /* -------------------------------------------------------------------------- */
 /*  Coordinate order                                                          */

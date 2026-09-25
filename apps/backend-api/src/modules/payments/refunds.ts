@@ -456,22 +456,6 @@ export function recordCashRefundAtDoor(input: {
   };
 }
 
-/** What a customer's order screen shows about a refund. */
-export function refundStatusView(outcome: {
-  route: RefundRoute;
-  settled: boolean;
-  amountPaise: number;
-  claimUrl?: string;
-}) {
-  return {
-    route: outcome.route,
-    settled: outcome.settled,
-    amount: toRupees(outcome.amountPaise),
-    claimUrl: outcome.claimUrl,
-    timing: timingFor(outcome.route)
-  };
-}
-
 /**
  * Everything a customer's order screen can honestly say about a refund.
  *
