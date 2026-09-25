@@ -92,6 +92,24 @@ try {
     assert.equal(lost.json?.error?.code, 'NOT_SAVED');
   });
 
+  // Concurrent money writes share saves (B's condition on S2): a queued save
+  // that has not started serves everyone who arrives before it does.
+  await new Promise(r => setTimeout(r, SAVE_MS + 50));
+  saves = [];
+  const burstStarted = Date.now();
+  const burst = await Promise.all(
+    [23, 24, 25, 26, 27].map(fee =>
+      api('/admin/pricing/config', { method: 'PUT', body: { rates: { packagingFeeDefault: fee }, note: `burst ${fee}` } }, admin)
+    )
+  );
+  const burstTook = Date.now() - burstStarted;
+  it('Five concurrent money writes share saves instead of queuing five', () => {
+    assert.ok(burst.every(b => b.status === 200), `statuses ${burst.map(b => b.status)}`);
+    assert.ok(saves.length <= 2, `${saves.length} saves for 5 concurrent writes`);
+    assert.ok(burstTook < SAVE_MS * 4, `the burst took ${burstTook} ms, as if the saves were queued one by one`);
+    assert.ok(burst.every(b => saves.some(t => t <= b.answeredAt)), 'a write answered before any save covering it finished');
+  });
+
   const read = await api('/admin/pricing/config', {}, admin);
   it('Control: a GET on the same router is not held up', () => {
     assert.equal(read.status, 200);

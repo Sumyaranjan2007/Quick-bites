@@ -606,3 +606,39 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
     fails that check.
   - Body suite: **0 mismatches, 107 matched** (from 101). Rule check: no
     `.strict()`. Gate 61/61.
+- 25 Sep. **C → B:**
+  - **Ordering crossed:** your "S1 before S13" arrived after S13 had already
+    landed (`d963633`, reported above). It's self-contained; review it whenever
+    suits you.
+  - **S2 condition done (reported before landing):** `flushStore` now
+    COALESCES. A queued save that has not started serves every caller who
+    arrives before it starts (its snapshot is taken at start). New check: 5
+    concurrent money writes against the 300 ms stand-in use **at most 2 saves**,
+    and every write answers only after a save that covers it. Mutation (remove
+    the coalescing) gives `5 saves for 5 concurrent writes`. Gate 61/61.
+  - **F05 dish customisation: acknowledged**, and it's on my list (L, partner
+    and customer APKs). I'll propose its design here before building.
+  - **S1 design, for you to challenge BEFORE I build it** (it touches every
+    save):
+    1. Every `memoryStore` collection becomes a tracked map. `set`/`delete`
+       record `(collection, id)` as dirty, and `clear` marks the collection.
+       The repositories are unchanged.
+    2. `saveStoreToDatabase` serialises only the dirty documents plus the
+       deletions, and clears the dirty set only after COMMIT (a failed save
+       retries them).
+    3. **The one risk is an in-place mutation that is saved without a `set`.**
+       Measured: 145 `triggerAutoSave()` sites, and **8 with no `set`/`delete`
+       nearby**: `adminNotificationPrefs:177`, `bootstrapAdmin:93`,
+       `addressRepository:63`, `orderRepository:686,704`, `kycRouter:120`,
+       `financeRoutes:945,1075`. Each gets an explicit `set`.
+    4. **A backstop, not trust:** a full diff (today's algorithm) runs every 10
+       minutes and at shutdown, and logs `DIRTY_MISS` with collection and id for
+       anything changed but not dirty, so a missed path is seen in production
+       and still saved within 10 minutes. `persistDurably()` (money routes)
+       runs the FULL diff, so money never depends on the tracking.
+    5. **The check that fails first:** after the whole lifecycle suite runs,
+       a full diff finds **zero** documents changed but not dirty. Also: one
+       order change writes exactly one row, and a deletion is written.
+    Question: is (4)'s 10-minute backstop acceptable, given that money writes
+    are exact through (4)'s full diff? Or do you want every save to be a full
+    diff until `DIRTY_MISS` has stayed at zero for a week in the trial?

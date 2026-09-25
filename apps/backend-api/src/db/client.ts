@@ -274,16 +274,31 @@ export function persistDurably(): Promise<void> {
   return flushStore();
 }
 
-/** Serialises saves so a slow write cannot overlap the next one. */
+/*
+ * Serialises saves so a slow write cannot overlap the next one, and COALESCES
+ * the ones waiting (B's condition on S2).
+ *
+ * Each save writes everything changed so far, so once a save is queued and
+ * has not started, every later caller is served by it: its snapshot is taken
+ * when it STARTS, after all of them wrote. Chaining one full save per call made
+ * N concurrent money requests wait for N sequential saves.
+ */
 let inFlight: Promise<void> = Promise.resolve();
+let queued: Promise<void> | null = null;
 
 export function flushStore(): Promise<void> {
+  if (queued) return queued;
   const run = async () => {
+    // From here on, a new caller's write may land after this snapshot, so it
+    // must queue a fresh save rather than join this one.
+    queued = null;
     if (backend) await backend.save();
     else saveStoreToFile();
   };
-  inFlight = inFlight.then(run, run);
-  return inFlight;
+  const next = inFlight.then(run, run);
+  queued = next;
+  inFlight = next;
+  return next;
 }
 
 let autoSaveTimer: NodeJS.Timeout | null = null;
