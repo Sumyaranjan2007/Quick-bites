@@ -20,6 +20,8 @@ import { resetLedgerForTesting } from '../modules/payments/ledger.ts';
 import { createVersion, resetConfigsForTesting } from '../modules/payments/pricingConfig.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
 import { ownOrder } from './helpers/ownFixture.ts';
+import { grantRole } from '../db/repositories/userRepository.ts';
+import { initSocketServer, closeSocketServer, emitOrderCreated } from '../sockets/socketServer.ts';
 
 const PORT = 5261;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -64,6 +66,7 @@ async function login(email: string, password = 'pass123') {
 }
 
 const code = (r: { json: any }) => r.json?.error?.code ?? r.json?.code;
+const orderOf = (r: any) => r.json?.data?.order ?? r.json?.data;
 
 await seedDatabase();
 const server = createApp().listen(PORT, '127.0.0.1');
@@ -201,18 +204,34 @@ try {
   const riderCancel = await setStatus(trip.id, 'CANCELLED', riderLogin.token, { cancellationReasonCode: 'OTHER', cancellationNote: 'x' });
   it('A rider cannot cancel an order through the status route', () => {
     assert.equal(riderCancel.status, 403, `status ${riderCancel.status}`);
+    assert.equal(code(riderCancel), 'RIDER_USES_TRIP_ROUTES');
+    assert.equal((memoryStore.orders.get(trip.id) as any).status, 'READY_FOR_PICKUP');
+  });
+
+  // The second layer, on its own: cancelOrder itself refuses a rider, so a
+  // future route that forgets the first layer still cannot cancel for one.
+  let secondLayer: any = null;
+  try {
+    await orderService.cancelOrder(trip.id, { userId: riderLogin.user.id, name: 'Rider', role: 'rider' as any }, 'OTHER', 'x');
+  } catch (err) {
+    secondLayer = err;
+  }
+  it('and cancelOrder refuses a rider on its own (second layer)', () => {
+    assert.equal(secondLayer?.code, 'RIDER_CANNOT_CANCEL', `got ${secondLayer?.code || 'no refusal'}`);
     assert.equal((memoryStore.orders.get(trip.id) as any).status, 'READY_FOR_PICKUP');
   });
 
   const riderSkip = await setStatus(trip.id, 'OUT_FOR_DELIVERY', riderLogin.token);
   it('A rider cannot skip the pickup code through the status route', () => {
     assert.equal(riderSkip.status, 403, `status ${riderSkip.status}`);
+    assert.equal(code(riderSkip), 'RIDER_USES_TRIP_ROUTES');
     assert.equal((memoryStore.orders.get(trip.id) as any).status, 'READY_FOR_PICKUP');
   });
 
   const kitchenSkip = await setStatus(trip.id, 'OUT_FOR_DELIVERY', partner.token);
   it('The kitchen cannot mark its own order out for delivery', () => {
     assert.equal(kitchenSkip.status, 403, `status ${kitchenSkip.status}`);
+    assert.equal(code(kitchenSkip), 'NOT_A_KITCHEN_STEP');
   });
 
   const handed = await setStatus(trip.id, 'HANDED_TO_RIDER', partner.token);
@@ -251,15 +270,32 @@ try {
   const kitchenLateCancel = await setStatus(trip.id, 'CANCELLED', partner.token, { cancellationReasonCode: 'ITEM_UNAVAILABLE' });
   it('The kitchen cannot cancel once the food has left', () => {
     assert.equal(kitchenLateCancel.status, 409, `status ${kitchenLateCancel.status}`);
+    assert.equal(code(kitchenLateCancel), 'KITCHEN_CANNOT_CANCEL_NOW');
     assert.equal((memoryStore.orders.get(trip.id) as any).status, 'OUT_FOR_DELIVERY');
   });
 
-  const releaseAfterPickup = await api(`/riders/orders/${trip.id}/cancel`, { method: 'POST', body: { reason: 'bike broke' } }, riderLogin.token);
+  // Its own order, so a broken N21 guard fails THIS check and not the
+  // doorstep checks below as well (B's review: one broken guard read as three).
+  const carried = ownOrder('carried', {
+    restaurantId: RESTAURANT_ID,
+    status: 'OUT_FOR_DELIVERY',
+    riderId: RIDER_ID,
+    riderStage: 'PICKED_UP',
+    extra: { pickedUpAt: new Date().toISOString(), readyAt: new Date().toISOString() }
+  });
+  const releaseAfterPickup = await api(`/riders/orders/${carried.id}/cancel`, { method: 'POST', body: { reason: 'bike broke' } }, riderLogin.token);
   it('N21: a rider holding the food cannot put it back on offer', () => {
     assert.equal(releaseAfterPickup.status, 409, `status ${releaseAfterPickup.status}`);
-    const now = memoryStore.orders.get(trip.id) as any;
+    assert.equal(code(releaseAfterPickup), 'ALREADY_COLLECTED');
+    const now = memoryStore.orders.get(carried.id) as any;
     assert.equal(now.status, 'OUT_FOR_DELIVERY');
     assert.equal(now.riderId, RIDER_ID);
+  });
+
+  const customerLateCancel = await setStatus(trip.id, 'CANCELLED', customer.token, { cancellationReasonCode: 'CHANGED_MY_MIND' });
+  it('A customer cannot cancel once the food is on its way (agreed with B, §2.1)', () => {
+    assert.equal(code(customerLateCancel), 'CUSTOMER_CANNOT_CANCEL_NOW', `status ${customerLateCancel.status}`);
+    assert.equal((memoryStore.orders.get(trip.id) as any).status, 'OUT_FOR_DELIVERY');
   });
 
   // Doorstep code guessing.
@@ -322,12 +358,14 @@ try {
   const releaseDead = await api(`/riders/orders/${dead.id}/cancel`, { method: 'POST', body: { reason: 'whatever' } }, riderLogin.token);
   it('A cancelled order cannot be revived by handing it back', () => {
     assert.equal(releaseDead.status, 409, `status ${releaseDead.status}`);
+    assert.equal(code(releaseDead), 'ORDER_CANCELLED');
     assert.equal((memoryStore.orders.get(dead.id) as any).status, 'CANCELLED');
   });
 
   const collectDead = await api(`/riders/orders/${dead.id}/verify-pickup`, { method: 'POST', body: { pickupCode: '4321' } }, riderLogin.token);
   it('and a cancelled order that was once ready cannot be collected', () => {
     assert.ok(collectDead.status >= 400, `status ${collectDead.status}`);
+    assert.equal(code(collectDead), 'ORDER_CANCELLED');
     assert.equal((memoryStore.orders.get(dead.id) as any).status, 'CANCELLED');
   });
 
@@ -343,6 +381,18 @@ try {
   );
   it('An operations admin cannot reset the SUPER ADMIN password', () => {
     assert.equal(takeover.status, 403, `status ${takeover.status}: ${JSON.stringify(takeover.json).slice(0, 200)}`);
+    assert.equal(code(takeover), 'STAFF_PASSWORD_NOT_RESETTABLE');
+  });
+  // The case only the first layer covers: a super admin passes every
+  // permission, so nothing but the staff refusal stops this.
+  const superAdmin = await login('admin@quickbite.app');
+  const staffBySuper = await api(
+    '/admin/staff/usr_admin_ops/reset-password',
+    { method: 'POST', body: { temporaryPassword: 'ops-takeover-pass-1' } },
+    superAdmin.token
+  );
+  it('Even a super admin cannot reset another ADMIN through this route', () => {
+    assert.equal(code(staffBySuper), 'STAFF_PASSWORD_NOT_RESETTABLE', `status ${staffBySuper.status}`);
   });
   const superStill = await login('admin@quickbite.app');
   it('and the super admin still signs in with their own password', () => {
@@ -366,7 +416,71 @@ try {
   it('Control: signing in with the new password works', () => {
     assert.equal(newTokenUse.status, 200, `status ${newTokenUse.status}`);
   });
+
+  // ---------------------------------------------------------------------
+  console.log('\n-- A person who holds two roles uses both apps');
+
+  // The seeded partner also delivers: grantRole is exactly what registration
+  // does for an existing account, and leaves the primary role alone.
+  const partnerUser = [...memoryStore.users.values()].find((u: any) => u.email === 'partner@quickbite.app') as any;
+  await grantRole(partnerUser.id, 'customer');
+  partnerUser.role = 'customer'; // primary is now customer, kitchen is the second role
+  const asKitchen = await api('/auth/login', {
+    method: 'POST',
+    body: { email: 'partner@quickbite.app', password: 'pass123', role: 'restaurant_owner' }
+  });
+  it('A customer-first account that owns a kitchen can sign into the partner app', () => {
+    assert.equal(asKitchen.status, 200, `status ${asKitchen.status}: ${JSON.stringify(asKitchen.json).slice(0, 200)}`);
+  });
+  const kitchenOrder = orderOf(await api('/orders', {
+    method: 'POST',
+    body: {
+      restaurantId: RESTAURANT_ID,
+      deliveryAddressId: ADDRESS,
+      items: [{ dishId: DISH, quantity: 1, selectedOptions: [] }],
+      paymentMethod: 'CASH_ON_DELIVERY',
+      idempotencyKey: crypto.randomUUID()
+    }
+  }, customer.token));
+  const kitchenAccepts = await setStatus(kitchenOrder.id, 'ACCEPTED', asKitchen.json?.data?.token, { preparationMinutes: 15 });
+  it('and that session acts as the kitchen (it can accept its own order)', () => {
+    assert.equal(kitchenAccepts.status, 200, `status ${kitchenAccepts.status}: ${JSON.stringify(kitchenAccepts.json).slice(0, 200)}`);
+  });
+
+  initSocketServer(server);
+  const { io: ioClient } = await import('socket.io-client');
+  const sock = ioClient(`http://127.0.0.1:${PORT}`, {
+    auth: { token: asKitchen.json?.data?.token },
+    transports: ['websocket'],
+    reconnection: false
+  });
+  const connected = await new Promise<boolean>(resolve => {
+    const t = setTimeout(() => resolve(false), 3000);
+    sock.on('connect', () => { clearTimeout(t); resolve(true); });
+    sock.on('connect_error', () => { clearTimeout(t); resolve(false); });
+  });
+  sock.emit('join:restaurant', { restaurantId: RESTAURANT_ID });
+  await new Promise(r => setTimeout(r, 300));
+  const heard = new Promise<boolean>(resolve => {
+    const t = setTimeout(() => resolve(false), 800);
+    sock.on('order:created', () => { clearTimeout(t); resolve(true); });
+  });
+  emitOrderCreated(RESTAURANT_ID, kitchenOrder);
+  const kitchenHeard = await heard;
+  it('and its kitchen terminal socket receives live orders (B’s must-fix)', () => {
+    assert.equal(connected, true, 'the partner-app socket was refused');
+    assert.equal(kitchenHeard, true, 'the kitchen terminal did not receive the new order');
+  });
+  sock.close();
+
+  // A role that is removed stops working at once, whatever the token says.
+  partnerUser.roles = ['customer'];
+  const afterRemoval = await setStatus(kitchenOrder.id, 'PREPARING', asKitchen.json?.data?.token, { preparationMinutes: 15 });
+  it('Control: once the kitchen role is removed, the same token cannot act as the kitchen', () => {
+    assert.ok(afterRemoval.status >= 400, `status ${afterRemoval.status}`);
+  });
 } finally {
+  closeSocketServer?.();
   server.close();
 }
 

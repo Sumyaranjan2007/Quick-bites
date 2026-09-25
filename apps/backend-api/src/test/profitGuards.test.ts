@@ -210,6 +210,40 @@ try {
     assert.equal(secondClaim.status, 409, `status ${secondClaim.status}: ${JSON.stringify(secondClaim.json).slice(0, 200)}`);
   });
 
+  // In-flight cases count too (B's review): a case stuck PROCESSING is money
+  // already promised.
+  const stuck = await paidOrder();
+  (memoryStore.orders.get(stuck.id) as any).status = 'DELIVERED';
+  const realRefund = (razorpayAdapter as any).refund;
+  (razorpayAdapter as any).refund = async () => { throw new Error('gateway down'); };
+  const firstTry = await api(`/admin/orders/${stuck.id}/refund`, { method: 'POST', body: { reason: 'gateway will fail' } }, admin.token);
+  (razorpayAdapter as any).refund = realRefund;
+  const secondTry = await api(`/admin/orders/${stuck.id}/refund`, { method: 'POST', body: { reason: 'try again' } }, admin.token);
+  it('A refund stuck PROCESSING blocks a second full refund of the same order', () => {
+    assert.equal(firstTry.status, 502, `the first refund should have been left processing: ${firstTry.status}`);
+    assert.equal(errCode(secondTry), 'REFUND_EXCEEDS_REMAINING', `status ${secondTry.status}`);
+  });
+
+  const partial = await paidOrder();
+  (memoryStore.orders.get(partial.id) as any).status = 'DELIVERED';
+  const partTotal = Number(partial.bill.totalAmount);
+  const sixty = Math.round(partTotal * 60) / 100;
+  await api(`/admin/orders/${partial.id}/refund`, { method: 'POST', body: { amount: sixty, reason: 'part refund' } }, admin.token);
+  const caseB = await api('/support/refund-requests', {
+    method: 'POST',
+    body: { orderId: partial.id, reasonCode: 'OTHER', description: 'the rest please', requestedAmount: Math.round((partTotal - sixty) * 100) / 100 }
+  }, customer.token);
+  const caseBId = caseB.json?.data?.request?.id;
+  const overApprove = await api(`/admin/refund-requests/${caseBId}/decision`, { method: 'POST', body: { action: 'APPROVE', amount: partTotal } }, admin.token);
+  it('Approving more than the order has left is refused', () => {
+    assert.ok(caseBId, `case not raised: ${JSON.stringify(caseB.json).slice(0, 200)}`);
+    assert.equal(errCode(overApprove), 'REFUND_EXCEEDS_REMAINING', `status ${overApprove.status}`);
+  });
+  const fairApprove = await api(`/admin/refund-requests/${caseBId}/decision`, { method: 'POST', body: { action: 'APPROVE' } }, admin.token);
+  it('Control: approving exactly what is left is accepted', () => {
+    assert.equal(fairApprove.status, 200, `status ${fairApprove.status}: ${JSON.stringify(fairApprove.json).slice(0, 200)}`);
+  });
+
   // -------------------------------------------------------------------
   console.log('\n-- N8: coupons');
 

@@ -170,7 +170,15 @@ export function authMiddleware(requiredRole?: string) {
 
       // A role changed after the token was issued — a demotion, most of all —
       // must apply now rather than in a week. The stored record wins.
-      if (stored.role) req.user.role = stored.role as UserRole;
+      /*
+       * The role this session acts as: the token's, when the account still
+       * holds it (a partner-app session of a rider who also owns a kitchen),
+       * otherwise the account's primary role. A role since removed therefore
+       * stops working at once — the token cannot keep it alive.
+       */
+      const heldNow = rolesOf(stored);
+      if (payload.role && heldNow.includes(payload.role)) req.user.role = payload.role as UserRole;
+      else if (stored.role) req.user.role = stored.role as UserRole;
       
       /*
        * WHAT THIS PERSON MAY DO, WHICH IS NOT THE SAME AS WHAT THEY ARE.

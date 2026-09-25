@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { userRepository, grantRole, hasRole } from '../db/repositories/userRepository.ts';
+import { userRepository, grantRole, hasRole, rolesOf } from '../db/repositories/userRepository.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
@@ -23,12 +23,20 @@ import { notifyAdminsNewSignup } from '../notifications/adminNotifier.ts';
 
 export const authRouter = Router();
 
-export function generateToken(user: any): string {
+/**
+ * `actingRole` is the role the app signed in AS. A person can hold several
+ * (grantRole), and the partner app must get a restaurant_owner session even
+ * when the account was first a customer. Only a role the account holds is
+ * accepted; anything else falls back to the primary role.
+ */
+export function generateToken(user: any, actingRole?: string): string {
+  const held = rolesOf(user);
+  const role = actingRole && held.includes(actingRole) ? actingRole : user.role;
   return jwt.sign(
     {
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role,
       is_gold: user.isGold,
       user_metadata: { name: user.fullName },
       // Token version: bumped on a password change or reset to retire older tokens.
@@ -193,12 +201,12 @@ authRouter.post('/login', authRateLimiterMiddleware, async (req, res) => {
           email: user.email,
           fullName: user.fullName,
           phone: user.phone,
-          role: user.role,
+          role: role && rolesOf(user).includes(role) ? role : user.role,
           isGold: user.isGold,
           avatarUrl: user.avatarUrl,
           favouriteRestaurantIds: user.favouriteRestaurantIds || []
         },
-        token: generateToken(user)
+        token: generateToken(user, role)
       }
     });
   } catch (error: any) {

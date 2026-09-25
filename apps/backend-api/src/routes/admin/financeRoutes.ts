@@ -219,6 +219,25 @@ financeRoutes.post(
         );
       }
 
+      // Approving commits money: it is capped by what the OTHER committed cases
+      // on the order have not already taken (refundCap counts APPROVED too).
+      if (action === 'APPROVE') {
+        const approving = amount ?? request.requestedAmount;
+        const forOrder = await orderRepository.findById(request.orderId);
+        if (forOrder) {
+          const remaining = await refundableRemaining(forOrder, request.id);
+          if (approving > remaining) {
+            throw new AppError(
+              remaining <= 0
+                ? 'This order is already refunded, or committed to be, in full by another case.'
+                : `Only Rs ${remaining} of this order is not already refunded or committed.`,
+              409,
+              'REFUND_EXCEEDS_REMAINING'
+            );
+          }
+        }
+      }
+
       if (action === 'PROCESSING' || action === 'APPROVE' || action === 'REJECT') {
         const status = action === 'PROCESSING' ? 'PROCESSING' : action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
         const updated = await refundRepository.transition(request.id, status, actor, {
@@ -399,6 +418,15 @@ financeRoutes.post(
 
       const total = Number(order.bill?.totalAmount) || 0;
       const remaining = await refundableRemaining(order);
+      // Nothing left means nothing to do: defaulting the amount to "what is
+      // left" would otherwise record a Rs 0 refund as a settled case.
+      if (remaining <= 0) {
+        throw new AppError(
+          'This order is already refunded, or committed to be, in full.',
+          409,
+          'REFUND_EXCEEDS_REMAINING'
+        );
+      }
       const amount = req.body.amount ?? remaining;
       if (amount > total) {
         throw new AppError(`A refund cannot exceed the order total of Rs ${total}.`, 400, 'REFUND_EXCEEDS_ORDER');

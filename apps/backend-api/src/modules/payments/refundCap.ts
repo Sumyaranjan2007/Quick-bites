@@ -16,14 +16,22 @@ import { refundRepository } from '../../db/repositories/refundRepository.ts';
 import type { Order } from '@quick-bites/shared-types';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const COMMITTED = new Set(['APPROVED', 'PROCESSING', 'REFUNDED']);
 
-/** Rupees already refunded on this order, not counting `exceptCaseId`. */
+/** Rupees refunded or committed to be refunded on this order, not counting `exceptCaseId`. */
 export async function refundedSoFar(orderId: string, exceptCaseId?: string): Promise<number> {
   const cases = await refundRepository.listByOrder(orderId);
   let total = 0;
   for (const c of cases as any[]) {
     if (c.id === exceptCaseId) continue;
-    if (c.status !== 'REFUNDED') continue;
+    /*
+     * Every COMMITTED case, not only finished ones (B's review). A case left
+     * PROCESSING (the gateway failed and it waits for a hand settlement) or
+     * APPROVED and in flight is money already promised; counting only
+     * REFUNDED let a second case pay the full bill while the first was still
+     * settling, and two approvals in a row both saw the whole bill available.
+     */
+    if (!COMMITTED.has(c.status)) continue;
     total += Number(c.approvedAmount ?? c.requestedAmount) || 0;
   }
   return round2(total);

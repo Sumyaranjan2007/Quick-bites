@@ -93,7 +93,10 @@ orderRouter.get('/:id/cancellation-quote', authMiddleware('customer'), async (re
     const quote = quoteCancellation(order);
     res.json({
       success: true,
-      data: { ...quote, canCancel: canTransition(order.status, 'CANCELLED') },
+      data: {
+        ...quote,
+        canCancel: canTransition(order.status, 'CANCELLED') && !CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status)
+      },
       meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
     });
   } catch (err) {
@@ -444,6 +447,7 @@ const StatusTransitionSchema = z.object({
  */
 const KITCHEN_MAY_SET = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'CANCELLED'];
 const KITCHEN_MAY_CANCEL_FROM = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'];
+const CUSTOMER_CANNOT_CANCEL_FROM = ['HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'];
 
 async function assertMayTransition(req: any, orderId: string, nextStatus: string) {
   const order = await orderRepository.findById(orderId);
@@ -507,6 +511,19 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
   }
   if (nextStatus !== 'CANCELLED') {
     throw new AppError('Customers can only cancel an order.', 403, 'CUSTOMER_CANNOT_ADVANCE');
+  }
+  /*
+   * The food is in the rider's bag. Cancelling now would refund the customer
+   * for a meal that is already on its way to them, with the kitchen and the
+   * rider having done all of their work. Agreed with B (brain-sync §2.1):
+   * refuse rather than invent a rider share of a fee. Support can still act.
+   */
+  if (CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status)) {
+    throw new AppError(
+      'Your food is already on its way, so this order can no longer be cancelled in the app. Contact support if something is wrong.',
+      409,
+      'CUSTOMER_CANNOT_CANCEL_NOW'
+    );
   }
 }
 

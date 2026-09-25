@@ -94,11 +94,12 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       if ((Number(payload.tv) || 0) !== (Number(stored.tokenVersion) || 0)) {
         return next(new Error('SESSION_REVOKED: Sign in again.'));
       }
+      // The token's role when the account still holds it (B's review: a
+      // partner-app socket of a multi-role account must join as a partner),
+      // else the account's primary role. A removed role never survives.
       const storedRoles: string[] = rolesOf(stored);
       const effective =
-        storedRoles.includes('super_admin') ? 'super_admin'
-          : storedRoles.includes('admin') ? 'admin'
-            : stored.role || payload.role;
+        payload.role && storedRoles.includes(payload.role) ? payload.role : stored.role;
 
       const mappedRole = String(effective || '').toUpperCase();
       if (mappedRole === 'ADMIN' || mappedRole === 'SUPER_ADMIN') {

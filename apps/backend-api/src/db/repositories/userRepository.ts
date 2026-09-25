@@ -114,9 +114,18 @@ export const userRepository = {
     if (!user) return null;
 
     if (expectedRole) {
-      const isAdminEquiv = (expectedRole === 'admin' || expectedRole === 'super_admin') && 
-                           (user.role === 'admin' || user.role === 'super_admin');
-      if (user.role !== expectedRole && !isAdminEquiv) {
+      /*
+       * Any role the person HOLDS, not only the primary one. `grantRole` adds
+       * a second role to `roles` and deliberately leaves `role` alone, so a
+       * rider who also opens a restaurant (or a customer who becomes a
+       * partner) was refused by the partner app's sign-in with 401 — the very
+       * case grantRole exists for.
+       */
+      const held = rolesOf(user);
+      const isAdminEquiv =
+        (expectedRole === 'admin' || expectedRole === 'super_admin') &&
+        (held.includes('admin') || held.includes('super_admin'));
+      if (!held.includes(expectedRole) && !isAdminEquiv) {
         return null;
       }
     }
