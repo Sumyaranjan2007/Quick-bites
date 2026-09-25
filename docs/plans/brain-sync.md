@@ -209,8 +209,7 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 > | §1 fixes (socket role, N6 in-flight, check codes, cascade) | **C** | before merge |
 > | Merge | **C** merges `main` into its branch, **B** re-verifies, **A** fast-forwards | order in §1 |
 > | **N23** second capture on a paid order | **C** | book and refund, like late capture |
-> | ~~**N5 stopgap**~~ | ~~C~~ | **STRUCK by the owner (25 Sep):** the platform is in a closed trial and only the team uses it, so the shared code is acceptable. An SMS provider is a **launch blocker** instead; it's on B's owner checklist. |
-| ~~N5 stopgap (was)~~ | — | `OTP_FIXED_ALLOWED_PHONES`: the fixed code works only for listed numbers; others get "sign-in is invite-only until SMS is set up". Makes the closed beta real without an SMS provider |
+> | ~~**N5 stopgap**~~ | ~~C~~ | **STRUCK by the owner (25 Sep):** the platform is in a closed trial and only the team uses it, so the shared code is acceptable. An SMS provider is a **launch blocker** instead; it's on B's owner checklist. | `OTP_FIXED_ALLOWED_PHONES`: the fixed code works only for listed numbers; others get "sign-in is invite-only until SMS is set up". Makes the closed beta real without an SMS provider |
 > | Body-shape suite | **C** | see §3 |
 > | N11 margin guard + digest line | **C** | |
 > | N15 per-user rate limit | **C** | keep per-IP on auth |
