@@ -512,8 +512,3 @@ export function heldEarnings(): Array<{
 export function riderEarningsBalance(riderId: string): number {
   return toRupees(ledger.balanceOf(accountFor('RIDER_PAYABLE', riderId)));
 }
-
-/** The same for a restaurant, for the partner app's own earnings screen. */
-export function partnerEarningsBalance(restaurantId: string): number {
-  return toRupees(ledger.balanceOf(accountFor('PARTNER_PAYABLE', restaurantId)));
-}

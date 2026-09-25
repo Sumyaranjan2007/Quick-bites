@@ -102,12 +102,6 @@ export function pushIsConfigured(): boolean {
   return serviceAccount() !== null;
 }
 
-/** Only for tests, which set the variable after this module is first imported. */
-export function resetPushCredentialCache(): void {
-  parsed = undefined;
-  cachedToken = null;
-}
-
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 /**

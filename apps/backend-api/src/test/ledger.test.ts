@@ -319,25 +319,13 @@ check('An account that nets to zero is not listed as owed nothing', () => {
   assert.equal(rows.length, 0, 'a settled partner is still showing in the dues list');
 });
 
-/* ------------------------------------------------------------------ *
- *  CORRECTION, NOT EDITING                                            *
- * ------------------------------------------------------------------ */
-
-check('A mistake is reversed, and both movements stay on the record', () => {
-  const before = ledger.audit().entryCount;
-  const original = ledger.query({ payoutId: 'pay_1' })[0];
-
-  ledger.reverse(original.transactionId, { userId: 'usr_admin' }, 'Paid to the wrong account');
-
-  const after = ledger.audit();
-  assert.equal(after.entryCount, before + 2, 'the reversal replaced the original instead of joining it');
-  assert.equal(ledger.balanceOf(accountFor('PARTNER_PAYABLE', 'rst_1')), 36000, 'the debt did not come back');
-  assert.equal(ledger.balanceOf('PLATFORM_BANK'), 48000);
-});
-
-throws('A reversal of nothing is refused', 'LEDGER_TRANSACTION_NOT_FOUND', () => {
-  ledger.reverse('ltx_does_not_exist', { userId: 'usr_admin' }, 'Nothing to undo');
-});
+/*
+ * The reversal checks that stood here went with `ledger.reverse`, removed in W6
+ * because nothing in production called it. The shape is recorded in the plan under
+ * the RazorpayX row for G3 to lift — with one warning attached: it copied `payoutId`
+ * onto the mirror posting, and `duesFor` skips anything carrying `payoutId`, so a
+ * reversed payout lifted as-is would never be owed again.
+ */
 
 /* ------------------------------------------------------------------ *
  *  THE BOOKS BALANCE OVER AN ARBITRARY SEQUENCE                       *

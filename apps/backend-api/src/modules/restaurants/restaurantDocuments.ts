@@ -12,9 +12,6 @@ import type { KycDocument } from '@quick-bites/shared-types';
 export const RESTAURANT_DOCUMENT_TYPES = ['FSSAI', 'GSTIN', 'PAN', 'BANK_PROOF'] as const;
 export type RestaurantDocumentType = (typeof RESTAURANT_DOCUMENT_TYPES)[number];
 
-/** Without these a restaurant cannot be approved to take orders. */
-export const MANDATORY_RESTAURANT_DOCUMENTS: RestaurantDocumentType[] = ['FSSAI', 'PAN'];
-
 /*
  * Photographs only.
  *

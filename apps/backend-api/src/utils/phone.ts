@@ -22,10 +22,6 @@ export function normalizeIndianPhone(raw: string): string {
   return digitsOnly;
 }
 
-export function isValidIndianPhone(raw: string): boolean {
-  return INDIAN_MOBILE.test(normalizeIndianPhone(raw));
-}
-
 export const PHONE_ERROR = 'Enter a 10-digit Indian mobile number starting with 6, 7, 8 or 9.';
 
 /**

@@ -29,7 +29,6 @@ export function istDayKey(at: Date | string): string {
   return new Date(date.getTime() + IST_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
 }
 
-export const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED', 'REFUNDED']);
 /*
  * Typed as OrderStatus rather than a bare string Set.
  *

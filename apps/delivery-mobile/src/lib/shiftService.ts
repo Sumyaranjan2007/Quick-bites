@@ -22,26 +22,19 @@ import * as TaskManager from 'expo-task-manager';
 
 export const SHIFT_LOCATION_TASK = 'quickbites-rider-shift-location';
 
-/** The most recent fix the service reported, for screens that want it. */
-let lastKnown: { latitude: number; longitude: number; at: string } | null = null;
-
 // Must be registered at module scope: the task can be invoked before any React
 // component has mounted, when Android restarts the service on its own.
-TaskManager.defineTask(SHIFT_LOCATION_TASK, async ({ data, error }) => {
-  if (error || !data) return;
-  const { locations } = data as { locations: Location.LocationObject[] };
-  const latest = locations?.[locations.length - 1];
-  if (!latest) return;
-  lastKnown = {
-    latitude: latest.coords.latitude,
-    longitude: latest.coords.longitude,
-    at: new Date(latest.timestamp).toISOString()
-  };
-});
-
-export function lastKnownShiftLocation() {
-  return lastKnown;
-}
+/*
+ * Defined, and deliberately empty.
+ *
+ * The task has to be registered: it IS the foreground service that keeps the
+ * process alive, and `startLocationUpdatesAsync` refuses a task name nobody has
+ * defined. What it does with each fix is nothing. It used to keep the latest one
+ * for "screens that want it", and no screen ever asked — the tracking customers
+ * see comes from the trip screen's own watcher, which reports while an order is
+ * being carried.
+ */
+TaskManager.defineTask(SHIFT_LOCATION_TASK, async () => {});
 
 /**
  * Starts the shift service. Returns false when it could not be held open — the

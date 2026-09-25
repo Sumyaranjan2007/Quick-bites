@@ -814,12 +814,6 @@ export function inflateMenuForCustomer<T extends { categories?: any[] }>(
   };
 }
 
-export function listCharges(): RestaurantCharges[] {
-  return Array.from(memoryStore.restaurantCharges.values()).filter(
-    (c: any) => c && typeof c.restaurantId === 'string'
-  ) as RestaurantCharges[];
-}
-
 export function resetRestaurantChargesForTesting(): void {
   memoryStore.restaurantCharges.clear();
 }

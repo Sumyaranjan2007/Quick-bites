@@ -888,7 +888,7 @@ what only they can prove.
 | | |
 | --- | --- |
 | **Razorpay is in TEST mode** (`rzp_test_`) | No real customer payment can be taken until live keys are set on Railway. |
-| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. **Before turning RazorpayX on**, the server must handle `payout.reversed` / `payout.failed` webhooks (W4 review G3). Today a queued payout that later reverses would stay PAID, and the payee would already have been told they were paid. |
+| **No RazorpayX keys** | Payouts are manual — `MANUAL_BANK`, record the UTR. That works; it is not automatic. **Before turning RazorpayX on**, the server must handle `payout.reversed` / `payout.failed` webhooks (W4 review G3). Today a queued payout that later reverses would stay PAID, and the payee would already have been told they were paid. **For G3:** a reversal primitive existed as `ledger.reverse` at `apps/backend-api/src/modules/payments/ledger.ts:403` in commit `0a42496` (removed in W6, no production caller). Lift the shape from there — but **do not copy `payoutId` onto the mirror posting** as it did: `duesFor` skips every entry carrying `payoutId` (M4), so a reversed payout lifted as-is would never be owed again. The reversal must re-credit the payable as an ordinary entry, or the payout record must move to FAILED/REVERSED so its covered entries are released. |
 | **The bank defect** | Run the diagnostic command. |
 | **"Fix the Pay section"** | Say what was wrong with it. |
 | **A push on a closed phone** | The only real test of every notification in this plan. |

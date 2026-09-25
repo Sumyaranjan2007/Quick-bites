@@ -64,13 +64,6 @@ export function crossesMidnight(window: ServingWindow): boolean {
   return window.closesAt <= window.opensAt;
 }
 
-/** Minutes a window actually covers, counting the wrap past midnight. */
-export function windowLengthMinutes(window: ServingWindow): number {
-  return crossesMidnight(window)
-    ? MINUTES_IN_DAY - window.opensAt + window.closesAt
-    : window.closesAt - window.opensAt;
-}
-
 export interface HoursValidationResult {
   ok: boolean;
   errors: string[];

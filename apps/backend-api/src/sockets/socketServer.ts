@@ -279,10 +279,6 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   return io;
 }
 
-export function getSocketServer(): SocketIOServer | null {
-  return ioInstance;
-}
-
 /**
  * Puts a rider into, or takes them out of, the pool that receives delivery
  * offers — driven by the shift toggle rather than by the client.

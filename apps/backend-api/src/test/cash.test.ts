@@ -17,7 +17,6 @@ import { toPaise, toRupees } from '../modules/payments/money.ts';
 import { createVersion, resetConfigsForTesting } from '../modules/payments/pricingConfig.ts';
 import {
   cashStanding,
-  canTakeCodOrder,
   declareDeposit,
   cancelDeposit,
   confirmDeposit,
@@ -95,7 +94,7 @@ memoryStore.riders.clear();
 
 check('A rider carrying nothing can take cash orders', () => {
   setCash(0);
-  assert.equal(canTakeCodOrder(RIDER), true);
+  assert.equal(cashStanding(RIDER).canTakeCod, true);
   assert.equal(cashStanding(RIDER).message, null, 'a rider with no cash was warned about cash');
 });
 
@@ -131,9 +130,9 @@ check('but they are told online orders still come to them', () => {
 
 check('The ceiling is whatever an administrator set, not a constant', () => {
   createVersion({ codCashCeiling: 10000 }, { userId: ADMIN }, 'Higher ceiling');
-  assert.equal(canTakeCodOrder(RIDER), true, 'raising the ceiling did not unblock the rider');
+  assert.equal(cashStanding(RIDER).canTakeCod, true, 'raising the ceiling did not unblock the rider');
   createVersion({ codCashCeiling: 3000 }, { userId: ADMIN }, 'Back');
-  assert.equal(canTakeCodOrder(RIDER), false);
+  assert.equal(cashStanding(RIDER).canTakeCod, false);
 });
 
 /* ------------------------------------------------------------------ *
@@ -225,7 +224,7 @@ check('An administrator confirms what was counted, and the cash moves', () => {
 });
 
 check('and they can take cash orders again', () => {
-  assert.equal(canTakeCodOrder(RIDER), true);
+  assert.equal(cashStanding(RIDER).canTakeCod, true);
 });
 
 throws('The same deposit cannot be confirmed twice', 'DEPOSIT_ALREADY_SETTLED', () => {
