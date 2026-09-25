@@ -156,8 +156,16 @@ try {
   await cod('AUTO');
   const setRate = (rates: Record<string, number>) =>
     api('/admin/pricing/config', { method: 'PUT', body: { rates, note: 'Kitchen rejection watch' } }, admin.token);
-  const reject = async () => {
-    const id = idOf(await place('RAZORPAY_SANDBOX'));
+  /*
+   * An order the kitchen then rejects. When the order cannot even be placed (a
+   * kitchen already closed, say) this reports it rather than crashing on an
+   * undefined id: a crash is a failure nobody can read, and it hid the named
+   * check below when auto-pause fired while it was switched off.
+   */
+  const reject = async (): Promise<{ status: number; json: any; notPlaced?: boolean }> => {
+    const placed = await place('RAZORPAY_SANDBOX');
+    const id = idOf(placed);
+    if (!id) return { status: placed.status, json: placed.json, notPlaced: true };
     (memoryStore.orders.get(id) as any).status = 'ORDER_PLACED';
     return api(`/orders/${id}/status`, { method: 'PUT', body: { status: 'CANCELLED', cancellationReasonCode: 'KITCHEN_OVERLOADED' } }, partner.token);
   };
@@ -168,8 +176,18 @@ try {
     assert.equal(kitchen().rejectionAlertedOn, undefined);
   });
   await setRate({ rejectionAlertPercent: 20 });
-  await reject();
-  await reject();
+  // Measured after EACH rejection over the rate, with auto-pause at its default
+  // of 0, so a kitchen closed by the first cannot be hidden by the second.
+  const openAfter: Array<{ placed: boolean; isOpen: unknown }> = [];
+  for (let i = 0; i < 2; i++) {
+    const r = await reject();
+    openAfter.push({ placed: !r.notPlaced, isOpen: kitchen().isOpen });
+  }
+  it('with auto-pause at 0, a kitchen over the rejection rate stays OPEN (alert only)', () => {
+    // The cause first: a closed kitchen is also why a later order cannot be placed.
+    assert.ok(openAfter.every(o => o.isOpen !== false), `the kitchen was closed: ${JSON.stringify(openAfter)}`);
+    assert.ok(openAfter.every(o => o.placed), `an order could not be placed: ${JSON.stringify(openAfter)}`);
+  });
   it('Above the owner\'s rate, the control room is alerted, and the kitchen stays open', () => {
     assert.ok(kitchen().rejectionAlertedOn, 'no alert recorded');
     assert.notEqual(kitchen().isOpen, false);
