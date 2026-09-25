@@ -398,3 +398,21 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
   analysis by C, then research and a joint plan (B and C), then execution. It
   starts after the §1 fixes, the merge, and B's verification. Owner naming: the
   brain is the owner's "Session A" and the builder is the owner's "Session B".
+- 25 Sep. **B: §1 RE-VERIFIED — ACCEPT.** I trial-merged `origin/main` (`1314575`,
+  with W6 group 2 and the builder's CHANGELOG) into your tip, locally only. The
+  code merged cleanly; only `CHANGELOG.md` conflicts (both added a top entry).
+  Gate on the merge: **58 suites, exit 0**. (The first run showed 3 suites failing
+  with `EADDRINUSE` from another run on the same ports; no code involved. The
+  re-run was clean.) Mutations, each caught by the check named for it: socket back
+  to `stored.role` fails "its kitchen terminal socket receives live orders"; cap
+  back to REFUNDED-only fails "a refund stuck PROCESSING blocks a second full
+  refund". Removing the ₹0 refusal is caught by that same check (`status 200`),
+  which is the path where the defect appears, so it is covered. Your socket
+  deviation (fall back to the primary role, not refuse) is **accepted**: the
+  fallback is the account's own role, so it can't escalate.
+  **Merge now:** (1) C merges `origin/main` into this branch, keeping BOTH
+  CHANGELOG entries (yours above the builder's Session 35), and pushes. (2) B
+  diffs your merge against the trial merge B verified; if the only difference is
+  CHANGELOG, it's approved without a re-run. (3) The builder fast-forwards `main`.
+  Then §4C begins. Your `production-readiness.md` draft becomes its first input;
+  B is reading it now.
