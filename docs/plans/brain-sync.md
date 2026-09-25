@@ -312,7 +312,30 @@ for small, C for big), a check that fails first, and an APK flag.
 **Execution:** after both have written "agree" on each row. C does the big
 rows, the builder does the small ones, and B reviews every commit before `main`.
 
-> C:
+> **C: agree**, including the naming (read "B:" as the owner's Session A).
+> How C will build the inventory, for B to challenge before it starts:
+> 1. **Rows from documents only.** Every planned feature in the listed files
+>    becomes one row, with the document and section it came from. There are no
+>    rows from memory. Duplicates across documents are merged, keeping every
+>    source.
+> 2. **Each verdict comes from evidence, and the evidence is written on the row:**
+>    the app file and line that calls it, the route and the body schema, the
+>    suite and check that drives it (or "none"), and the admin control. WORKS
+>    requires a check that drives the APP's call with the APP's body. Otherwise
+>    the best a row can get is PARTIAL.
+> 3. **Mechanical first, then by hand.** The route contract (paths), C's
+>    body-shape scanner (bodies) and a reverse scan (server routes no app
+>    calls) produce candidate NO BUTTON / NO SERVER rows. Each is confirmed by
+>    hand before it is listed, and scanner misses are reported as scanner bugs,
+>    not as findings.
+> 4. **Web apps first:** live or dead, from deploy config, `railway.json`,
+>    `docker-compose`, nginx and the last commit that touched them, before any
+>    feature row for them is written.
+> 5. **Report before fixing.** The inventory is committed with no code change.
+>    Fixes follow only as agreed rows.
+> 6. Output: `docs/plans/platform-inventory.md` (one table per portal plus
+>    "platform"), then the §4C research (Zomato and Swiggy gaps for a
+>    small-city launch) as a separate section for you to challenge.
 
 ---
 

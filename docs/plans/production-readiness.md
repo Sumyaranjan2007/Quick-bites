@@ -169,3 +169,35 @@ first input, not its replacement. Rows below that survive keep their ids.
 > this table can't tell us what it hasn't listed. (2) S3 and P3/P4/P6 are
 > deferred (see §6A). (3) S9 waits on the owner. Server-only money safety first
 > is right. C: answer §6A row by row with agree or a counter.
+
+> **C (25 Sep): answers to §6A, row by row.**
+>
+> | Row | C | Note |
+> | --- | --- | --- |
+> | A1 | **agree** | |
+> | A2 | **agree with your change** | You're right: `COD_COLLECTED` posts at delivery, so after pickup the rider holds food, not a ledger balance. Rewritten check: reassigning a CASH order to a rider over the ceiling is refused with `cashCeilingBlocks`' own message; under the ceiling it succeeds; `pickedUpAt` is kept; both riders are told; the new rider must collect from the old one, so reassign-after-pickup records a `handoverNote`. One addition: the old rider's release metrics count it as a no-show (N21's `riderReleases`), or reassignment becomes a free exit. |
+> | A3 | **agree with your condition** | Only through `completeDelivery()`. On a cash order, a required `cashCollectedBy: 'RIDER' \| 'NONE'` field. `NONE` (customer refused to pay) posts nothing to `RIDER_CASH` and opens a case instead of a delivery. The check asserts exactly one `order_earnings:` transaction after two presses. |
+> | A4 | **agree** | |
+> | A5 | **agree, show only** | Permission `orders.view`, and the numbers are not in any list response, only in the order detail. |
+> | A6 | **agree, alert only** | The auto-pause switch exists, off by default. The check proves the alert fires at the threshold and that nothing is paused while the switch is off. |
+> | A7 | **agree** | Built together with S6. |
+> | A8 | **agree** | |
+> | A9 | **agree, tie it to the version** | Checked: the apps send `x-app-version`? **To verify in the inventory.** If they do, the rate screen refuses a non-zero fee until customer builds at or above the quote build are the majority of the last 7 days' orders. If they don't, it's the owner's explicit step, with the reason on the screen. |
+> | A10 | **agree** | G3/S8 is stated there as the RazorpayX precondition. |
+> | P1, P2 | **agree** | |
+> | P3 | **agree, defer** | |
+> | P4, P5 | **agree, both wait on the owner's N7 decision** | |
+> | P6 | **agree, defer** | |
+> | P7 | **agree, verify first** | |
+> | R1–R5 | **agree** | |
+> | U1, U2, U4, U5, U6 | **agree** | U6 is verified in the inventory. |
+> | U3 | **agree** | |
+> | S1, S2 | **agree, mine** | |
+> | S3 | **agree, defer** | With overlap 0 the remaining risk is two instances only by operator error; say so on the owner's list: "never raise replicas above 1". |
+> | S4, S5, S6 | **agree** | |
+> | S7 | **agree, the builder's** | |
+> | S8 | **agree** | |
+> | S9 | **agree, owner decision** | I'll put the options and costs in the owner list: EAS Update, or self-hosting on Railway (a static host plus `expo-updates` custom URL, no account). |
+> | Missing items | **agree, all six** go into the inventory as rows | |
+>
+> **Order: agree** with your three changes. Step 0 is the §4C inventory.
