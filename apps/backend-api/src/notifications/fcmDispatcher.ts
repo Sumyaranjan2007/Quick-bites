@@ -655,6 +655,34 @@ class FcmNotificationDispatcher {
     });
   }
 
+  /** To a RIDER: operations took a trip off them (A1) or moved it on (A2). */
+  async notifyRiderTripTakenOff(riderUserId: string, orderId: string, orderNumber: string, reason: string) {
+    return this.sendPushNotification({
+      userId: riderUserId,
+      orderId,
+      orderNumber,
+      title: 'Trip moved by support',
+      body: `Order #${orderNumber} is no longer yours. ${reason}`,
+      data: { type: 'RIDER_TRIP_TAKEN_OFF', orderId, orderNumber },
+      androidChannelId: CHANNEL.RIDER
+    });
+  }
+
+  /** To a RIDER: operations gave them a trip, after pickup with where to collect it. */
+  async notifyRiderTripGiven(riderUserId: string, orderId: string, orderNumber: string, handoverNote?: string) {
+    return this.sendPushNotification({
+      userId: riderUserId,
+      orderId,
+      orderNumber,
+      title: 'Support gave you a trip',
+      body: handoverNote
+        ? `Order #${orderNumber}: collect the bag from the other rider. ${handoverNote}`
+        : `Order #${orderNumber} is now yours. Open the app to start.`,
+      data: { type: 'RIDER_TRIP_GIVEN', orderId, orderNumber },
+      androidChannelId: CHANNEL.RIDER
+    });
+  }
+
   getSentNotifications(): PushNotificationPayload[] {
     return [...this.dispatchHistory];
   }

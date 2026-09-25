@@ -254,6 +254,13 @@ export const TripScreen: React.FC<{
         ))}
       </View>
 
+      {trip.handoverNote && !trip.deliveredAt ? (
+        <Card style={{ marginTop: t.space[4] }} tone="raised">
+          <Text style={s.tripOrder}>Collect the bag from the other rider</Text>
+          <Text style={s.stopAddress}>{trip.handoverNote}</Text>
+        </Card>
+      ) : null}
+
       <Card style={{ marginTop: t.space[4] }}>
         {/* The leg in progress. Which stop that is follows the same flags the
             two Navigate buttons already use, so the map can never be pointing

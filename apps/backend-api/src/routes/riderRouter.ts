@@ -251,7 +251,13 @@ async function shapeTripForRider(order: Order) {
     placedAt: order.createdAt,
     assignedAt: order.riderAssignedAt,
     pickedUpAt: order.pickedUpAt,
-    deliveredAt: order.deliveredAt
+    deliveredAt: order.deliveredAt,
+    // Set when operations gave this rider a trip whose food another rider is
+    // carrying (A2): where to collect the bag.
+    handoverNote: (() => {
+      const last = order.riderReassignments?.at(-1);
+      return last?.afterPickup && last.toRiderId === order.riderId ? last.handoverNote : undefined;
+    })()
   };
 }
 

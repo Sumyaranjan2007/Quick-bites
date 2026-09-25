@@ -144,6 +144,17 @@ export const CANCELLATION_REASONS: CancellationReason[] = [
     }
   },
   {
+    // A cash order the customer would not pay for at the door. Counted with
+    // the customer's own late cash cancels, so repeat refusals switch cash off.
+    code: 'COD_REFUSED_AT_DOOR',
+    actors: ['admin'],
+    label: {
+      en: 'The customer refused to pay at the door',
+      hi: 'ग्राहक ने दरवाज़े पर भुगतान करने से मना कर दिया',
+      kn: 'ಗ್ರಾಹಕರು ಬಾಗಿಲಲ್ಲಿ ಪಾವತಿಸಲು ನಿರಾಕರಿಸಿದರು'
+    }
+  },
+  {
     code: 'OTHER',
     actors: ['customer', 'restaurant', 'admin'],
     allowsNote: true,

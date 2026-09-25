@@ -98,7 +98,8 @@ const SUITES = [
   'duplicateCapture',
   'marginGuard',
   'rateLimitPerUser',
-  'changeTracking'
+  'changeTracking',
+  'opsRescue'
 ];
 
 /*

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState } from './ui';
+import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState, Segmented, CheckRow } from './ui';
 import { tokens, formatMoney, formatDateTime, humanise, toneForStatus } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
@@ -18,13 +18,19 @@ const c = tokens.colors;
  * Used from Orders, Live Deliveries and a refund case, because all three
  * ultimately want the same view.
  */
+const CLOSED = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
+
 export const OrderDetailSheet: React.FC<{
   orderId: string | null;
   onClose: () => void;
   onChanged?: () => void;
 }> = ({ orderId, onClose, onChanged }) => {
   const { api, can } = useSession();
-  const [action, setAction] = useState<'none' | 'refund' | 'cancel'>('none');
+  const [action, setAction] = useState<'none' | 'refund' | 'cancel' | 'unassign' | 'reassign' | 'deliver'>('none');
+  const [handoverNote, setHandoverNote] = useState('');
+  const [pickedRiderId, setPickedRiderId] = useState<string | null>(null);
+  const [cashCollectedBy, setCashCollectedBy] = useState<'RIDER' | 'NONE' | ''>('');
+  const [countAsNoShow, setCountAsNoShow] = useState(false);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,11 +41,104 @@ export const OrderDetailSheet: React.FC<{
     { enabled: Boolean(orderId) }
   );
 
-  const close = () => {
+  // Free, approved, on-shift riders: the only ones the server will accept.
+  const riders = useResource(
+    () => api.get<any>('/admin/drivers?status=ONLINE&pageSize=100'),
+    [action],
+    { enabled: action === 'reassign' }
+  );
+  const freeRiders = ((riders.data?.drivers || []) as any[]).filter(
+    r => r.kycStatus === 'ACTIVE' && !r.isBlocked && !r.activeOrderId && r.id !== resource.data?.order?.riderId
+  );
+
+  const resetForms = () => {
     setAction('none');
     setReason('');
     setAmount('');
+    setHandoverNote('');
+    setPickedRiderId(null);
+    setCashCollectedBy('');
+    setCountAsNoShow(false);
+  };
+
+  const close = () => {
+    resetForms();
     onClose();
+  };
+
+  /** One path for the three road actions: send, tell staff the server's words, refresh. */
+  const rescue = async (send: () => Promise<any>, done: string) => {
+    setBusy(true);
+    try {
+      const result = await send();
+      const refused = result?.outcome === 'REFUSED_AT_DOOR';
+      Alert.alert(
+        refused ? 'Closed as refused' : 'Done',
+        refused ? 'Nothing was booked to the rider. A case was opened in Support for the kitchen\'s loss.' : done
+      );
+      resetForms();
+      await resource.reload();
+      onChanged?.();
+    } catch (err: any) {
+      Alert.alert('Not changed', err?.message || 'The order was not changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitUnassign = () => {
+    if (reason.trim().length < 3) {
+      Alert.alert('A reason is required', 'Record why the trip is being taken off the rider.');
+      return;
+    }
+    void rescue(
+      () => api.post<any>(`/admin/orders/${orderId}/unassign-rider`, { reason: reason.trim(), countAsNoShow }),
+      'The trip is back on offer to nearby riders.');
+  };
+
+  const submitReassign = () => {
+    const afterPickup = Boolean(resource.data?.order?.pickedUpAt);
+    if (!pickedRiderId) {
+      Alert.alert('Choose a rider', 'Pick the rider who will take this trip.');
+      return;
+    }
+    if (reason.trim().length < 3) {
+      Alert.alert('A reason is required', 'Record why the trip is being moved.');
+      return;
+    }
+    if (afterPickup && handoverNote.trim().length < 5) {
+      Alert.alert('Where is the food?', 'Write where the new rider should collect the bag from the first rider.');
+      return;
+    }
+    void rescue(
+      () =>
+        api.post<any>(`/admin/orders/${orderId}/reassign-rider`, {
+          riderId: pickedRiderId,
+          reason: reason.trim(),
+          ...(afterPickup ? { handoverNote: handoverNote.trim() } : {})
+        }),
+      'Both riders have been told.'
+    );
+  };
+
+  const submitDeliver = () => {
+    const isCash = resource.data?.order?.paymentMethod === 'CASH_ON_DELIVERY';
+    if (reason.trim().length < 5) {
+      Alert.alert('A reason is required', 'Record how you confirmed the customer has the food.');
+      return;
+    }
+    if (isCash && !cashCollectedBy) {
+      Alert.alert('Who has the cash?', 'Say whether the rider collected the cash from the customer.');
+      return;
+    }
+    void rescue(
+      () =>
+        api.post<any>(`/admin/orders/${orderId}/mark-delivered`, {
+          reason: reason.trim(),
+          ...(isCash ? { cashCollectedBy } : {})
+        }),
+      'Marked delivered. Earnings and the rider\'s cash are recorded.'
+    );
   };
 
   const submitRefund = async () => {
@@ -93,6 +192,20 @@ export const OrderDetailSheet: React.FC<{
       footer={
         order && action === 'none' ? (
           <>
+            {can('orders.deliveries.manage') && order.riderId && !order.pickedUpAt && !CLOSED.includes(order.status) ? (
+              <Button label="Take trip off rider" variant="secondary" full onPress={() => setAction('unassign')} />
+            ) : null}
+            {can('orders.deliveries.manage') && !CLOSED.includes(order.status) ? (
+              <Button
+                label={order.riderId ? 'Give to another rider' : 'Give to a rider'}
+                variant="secondary"
+                full
+                onPress={() => setAction('reassign')}
+              />
+            ) : null}
+            {can('orders.status.update') && order.status === 'OUT_FOR_DELIVERY' ? (
+              <Button label="Mark delivered" full onPress={() => setAction('deliver')} />
+            ) : null}
             {can('orders.cancel') && !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(order.status) ? (
               <Button label="Cancel order" variant="danger" full onPress={() => setAction('cancel')} />
             ) : null}
@@ -129,6 +242,108 @@ export const OrderDetailSheet: React.FC<{
           <View style={s.actionRow}>
             <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
             <Button label="Credit the wallet" full loading={busy} onPress={submitRefund} />
+          </View>
+        </Card>
+      ) : null}
+
+      {data && action === 'unassign' ? (
+        <Card>
+          <Text style={s.blockTitle}>Take this trip off {order.riderName || 'the rider'}</Text>
+          <Text style={s.blockBody}>
+            Use this when the rider cannot collect: a dead phone, a breakdown, no answer. The trip goes back on offer to
+            nearby riders straight away and the kitchen carries on cooking.
+          </Text>
+          <Field label="Reason" value={reason} onChangeText={setReason} placeholder="Phone switched off, bike broke down…" multiline />
+          <CheckRow
+            title="Count this as a no-show for the rider"
+            checked={countAsNoShow}
+            onToggle={() => setCountAsNoShow(v => !v)}
+          />
+          <View style={s.actionRow}>
+            <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
+            <Button label="Take it off" variant="danger" full loading={busy} onPress={submitUnassign} />
+          </View>
+        </Card>
+      ) : null}
+
+      {data && action === 'reassign' ? (
+        <Card>
+          <Text style={s.blockTitle}>Give this trip to a rider</Text>
+          <Text style={s.blockBody}>
+            {order.pickedUpAt
+              ? 'The food is already with the first rider. The new rider collects it from them, so say where. The first rider gets a no-show.'
+              : 'The new rider goes to the restaurant. Only free, approved riders who are on shift are listed.'}
+            {order.paymentMethod === 'CASH_ON_DELIVERY' ? ' This is a cash order: a rider holding too much cash will be refused.' : ''}
+          </Text>
+          {riders.loading ? <Loading label="Finding free riders…" /> : null}
+          {!riders.loading && riders.error ? (
+            <EmptyState title="Could not load riders" message={riders.error} action={<Button label="Try again" variant="secondary" onPress={() => void riders.reload()} />} />
+          ) : null}
+          {!riders.loading && !riders.error && freeRiders.length === 0 ? (
+            <EmptyState title="No free rider on shift" message="Every approved rider on shift is busy or offline. Try again in a minute." />
+          ) : null}
+          {freeRiders.map(r => (
+            <CheckRow
+              key={r.id}
+              title={`${r.fullName}${r.driverCode ? ` · ${r.driverCode}` : ''}`}
+              description={`${r.phone || ''} · holding ${formatMoney(r.codCashInHand)} cash`}
+              checked={pickedRiderId === r.id}
+              onToggle={() => setPickedRiderId(r.id)}
+            />
+          ))}
+          <Field label="Reason" value={reason} onChangeText={setReason} placeholder="First rider's bike broke down…" multiline />
+          {order.pickedUpAt ? (
+            <Field
+              label="Where to collect the bag"
+              value={handoverNote}
+              onChangeText={setHandoverNote}
+              placeholder="Outside the petrol pump on 5th Main, first rider waiting"
+              multiline
+            />
+          ) : null}
+          <View style={s.actionRow}>
+            <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
+            <Button label="Give the trip" full loading={busy} onPress={submitReassign} />
+          </View>
+        </Card>
+      ) : null}
+
+      {data && action === 'deliver' ? (
+        <Card>
+          <Text style={s.blockTitle}>Mark delivered</Text>
+          <Text style={s.blockBody}>
+            Only when the customer cannot read out their code and you have confirmed they have the food, for example on a
+            call. Your name and reason are recorded.
+          </Text>
+          <Field label="How you confirmed it" value={reason} onChangeText={setReason} placeholder="Called the customer, they have the food" multiline />
+          {order.paymentMethod === 'CASH_ON_DELIVERY' ? (
+            <>
+              <Text style={s.blockBody}>This is a cash order. Did the rider collect the cash?</Text>
+              <Segmented
+                options={[
+                  { key: 'RIDER', label: 'Yes, rider has the cash' },
+                  { key: 'NONE', label: 'No, customer refused' }
+                ]}
+                value={cashCollectedBy}
+                onChange={key => setCashCollectedBy(key as 'RIDER' | 'NONE')}
+              />
+              {cashCollectedBy === 'NONE' ? (
+                <Text style={s.blockBody}>
+                  The order is closed as refused, not delivered. Nothing is booked to the rider, and a Support case is
+                  opened to decide the kitchen's loss.
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+          <View style={s.actionRow}>
+            <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
+            <Button
+              label={cashCollectedBy === 'NONE' ? 'Close as refused' : 'Mark delivered'}
+              variant={cashCollectedBy === 'NONE' ? 'danger' : undefined}
+              full
+              loading={busy}
+              onPress={submitDeliver}
+            />
           </View>
         </Card>
       ) : null}

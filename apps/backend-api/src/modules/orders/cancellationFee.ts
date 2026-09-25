@@ -106,6 +106,8 @@ export function lateCashCancels(customerId: string): number {
     if (o.customerId !== customerId) continue;
     if (o.paymentMethod !== 'CASH_ON_DELIVERY') continue;
     if (o.status !== 'CANCELLED') continue;
+    // A refusal at the door is the customer's cancel even though staff record it.
+    if (o.cancellationReasonCode === 'COD_REFUSED_AT_DOOR') { count++; continue; }
     if (o.cancelledByRole !== 'customer') continue;
     if (!o.cancelledFromStatus || !(AFTER_ACCEPT.includes(o.cancelledFromStatus) || AFTER_READY.includes(o.cancelledFromStatus))) continue;
     count++;

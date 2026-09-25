@@ -713,6 +713,33 @@ export interface Order {
    * order, and stamping `cancelledAt` on it made it read as cancelled.
    */
   riderReleases?: Array<{ riderId: string; reason: string; at: string }>;
+  /**
+   * Operations moved this trip from one rider to another (A1 takes it off,
+   * A2 hands it to a named rider). After pickup the new rider has to collect
+   * the bag from the old one, which is what `handoverNote` tells them.
+   */
+  riderReassignments?: Array<{
+    fromRiderId?: string;
+    toRiderId?: string;
+    byUserId: string;
+    reason: string;
+    handoverNote?: string;
+    afterPickup: boolean;
+    at: string;
+  }>;
+  /**
+   * Operations closed this order at the door because the customer could not
+   * read their code (A3). `cashCollectedBy` says whether the rider took the
+   * cash on a cash order; NONE means it was refused and the order was not
+   * delivered, so this is only set with RIDER or on a prepaid order.
+   */
+  deliveredByOperations?: {
+    byUserId: string;
+    byName: string;
+    reason: string;
+    cashCollectedBy?: 'RIDER';
+    at: string;
+  };
   cancelledAt?: string;
   cancellationReason?: string;
   /**

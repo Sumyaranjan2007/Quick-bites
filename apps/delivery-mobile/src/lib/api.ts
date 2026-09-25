@@ -487,6 +487,8 @@ export interface Trip {
   itemCount: number;
   items: Array<{ name: string; quantity: number }>;
   estimatedEarnings: number;
+  /** Support gave you this trip after pickup: collect the bag here, from the other rider. */
+  handoverNote?: string;
   paymentMode: 'COD' | 'PREPAID';
   cashToCollect: number;
   orderTotal: number;

@@ -14,6 +14,7 @@ import { LIVE_STATUSES, IN_TRANSIT_STATUSES, economicsOf } from '../../modules/a
 import { shapeOrderDetail, summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore } from '../../db/client.ts';
 import { findCancellationReason } from '../../modules/orders/cancellationReasons.ts';
+import { takeTripOffRider, reassignTrip, deliverByOperations } from '../../modules/orders/opsRescue.ts';
 import type { Order, OrderStatus } from '@quick-bites/shared-types';
 
 export const orderRoutes = Router();
@@ -325,6 +326,108 @@ orderRoutes.post(
       });
 
       res.json({ success: true, data: { order: result.order, refund } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ---------------------------------------------------------------------- *
+ *  A trip gone wrong on the road (A1, A2, A3). The rules are in opsRescue. *
+ * ---------------------------------------------------------------------- */
+const opsActor = (req: any) => ({ userId: req.user!.id, name: req.user?.fullName || 'Operations' });
+
+const UnassignSchema = z.object({
+  reason: z.string().trim().min(3, 'Record why the trip was taken off the rider.').max(300),
+  countAsNoShow: z.boolean().optional()
+});
+
+/** POST /api/admin/orders/:id/unassign-rider — A1, before pickup only. */
+orderRoutes.post(
+  '/orders/:id/unassign-rider',
+  requirePermission('orders.deliveries.manage'),
+  validate({ body: UnassignSchema }),
+  async (req, res, next) => {
+    try {
+      const before = (await orderRepository.findById(req.params.id))?.riderName;
+      const order = await takeTripOffRider(req.params.id, opsActor(req), req.body);
+      recordAudit(req, {
+        action: 'ORDER_RIDER_UNASSIGNED',
+        entityType: 'ORDER',
+        entityId: order.id,
+        summary: `Took order #${order.orderNumber} off ${before || 'the rider'} — ${req.body.reason}`,
+        before: { rider: before },
+        after: { rider: null }
+      });
+      res.json({ success: true, data: order, message: 'Trip taken off the rider and offered again.' });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const ReassignSchema = z.object({
+  riderId: z.string().min(1, 'Choose the rider to give this trip to.'),
+  reason: z.string().trim().min(3, 'Record why the trip is being moved.').max(300),
+  handoverNote: z.string().trim().max(300).optional()
+});
+
+/** POST /api/admin/orders/:id/reassign-rider — A2, before or after pickup. */
+orderRoutes.post(
+  '/orders/:id/reassign-rider',
+  requirePermission('orders.deliveries.manage'),
+  validate({ body: ReassignSchema }),
+  async (req, res, next) => {
+    try {
+      const before = (await orderRepository.findById(req.params.id))?.riderName;
+      const order = await reassignTrip(req.params.id, opsActor(req), req.body);
+      recordAudit(req, {
+        action: 'ORDER_RIDER_REASSIGNED',
+        entityType: 'ORDER',
+        entityId: order.id,
+        summary: `Gave order #${order.orderNumber} from ${before || 'nobody'} to ${order.riderName} — ${req.body.reason}`,
+        before: { rider: before },
+        after: { rider: order.riderName, handoverNote: req.body.handoverNote }
+      });
+      res.json({ success: true, data: order, message: `Trip given to ${order.riderName}.` });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const OpsDeliverSchema = z.object({
+  reason: z.string().trim().min(5, 'Record how you confirmed the customer has the food.').max(300),
+  cashCollectedBy: z.enum(['RIDER', 'NONE']).optional()
+});
+
+/** POST /api/admin/orders/:id/mark-delivered — A3, the customer cannot read their code. */
+orderRoutes.post(
+  '/orders/:id/mark-delivered',
+  requirePermission('orders.status.update'),
+  validate({ body: OpsDeliverSchema }),
+  async (req, res, next) => {
+    try {
+      const result = await deliverByOperations(req.params.id, opsActor(req), req.body);
+      recordAudit(req, {
+        action: result.outcome === 'DELIVERED' ? 'ORDER_DELIVERED_BY_OPERATIONS' : 'ORDER_COD_REFUSED',
+        entityType: 'ORDER',
+        entityId: result.order.id,
+        summary:
+          result.outcome === 'DELIVERED'
+            ? `Marked order #${result.order.orderNumber} delivered — ${req.body.reason}`
+            : `Closed order #${result.order.orderNumber}: cash refused at the door — ${req.body.reason}`,
+        before: { status: 'OUT_FOR_DELIVERY' },
+        after: { status: result.order.status, cashCollectedBy: req.body.cashCollectedBy }
+      });
+      res.json({
+        success: true,
+        data: result,
+        message:
+          result.outcome === 'DELIVERED'
+            ? 'Marked delivered.'
+            : 'Closed as refused. A case was opened for the kitchen\'s loss.'
+      });
     } catch (err) {
       next(err);
     }
