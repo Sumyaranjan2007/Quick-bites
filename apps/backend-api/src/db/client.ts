@@ -259,6 +259,21 @@ export function setPersistenceBackend(next: PersistenceBackend | null): void {
   backend = next;
 }
 
+/**
+ * Waits until everything written so far is in the database (N19).
+ *
+ * Money routes answer only after this resolves: a capture, a refund or a
+ * payout marked paid used to be acknowledged up to two seconds before the
+ * debounced flush wrote it, so a restart in that window lost money the app
+ * had already been told about. With no database attached (local development,
+ * the test gate) there is nothing more durable to wait for, and it resolves
+ * at once, so the file store keeps its debounce.
+ */
+export function persistDurably(): Promise<void> {
+  if (!backend) return Promise.resolve();
+  return flushStore();
+}
+
 /** Serialises saves so a slow write cannot overlap the next one. */
 let inFlight: Promise<void> = Promise.resolve();
 

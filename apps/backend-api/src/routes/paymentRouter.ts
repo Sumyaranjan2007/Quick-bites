@@ -22,6 +22,7 @@
  * is acknowledged without being applied — otherwise a retry credits a wallet
  * twice, and the retry is not the customer's fault.
  */
+import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
@@ -35,6 +36,9 @@ import { memoryStore, triggerAutoSave } from '../db/client.ts';
 import { config } from '../config/env.ts';
 
 export const paymentRouter = Router();
+
+// Money writes answer only once they are in the database (N19).
+paymentRouter.use(durable);
 
 /** Events already applied, so a retry changes nothing. */
 const seenKey = (eventId: string) => `rzp:event:${eventId}`;

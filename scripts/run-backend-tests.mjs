@@ -93,7 +93,8 @@ const SUITES = [
   'regression',
   'abuseGuards',
   'profitGuards',
-  'bodyContract'
+  'bodyContract',
+  'durableMoney'
 ];
 
 /*

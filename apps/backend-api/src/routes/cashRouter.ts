@@ -9,6 +9,7 @@
  * rider id in any path, so there is nothing to change in a request to collect
  * against somebody else's order or deposit against somebody else's cash.
  */
+import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
@@ -35,6 +36,9 @@ import { memoryStore, triggerAutoSave } from '../db/client.ts';
 import { notifyAdminsCashDeclared } from '../notifications/adminNotifier.ts';
 
 export const cashRouter = Router();
+
+// Money writes answer only once they are in the database (N19).
+cashRouter.use(durable);
 
 /** The signed-in rider, resolved from the token and never from the body. */
 async function self(req: any) {

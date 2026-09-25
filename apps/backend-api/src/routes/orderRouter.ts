@@ -1,3 +1,4 @@
+import { durable } from '../middlewares/durable.ts';
 import { quoteCancellation } from '../modules/orders/cancellationFee.ts';
 import { canTransition } from '../modules/orders/orderStateMachine.ts';
 import { Router } from 'express';
@@ -373,7 +374,7 @@ const ConfirmPaymentSchema = z.object({
 });
 
 // POST /api/v1/orders/:id/confirm-payment - Moves PAYMENT_PENDING -> ORDER_PLACED
-orderRouter.post('/:id/confirm-payment', authMiddleware(), validate({ body: ConfirmPaymentSchema }), async (req, res, next) => {
+orderRouter.post('/:id/confirm-payment', authMiddleware(), durable, validate({ body: ConfirmPaymentSchema }), async (req, res, next) => {
   try {
     const order = await orderService.confirmPayment(
       req.params.id,
@@ -527,7 +528,7 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
   }
 }
 
-orderRouter.put('/:id/status', authMiddleware(), validate({ body: StatusTransitionSchema }), async (req, res, next) => {
+orderRouter.put('/:id/status', authMiddleware(), durable, validate({ body: StatusTransitionSchema }), async (req, res, next) => {
   try {
     await assertMayTransition(req, req.params.id, req.body.status);
 

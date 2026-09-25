@@ -10,6 +10,7 @@
  * enforced here, on the server, for every route — the app hiding a section is a
  * convenience, not the control.
  */
+import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { attachAdminAccess } from '../middlewares/adminAccess.ts';
 import { dashboardRoutes } from './admin/dashboardRoutes.ts';
@@ -29,6 +30,14 @@ import { legacyRoutes } from './admin/legacyRoutes.ts';
 export const adminRouter = Router();
 
 adminRouter.use(attachAdminAccess);
+/*
+ * Every admin WRITE answers only once it is in the database (N19). Admin
+ * writes are rare and most of them move money or decide who is paid (a
+ * cancellation refunds, a payout is sent, a rate changes the next bill), so
+ * they are all held rather than choosing route by route, where a router
+ * mounted in the wrong order would silently miss out.
+ */
+adminRouter.use(durable);
 
 adminRouter.use(dashboardRoutes);
 adminRouter.use(orderRoutes);

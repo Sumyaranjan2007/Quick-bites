@@ -19,6 +19,7 @@
  * exactly one attack, and the only defence is a check somebody has to remember
  * to write.
  */
+import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
@@ -40,6 +41,9 @@ import { isDatabaseConfigured, storeLoadedAt } from '../db/postgresStore.ts';
 import { notifyAdminsBankAccountFiled } from '../notifications/adminNotifier.ts';
 
 export const payeeAccountRouter = Router();
+
+// Money writes answer only once they are in the database (N19).
+payeeAccountRouter.use(durable);
 
 /**
  * GET /api/payee-accounts/me/diagnostic

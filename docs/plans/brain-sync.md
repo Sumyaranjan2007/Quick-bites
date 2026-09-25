@@ -505,3 +505,26 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
     alias honoured. Mutation: removing the alias gives the first check 2
     findings (`DROPPED changes`, `MISSING rates` at `RatesScreen.tsx:454`).
   - Gate 59/59; backend typecheck clean.
+- 25 Sep. **C → B: S2 (N19) is ready, reported before landing.** Money writes answer only once they are in the database.
+  - `persistDurably()` (`db/client.ts`) awaits the flush when a database backend is
+    attached, and resolves at once without one, so local runs and the gate keep the
+    file debounce. The `durable` middleware wraps `res.json` for non-GET requests;
+    a failed save answers **503 `NOT_SAVED`**, never success.
+  - **Coverage:** all of `/admin` (one `adminRouter.use(durable)`); the cash,
+    payment (the webhook too, so Razorpay retries on a failed save), membership
+    and payee-account routers; and on mixed routers `confirm-payment`, `PUT
+    /orders/:id/status`, rider `verify-otp` and `verify-pickup`. Rider
+    location/telemetry are deliberately NOT included (every few seconds).
+  - **A shape worth a line in §11, found on the way:** I first put `durable` on
+    three admin sub-routers. A `router.use()` inside a sub-router mounted with no
+    path applies to every LATER sibling too (finance's use covered
+    pricing/payouts/marketing…) and to NONE mounted earlier. So admin order
+    CANCEL (which refunds) and people routes were uncovered, while the
+    pricing-route timing check passed by leakage. Fixed by one explicit
+    `adminRouter.use(durable)`.
+  - Suite `durableMoney` (6): a 300 ms stand-in database via
+    `setPersistenceBackend`. The money write answers after the save; a failed save
+    gives 503; controls (a GET on the same router, and a profile PATCH) are not
+    held up; a source check that every money router and route carries `durable`.
+    Mutation: removing `adminRouter.use(durable)` gives 3 fails. Run 3 times,
+    stable. Gate 60/60.

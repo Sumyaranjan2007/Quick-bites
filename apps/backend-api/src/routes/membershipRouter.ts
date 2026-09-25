@@ -7,6 +7,7 @@
  * special-cased into a cheaper path, because a benefit granted on a client's
  * say-so is a benefit anyone can grant themselves.
  */
+import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
@@ -24,6 +25,9 @@ import {
 } from '../modules/membership/membershipService.ts';
 
 export const membershipRouter = Router();
+
+// Money writes answer only once they are in the database (N19).
+membershipRouter.use(durable);
 
 /**
  * GET /api/v1/membership/plans

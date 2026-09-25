@@ -1,3 +1,4 @@
+import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -1047,7 +1048,7 @@ const VerifyPickupSchema = z.object({
 });
 
 // POST /api/riders/orders/:id/verify-pickup
-riderRouter.post('/orders/:id/verify-pickup', validate({ body: VerifyPickupSchema }), async (req, res, next) => {
+riderRouter.post('/orders/:id/verify-pickup', durable, validate({ body: VerifyPickupSchema }), async (req, res, next) => {
   try {
     const { pickupCode } = req.body;
     const self = await requireRiderSelf(req);
@@ -1104,7 +1105,7 @@ const VerifyOtpSchema = z.object({
 });
 
 // POST /api/riders/orders/:id/verify-otp
-riderRouter.post('/orders/:id/verify-otp', validate({ body: VerifyOtpSchema }), async (req, res, next) => {
+riderRouter.post('/orders/:id/verify-otp', durable, validate({ body: VerifyOtpSchema }), async (req, res, next) => {
   try {
     const { deliveryOtp } = req.body;
     const self = await requireRiderSelf(req);
