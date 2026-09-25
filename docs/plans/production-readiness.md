@@ -101,6 +101,59 @@ deploy overlap = 0 until S3. Rotate the Mapbox `sk.` token. The CA decisions on
 N7, TDS 0.1% and TCS. The numbers for N2/N9/N11. One real order end to end on
 real phones.
 
+## 6A. B's challenges (25 Sep) — row by row
+
+**The big one first.** This draft is a gap list built from C's audit. The owner's
+latest instruction (brain-sync **§4C**) asks for more: an **inventory of every
+feature planned so far**, built from the documents and not from memory, with
+one verdict per feature (WORKS / PARTIAL / NO BUTTON / NO SERVER / MISSING /
+DEAD), across all five portals **including admin-web and restaurant-web**, which
+this draft doesn't mention. That inventory comes FIRST, and this table is its
+first input, not its replacement. Rows below that survive keep their ids.
+
+| Row | B | Why |
+| --- | --- | --- |
+| A1 | **agree** | |
+| A2 | **change** | Rider cash is posted at DELIVERY (`earnings.ts`:360 `COD_COLLECTED` into `RIDER_CASH`), so a rider who vanished after pickup and before delivery holds **food, not cash**, and there is nothing to move. The check as written would test a posting that can't exist. The real cash question is the NEW rider's cash ceiling: reassigning a cash order must pass `cashCeilingBlocks` for them, or be refused with its message. Rewrite the check around that. |
+| A3 | **agree, one condition** | Must go through `completeDelivery()`, the one function. A second path to DELIVERED is how the money split once happened twice. On a cash order it posts `RIDER_CASH` for the rider who holds the cash, so it needs the rider's confirmation or an explicit "rider confirms cash collected" field. |
+| A4 | **agree** | |
+| A5 | **agree (show only)** | Masked calling needs a provider and money; that's owner-only. Show numbers to staff with `orders.view` only. |
+| A6 | **change** | An automatic pause of a real restaurant is a business action. With two restaurants in a closed trial: **alert only**, and the auto-pause switch exists but is **off by default**. The owner decides. |
+| A7 | **agree** | Same row as S6/N11; build them together. |
+| A8 | **agree** | |
+| A9 | **agree, one condition** | `customerAppShowsCancelQuote` must not be a switch someone flips by guesswork. Tie it to the customer app's reported version (the apps send one) or make it the owner's explicit step after the APK round, with the reason written on the rates screen. |
+| A10 | **agree** | Add G3 (S8) as a precondition for RazorpayX. It's there as S8; say it here too. |
+| P1, P2 | **agree** | |
+| P3 | **defer** | Restaurant-funded offers are a growth feature. Two restaurants in a closed trial don't need it before launch. After launch. |
+| P4 | **defer until the owner decides N7** | The invoice exists only if the commission-GST share is non-zero. |
+| P5 | **agree, bundled with P4's decision** | |
+| P6 | **defer** | Staff logins: after launch, unless the owner says their dhaba needs a manager login now. I'll ask. |
+| P7 | **agree** | Verify first, as written. |
+| R1–R5 | **agree** | All APK; one round. |
+| U1, U2, U4, U5 | **agree** | U6: verify first, as written. |
+| U3 | **agree** | The server refusal waits until the pin-requiring app has shipped, as written. |
+| S1, S2 | **agree** | C owns these (moved from the builder, §4A). |
+| S3 | **defer** | N17's risk goes away when the owner sets Railway overlap to 0 (§6). A version column and compare-and-set are L-sized work for a risk the owner can remove in one setting. Revisit at scale. |
+| S4, S5, S6 | **agree** | |
+| S7 | **agree** | The builder, after the merge. |
+| S8 | **agree** | A precondition for RazorpayX, not for the trial. |
+| S9 | **change → owner decision** | `expo-updates` needs an update host (EAS Update or self-hosted), which means an account and possibly a cost. The owner decides before we build it. If yes, it goes FIRST in the APK round, as C says. |
+
+**Missing from the draft** (goes into the §4C inventory):
+- **The web apps.** Live or dead? If live, they get the same inventory; if
+  dead, a row saying so.
+- **Admin push reaching the owner's phone.** It needs the admin APK and the
+  §8.3 real-phone test. Put it in the APK round's acceptance list.
+- **The admin buttons C built** (office cash, the desk) and every server-only
+  admin feature since 23 Sep: list them in the admin APK round, so the owner
+  knows what the new build brings.
+- **The customer live map (§8B)**: its state is unknown to me. Inventory it.
+- **`recordCashRefundAtDoor`**: a tested money path with no route. The ruling
+  was: don't expose it to riders (they could claim it on their word alone). It
+  gets a row: an admin-recorded "cash returned at the door", or DEAD.
+- **Owner-only additions to §6:** the §5.1 "fix the Pay section" complaint is
+  still undiagnosed, and so is the bank-account diagnostic.
+
 ## 7. Proposed order (C's proposal)
 
 1. **Server-only, money-safety first:** S7 (A), S2, S1, S3, S5, S4, S6, S8.
@@ -110,4 +163,9 @@ real phones.
 4. **Partner "like Zomato" (after the round, via OTA if S9 landed):** P1, P2,
    P3, P4, P6, then U3.
 
-> B:
+> B: **The order is agreed in principle, with three changes.** (1) Step 0 is the
+> §4C inventory: nothing is built from this table until the inventory exists,
+> because the owner asked for "every feature planned so far" to be checked and
+> this table can't tell us what it hasn't listed. (2) S3 and P3/P4/P6 are
+> deferred (see §6A). (3) S9 waits on the owner. Server-only money safety first
+> is right. C: answer §6A row by row with agree or a counter.
