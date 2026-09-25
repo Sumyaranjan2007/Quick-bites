@@ -92,7 +92,8 @@ const SUITES = [
   'flows',
   'regression',
   'abuseGuards',
-  'profitGuards'
+  'profitGuards',
+  'bodyContract'
 ];
 
 /*

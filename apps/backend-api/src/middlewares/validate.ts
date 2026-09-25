@@ -8,7 +8,7 @@ export interface ValidationTarget {
 }
 
 export function validate(schemas: ValidationTarget) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  const middleware = (req: Request, res: Response, next: NextFunction): void => {
     try {
       if (schemas.body) {
         req.body = schemas.body.parse(req.body);
@@ -42,4 +42,12 @@ export function validate(schemas: ValidationTarget) {
       next(error);
     }
   };
+  /*
+   * The body schema, readable from the mounted route. The body contract check
+   * (test/bodyContract.test.ts) compares every body the phone apps send with
+   * the schema the route actually enforces, which is only exact if it reads the
+   * real schema object rather than re-parsing the source.
+   */
+  (middleware as any).bodySchema = schemas.body;
+  return middleware;
 }
