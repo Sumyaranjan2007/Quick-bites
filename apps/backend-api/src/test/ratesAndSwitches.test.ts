@@ -143,7 +143,19 @@ try {
 
     const put = await api(
       '/admin/pricing/config',
-      { method: 'PUT', body: { rates: { [bound.key]: target }, note: `round trip ${bound.key}` } },
+      {
+        method: 'PUT',
+        body: {
+          // A cancel fee needs the owner's confirmation that the app showing it is out (A9).
+          // and turning that confirmation off needs the fees back at 0 first.
+          rates: {
+            ...(bound.key.startsWith('cancelFee') ? { cancelQuoteLiveOnPhones: 1 } : {}),
+            ...(bound.key === 'cancelQuoteLiveOnPhones' ? { cancelFeePercentAfterAccept: 0, cancelFeePercentAfterReady: 0 } : {}),
+            [bound.key]: target
+          },
+          note: `round trip ${bound.key}`
+        }
+      },
       admin.token
     );
     const readBack = Number((getActiveRates() as any)[bound.key]);

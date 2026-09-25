@@ -280,7 +280,13 @@ try {
   // -------------------------------------------------------------------
   console.log('\n-- N2: cancelling after the kitchen started');
 
-  await setRates({ cancelFeePercentAfterAccept: 50 });
+  // A9: refused until the customer app that shows the fee is on phones.
+  const lockedFee = await setRates({ cancelFeePercentAfterAccept: 50 });
+  it('A cancel fee is refused until the owner confirms the fee-showing app is on phones (A9)', () => {
+    assert.ok(lockedFee.status >= 400, `status ${lockedFee.status}`);
+    assert.match(JSON.stringify(lockedFee.json), /Customer app shows the cancel fee/);
+  });
+  await setRates({ cancelQuoteLiveOnPhones: 1, cancelFeePercentAfterAccept: 50 });
   const late = await paidOrder();
   await api(`/orders/${late.id}/status`, { method: 'PUT', body: { status: 'ACCEPTED', preparationMinutes: 20 } }, partner.token);
   const quote = await api(`/orders/${late.id}/cancellation-quote`, {}, customer.token);

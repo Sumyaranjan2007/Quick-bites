@@ -1595,6 +1595,19 @@ export interface PricingRates {
    * coupon's discount is trimmed at checkout, never refused. 0 = off.
    */
   minPlatformMarginPerOrder: number;
+  /**
+   * A9: 1 once the customer app that shows the cancellation fee BEFORE the
+   * customer confirms is on customers' phones. Until then no cancel fee can be
+   * set, so nobody is charged a fee they were never shown.
+   */
+  cancelQuoteLiveOnPhones: number;
+  /**
+   * A6: staff are alerted when a restaurant rejects at least this share of its
+   * recent orders. 0 = off.
+   */
+  rejectionAlertPercent: number;
+  /** A6: 1 = also close the kitchen automatically at that rate. Off by default. */
+  rejectionAutoPause: number;
 }
 
 export interface PricingConfig {
@@ -1897,7 +1910,10 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   cancelFeePercentAfterReady: 0,
   codCancelLimit: 0,
   commissionGstChargedToPartnerPercent: 0,
-  minPlatformMarginPerOrder: 0
+  minPlatformMarginPerOrder: 0,
+  cancelQuoteLiveOnPhones: 0,
+  rejectionAlertPercent: 0,
+  rejectionAutoPause: 0
 };
 
 /* ------------------------------------------------------------------------- *

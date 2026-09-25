@@ -149,6 +149,37 @@ try {
     assert.equal(good.status, 200, JSON.stringify(good.json).slice(0, 200));
     assert.equal(read.json?.data?.identity?.gstin, '29ABCDE1234F1Z5');
   });
+
+  // ------------------------------------------------------------ A6
+  console.log('\n-- A6: a kitchen that keeps rejecting orders');
+  const partner = await login('partner@quickbite.app');
+  await cod('AUTO');
+  const setRate = (rates: Record<string, number>) =>
+    api('/admin/pricing/config', { method: 'PUT', body: { rates, note: 'Kitchen rejection watch' } }, admin.token);
+  const reject = async () => {
+    const id = idOf(await place('RAZORPAY_SANDBOX'));
+    (memoryStore.orders.get(id) as any).status = 'ORDER_PLACED';
+    return api(`/orders/${id}/status`, { method: 'PUT', body: { status: 'CANCELLED', cancellationReasonCode: 'KITCHEN_OVERLOADED' } }, partner.token);
+  };
+  const quiet = await reject();
+  const kitchen = () => memoryStore.restaurants.get(RESTAURANT_ID) as any;
+  it('Control: with the alert off, rejections change nothing', () => {
+    assert.equal(quiet.status, 200, JSON.stringify(quiet.json).slice(0, 200));
+    assert.equal(kitchen().rejectionAlertedOn, undefined);
+  });
+  await setRate({ rejectionAlertPercent: 20 });
+  await reject();
+  await reject();
+  it('Above the owner\'s rate, the control room is alerted, and the kitchen stays open', () => {
+    assert.ok(kitchen().rejectionAlertedOn, 'no alert recorded');
+    assert.notEqual(kitchen().isOpen, false);
+  });
+  await setRate({ rejectionAutoPause: 1 });
+  await reject();
+  it('With auto-close switched on, the kitchen is closed until staff reopen it', () => {
+    assert.equal(kitchen().isOpen, false);
+    assert.ok(kitchen().pausedForRejectionsAt);
+  });
 } finally {
   server.close();
 }

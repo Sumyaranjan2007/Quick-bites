@@ -16,6 +16,7 @@ import {
 } from '../payments/restaurantCharges.ts';
 import { completeDelivery } from './deliveryCompletion.ts';
 import { resolveDishOptions } from './dishOptions.ts';
+import { watchRejections } from '../restaurants/rejectionWatch.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
 import {
@@ -1048,6 +1049,9 @@ export const orderService = {
     await tellTheKitchen(updated.restaurantId, ownerUserId =>
       fcmDispatcher.notifyRestaurantOrderCancelled(ownerUserId, updated.id, updated.orderNumber, reasonText)
     );
+
+    // A6: a kitchen rejecting too many orders is flagged to the control room.
+    if (actor.role === 'restaurant_owner') watchRejections(updated.restaurantId);
 
     return { order: updated, refund };
   },

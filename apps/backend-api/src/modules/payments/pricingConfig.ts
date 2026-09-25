@@ -156,7 +156,10 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'cancelFeePercentAfterReady', label: 'Cancel fee once food is ready', help: 'Share of the bill kept when a customer cancels once the food is ready or on its way. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
   { key: 'codCancelLimit', label: 'Cash cancels before cash is switched off', help: 'Cash orders a customer may cancel after acceptance before cash-on-delivery is turned off for them. 0 = never.', unit: 'COUNT', min: 0, max: 20, affectsCustomerBill: false },
   { key: 'commissionGstChargedToPartnerPercent', label: 'Commission GST charged to restaurant', help: 'Share of the 18% GST on commission deducted from the restaurant instead of paid by us. 0 = we pay it all; 100 = how Zomato invoices it. Ask your CA.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: false },
-  { key: 'minPlatformMarginPerOrder', label: 'Least we keep per order', help: 'A coupon is trimmed at checkout so the order still leaves us at least this much (before the gateway fee). 0 = off.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true }
+  { key: 'minPlatformMarginPerOrder', label: 'Least we keep per order', help: 'A coupon is trimmed at checkout so the order still leaves us at least this much (before the gateway fee). 0 = off.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true },
+  { key: 'cancelQuoteLiveOnPhones', label: 'Customer app shows the cancel fee', help: 'Set to 1 ONLY after the customer app that shows the cancellation fee before confirming is installed on customers\' phones. Until then a cancel fee cannot be set. Write in the note which app version you checked.', unit: 'COUNT', min: 0, max: 1, affectsCustomerBill: false },
+  { key: 'rejectionAlertPercent', label: 'Alert when a kitchen rejects', help: 'Staff are alerted when a restaurant rejects at least this share of its last 20 orders (at least 5 orders). 0 = off.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: false },
+  { key: 'rejectionAutoPause', label: 'Also close that kitchen automatically', help: '1 = at the alert rate the kitchen is also set to closed until staff reopen it. 0 = alert only (recommended for the trial).', unit: 'COUNT', min: 0, max: 1, affectsCustomerBill: false }
 ];
 
 const boundsByKey = new Map(RATE_BOUNDS.map(b => [b.key, b]));
@@ -173,6 +176,15 @@ export function validateRates(rates: PricingRates): string[] {
     if (value < bound.min || value > bound.max) {
       problems.push(`${bound.label} must be between ${bound.min} and ${bound.max}.`);
     }
+  }
+  // A9: a fee the customer app cannot show before confirming is a fee the
+  // customer finds on their bank statement.
+  const fee = (Number(rates.cancelFeePercentAfterAccept) || 0) + (Number(rates.cancelFeePercentAfterReady) || 0);
+  if (fee > 0 && Number(rates.cancelQuoteLiveOnPhones) !== 1) {
+    problems.push(
+      'A cancellation fee can only be set once the customer app that shows it is on customers\' phones. ' +
+        'Set "Customer app shows the cancel fee" to 1 first, after checking the app version.'
+    );
   }
   return problems;
 }
