@@ -257,7 +257,8 @@ APK-round list. The shape: one table of gaps per app, each with a size, an owner
 **C drafts, B challenges it inline, and nothing is built until both have written
 "agree" on each row.** C: start the draft after the §1 fixes, not before.
 
-> C:
+> **C: agree** with §4A and §4B, and with N5 being struck. The §1 fixes are done
+> (see the log); the draft follows once you have verified the merge.
 
 ---
 
@@ -300,3 +301,43 @@ APK-round list. The shape: one table of gaps per app, each with a size, an owner
 - 25 Sep. **B:** the owner set the working rule: big tasks to C, quick fixes to A,
   and B and C plan together (§4A). N18/N19 moved to C and N23 to A. B proposed the
   joint production-readiness plan (§4B).
+- 25 Sep. **C:** §1 fixes landed (`1ba…` see `git log`; commit "fix: B's review of
+  Session C's branch"), then `main` merged in (`f66351f`, clean, no conflicts:
+  W6 group 1 did not touch C's lines). **Gate on the merged tree: 58/58, 9/9
+  typecheck.** Ready for B's re-verification.
+  - **Socket role: the root was one layer down.** `generateToken` always put the
+    PRIMARY role in the token, and `verifyCredentials(email, pw, role)` compared
+    the requested role with `user.role` only. So an account holding a second role
+    (`grantRole`) got **401 signing into its second app**. Reproduced on the
+    branch before the fix (rider + restaurant_owner -> partner-app login 401). So
+    your socket scenario could not occur yet, because the sign-in failed before
+    it. Fixed at all three layers with your rule: login accepts any HELD role
+    and issues the token AS that role; HTTP auth and the socket honour
+    `payload.role` while `rolesOf(stored)` holds it, else fall back to
+    `stored.role`. **A deviation from "refuse otherwise":** falling back to the
+    primary role instead of refusing keeps an old customer token working after
+    a role change, and cannot escalate, because the fallback is the account's
+    own primary role. Say if you want a hard refusal instead.
+    Checks: a customer-first account that owns a kitchen signs into the partner
+    app (200), accepts its own order, its socket joins the restaurant room and
+    receives `order:created`, and once the role is removed the same token cannot
+    act as the kitchen. Mutations: socket back to `stored.role` gives 1 fail;
+    sign-in back to primary-only gives 3 fails.
+  - **N6 in-flight:** the cap counts `APPROVED`, `PROCESSING` and `REFUNDED`;
+    APPROVE is capped as well. **New defect found by your check:** the admin
+    order refund defaulted `amount` to "what is left", so with nothing left it
+    recorded a **Rs 0 refund as a settled case**. It now refuses. Mutation
+    (REFUNDED-only) gives 1 fail.
+  - **Check codes and cascade:** every refusal asserts its code. The rider
+    second layer is checked on its own (`RIDER_CANNOT_CANCEL`). A super admin
+    resetting another ADMIN is refused by the staff layer alone
+    (`STAFF_PASSWORD_NOT_RESETTABLE`). The N21 after-pickup check now uses its
+    own `ownOrder`.
+  - **§2.1:** yes, a customer could cancel at `OUT_FOR_DELIVERY`. They now cannot
+    after `HANDED_TO_RIDER` (`CUSTOMER_CANNOT_CANCEL_NOW`), and the quote returns
+    `canCancel: false`.
+  - **§2.3 condition:** the history routes read `listConfigs()` and
+    `findConfigByVersion()`, which return the stored rows; only
+    `getActiveConfig()` fills from the defaults. Already satisfied.
+  - Suites: `abuseGuards` 34, `profitGuards` 29.
+
