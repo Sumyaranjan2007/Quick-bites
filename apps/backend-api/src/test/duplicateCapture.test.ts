@@ -358,6 +358,63 @@ try {
     assert.equal(balance(`PARTNER_PAYABLE:${RESTAURANT_ID}`), kitchenBefore, 'the kitchen was charged for our refund');
     assert.equal(balance('REFUNDS_PAID'), lossesBefore, 'returning money we should never have had was booked as a loss');
   });
+  /* ================================================================ */
+  console.log('\n-- N24: a cash order ALSO paid on the door QR');
+
+  const cashRes = await api('/orders', {
+    method: 'POST',
+    body: {
+      restaurantId: RESTAURANT_ID,
+      deliveryAddressId: ADDRESS,
+      items: [{ dishId: DISH, quantity: 1, selectedOptions: [] }],
+      paymentMethod: 'CASH_ON_DELIVERY',
+      idempotencyKey: crypto.randomUUID()
+    }
+  }, customer.token);
+  const cashOrder = cashRes.json?.data?.order ?? cashRes.json?.data;
+  for (const next of ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP']) {
+    await api(`/orders/${cashOrder.id}/status`, { method: 'PUT', body: { status: next, preparationMinutes: 20 } }, partner.token);
+  }
+  await api(`/riders/orders/${cashOrder.id}/claim`, { method: 'POST', body: {} }, riderLogin.token);
+  await api(`/riders/orders/${cashOrder.id}/verify-pickup`, { method: 'POST', body: { pickupCode: (memoryStore.orders.get(cashOrder.id) as any).pickupCode } }, riderLogin.token);
+  // The rider showed the QR, then the customer paid cash anyway.
+  (memoryStore.orders.get(cashOrder.id) as any).doorQrId = 'qr_n24';
+  const cashDone = await api(`/riders/orders/${cashOrder.id}/verify-otp`, { method: 'POST', body: { deliveryOtp: (memoryStore.orders.get(cashOrder.id) as any).deliveryOtp } }, riderLogin.token);
+  it('Control: the cash order is delivered and settled in cash, with no payment id', () => {
+    assert.equal(cashDone.status, 200, JSON.stringify(cashDone.json).slice(0, 200));
+    const o = memoryStore.orders.get(cashOrder.id) as any;
+    assert.equal(o.paymentStatus, 'PAID');
+    assert.equal(o.razorpayPaymentId, undefined);
+  });
+
+  const qrCredited = (eventId = crypto.randomUUID()) =>
+    api('/payments/webhook', {
+      method: 'POST',
+      headers: { 'x-razorpay-signature': 'sig', 'x-razorpay-event-id': eventId },
+      body: {
+        id: eventId,
+        event: 'qr_code.credited',
+        payload: {
+          qr_code: { entity: { id: 'qr_n24', notes: { orderId: cashOrder.id } } },
+          payment: { entity: { id: 'pay_qr_n24', amount: toPaise(Number(cashOrder.bill.totalAmount)) } }
+        }
+      }
+    });
+  await qrCredited();
+  it('The QR money paid on top of the cash is returned, in full', () => {
+    const calls = callsFor('pay_qr_n24');
+    assert.equal(calls.length, 1, JSON.stringify(refundCalls.slice(-3)));
+    assert.equal(calls[0].amountPaise, toPaise(Number(cashOrder.bill.totalAmount)));
+  });
+  await qrCredited();
+  it('and a redelivered notice returns nothing more', () => {
+    assert.equal(callsFor('pay_qr_n24').length, 1);
+  });
+  it('and the cash order itself is untouched', () => {
+    const o = memoryStore.orders.get(cashOrder.id) as any;
+    assert.equal(o.status, 'DELIVERED');
+    assert.equal(o.paymentMethod, 'CASH_ON_DELIVERY');
+  });
 } catch (err: any) {
   failed++;
   console.log(`[FAIL] The suite could not complete: ${err?.stack || err}`);

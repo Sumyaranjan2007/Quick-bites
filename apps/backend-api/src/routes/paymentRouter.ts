@@ -22,6 +22,7 @@
  * is acknowledged without being applied — otherwise a retry credits a wallet
  * twice, and the retry is not the customer's fault.
  */
+import { refundDuplicateCapture } from '../modules/payments/duplicateCapture.ts';
 import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -227,6 +228,15 @@ paymentRouter.post('/webhook', async (req, res, next) => {
             qrId: qrEntity?.id,
             razorpayPaymentId: qrPayment?.id
           }));
+        } else if (order && qrPayment?.id && qrPayment.id !== order.razorpayPaymentId) {
+          /*
+           * N24. The order was already settled (in cash at the door, or by an
+           * earlier payment) and the customer ALSO paid the QR. That second
+           * payment used to be skipped here and recorded nowhere, so the
+           * money was simply kept. It goes back, the same way N23 returns a
+           * second online payment.
+           */
+          await refundDuplicateCapture(order, qrPayment.id, Number(qrPayment.amount) || 0);
         }
       }
     } else if (eventType === 'payment.failed' && quickBitesOrderId) {

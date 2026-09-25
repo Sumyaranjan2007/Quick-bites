@@ -9,6 +9,7 @@
  * rider id in any path, so there is nothing to change in a request to collect
  * against somebody else's order or deposit against somebody else's cash.
  */
+import { refundDuplicateCapture } from '../modules/payments/duplicateCapture.ts';
 import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -114,6 +115,14 @@ cashRouter.get('/orders/:orderId/door-payment', authMiddleware('rider'), async (
     const qrId = (order as any).doorQrId;
 
     if (order.paymentStatus === 'PAID') {
+      // N24: settled already (the cash was taken), yet the QR may have been
+      // paid as well. A second payment goes back; the webhook does the same.
+      if (qrId) {
+        const late = await checkDoorQr(qrId).catch(() => null);
+        if (late?.paid && late.paymentId && late.paymentId !== order.razorpayPaymentId) {
+          await refundDuplicateCapture(order, late.paymentId, late.amountReceivedPaise);
+        }
+      }
       return res.json({
         success: true,
         data: { paid: true, alreadySettled: true, message: 'Paid. No cash to collect.' }
