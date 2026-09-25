@@ -31,6 +31,7 @@
  * at UTC midnight splits an Indian evening's trading across two days, which makes
  * both numbers wrong and neither obviously so.
  */
+import { lossMakingOrders } from '../modules/payments/orderMargin.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
 import { istDayKey } from '../modules/admin/analytics.ts';
 import { notifyAdmins } from './adminNotifier.ts';
@@ -52,6 +53,9 @@ export interface DigestCounts {
   cancelled: number;
   newRestaurants: number;
   newRiders: number;
+  /** Delivered today at a loss to the platform (N11), and how much. */
+  lossOrders: number;
+  lossTotal: number;
 }
 
 /** The IST hour, 0-23, at an instant. */
@@ -93,7 +97,9 @@ export function digestCounts(at: Date = new Date()): DigestCounts {
     delivered: 0,
     cancelled: 0,
     newRestaurants: 0,
-    newRiders: 0
+    newRiders: 0,
+    lossOrders: 0,
+    lossTotal: 0
   };
 
   for (const order of memoryStore.orders.values() as Iterable<any>) {
@@ -101,6 +107,12 @@ export function digestCounts(at: Date = new Date()): DigestCounts {
     if (order?.deliveredAt && istDayKey(order.deliveredAt) === today) counts.delivered += 1;
     if (order?.cancelledAt && istDayKey(order.cancelledAt) === today) counts.cancelled += 1;
   }
+
+  // Orders that lost money today, from the one margin source (N11).
+  const dayStart = new Date(`${today}T00:00:00+05:30`).toISOString();
+  const losses = lossMakingOrders(dayStart, at.toISOString());
+  counts.lossOrders = losses.orders.length;
+  counts.lossTotal = losses.totalLoss;
 
   for (const restaurant of memoryStore.restaurants.values() as Iterable<any>) {
     if (restaurant?.createdAt && istDayKey(restaurant.createdAt) === today) counts.newRestaurants += 1;
@@ -143,7 +155,10 @@ export function digestBody(counts: DigestCounts, label: string): string | null {
   }
 
   const activity = `${parts.join(', ')} ${label}.`;
-  return signups.length > 0 ? `${activity} ${signups.join(' and ')} signed up.` : activity;
+  const withSignups = signups.length > 0 ? `${activity} ${signups.join(' and ')} signed up.` : activity;
+  return counts.lossOrders > 0
+    ? `${withSignups} ${counts.lossOrders} order${counts.lossOrders === 1 ? '' : 's'} lost us Rs ${counts.lossTotal}.`
+    : withSignups;
 }
 
 /**

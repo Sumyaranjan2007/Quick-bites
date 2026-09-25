@@ -45,6 +45,7 @@ import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/s
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
 import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor } from './cancellationFee.ts';
+import { contributionPaise } from '../payments/orderMargin.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
 
@@ -139,6 +140,32 @@ function clampTip(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(Math.round(n * 100) / 100, config.MAX_TIP_AMOUNT);
+}
+
+/**
+ * The owner's floor on what the platform keeps per order (N11 / S6).
+ *
+ * When a coupon would leave the order below `minPlatformMarginPerOrder`, the
+ * coupon's discount is TRIMMED by the shortfall — never refused, and never
+ * below zero — so the customer still checks out, with a smaller discount.
+ * Nothing but the coupon moves: a membership discount is something they paid
+ * for, and the prices are the owner's. Off (0) by default. Quote and create
+ * both call this, so the cart and the charge agree.
+ */
+function holdMarginFloor(input: any, bill: any, distanceKm: number): any {
+  const floorPaise = Math.round((Number(getActiveRates().minPlatformMarginPerOrder) || 0) * 100);
+  const discount = Number(bill.couponDiscount) || 0;
+  if (floorPaise <= 0 || !input.coupon || discount <= 0) return bill;
+
+  const shortfallPaise = floorPaise - contributionPaise({ bill, distanceKm } as any);
+  if (shortfallPaise <= 0) return bill;
+
+  const trimmed = Math.max(0, Math.round((discount * 100 - shortfallPaise)) / 100);
+  const retried = calculateOrderPricing({
+    ...input,
+    coupon: { discountType: 'FLAT', discountValue: trimmed, minOrderValue: input.coupon.minOrderValue }
+  });
+  return { ...retried, couponTrimmedBy: Math.round((discount - (Number(retried.couponDiscount) || 0)) * 100) / 100 };
 }
 
 /**
@@ -424,7 +451,7 @@ export const orderService = {
     }
 
     const charges = effectiveCharges(restaurant.id, getActiveRates());
-    const bill = calculateOrderPricing({
+    const pricingInput = {
       items: pricedItems.map(i => ({
         unitPrice: i.unitPrice,
         quantity: i.quantity,
@@ -463,7 +490,8 @@ export const orderService = {
       // settlement will later be defended with.
       rates: getActiveRates(),
       commissionPercent: charges.commissionPercent
-    });
+    };
+    const bill = holdMarginFloor(pricingInput, calculateOrderPricing(pricingInput), tripDistanceKm);
 
     return {
       bill,
@@ -679,7 +707,7 @@ export const orderService = {
     assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), orderItems.reduce((t, i) => t + i.totalPrice, 0));
 
     const charges = effectiveCharges(restaurant.id, getActiveRates());
-    const bill = calculateOrderPricing({
+    const pricingInput = {
       items: orderItems.map(i => ({
         unitPrice: i.unitPrice,
         quantity: i.quantity,
@@ -718,7 +746,8 @@ export const orderService = {
       // settlement will later be defended with.
       rates: getActiveRates(),
       commissionPercent: charges.commissionPercent
-    });
+    };
+    const bill = holdMarginFloor(pricingInput, calculateOrderPricing(pricingInput), tripDistanceKm);
 
     // 7. Generate Delivery OTP (Rule 40)
     const deliveryOtp = crypto.randomInt(1000, 10000).toString();

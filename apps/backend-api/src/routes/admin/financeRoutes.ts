@@ -2,6 +2,7 @@
  * Money: what was paid, what the platform earned, what is owed to riders, and
  * the return/refund cases that give some of it back.
  */
+import { lossMakingOrders } from '../../modules/payments/orderMargin.ts';
 import { refundableRemaining } from '../../modules/payments/refundCap.ts';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -614,6 +615,34 @@ financeRoutes.get('/wallet-audit', requirePermission('finance.revenue.view'), as
  */
 
 /** GET /api/admin/reports/financial — a period summary for export. */
+/**
+ * GET /api/admin/reports/losses?days=1
+ *
+ * Delivered orders that cost the platform money (N11 / A7), worst first, with
+ * what drove each: the coupon, the membership, a delivery fee below the rider's
+ * pay. Before the gateway fee, which is booked at settlement.
+ */
+financeRoutes.get('/reports/losses', requirePermission('finance.reports.view'), async (req, res, next) => {
+  try {
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 1));
+    const since = new Date(Date.now() - days * 86_400_000).toISOString();
+    const report = lossMakingOrders(since);
+    res.json({
+      success: true,
+      data: {
+        days,
+        delivered: report.delivered,
+        lossMaking: report.orders.length,
+        totalLoss: report.totalLoss,
+        orders: report.orders.slice(0, 200),
+        note: 'Before the payment gateway fee, which is recorded when Razorpay settles.'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 financeRoutes.get('/reports/financial', requirePermission('finance.reports.view'), async (req, res, next) => {
   try {
     const period = (String(req.query.period || 'month') as 'today' | 'week' | 'month' | 'all');

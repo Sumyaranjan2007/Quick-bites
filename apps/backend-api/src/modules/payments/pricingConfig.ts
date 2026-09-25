@@ -155,7 +155,8 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'cancelFeePercentAfterAccept', label: 'Cancel fee after kitchen accepts', help: 'Share of the bill kept when a customer cancels after the kitchen accepted. Pays the kitchen for food it started. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
   { key: 'cancelFeePercentAfterReady', label: 'Cancel fee once food is ready', help: 'Share of the bill kept when a customer cancels once the food is ready or on its way. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
   { key: 'codCancelLimit', label: 'Cash cancels before cash is switched off', help: 'Cash orders a customer may cancel after acceptance before cash-on-delivery is turned off for them. 0 = never.', unit: 'COUNT', min: 0, max: 20, affectsCustomerBill: false },
-  { key: 'commissionGstChargedToPartnerPercent', label: 'Commission GST charged to restaurant', help: 'Share of the 18% GST on commission deducted from the restaurant instead of paid by us. 0 = we pay it all; 100 = how Zomato invoices it. Ask your CA.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: false }
+  { key: 'commissionGstChargedToPartnerPercent', label: 'Commission GST charged to restaurant', help: 'Share of the 18% GST on commission deducted from the restaurant instead of paid by us. 0 = we pay it all; 100 = how Zomato invoices it. Ask your CA.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: false },
+  { key: 'minPlatformMarginPerOrder', label: 'Least we keep per order', help: 'A coupon is trimmed at checkout so the order still leaves us at least this much (before the gateway fee). 0 = off.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true }
 ];
 
 const boundsByKey = new Map(RATE_BOUNDS.map(b => [b.key, b]));

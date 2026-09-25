@@ -106,24 +106,10 @@ async function requireRiderSelf(req: any): Promise<DeliveryRider> {
  * from it — a tip with a commission deducted is not a tip, and a rider who
  * works that out once stops believing the earnings screen.
  */
-export function calculateTripPayout(order: {
-  distanceKm?: number;
-  bill?: { deliveryFee?: number; tipAmount?: number };
-}): number {
-  const rates = getActiveRates();
-
-  const distanceKm = Math.max(0, Number(order.distanceKm) || 0);
-  const beyond = Math.max(0, distanceKm - rates.riderBaseKm);
-  // Whole kilometres, matching how the customer's delivery fee is charged, so a
-  // rider and a customer are never billed against different distances.
-  const distanceComponent = Math.ceil(beyond) * rates.riderPerKmFee;
-
-  const earned = rates.riderBaseFeePerTrip + distanceComponent;
-  const floored = Math.max(earned, rates.riderMinEarningPerTrip);
-
-  const tip = Math.max(0, Number(order.bill?.tipAmount) || 0);
-  return Math.round((floored + tip) * 100) / 100;
-}
+// Moved to modules/riders/tripPayout.ts so checkout can estimate a trip's cost
+// without importing a router; re-exported so every existing caller is unchanged.
+import { calculateTripPayout } from '../modules/riders/tripPayout.ts';
+export { calculateTripPayout };
 
 // ---------------------------------------------------------------------------
 // Profile completeness

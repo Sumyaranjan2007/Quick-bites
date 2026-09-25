@@ -1557,6 +1557,11 @@ export interface PricingRates {
    * and Swiggy invoice it. A CA decides.
    */
   commissionGstChargedToPartnerPercent: number;
+  /**
+   * The least the platform must keep on an order (N11 / S6). Below it, a
+   * coupon's discount is trimmed at checkout, never refused. 0 = off.
+   */
+  minPlatformMarginPerOrder: number;
 }
 
 export interface PricingConfig {
@@ -1858,7 +1863,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   cancelFeePercentAfterAccept: 0,
   cancelFeePercentAfterReady: 0,
   codCancelLimit: 0,
-  commissionGstChargedToPartnerPercent: 0
+  commissionGstChargedToPartnerPercent: 0,
+  minPlatformMarginPerOrder: 0
 };
 
 /* ------------------------------------------------------------------------- *

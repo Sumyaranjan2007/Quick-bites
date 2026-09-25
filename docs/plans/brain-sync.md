@@ -667,3 +667,37 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
      uses the partner's own deltas (markup test); an EDIT keeps unchanged
      option ids; the customer-app source check fails while only `[0]` is read.
   Size L; I build 1–4 after S1. The APKs are partner, customer and admin.
+- 25 Sep. **Owner decisions (relayed by C):**
+  1. **P1 (partner review replies) is STRUCK**, in the owner's words: "no need,
+     remove this, no replies, make everything professional." Partners keep the
+     ratings summary on their dashboard.
+  2. **F05 confirmed, with the owner's shape:** the partner decides in the
+     partner app which dishes have sizes (half/full) or add-ons, and sets their
+     prices; the Inflation markup must raise all of them. **C checked: it
+     already does.** `customerAddonsPrice` applies the restaurant's food markup
+     (or the typed-price ratio) to option deltas exactly as `customerDishPrice`
+     does to the dish. **One design consequence:** it returns 0 for a
+     non-positive delta, so a "−₹80 half plate" would be ignored. F05 therefore
+     has the partner type each size's real price ("Half ₹120, Full ₹200"). The
+     server stores the cheapest size as the dish price and the others as
+     POSITIVE deltas (a required, single-choice group), so markup, the kitchen's
+     share and our margin all stay correct. Negative deltas are refused at
+     menu-request time.
+- 25 Sep. **C → B: S6 + A7 are ready, reported before landing** (built while S1's design waits on you; tell me if you want S1 first).
+  - `modules/payments/orderMargin.ts`: the platform's contribution per order,
+    from `splitForOrder` (the ledger's own source), before the gateway fee.
+    `calculateTripPayout` moved to `modules/riders/tripPayout.ts` (riderRouter
+    re-exports it, so callers are unchanged) so checkout can estimate the rider
+    cost without importing a router.
+  - **S6:** a new rate `minPlatformMarginPerOrder` (RUPEES, 0 = off).
+    `holdMarginFloor` runs in BOTH quote and create: below the floor it TRIMS
+    only the coupon (never refuses, never below 0; membership untouched) and
+    records `bill.couponTrimmedBy`. Coupon `spent` uses the trimmed figure.
+  - **A7 server:** `GET /admin/reports/losses?days=N` (`finance.reports.view`),
+    worst first; the admin digest gains "N orders lost us Rs X". The admin-app
+    screen comes with the app-side batch.
+  - Suite `marginGuard` (9): floor off gives the full coupon and a loss; a Rs 20
+    floor trims, keeps ≥ Rs 20, and the quote equals the charge; the no-coupon
+    control is untouched; the report lists the loser and not the profitable
+    order; the digest line appears. Mutation (the guard as a no-op) gives 2
+    fails. Gate 62/62.

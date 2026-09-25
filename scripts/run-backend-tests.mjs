@@ -95,7 +95,8 @@ const SUITES = [
   'profitGuards',
   'bodyContract',
   'durableMoney',
-  'duplicateCapture'
+  'duplicateCapture',
+  'marginGuard'
 ];
 
 /*
