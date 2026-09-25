@@ -8,8 +8,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [2026-09-25] -- Claude Opus 5 / 5.5 -- Session 35: the full audit — money paths made true, everyone told, every screen honest
 
-**Covers 55 commits after `d0af361`, through `a0eba2a`, 24–25 Sep 2026.** Session A wrote
-the code; Session B planned and reviewed every commit against
+> **Session names — read this first.** The owner calls the planning/review session
+> **"Session A"**, the session that writes the code **"Session B"**, and the cloud session
+> **"Session C"**. This entry, the plan and the commit messages use the OLDER letters, where
+> the builder was "A" and the planner "B". History is not rewritten; when the owner says
+> "B" they mean the builder.
+
+**Covers 57 commits after `d0af361`, through `c962f9c`, 24–25 Sep 2026.** Session A (the
+builder) wrote the code; Session B (the planner) planned and reviewed every commit against
 `docs/plans/full-audit-2026-09-24.md`. A third session, **Session C** (cloud, branch
 `claude/nice-lamport-vxf4yf`), audited in parallel and is **not merged yet** — its
 verdicts are in `docs/plans/brain-sync.md` on that branch. **No APK was built during
@@ -55,7 +61,7 @@ showed a server error as an empty list now say what went wrong.
 
 | | |
 | --- | --- |
-| Backend suites | **56**, green on exit code at `a0eba2a` |
+| Backend suites | **56**, green on exit code at `c962f9c` |
 | Last APKs built | 23 Sep — **predate everything in this entry** |
 | Unmerged | Session C's branch; B coordinates the merge. It touches orderService, financeRoutes, peopleRoutes, pricingConfig and about fifteen more files. |
 
@@ -118,12 +124,20 @@ the plan for G3, with a warning), and the frontend dead code from V4. Server rou
 
 ---
 
-### Open — needs a decision
+### Decided after W6
 
-- **`recordCashRefundAtDoor`** — a tested money path with no route. Expose it or drop it.
-- **`refundAlreadyPaid`** — no production caller; kept for its test.
-- **`/kyc/submit` accepts only current document names** — an older APK sending
-  `FSSAI_LICENSE` may be refused before the alert fires.
+- **`recordCashRefundAtDoor`** — kept, **deliberately not exposed**. A rider saying "I
+  handed the cash back" would lower what they owe on their word alone, which cannot be
+  verified and is the easiest fraud on a cash-on-delivery platform. If it is ever
+  exposed, an administrator records it or the customer confirms it. Tracked in the
+  production-readiness plan.
+- **`refundAlreadyPaid`** — removed; its check now asserts both directions against the
+  ledger key (`c962f9c`).
+- **`/kyc/submit` and old document names** — no change needed. No app, in any commit,
+  has ever called that route or sent `FSSAI_LICENSE`, so no installed APK can hit the
+  gap. `onboarding.test` asserts that 400 on purpose.
+
+### Open — needs a decision
 - **The rider app says a bonus is "paid"** when it now means "going out with your next
   payout". Correct wording needs a rider build.
 - **No durable delivery promise** (plan V7) — nothing records the arrival time a customer
