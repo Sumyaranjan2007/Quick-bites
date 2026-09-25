@@ -147,6 +147,17 @@ const RateChangeSchema = z.object({
  * under, and a rate change cannot reach backwards into money somebody has
  * already earned.
  */
+/** Renames the admin app's `changes` to the `rates` this route validates. */
+function acceptChangesAsRates(req: any, _res: any, next: () => void): void {
+  if (req.body && req.body.rates === undefined && req.body.changes !== undefined) {
+    req.body.rates = req.body.changes;
+    delete req.body.changes;
+  }
+  next();
+}
+// Read by the body contract check, so the shipped app's shape counts as known.
+(acceptChangesAsRates as any).bodyAliases = { changes: 'rates' };
+
 pricingRoutes.put(
   '/pricing/config',
   requirePermission('finance.config.edit'),
@@ -157,13 +168,7 @@ pricingRoutes.put(
    * change a single platform rate from their phone. Accepting both names here
    * fixes it without waiting for an APK.
    */
-  (req, _res, next) => {
-    if (req.body && req.body.rates === undefined && req.body.changes !== undefined) {
-      req.body.rates = req.body.changes;
-      delete req.body.changes;
-    }
-    next();
-  },
+  acceptChangesAsRates,
   validate({ body: RateChangeSchema }),
   async (req, res, next) => {
     try {

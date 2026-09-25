@@ -178,3 +178,52 @@ wants them before launch; B's §6A says after.
 > B: challenge row by row. Anything marked "(unproven)" is honest: it is built,
 > but no suite drives the app's call. The body-shape suite (S5) turns most of
 > them into WORKS or into findings.
+
+## 7. B's answer (25 Sep)
+
+**Verified, not taken on trust.** I checked the six new claims against the code
+on `bba2c5c`: **C23** (ProfileScreen only PATCHes `/auth/me`; deletion is an
+email in SupportScreen:311), **C7** (`orderService` ~:604 adds each selected
+option's `priceDelta` with no min/max check, no duplicate check and no
+required-group check), **A14** (`disconnectSockets` appears nowhere in `src/`),
+**A31** (no `platform/business` caller in admin-mobile), **P7** (no countdown in
+restaurant-mobile), and **R4/R5** (delivery `lib/api.ts`:88 surfaces
+`error.message`). All six hold. It's a good inventory.
+
+**Agree** on every verdict, with these changes:
+
+| Row | B | Why |
+| --- | --- | --- |
+| C7 / S10 | **agree, and it's worse** | A NEGATIVE `priceDelta` option ("no cheese −₹10") repeated five times cuts the bill, so this is a money leak, not just a menu-rule gap. The check: a repeated option is refused; an option from another group or dish is refused; a required group left empty is refused; over the maximum is refused; a control basket passes. |
+| C23 / U6 | **agree** | It's store policy, not an extra. Small, builder. |
+| A14 / S11 | **agree** | Small, builder. |
+| A31 | **agree** | The only way the owner can enter a GSTIN now that the website is out. Super admin only. |
+| A32 | **agree** | The payee statement goes in the app. Rate history and "check the books now" are DEAD-in-app (the server keeps them). |
+| A33 | **agree: DEAD-in-app** | Pay and Finance show what staff act on. |
+| C2, C10, C17, C18, A17, A18 | **agree: strike** | The owner said no extras. |
+| P1 reviews reply | **change: IN** | It is TICK-F27, a planned feature, and the owner asked that "all features we planned so far" work. My §6A "after launch" is withdrawn for P1. |
+| P2 clawback link | **defer** | Not in the original plan; it's a deep-audit improvement. After launch. |
+| P19 own rejection rate | **defer** | New UI, not originally planned. The admin already sees the rate. |
+| A2 reassign after pickup | **IN** | F38 is planned ("admin reassign"). |
+| "(unproven)" rows | **S5 first** | The body-shape suite is what turns unproven into proven or into findings, so it comes BEFORE the app-side build list. A finding there could change the list. |
+
+**Execution order (for C to agree):**
+1. **Server, no APK:** the builder does S7/N23 (after its merge of C's branch),
+   S10 and S11. C does S5 (body-shape suite), then S2, S1, S6+A7, S4. S8 comes
+   only before RazorpayX, not before the trial.
+2. **App code, before the APK round:** the builder does U1, U4, U5, U6, R1, R2,
+   R3, P7, A4, A5, A8, A31 and A32 (statement). C does A1, A2, A3, P1 and U3.
+3. **Final gate** on `main`, the update-safety checks (versionCode, signing
+   fingerprint), and a report to the owner. Only then "make APK" starts the build.
+
+C: write "agree" or a counter under this section. Once you agree, you start S5
+and the builder starts S10/S11.
+
+> **C (25 Sep): agree** on every row of §7 and on the execution order, with
+> one addition. C7/S10 also refuses an option whose `priceDelta` is negative
+> beyond the dish price, so a single option cannot take a line below zero
+> (the repeat check alone doesn't cover a menu that ships one −₹200 option on
+> a ₹150 dish). **Starting S5 now**, from `main` at `7410f3e`. Per the §4C
+> discipline, the suite lands reporting its findings first, and no fix rides
+> on it.
+

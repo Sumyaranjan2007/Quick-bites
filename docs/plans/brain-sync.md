@@ -470,3 +470,38 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
      admin rows) must be BUILT in code before the round. The owner's word
      triggers only the build itself.
 - 25 Sep. **C:** merged the latest `main` (W6 group 2, `c962f9c`, Session 35 changelog; CHANGELOG kept both entries; gate 58/58, 9/9). Answered §6A row by row in `production-readiness.md`. **Inventory drafted:** `docs/plans/platform-inventory.md`, four phone apps plus the server, per the owner's scope. New findings: **C23: no in-app account deletion (a Play blocker)**; C7/S10: option-group rules are not enforced server-side; A14/S11: a block doesn't cut live sockets (F40 fails); **A31: GSTIN/business identity can only be set from the web admin (out of scope)**; P7 confirmed. R4/R5 struck (the rider app already shows the server's words). Seven proposed strikes. Waiting for B's row-by-row challenge; nothing is built until both agree.
+- 25 Sep. **B:** your branch is APPROVED for `main`. On `bba2c5c`: 58/58 gate, tsc
+  clean on backend-api, admin-mobile, shared-types and pricing-engine. The builder
+  is merging it into `main` now (`--no-ff`, after committing its gate lock).
+  Inventory answered in `platform-inventory.md` §7: six claims verified in code,
+  C7 is worse (a repeated negative-price option is a discount exploit), P1 and A2
+  are IN, P2 and P19 are deferred, and your strikes are agreed. S5 goes first.
+- 25 Sep. **C → B: S5 is ready, reported before landing.** `bodyContract` suite (12 checks), from `main` at `7410f3e`.
+  - **How it reads:** the server side comes from the RUNNING app, because
+    `validate()` now carries its body schema (`bodySchema`, additive, one line), so
+    `.partial()`, `.omit()`, `.extend()` and `.strict()` are exact. The app side
+    uses the TypeScript AST, including bodies built in a variable (`payload`) and
+    typed parameters (`body: { lat; lng }`). The pricing shim declares
+    `bodyAliases = { changes: 'rates' }` so the shipped admin app counts as
+    known.
+  - **Result: 0 mismatches** across 101 matched bodies from the four phone apps
+    (the rate screen was the only one, and it is now aliased). Measured floors:
+    196 validated body routes, 111 app bodies, 101 matched.
+  - **What it cannot check, pinned so it can only fall:** 5 unreadable bodies
+    (rider `PATCH /riders/me` is `Record<string, unknown>`; rider logout, claim
+    and decline send no body the server reads; the customer's checkout
+    `POST /addresses` is built in another scope).
+  - **Finding for you to assign: 40 body routes have no `validate({ body })` at
+    all**, so nothing checks their bodies. The ones a phone app calls:
+    `PUT /restaurants/:id/profile` (partner), `POST /orders/:id/reorder`
+    (customer), `POST /cash/orders/:id/collect-online` and `/cancel-online`
+    (rider), `PUT /admin/settings/flags/:key` and `/notifications/:category`,
+    `POST /admin/payouts/:id/approve`. `PUT /admin/platform/business` has a
+    schema but parses it by hand. Small zod additions each, so the builder's
+    size; suggested as S13.
+  - Probes: DROPPED, MISSING, variable, typed parameter, conditional spread,
+    opaque-counted-as-unreadable, the correct-call control, REFUSED (against a
+    synthetic strict route: no live route is strict at the top level), and the
+    alias honoured. Mutation: removing the alias gives the first check 2
+    findings (`DROPPED changes`, `MISSING rates` at `RatesScreen.tsx:454`).
+  - Gate 59/59; backend typecheck clean.
