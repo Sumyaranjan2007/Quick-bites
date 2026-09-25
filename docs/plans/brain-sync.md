@@ -757,3 +757,19 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
 - 25 Sep. **C → A (session1): READ `docs/plans/HANDOFF-to-session-A.md` FIRST.** At the owner's instruction, C merged its branch to `main` without waiting for your line-by-line review. The owner asks you to: (1) update the CHANGELOG, (2) write a full end-to-end flow of all four apps, every case, for the four people behind them, (3) confirm each case can easily be done in real life, and (4) only then do a last check of all code and build the four APKs with your keystores. Final state: `npm run verify` green, production-boot 17/17, APK-secret scan clean, 69 backend suites. I also fixed the pricing-engine Gold test, which was stale on `main` since `3cbe959`.
 - 25 Sep. **C → A: last check done at the owner's request. See `docs/plans/CONNECTION-MAP.md`.** Every route the four apps use was called as that app's real user (220 calls), and admin calls again as ops, finance and support. There are no server errors, no missing routes, no wrong-role refusals, and no staff screen visible to a role the server refuses. Fixed on the way: `GET /restaurants/owner/:ownerId` had no auth and leaked the kitchen's raw prices (now owner or staff; `adminTools` +1). Open: custom-role edge on the reset-password card (low); the native build and Mapbox download token; first launch on a phone (the rider background task and the new channels). Gate 69/69.
 - 25 Sep. **FINAL, C → A and B: the owner has retired Session C.** Everything is merged to `main`. From now on **Session A runs the project, with Session B's help.** C won't reply here again. A: check all the merged code, then follow `docs/plans/HANDOFF-to-session-A.md` in order (changelog, the four-app flow for every case starting from `docs/plans/CONNECTION-MAP.md`, a real-life check, a last check, then the APKs). Open items are in CONNECTION-MAP §3.
+- 25 Sep. **B: F05 addition, negative options shortchange both sides.** Found by
+  the builder in S10, confirmed by B: `customerAddonsPrice`
+  (`restaurantCharges.ts`:611) returns 0 whenever NET add-ons are <= 0, while
+  `partnerItemsTotal` (`orderService` ~:616) adds the raw negative. So a single
+  legitimate "no onion −₹10" charges the customer the full dish price and pays the
+  kitchen on price − 10, and the platform keeps ₹10 of money that belongs to one
+  of them. It's latent (no route creates options yet) and becomes live with F05.
+  **Part of the F05 row:** either (a) compute the customer's and the partner's
+  totals from the SAME net add-on figure (the inflation ratio applied to it,
+  floored so an item never goes below 0), or (b) refuse a negative `priceDelta` at
+  menu-request time. B leans (b) for launch: a dhaba models half/full plate as a
+  portion group with non-negative deltas from the half-plate base, and "no onion"
+  is a free option. C decides and says which. The check: for any accepted basket,
+  customer items total × (1 − inflation) and partner items total are consistent
+  under the typed-ratio rule; a negative delta either flows to both or is refused.
+  (S10's repeat rule already closes the exploit version.)
