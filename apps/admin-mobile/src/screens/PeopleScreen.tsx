@@ -927,17 +927,22 @@ const RestaurantsTab: React.FC = () => {
         onClose={() => setOpenId(null)}
         onChanged={list.silentReload}
         canManage={can('users.restaurants.manage', 'catalog.restaurants.approve')}
+        // Only what the reset route itself requires for a restaurant owner. A
+        // catalogue approver sees the rest of the sheet, not a button that the
+        // server then refuses.
+        canResetPassword={can('users.restaurants.manage')}
       />
     </View>
   );
 };
 
-const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChanged: () => void; canManage: boolean }> = ({
-  id,
-  onClose,
-  onChanged,
-  canManage
-}) => {
+const RestaurantSheet: React.FC<{
+  id: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+  canManage: boolean;
+  canResetPassword: boolean;
+}> = ({ id, onClose, onChanged, canManage, canResetPassword }) => {
   const { api } = useSession();
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState('');
@@ -1054,7 +1059,7 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
 
           {/* Directly under what they are owed, because those two lines are read
               together: the amount, and where it would go. */}
-          {canManage && resource.data.owner?.id ? (
+          {canResetPassword && resource.data.owner?.id ? (
             <PasswordResetCard userId={resource.data.owner.id} name={resource.data.owner.fullName} />
           ) : null}
 

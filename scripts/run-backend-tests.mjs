@@ -106,7 +106,8 @@ const SUITES = [
   'adminTools',
   'optionGroups',
   'handoverPosition',
-  'persistenceAlert'
+  'persistenceAlert',
+  'resetPasswordCard'
 ];
 
 /*
