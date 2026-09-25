@@ -343,6 +343,30 @@ export interface PersistenceBackend {
 
 let backend: PersistenceBackend | null = null;
 
+/*
+ * WHO TO TELL WHEN THE BACKSTOP HAD TO SAVE SOMETHING NOBODY MARKED.
+ *
+ * A full-diff save writes documents changed in place without set(), and until
+ * now only logged them (DIRTY_MISS), a line nobody reads. Every full save
+ * reports the collections it found (an empty list when it found none, so a
+ * recurrence is news again). A listener rather than an import, so this module
+ * stays free of the notifications.
+ */
+const persistenceMissListeners: Array<(collections: string[]) => void> = [];
+export function onPersistenceMisses(listener: (collections: string[]) => void): void {
+  persistenceMissListeners.push(listener);
+}
+export function reportPersistenceMisses(collections: string[]): void {
+  const found = [...new Set(collections)].sort();
+  for (const listener of persistenceMissListeners) {
+    try {
+      listener(found);
+    } catch {
+      // Telling somebody must never fail the save it is about.
+    }
+  }
+}
+
 export function setPersistenceBackend(next: PersistenceBackend | null): void {
   backend = next;
 }

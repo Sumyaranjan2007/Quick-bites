@@ -43,6 +43,7 @@ import {
   takeDirty,
   restoreDirty,
   forgetDirty,
+  reportPersistenceMisses,
   type DirtySnapshot,
   type SaveMode
 } from './client.ts';
@@ -238,9 +239,19 @@ export function computeChanges(mode: SaveMode = 'changed'): StoreChanges {
  * so the next save retries them.
  */
 export async function saveStoreToDatabase(mode: SaveMode = 'changed'): Promise<void> {
-  if (!pool) return;
-
   const { upserts, deletions, misses, snapshot } = computeChanges(mode);
+
+  // Every FULL save says what it had to save unmarked, including "nothing", so
+  // the admin alert clears when the misses do. Reported before the database is
+  // needed, so the path can be exercised without one.
+  if (mode === 'full') reportPersistenceMisses(misses.map(m => m.collection));
+
+  if (!pool) {
+    // Nothing was written, so nothing was saved: the marks stay for next time.
+    restoreDirty(snapshot);
+    return;
+  }
+
   if (misses.length > 0) {
     console.error(
       JSON.stringify({

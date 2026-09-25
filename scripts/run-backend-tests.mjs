@@ -105,7 +105,8 @@ const SUITES = [
   'accessRevoked',
   'adminTools',
   'optionGroups',
-  'handoverPosition'
+  'handoverPosition',
+  'persistenceAlert'
 ];
 
 /*

@@ -41,6 +41,7 @@ import { userRepository } from '../db/repositories/userRepository.ts';
 import { resolveAccess } from '../modules/admin/permissions.ts';
 import type { AdminPermission } from '@quick-bites/shared-types';
 import { fcmDispatcher } from './fcmDispatcher.ts';
+import { onPersistenceMisses } from '../db/client.ts';
 import { shouldSend, type AdminNotificationCategory } from './adminNotificationPrefs.ts';
 
 /**
@@ -732,7 +733,78 @@ let lastHealthFingerprint: string | null = null;
 /** Test seam: the fingerprint is process state, so a suite must be able to clear it. */
 export function resetPaymentsHealthNotificationForTesting(): void {
   lastHealthFingerprint = null;
+  lastHealth = { alerts: [], worst: '' };
+  persistenceAlerts = [];
+  persistenceAnnouncedAt.clear();
+  persistenceClock = () => Date.now();
 }
+
+/** Test seam: the 24-hour memory below is measured on this clock. */
+export function setPersistenceClockForTesting(clock: () => number): void {
+  persistenceClock = clock;
+}
+
+/*
+ * The two things this one message reports: what the payments sweep found last,
+ * and what the last full save had to write that nobody had marked. Kept apart so
+ * each source can update its own half, then sent as ONE set, so the owner still
+ * gets one message, repeated only when the set changes.
+ */
+let lastHealth: { alerts: string[]; worst: string } = { alerts: [], worst: '' };
+let persistenceAlerts: string[] = [];
+
+/*
+ * When each collection was last ANNOUNCED as a persistence miss.
+ *
+ * Full saves run on every durable money request, not only every ten minutes. A
+ * writer that skips set() on every card payment therefore goes miss → clean →
+ * miss all day, and "cleared, then back" would push once per payment. For a
+ * persistence miss that is the SAME defect, not news (unlike a payments finding,
+ * whose recurrence is). So a collection is announced at most once a day; a NEW
+ * collection is announced at once.
+ */
+const PERSISTENCE_REANNOUNCE_MS = 24 * 60 * 60_000;
+const persistenceAnnouncedAt = new Map<string, number>();
+let persistenceClock: () => number = () => Date.now();
+
+/**
+ * The full-diff backstop found documents changed in place without set().
+ *
+ * They were saved (that is what the backstop is for), but the code path that
+ * changed them skips the tracking S1 relies on, and a save between that change
+ * and the next marked write would have lost it. Until now this was a log line.
+ * Named by collection, because that is what points a developer at the writer.
+ */
+export async function notifyAdminsPersistenceMisses(collections: string[]): Promise<string[]> {
+  const now = persistenceClock();
+  persistenceAlerts = collections.length
+    ? [
+        `Saved only by the backstop: ${collections.join(', ')} changed without being marked. ` +
+          'Nothing was lost, but tell Claude: that write path skips set().'
+      ]
+    : [];
+
+  const fresh = collections.filter(c => !(now - (persistenceAnnouncedAt.get(c) ?? -Infinity) < PERSISTENCE_REANNOUNCE_MS));
+  if (collections.length > 0 && fresh.length === 0) {
+    // All announced within the day: record the state without a push. The shared
+    // fingerprint is updated as if it had been sent, or the next payments sweep
+    // (every fifteen minutes, usually with nothing to say) would find the set
+    // "changed" and announce it anyway.
+    const alerts = currentBooksAlerts();
+    lastHealthFingerprint = alerts.length ? fingerprintOf(alerts) : null;
+    return [];
+  }
+
+  // Something here is due to be said (new, or a day old). The fingerprint may
+  // already hold this exact set from a silent update, which would swallow it.
+  if (fresh.length > 0) lastHealthFingerprint = null;
+  const sent = await sendBooksMessage();
+  if (sent.length > 0) for (const c of collections) persistenceAnnouncedAt.set(c, now);
+  return sent;
+}
+onPersistenceMisses(collections => {
+  void notifyAdminsPersistenceMisses(collections);
+});
 
 /**
  * One push for the whole of the payments health sweep.
@@ -773,7 +845,22 @@ export async function notifyAdminsPaymentsHealth(input: {
   alerts: string[];
   worst: string;
 }): Promise<string[]> {
-  const alerts = (input.alerts || []).filter(a => typeof a === 'string' && a.trim().length > 0);
+  lastHealth = { alerts: input.alerts || [], worst: input.worst };
+  return sendBooksMessage();
+}
+
+function currentBooksAlerts(): string[] {
+  return [...lastHealth.alerts, ...persistenceAlerts].filter(a => typeof a === 'string' && a.trim().length > 0);
+}
+function fingerprintOf(alerts: string[]): string {
+  return [...alerts].sort().join(' || ');
+}
+
+async function sendBooksMessage(): Promise<string[]> {
+  const alerts = currentBooksAlerts();
+  const input = {
+    worst: lastHealth.alerts.length > 0 && lastHealth.worst ? lastHealth.worst : alerts[0]
+  };
 
   if (alerts.length === 0) {
     // Resolved. Forget it, so a recurrence is news again.
@@ -781,7 +868,7 @@ export async function notifyAdminsPaymentsHealth(input: {
     return [];
   }
 
-  const fingerprint = [...alerts].sort().join(' || ');
+  const fingerprint = fingerprintOf(alerts);
   if (fingerprint === lastHealthFingerprint) return [];
   lastHealthFingerprint = fingerprint;
 
