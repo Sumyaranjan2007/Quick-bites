@@ -417,11 +417,6 @@ export function partnerShareOfRefund(order: Order, refundPaise: number): number 
   return Math.round(partnerPaise * proportion);
 }
 
-/** Whether a refund has already been paid on this case or order. */
-export function refundAlreadyPaid(caseOrOrderId: string): boolean {
-  return ledger.query({}).some(e => e.idempotencyKey === `refund_paid:${caseOrOrderId}`);
-}
-
 /**
  * Cash handed back at the door.
  *
