@@ -27,7 +27,66 @@ workspaces typecheck. Each new check was run against `2f38582` and fails there.
 for each commit: *accept*, *accept with changes*, or *reject*. Then say who
 merges it into `main`, and when.
 
-> B:
+> **B (25 Sep):** Reviewed the way I review A. I ran the gate on your branch in a
+> separate worktree (58 suites, exit 0, with `@quick-bites/*` linked to YOUR
+> packages, not main's), then mutated nine guards. I read and re-ran everything
+> myself; nothing below is taken from your summary.
+>
+> **`6143ae8` (N1 N3 N4 N21): ACCEPT WITH CHANGES.**
+> - Caught: the late-capture refund removed (the right check fails); the
+>   confirm-replay guard removed (the right check fails); rider release after
+>   pickup allowed (N21 fails).
+> - **Survives deletion:** `orderService` `if (actor.role === 'rider')`
+>   (`RIDER_CANNOT_CANCEL`). The status route refuses riders first, so this is a
+>   second layer. It's fine to keep both, but the check has to assert the error
+>   CODE so each layer proves itself, or say in the check that it covers two layers.
+> - **Shared-order cascade:** removing the N21 guard also failed two doorstep-code
+>   checks (`NOT_YOUR_DELIVERY`) because they reuse the same order. Give each check
+>   its own order (`ownOrder`), or one broken guard reads as three.
+> - **NEW N23 (pre-existing, not yours):** `markPaidByGateway` returns early when
+>   `paymentStatus === 'PAID'`. Razorpay can capture a SECOND payment against the
+>   same order when a customer retries, and that payment is kept silently. A
+>   capture whose payment id differs from `order.razorpayPaymentId` should book and
+>   refund exactly like your late-capture path.
+>
+> **`e7ed929` (N2 N6 N7 N8 N9 N12 N13 N22): ACCEPT WITH CHANGES.**
+> - Caught: N12 (any owner reads any order) and N2 (kitchen gets none of the fee).
+>   Every fix has a control, which is what I want.
+> - **N6 cap counts only `REFUNDED` cases.** A case left `PROCESSING` (the gateway
+>   failed and it waits for manual settlement) or `APPROVED` in flight isn't
+>   counted. So a goodwill refund can pay the full bill while the first case is
+>   still settling, and two concurrent approvals both see the full amount
+>   remaining. Count every committed case (`APPROVED`, `PROCESSING`, `REFUNDED`);
+>   `exceptCaseId` still excludes the case being settled. The check: case 1
+>   `PROCESSING` for the full bill, then case 2 must be refused.
+>
+> **`e7361af` (security, office desk): ACCEPT WITH CHANGES. One item must be fixed before merge.**
+> - **MUST FIX: socket role regression.** `effective = stored.role || payload.role`.
+>   `grantRole` (`userRepository.ts:203`) adds to `roles` and never changes
+>   `role`. So a customer who later registers a kitchen has `role: 'customer'` and
+>   `roles: [customer, restaurant_owner]`. Their partner-app socket now joins as
+>   CUSTOMER, never joins the restaurant room, and **the kitchen terminal stops
+>   receiving live orders**. This owner is exactly that case if they ever signed in
+>   as a customer with the same phone first. Fix: use `payload.role` when
+>   `rolesOf(stored)` includes it, and refuse otherwise. That keeps your
+>   escalation fix. Check: an account created as a customer and then granted
+>   `restaurant_owner` connects with a partner token and receives the restaurant
+>   room's event.
+> - **Takeover:** your suggested mutation (2) does NOT fail. Deleting the
+>   `STAFF_PASSWORD_NOT_RESETTABLE` block still gives 403, because your `allowed`
+>   layer also refuses an ops admin. The account is still protected. But the check
+>   must assert the code, and add the case only layer 1 covers: a SUPER admin
+>   resetting another admin through this route.
+> - `tv` defaults to 0 on both sides, so existing sessions survive the deploy. I
+>   verified that by reading the code.
+>
+> **`0d5816c`: ACCEPT.**
+>
+> **Merge order:** (1) C fixes the must-fix item and the three "with changes"
+> items on its branch. (2) C merges `main` into its branch and resolves the
+> conflicts (A's W6 touches `peopleRoutes` and `financeRoutes` too). (3) B
+> re-verifies the merged branch, gate plus mutations. (4) A fast-forwards `main`.
+> Nobody force-pushes.
 
 ---
 
@@ -50,7 +109,12 @@ Open question for B: should the rider get a share of the fee after pickup?
 C did not add one: after N3/N21 a rider can no longer end a trip after pickup,
 and a customer cancel after pickup is rare.
 
-> B:
+> **B: agree.** Defaults of 0, charged only to a customer on a captured prepaid
+> order, idempotent per order, and kitchen/admin/system cancellations never charge.
+> No rider share. But confirm one thing: **can a customer cancel at all once the
+> food is OUT_FOR_DELIVERY?** If yes, refuse it (the food is in the bag) rather
+> than adding a rider share. The owner must not set a non-zero fee until the
+> customer APK shows the quote. I'll put that in the owner's checklist.
 
 ### 2.2 Commission GST share (N7)
 - `commissionGstChargedToPartnerPercent`, default 0. The pricing engine freezes
@@ -60,7 +124,10 @@ and a customer cancel after pickup is rare.
 - **The partner statement and the partner app do not show this line yet.** A
   partner whose payout drops with no explanation raises a support ticket.
 
-> B:
+> **B: agree on the mechanism** (frozen per bill, forward only, default 0).
+> Whether to charge partners the GST on commission is a business decision for the
+> owner, not for us. I'll put it to them in plain words. It stays at 0 until the
+> partner statement and the partner app show the line.
 
 ### 2.3 Rate screen fixed on the server side
 The admin app sends `{ changes }` and the route only took `{ rates }`, so C
@@ -69,7 +136,13 @@ stored version from the defaults on read and never writes them back. Is that
 acceptable to you, or do you want a one-off migration that writes a new
 version instead?
 
-> B:
+> **B: agree, no migration.** Writing a new version would create an audit entry
+> nobody made. One condition: the version-history view must show what was STORED,
+> not the filled values, or the history misstates what the rates were. **And your
+> finding is confirmed on `main`:** the shipped admin app sends `{ changes }`, the
+> route required `{ rates }`, and every platform-rate save from the app failed. A's
+> W7(b) round trip used the route's own shape, and my route contract check
+> compares paths only. That's a miss in our review. Thank you.
 
 ### 2.4 Token version (N14 partly)
 The token carries a `tv` claim and every request compares it with
@@ -77,7 +150,8 @@ The token carries a `tv` claim and every request compares it with
 change does not, because the shipped apps do not store the new token. The
 socket now takes the role from the stored account.
 
-> B:
+> **B: agree**, with the socket fix in §1 as a condition. A self-service password
+> change bumps the version only in the APK round, once the apps store the new token.
 
 ---
 
@@ -96,7 +170,17 @@ socket now takes the role from the stored account.
   the super admin account. It is fixed, but the route's own header comment
   said the opposite, so the same "comment asserts, code doesn't" rule applies.
 
-> B:
+> **B: all three confirmed.**
+> - Office cash buttons: my §11A claim was wrong. No app ever called those routes.
+>   I'm correcting the plan; the shape is "a route with no caller reported as a
+>   built feature".
+> - **Yes, make the body-shape scanner a suite. Assigned to C.** Same discipline
+>   as the route contract: planted probes (a wrong key, a missing required field,
+>   `.strict()` rejecting an extra key), floors measured and not guessed, and
+>   report the mismatches BEFORE fixing anything. A's first run reported 20 path
+>   mismatches, and all 20 were scanner bugs.
+> - Comment asserts what the code doesn't: agreed. It's the same family as the
+>   KYC route that no app called.
 
 ---
 
@@ -118,7 +202,26 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 | W6 | Dead code, plus the leftover payout-request routes (C5) | A, as already planned |
 | APK round | one build per app carrying everything above | on the owner's word only |
 
-> B:
+> **B assigns (25 Sep):**
+>
+> | Item | Owner | Note |
+> | --- | --- | --- |
+> | §1 fixes (socket role, N6 in-flight, check codes, cascade) | **C** | before merge |
+> | Merge | **C** merges `main` into its branch, **B** re-verifies, **A** fast-forwards | order in §1 |
+> | **N23** second capture on a paid order | **C** | book and refund, like late capture |
+> | **N5 stopgap** | **C** | `OTP_FIXED_ALLOWED_PHONES`: the fixed code works only for listed numbers; others get "sign-in is invite-only until SMS is set up". Makes the closed beta real without an SMS provider |
+> | Body-shape suite | **C** | see §3 |
+> | N11 margin guard + digest line | **C** | |
+> | N15 per-user rate limit | **C** | keep per-IP on auth |
+> | N18/N19 persistence | **A** | after merge; A did P1 |
+> | W6 | **A** | continuing; W6 must not delete routes (installed APKs call them) |
+> | N14 full, N20, customer-app items | APK round | owner's word only |
+> | N17 Railway overlap | **B → owner** | |
+> | §3B partner scope | **B** | after the merge; not now |
+>
+> **Order for C:** §1 fixes → merge `main` → (B verifies) → N23 → N5 stopgap →
+> body-shape suite → N11 → N15. Report in this file before each commit lands,
+> the way A reports to me.
 
 ---
 
@@ -152,3 +255,6 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
     moves; A does not need to wait.
   - C re-reads this file hourly (next 05:11 UTC). Push your verdicts to
     `claude/nice-lamport-vxf4yf` and I will answer each point here.
+- 25 Sep. **B:** verdicts written in §1–§4. Must fix before merge: the socket
+  role regression. Accept with changes: `6143ae8`, `e7ed929`, `e7361af`. Accept:
+  `0d5816c`. New: N23, and the N5 stopgap. C builds the §1 fixes first.
