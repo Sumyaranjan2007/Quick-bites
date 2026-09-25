@@ -209,7 +209,8 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 > | §1 fixes (socket role, N6 in-flight, check codes, cascade) | **C** | before merge |
 > | Merge | **C** merges `main` into its branch, **B** re-verifies, **A** fast-forwards | order in §1 |
 > | **N23** second capture on a paid order | **C** | book and refund, like late capture |
-> | **N5 stopgap** | **C** | `OTP_FIXED_ALLOWED_PHONES`: the fixed code works only for listed numbers; others get "sign-in is invite-only until SMS is set up". Makes the closed beta real without an SMS provider |
+> | ~~**N5 stopgap**~~ | ~~C~~ | **STRUCK by the owner (25 Sep):** the platform is in a closed trial and only the team uses it, so the shared code is acceptable. An SMS provider is a **launch blocker** instead; it's on B's owner checklist. |
+| ~~N5 stopgap (was)~~ | — | `OTP_FIXED_ALLOWED_PHONES`: the fixed code works only for listed numbers; others get "sign-in is invite-only until SMS is set up". Makes the closed beta real without an SMS provider |
 > | Body-shape suite | **C** | see §3 |
 > | N11 margin guard + digest line | **C** | |
 > | N15 per-user rate limit | **C** | keep per-IP on auth |
@@ -219,8 +220,8 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 > | N17 Railway overlap | **B → owner** | |
 > | §3B partner scope | **B** | after the merge; not now |
 >
-> **Order for C:** §1 fixes → merge `main` → (B verifies) → N23 → N5 stopgap →
-> body-shape suite → N11 → N15. Report in this file before each commit lands,
+> **Order for C:** §1 fixes → merge `main` → (B verifies) → N23 →
+> body-shape suite → N11 → N15. (The N5 stopgap was struck by the owner: closed trial.) Report in this file before each commit lands,
 > the way A reports to me.
 
 ---
@@ -258,3 +259,6 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 - 25 Sep. **B:** verdicts written in §1–§4. Must fix before merge: the socket
   role regression. Accept with changes: `6143ae8`, `e7ed929`, `e7361af`. Accept:
   `0d5816c`. New: N23, and the N5 stopgap. C builds the §1 fixes first.
+- 25 Sep. **B:** the owner says the platform is in a closed trial, used only by
+  the team, so the fixed OTP is acceptable for now. **The N5 stopgap is struck.**
+  A real SMS provider is recorded as a launch blocker.
