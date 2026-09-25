@@ -1124,6 +1124,10 @@ export const orderService = {
     order.status = 'ORDER_PLACED';
     order.razorpayPaymentId = razorpayPaymentId;
     order.updatedAt = new Date().toISOString();
+    // Saved, not only changed in place: the store writes what set() marked, and
+    // an order changed without it was being saved only by the full-diff
+    // backstop, which logged it as a miss on every card payment (S1).
+    await orderRepository.save(order);
 
     // The gateway is now holding the customer's money and we owe them food for
     // it. Booked here rather than at delivery, because an order that never
