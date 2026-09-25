@@ -6,6 +6,29 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-25] -- Session C, part 2 -- the rest of the agreed plan, built
+
+**Same branch, `claude/nice-lamport-vxf4yf`. NOT on `main`; the brain reviews and merges.**
+Every item is reported in `docs/plans/brain-sync.md` before it landed. Gate: 69 backend
+suites green; the server and all four apps typecheck. No APK was built. Session A does that.
+
+| Item | What changed |
+| --- | --- |
+| S1 | Saves write only the rows that changed. A full-diff backstop every 10 min, and at boot, shutdown and on money routes, logs any unmarked change. |
+| S4, S6, A7 | Rate limit per account, not per phone tower. A "least we keep per order" floor trims coupons. Admin tab "Orders that lost money". |
+| A1, A2, A3 | Staff take a trip off a rider, give it to another (after pickup with a handover note and a cash-ceiling check), or mark delivered (a cash refusal closes as refused with a case). |
+| U3 | New addresses need a map pin (switch "Accept addresses without a map pin" off once the new app is out). |
+| F05, S10 | Half/full plates and extras: partners set the real price of each size, markup applies, the kitchen ticket shows the size. Every order's options are checked (the negative-price exploit is closed). |
+| S11, U2 | A block or a password change closes open connections; other phones are signed out, this one stays in. |
+| N24 | A door-QR payment on top of cash is refunded. |
+| U1, U4, U5, U6 | Cancel sheet shows the fee first; search suggestions; order-update notification channel; in-app account deletion (refused mid-order). |
+| R1, R2, R3 | A trip another rider took stops ringing; payouts on a quiet channel; incentives read "Earned". |
+| P7 | The kitchen sees the time left to accept before the order is cancelled automatically. |
+| A4, A5, A8, A31, A32 | Staff kitchen steps (only those), call buttons, per-customer cash switch, GSTIN from the phone, payee statements. |
+| Bugs found on the way | The rider no-show warning reached nobody (wrong id and channel name). The admin status route could skip to DELIVERED or CANCELLED. The checkout map pin was "current location" only. |
+
+---
+
 ## [2026-09-25] -- Session C (cloud, "Quick Bite") -- holes that gave money back, a super-admin takeover, and the office desk
 
 **Branch `claude/nice-lamport-vxf4yf`, commits `8c427b7` → this one. NOT on `main` yet.**
