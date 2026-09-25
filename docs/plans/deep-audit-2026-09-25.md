@@ -13,6 +13,30 @@ as the owner asked, so every item says whether it needs a new APK.
 Severity: **S0** = money leaves or accounts are taken over *today*, **S1** = a
 repeatable loss or hole, **S2** = wrong, but bounded, **S3** = hygiene.
 
+
+> ## Build status (Session C, 25 Sep)
+>
+> **Built on branch `claude/nice-lamport-vxf4yf`, not yet merged to `main`:**
+> N1, N3, N4, N21 (`6143ae8`) · N2 mechanism, N6, N7 mechanism, N8, N9, N12,
+> N13, N22 (`e7ed929`) · staff-reset takeover, token version, socket auth, admin
+> desk C1–C4 + C12 (`e7361af`). See the CHANGELOG entry for the table.
+>
+> **Found while building, and fixed:** pickup accepted cancelled orders;
+> **the super-admin password could be reset by an operations admin**; the admin
+> app's rate save was refused by the route (`changes` vs `rates`); a stored
+> pricing config missing newer rates made every rate save fail; the socket took
+> roles from the token and never checked blocked accounts.
+>
+> **Still open:** N5 (SMS provider, owner), N11 margin guard, N14 self-service
+> password change should bump the token version once the apps store the new
+> token, N15 per-user rate limiting, N17–N19 persistence (Railway overlap is an
+> owner setting), N20 expo-updates, C6 masked calling (telephony provider),
+> C7–C11, the partner-app items in §3B, customer-app cancel-fee display.
+>
+> **Body-shape scan** (every app request body vs the route's zod schema): 85
+> checked, one real mismatch (the rate screen, fixed); the other ten flags were
+> `.partial()` schemas the scanner does not model.
+
 ---
 
 ## 0. The top ten, in fix order

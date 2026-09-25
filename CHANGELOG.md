@@ -6,6 +6,66 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-25] -- Session C (cloud, "Quick Bite") -- holes that gave money back, a super-admin takeover, and the office desk
+
+**Branch `claude/nice-lamport-vxf4yf`, commits `8c427b7` → this one. NOT on `main` yet.**
+A third session, in its own working tree (a cloud container). It never touched
+`main`; Session A or B should review and merge. Plan and findings:
+`docs/plans/deep-audit-2026-09-25.md`. Every fix has a check that FAILS on
+`2f38582` and passes now (proved by running the new suites against a worktree of
+the old code). Gate: 58 suites green; 9/9 workspaces typecheck.
+
+### Server-only (live on the next Railway deploy, no APK)
+
+| Fix | What was possible before |
+| --- | --- |
+| N1 `confirmPayment` / `markPaidByGateway` guard | Replay a valid payment signature after a refund → the refunded order went back to the kitchen (free food; kitchen and rider paid from platform money). A late capture on an auto-cancelled order resurrected it. |
+| N3 riders cannot cancel | An assigned rider could cancel a prepaid order they were holding, with admin reasons: customer refunded 100%, kitchen unpaid. |
+| N4 per-role steps + code lockout | Rider skipped the pickup code via `PUT /orders/:id/status`; kitchen could mark out-for-delivery or cancel after pickup; 4-digit codes had no attempt limit. Now 5 wrong → 15 min lock + ops alert. |
+| N21 rider release | "Cancel trip" put ANY non-delivered order back to ready — after pickup, or on a cancelled order (resurrected). Now before-pickup only, rider track only. |
+| verifyPickup | Accepted cancelled/refunded orders that had once been ready. |
+| N6 refund cap | A refunded order could be claimed and refunded again. One `refundCap.ts` figure now caps every path. |
+| N12 order privacy | Any restaurant owner could read any order on the platform. |
+| N13 idempotency | Sending another customer's checkout key returned their order (incl. doorstep code). |
+| N9 distance | App-sent `distanceKm: 0.1` bought base delivery from anywhere when the address had no pin. |
+| N8 coupons | Redeemed at creation and never released; race on the last use. Now atomic, released on cancel; `newCustomersOnly`, `budget`. |
+| **Staff password reset** | **An operations admin could reset the SUPER ADMIN password and sign in as it.** Now riders/partners only, per permission. |
+| Token version | A reset now signs out every old token (lost phone). |
+| Socket auth | Blocked/removed admins kept the live control tower for 7 days; role came from the token. |
+| **Rates screen** | **The admin app sends `{changes}`, the route only took `{rates}` — no platform rate could ever be saved from the app.** Plus: a stored config lacked every newer rate, so every save failed "must be a number". |
+
+### New owner controls (all default 0 = today's behaviour; set in Inflation → platform rates)
+
+`maxDeliveryKm`, `minOrderValue`, `cancelFeePercentAfterAccept`,
+`cancelFeePercentAfterReady` (fee pays the kitchen first; `GET
+/orders/:id/cancellation-quote` shows it), `codCancelLimit`,
+`commissionGstChargedToPartnerPercent` (frozen on the bill; ask the CA).
+Also: set `tdsPercent` to 0.1 (194-O since Oct 2024) and review `tcsPercent`
+with the CA — both already editable.
+
+### Admin app (needs the admin APK)
+
+Rider page: cash handed in at the office; set temporary password. Restaurant
+page: temporary password, kitchen rejection rate. Pay: bank a deposit, take cash
+from a listed rider, release held orders with a note, cancel a payout. Coupons:
+first-order-only, budget. Rates: minute/count units.
+
+### For whoever merges
+
+- Shared files touched additively: `shared-types` (Order: `codeAttempts`,
+  `riderReleases`, `couponRedeemed`, `cancelledFromStatus`, `cancellationFee`;
+  Coupon: `newCustomersOnly`, `budget`, `spent`; six PricingRates keys; one
+  LedgerEvent), `pricing-engine` (`commissionGstToPartner`),
+  `pricingConfig.ts` (six bounds + defaults filled on read), `earnings.ts` (one
+  deduction, 0 by default). No renames, no signature changes except
+  `confirmPayment`'s optional fourth argument.
+- Two new suites: `abuseGuards` (27), `profitGuards` (26).
+- **Customer app needs** the cancellation quote shown before cancel, and to
+  store `data.token` from change-password (then bump the token version there
+  too — see the comment in `authRouter.ts`).
+
+---
+
 ## [2026-09-24] -- Claude Opus 5 -- Session 34: order flow rebuilt, the money chain made honest, and the admin revamp
 
 **Covers 117 commits, `e53f944` through `d0af361`, 22–24 Sep 2026.** Two Claude
