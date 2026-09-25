@@ -132,6 +132,19 @@ export const userRepository = {
     return true;
   },
 
+  /**
+   * Removes a user record outright, for the admin platform reset.
+   *
+   * Here rather than in the route so that EVERY removal of a user goes through
+   * this file, and so closes the connections that account still has open
+   * (revokeLiveAccess). Nothing is anonymised: the reset wipes the orders too.
+   */
+  removeForPlatformReset(userId: string): void {
+    if (!memoryStore.users.delete(userId)) return;
+    triggerAutoSave();
+    revokeLiveAccess(userId);
+  },
+
   async list(): Promise<UserRecord[]> {
     return Array.from(memoryStore.users.values());
   },

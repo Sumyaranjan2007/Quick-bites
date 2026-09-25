@@ -3,6 +3,12 @@
  * change signs out every OTHER device while keeping this one (U2).
  */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import jwt from 'jsonwebtoken';
+import { config } from '../config/env.ts';
+import { userRepository } from '../db/repositories/userRepository.ts';
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
@@ -142,6 +148,8 @@ try {
     assert.equal(tooSoon.json?.error?.code, 'ORDER_IN_PROGRESS');
   });
   (memoryStore.orders.get('ord_u6_live') as any).status = 'DELIVERED';
+  // A phone still connected when the account is deleted.
+  const deletingLive = await connect(again2.token);
   const wrongPw = await api('/auth/me', { method: 'DELETE', body: { password: 'nope' } }, again2.token);
   const gone = await api('/auth/me', { method: 'DELETE', body: { password: 'pass123' } }, again2.token);
   it('Needs the password, then deletes the account', () => {
@@ -152,6 +160,75 @@ try {
   const ghost = await login('rahul.sharma@quickbite.app');
   it('and signing in with it again fails', () => {
     assert.equal(ghost.token, undefined);
+  });
+  await settle();
+  it("and the deleted account's live connection is closed", () => {
+    assert.equal(deletingLive.ok, true, 'Setup: the phone was not connected before the deletion');
+    assert.equal(deletingLive.dropped(), true);
+  });
+  const afterDelete = await connect(again2.token);
+  it('and it cannot reconnect', () => {
+    assert.equal(afterDelete.ok, false);
+  });
+  for (const s of [deletingLive, afterDelete]) s.sock.close();
+
+  // ------------------------------------------------ the platform reset
+  console.log('\n-- The admin platform reset closes the connections of everyone it removes');
+  // A customer of its own, so nothing above is disturbed.
+  const victim = await userRepository.create({
+    id: `usr_reset_victim_${Date.now()}`,
+    email: `reset.victim.${Date.now()}@example.com`,
+    fullName: 'Reset Victim',
+    phone: '+91-90000-00077',
+    role: 'customer',
+    passwordHash: 'not-used-in-this-test'
+  } as any);
+  const victimId = victim.id;
+  const victimToken = jwt.sign({ sub: victimId, role: 'customer' }, config.JWT_SECRET, { expiresIn: '1h', algorithm: 'HS256' });
+  const victimLive = await connect(victimToken);
+  userRepository.removeForPlatformReset(victimId);
+  await settle();
+  it('A user removed by the reset is disconnected at once', () => {
+    assert.equal(victimLive.ok, true, 'Setup: the removed user was not connected');
+    assert.equal(victimLive.dropped(), true);
+    assert.equal(memoryStore.users.get(victimId), undefined);
+  });
+  victimLive.sock.close();
+
+  // ------------------------------------------- nothing goes around the hook
+  console.log('\n-- Nothing outside userRepository can remove, block or sign out a user unseen');
+  /*
+   * The disconnect hangs off userRepository: update() fires it on a block or a
+   * new token version, and every removal fires it. A write straight into the
+   * store from anywhere else would change the account and leave its phones
+   * connected. So no other file may do one. Comments are stripped first, so a
+   * comment describing the rule is not mistaken for a breach of it.
+   */
+  const srcRoot = fileURLToPath(new URL('..', import.meta.url));
+  const allowed = new Set([path.join(srcRoot, 'db', 'repositories', 'userRepository.ts')]);
+  const breaches: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'test' && entry.name !== 'node_modules') walk(full);
+        continue;
+      }
+      if (!entry.name.endsWith('.ts') || allowed.has(full)) continue;
+      const code = fs
+        .readFileSync(full, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+      code.split('\n').forEach((line, i) => {
+        if (/memoryStore\.users\.(set|delete|clear)\(/.test(line) || /\.(isBlocked|tokenVersion)\s*=(?!=)/.test(line)) {
+          breaches.push(`${path.relative(srcRoot, full)}:${i + 1}: ${line.trim()}`);
+        }
+      });
+    }
+  };
+  walk(srcRoot);
+  it('No file but userRepository writes users, isBlocked or tokenVersion straight into the store', () => {
+    assert.deepEqual(breaches, []);
   });
 } finally {
   closeSocketServer?.();

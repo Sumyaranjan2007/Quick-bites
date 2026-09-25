@@ -40,6 +40,7 @@ import { memoryStore, saveStoreToFile } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
+import { userRepository } from '../../db/repositories/userRepository.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import {
   businessIdentity,
@@ -188,7 +189,8 @@ platformRoutes.post('/platform/reset', validate({ body: z.object({ confirm: z.un
     for (const [id, user] of memoryStore.users) {
       const role = (user as { role?: string })?.role;
       if (role === 'admin' || role === 'super_admin') continue;
-      memoryStore.users.delete(id);
+      // Through the repository, which also closes their open connections.
+      userRepository.removeForPlatformReset(id);
       customersRemoved++;
     }
     removed.users = customersRemoved;
