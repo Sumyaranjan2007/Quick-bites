@@ -970,6 +970,7 @@ financeRoutes.post(
 
       for (const order of orders) {
         order.settlementId = settlement.id;
+        memoryStore.orders.set(order.id, order);
       }
       triggerAutoSave();
 
@@ -1099,7 +1100,10 @@ financeRoutes.post(
       if (req.body.status === 'FAILED') {
         const orders = await orderRepository.listByRestaurantId(existing.restaurantId);
         for (const order of orders) {
-          if (order.settlementId === existing.id) delete (order as any).settlementId;
+          if (order.settlementId === existing.id) {
+            delete (order as any).settlementId;
+            memoryStore.orders.set(order.id, order);
+          }
         }
         triggerAutoSave();
       }

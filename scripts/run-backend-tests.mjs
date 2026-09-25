@@ -97,7 +97,8 @@ const SUITES = [
   'durableMoney',
   'duplicateCapture',
   'marginGuard',
-  'rateLimitPerUser'
+  'rateLimitPerUser',
+  'changeTracking'
 ];
 
 /*

@@ -39,7 +39,7 @@ export const addressRepository = {
 
     if (isDefault) {
       for (const other of existing) {
-        other.isDefault = false;
+        if (other.isDefault) memoryStore.addresses.set(other.id, { ...other, isDefault: false });
       }
     }
 
@@ -53,10 +53,11 @@ export const addressRepository = {
     if (!address || address.userId !== userId) return null;
 
     Object.assign(address, updates, { id: address.id, userId: address.userId });
+    memoryStore.addresses.set(id, address);
 
     if (updates.isDefault) {
       for (const other of await this.listByUserId(userId)) {
-        if (other.id !== id) other.isDefault = false;
+        if (other.id !== id && other.isDefault) memoryStore.addresses.set(other.id, { ...other, isDefault: false });
       }
     }
 
@@ -73,7 +74,7 @@ export const addressRepository = {
     // Never leave a customer without a default address.
     if (address.isDefault) {
       const remaining = await this.listByUserId(userId);
-      if (remaining.length > 0) remaining[0].isDefault = true;
+      if (remaining.length > 0) memoryStore.addresses.set(remaining[0].id, { ...remaining[0], isDefault: true });
     }
 
     triggerAutoSave();

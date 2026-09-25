@@ -11,7 +11,7 @@ import {
   RESTAURANT_DOCUMENT_TYPES,
   buildDocumentOverview
 } from '../modules/restaurants/restaurantDocuments.ts';
-import { triggerAutoSave } from '../db/client.ts';
+import { memoryStore, triggerAutoSave } from '../db/client.ts';
 
 export const kycRouter = Router();
 
@@ -117,6 +117,7 @@ kycRouter.post('/submit', validate({ body: SubmitKycSchema }), async (req, res, 
       const rest = await restaurantRepository.findById(entityId);
       if (rest && rest.status !== 'ACTIVE' && rest.kycStatus !== 'ACTIVE') {
         rest.kycStatus = 'PENDING_APPROVAL';
+        memoryStore.restaurants.set(rest.id, rest);
         triggerAutoSave();
       }
     } else if (entityType === 'RIDER') {

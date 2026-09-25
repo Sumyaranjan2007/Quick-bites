@@ -97,6 +97,7 @@ export const userRepository = {
         order.customerName = 'Deleted account';
         delete order.customerPhone;
         delete order.deliveryAddressText;
+        memoryStore.orders.set(order.id, order);
       }
     }
 

@@ -683,6 +683,7 @@ export const orderRepository = {
     if (!order) return false;
     order.riderSearchAlertedAt = at;
     order.updatedAt = new Date().toISOString();
+    memoryStore.orders.set(id, order);
     triggerAutoSave();
     return true;
   },
@@ -701,6 +702,7 @@ export const orderRepository = {
     const order = memoryStore.orders.get(id);
     if (!order) return false;
     order.deliveryProximityFlag = flag;
+    memoryStore.orders.set(id, order);
     triggerAutoSave();
     return true;
   },

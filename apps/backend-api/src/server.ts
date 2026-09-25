@@ -108,7 +108,21 @@ await ensureBootstrapAdmin();
 // provisions is KYC-approved so it can actually be offered work.
 await ensureTestRider();
 
-await flushStore();
+// Boot writes whatever hydration, migrations and the bootstrap changed, in
+// full: some of it happens before change tracking can see it.
+await flushStore('full');
+
+/*
+ * The backstop for change tracking (S1): every 10 minutes a full diff saves
+ * anything changed in place without set(), and logs it as DIRTY_MISS so the
+ * code path can be fixed. Money writes never wait for this; they save in full.
+ */
+if (usingDatabase) {
+  const backstop = setInterval(() => {
+    flushStore('full').catch(err => console.error('[ERROR] Backstop save failed:', err));
+  }, 10 * 60_000);
+  backstop.unref();
+}
 
 const app = createApp();
 
@@ -172,7 +186,7 @@ async function handleShutdown(signal: string) {
   // Flush before the connection closes; a debounced write may still be pending,
   // and the platform sends SIGTERM on every redeploy.
   try {
-    await flushStore();
+    await flushStore('full');
   } catch (err) {
     console.error('[ERROR] Final persist failed; recent writes may be lost:', err);
   }

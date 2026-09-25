@@ -187,6 +187,92 @@ export const memoryStore: DbStore = {
  * stale rows are dropped so the current seed can repopulate from scratch,
  * instead of the two being silently merged.
  */
+/*
+ * CHANGE TRACKING (S1 / N18).
+ *
+ * The database save used to re-serialise EVERY document ever written on every
+ * flush, to find the few that changed: cost grew with the lifetime of the
+ * platform, and it blocked the event loop while it ran. Each collection now
+ * records the ids its `set`/`delete` touch, and a save writes those.
+ *
+ * Tracking is installed on the map INSTANCES (not a subclass), so it survives
+ * code that holds a map, and is re-installed wherever a map is replaced (the
+ * file loader). A full diff still runs on a timer, at shutdown, and for every
+ * money write (`persistDurably`), and reports anything it finds changed but not
+ * marked (DIRTY_MISS), so a path that mutates in place without `set` is seen
+ * and still saved.
+ */
+const dirtyIds = new Map<string, Set<string>>();
+const wholeCollections = new Set<string>();
+
+function markDirty(collection: string, id: string): void {
+  let ids = dirtyIds.get(collection);
+  if (!ids) {
+    ids = new Set();
+    dirtyIds.set(collection, ids);
+  }
+  ids.add(id);
+}
+
+function trackMap(name: string, map: Map<any, any>): void {
+  if ((map as any).__tracked) return;
+  const set = map.set.bind(map);
+  const del = map.delete.bind(map);
+  const clear = map.clear.bind(map);
+  (map as any).set = (key: any, value: any) => {
+    markDirty(name, String(key));
+    return set(key, value);
+  };
+  (map as any).delete = (key: any) => {
+    markDirty(name, String(key));
+    return del(key);
+  };
+  (map as any).clear = () => {
+    wholeCollections.add(name);
+    dirtyIds.get(name)?.clear();
+    return clear();
+  };
+  Object.defineProperty(map, '__tracked', { value: true });
+}
+
+export function installChangeTracking(): void {
+  for (const [name, map] of Object.entries(memoryStore)) trackMap(name, map as Map<any, any>);
+}
+installChangeTracking();
+
+export interface DirtySnapshot {
+  ids: Map<string, Set<string>>;
+  whole: Set<string>;
+}
+
+/** Takes (and resets) what has changed since the last save. */
+export function takeDirty(): DirtySnapshot {
+  const snapshot: DirtySnapshot = {
+    ids: new Map(Array.from(dirtyIds.entries()).map(([c, ids]) => [c, new Set(ids)])),
+    whole: new Set(wholeCollections)
+  };
+  dirtyIds.clear();
+  wholeCollections.clear();
+  return snapshot;
+}
+
+/** Puts a snapshot back after a failed save, so its changes are retried. */
+export function restoreDirty(snapshot: DirtySnapshot): void {
+  for (const [c, ids] of snapshot.ids) for (const id of ids) markDirty(c, id);
+  for (const c of snapshot.whole) wholeCollections.add(c);
+}
+
+/** What is marked right now, without taking it. */
+export function peekDirty(collection: string, id: string): boolean {
+  return wholeCollections.has(collection) || Boolean(dirtyIds.get(collection)?.has(id));
+}
+
+/** After hydration: what was just loaded is by definition already saved. */
+export function forgetDirty(): void {
+  dirtyIds.clear();
+  wholeCollections.clear();
+}
+
 export function clearStore(): void {
   for (const map of Object.values(memoryStore)) {
     (map as Map<string, any>).clear();
@@ -229,6 +315,8 @@ export function loadStoreFromFile(customPath?: string): boolean {
         (memoryStore as any)[key] = new Map(entries as [string, any][]);
       }
     }
+    // The loop above REPLACED the maps, which dropped their tracking.
+    installChangeTracking();
     // Values this build no longer accepts are rewritten before anything is
     // served. Called from BOTH hydration paths, not just this one - see
     // normaliseStore.ts for why that distinction is the whole point.
@@ -250,7 +338,7 @@ export function loadStoreFromFile(customPath?: string): boolean {
  * module stays free of a dependency on any particular database driver.
  */
 export interface PersistenceBackend {
-  save: () => Promise<void>;
+  save: (mode?: SaveMode) => Promise<void>;
 }
 
 let backend: PersistenceBackend | null = null;
@@ -271,7 +359,8 @@ export function setPersistenceBackend(next: PersistenceBackend | null): void {
  */
 export function persistDurably(): Promise<void> {
   if (!backend) return Promise.resolve();
-  return flushStore();
+  // Money never depends on the tracking: a durable save is a full diff.
+  return flushStore('full');
 }
 
 /*
@@ -285,14 +374,27 @@ export function persistDurably(): Promise<void> {
  */
 let inFlight: Promise<void> = Promise.resolve();
 let queued: Promise<void> | null = null;
+let queuedMode: SaveMode = 'changed';
 
-export function flushStore(): Promise<void> {
-  if (queued) return queued;
+/**
+ * `changed` writes what the change tracking marked. `full` also diffs every
+ * document, which catches anything changed in place without a `set`.
+ */
+export type SaveMode = 'changed' | 'full';
+
+export function flushStore(mode: SaveMode = 'changed'): Promise<void> {
+  if (queued) {
+    // Joining a queued save: it must be at least as thorough as this caller.
+    if (mode === 'full') queuedMode = 'full';
+    return queued;
+  }
+  queuedMode = mode;
   const run = async () => {
     // From here on, a new caller's write may land after this snapshot, so it
     // must queue a fresh save rather than join this one.
     queued = null;
-    if (backend) await backend.save();
+    const thisMode = queuedMode;
+    if (backend) await backend.save(thisMode);
     else saveStoreToFile();
   };
   const next = inFlight.then(run, run);

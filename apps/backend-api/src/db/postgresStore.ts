@@ -38,7 +38,14 @@
  * thousands.
  */
 import pg from 'pg';
-import { memoryStore, type DbStore } from './client.ts';
+import {
+  memoryStore,
+  takeDirty,
+  restoreDirty,
+  forgetDirty,
+  type DirtySnapshot,
+  type SaveMode
+} from './client.ts';
 import { normaliseLoadedStore } from './normaliseStore.ts';
 
 const { Pool } = pg;
@@ -169,37 +176,82 @@ export async function loadStoreFromDatabase(): Promise<boolean> {
    * It runs before `return true`, so nothing is served from a store still
    * carrying values this build cannot transition out of.
    */
+  forgetDirty();
   normaliseLoadedStore();
+  // Everything just loaded is already in the database. Anything normalise
+  // rewrote stays marked, so the fix is saved.
   lastLoadedFromDatabaseAt = new Date().toISOString();
   return true;
 }
 
+export interface StoreChanges {
+  upserts: Array<{ collection: string; id: string; data: string }>;
+  deletions: Array<{ collection: string; id: string }>;
+  /** Documents a FULL diff found changed that the tracking had not marked. */
+  misses: Array<{ collection: string; id: string }>;
+  snapshot: DirtySnapshot;
+}
+
 /**
- * Writes everything that changed since the last save, and removes documents no
- * longer held in memory, as a single transaction.
+ * Works out what a save must write, without touching the database (S1).
+ *
+ * `changed`: only the documents the change tracking marked, plus any
+ * collection that was cleared (diffed whole). `full`: every document, as the
+ * save always used to, and every changed document the tracking had NOT marked
+ * is reported as a miss.
  */
-export async function saveStoreToDatabase(): Promise<void> {
-  if (!pool) return;
+export function computeChanges(mode: SaveMode = 'changed'): StoreChanges {
+  const snapshot = takeDirty();
+  const upserts: StoreChanges['upserts'] = [];
+  const deletions: StoreChanges['deletions'] = [];
+  const misses: StoreChanges['misses'] = [];
 
-  const upserts: Array<{ collection: string; id: string; data: string }> = [];
-  const deletions: Array<{ collection: string; id: string }> = [];
-
-  for (const [collection, map] of Object.entries(memoryStore) as Array<[keyof DbStore, Map<string, any>]>) {
-    const name = collection as string;
-    const seen = persistedFor(name);
-
-    for (const [id, doc] of map.entries()) {
-      const serialized = JSON.stringify(doc);
+  const consider = (collection: string, id: string, map: Map<string, any>, marked: boolean) => {
+    const seen = persistedFor(collection);
+    if (map.has(id)) {
+      const serialized = JSON.stringify(map.get(id));
       if (seen.get(id) !== serialized) {
-        upserts.push({ collection: name, id, data: serialized });
+        upserts.push({ collection, id, data: serialized });
+        if (!marked) misses.push({ collection, id });
       }
+    } else if (seen.has(id)) {
+      deletions.push({ collection, id });
+      if (!marked) misses.push({ collection, id });
     }
+  };
 
-    for (const id of seen.keys()) {
-      if (!map.has(id)) deletions.push({ collection: name, id });
+  for (const [collection, map] of Object.entries(memoryStore) as Array<[string, Map<string, any>]>) {
+    const marked = snapshot.ids.get(collection) || new Set<string>();
+    if (mode === 'full' || snapshot.whole.has(collection)) {
+      const all = new Set<string>([...map.keys(), ...persistedFor(collection).keys()]);
+      for (const id of all) consider(collection, id, map, snapshot.whole.has(collection) || marked.has(id));
+    } else {
+      for (const id of marked) consider(collection, id, map, true);
     }
   }
+  return { upserts, deletions, misses, snapshot };
+}
 
+/**
+ * Writes what changed since the last save, and removes documents no longer
+ * held in memory, as a single transaction. On failure the changes are put back
+ * so the next save retries them.
+ */
+export async function saveStoreToDatabase(mode: SaveMode = 'changed'): Promise<void> {
+  if (!pool) return;
+
+  const { upserts, deletions, misses, snapshot } = computeChanges(mode);
+  if (misses.length > 0) {
+    console.error(
+      JSON.stringify({
+        level: 'ERROR',
+        event: 'DIRTY_MISS',
+        count: misses.length,
+        sample: misses.slice(0, 10),
+        note: 'Changed in place without set(): saved by this full diff; the code path should call set().'
+      })
+    );
+  }
   if (upserts.length === 0 && deletions.length === 0) return;
 
   const client = await pool.connect();
@@ -220,14 +272,28 @@ export async function saveStoreToDatabase(): Promise<void> {
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
+    restoreDirty(snapshot);
     throw err;
   } finally {
     client.release();
   }
 
   // Only record what actually committed, so a failed write is retried next time.
+  commitPersisted(upserts, deletions);
+}
+
+function commitPersisted(upserts: StoreChanges['upserts'], deletions: StoreChanges['deletions']): void {
   for (const { collection, id, data } of upserts) persistedFor(collection).set(id, data);
   for (const { collection, id } of deletions) persistedFor(collection).delete(id);
+}
+
+/** Tests: treat the current memory as saved, as a fresh boot would. */
+export function markEverythingPersistedForTesting(): void {
+  persisted.clear();
+  for (const [collection, map] of Object.entries(memoryStore) as Array<[string, Map<string, any>]>) {
+    for (const [id, doc] of map.entries()) persistedFor(collection).set(id, JSON.stringify(doc));
+  }
+  forgetDirty();
 }
 
 export async function closeDatabase(): Promise<void> {
