@@ -16,7 +16,7 @@ const c = tokens.colors;
  * answer without anyone having to ask a Super Admin.
  */
 export const ProfileScreen: React.FC = () => {
-  const { api, user, roleName, permissions, permissionCatalogue, isSuperAdmin, signOut, apiUrl, refreshAccess } =
+  const { api, user, roleName, permissions, permissionCatalogue, isSuperAdmin, signOut, apiUrl, refreshAccess, replaceToken } =
     useSession();
 
   const [editing, setEditing] = useState(false);
@@ -53,12 +53,14 @@ export const ProfileScreen: React.FC = () => {
     }
     setBusy(true);
     try {
-      await api.post('/auth/change-password', { currentPassword, newPassword });
+      const result = await api.post<any>('/auth/change-password', { currentPassword, newPassword });
+      // Every other token is retired by the change; keep this phone signed in.
+      if (result?.token) replaceToken(result.token);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setChangingPassword(false);
-      Alert.alert('Password changed', 'Use the new password the next time you sign in.');
+      Alert.alert('Password changed', 'Any other phone signed in to this account has been signed out.');
     } catch (err: any) {
       Alert.alert('Could not change your password', err?.message || 'Your password is unchanged.');
     } finally {

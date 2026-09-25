@@ -435,6 +435,11 @@ function PartnerApp() {
             ownerEmail={user?.email}
             ownerName={user?.fullName}
             onSignOut={signOut}
+            onTokenRefreshed={next => {
+              configureApi(currentApiUrl(), next);
+              setToken(next);
+              void saveStoredSession({ token: next, user, apiUrl: currentApiUrl() });
+            }}
           />
         )}
       </View>

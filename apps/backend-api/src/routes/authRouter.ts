@@ -984,11 +984,13 @@ authRouter.post(
         throw new AppError('The new password has to be different from the old one.', 400, 'PASSWORD_UNCHANGED');
       }
 
-      // The token version is NOT bumped here yet: the shipped apps do not store
-      // a replacement token, so bumping would sign the person out of the very
-      // device they changed it on. An administrator's reset (the lost-phone
-      // case) does bump it. Once the apps save `data.token` below, bump here too.
-      await userRepository.update(user.id, { passwordHash: await bcrypt.hash(req.body.newPassword, 10) });
+      // The token version goes up, so every other device signed in to this
+      // account is signed out (and its live connection closed). This device
+      // keeps working: all four apps store `data.token` below (U2).
+      await userRepository.update(user.id, {
+        passwordHash: await bcrypt.hash(req.body.newPassword, 10),
+        tokenVersion: (Number((user as any).tokenVersion) || 0) + 1
+      } as any);
 
       // A fresh token for THIS device: the change retired every older one.
       const refreshed = await userRepository.findById(user.id);

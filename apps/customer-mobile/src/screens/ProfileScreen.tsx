@@ -49,6 +49,8 @@ interface Props {
   token?: string;
   user?: any;
   onUserUpdated?: (user: any) => void;
+  /** A password change retires every older token and returns this device a new one (U2). */
+  onTokenRefreshed?: (token: string) => void;
   onLogout?: () => void;
   notificationsEnabled: boolean;
   onToggleNotifications: (enabled: boolean) => void;
@@ -72,6 +74,7 @@ export const ProfileScreen: React.FC<Props> = ({
   apiUrl,
   token,
   user,
+  onTokenRefreshed,
   onUserUpdated,
   onLogout,
   notificationsEnabled,
@@ -152,6 +155,8 @@ export const ProfileScreen: React.FC<Props> = ({
         setPasswordError(parseApiError(data, 'Your password could not be changed.').message);
         return;
       }
+      // Kept before anything else: every other token is now retired.
+      if (data?.data?.token) onTokenRefreshed?.(data.data.token);
       setCurrentPassword('');
       setNewPassword('');
       setPasswordDone(true);

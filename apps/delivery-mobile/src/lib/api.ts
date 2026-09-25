@@ -326,7 +326,8 @@ export const api = {
 
 
   changePassword(ctx: ApiContext, currentPassword: string, newPassword: string) {
-    return request<{ changed: boolean }>(ctx, '/auth/change-password', {
+    // `token` replaces this device's: the change retires every older one (U2).
+    return request<{ changed: boolean; token?: string }>(ctx, '/auth/change-password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword })
     });

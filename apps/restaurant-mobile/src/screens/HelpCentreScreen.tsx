@@ -11,6 +11,8 @@ interface Props {
   ownerEmail?: string;
   ownerName?: string;
   onSignOut: () => void;
+  /** Keeps this device signed in after a password change (U2). */
+  onTokenRefreshed?: (token: string) => void;
 }
 
 const SUPPORT_EMAIL = 'partners@quickbite.app';
@@ -60,7 +62,7 @@ const FAQS = [
  * to go. Answers to the common questions come first because most are answerable
  * without us; the contact routes are underneath for when they are not.
  */
-export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, onSignOut }) => {
+export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, onSignOut, onTokenRefreshed }) => {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   // Account management lives here rather than behind another tab: the partner
@@ -114,6 +116,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
       setAccountError(res.message || 'Your password could not be changed.');
       return;
     }
+    if (res.data?.token) onTokenRefreshed?.(res.data.token);
     setCurrentPassword('');
     setNextPassword('');
     setAccountMode('none');

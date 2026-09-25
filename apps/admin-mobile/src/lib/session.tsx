@@ -7,6 +7,7 @@
  * be refused rather than served. Hiding it keeps an administrator from walking
  * into a wall of refusals for work that is not theirs.
  */
+import { saveStoredSession } from './storedSession';
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { createClient, type ApiClient } from './api';
 
@@ -43,6 +44,8 @@ interface SessionValue extends SessionState {
   signIn: (state: SessionState) => void;
   signOut: () => void;
   refreshAccess: () => Promise<void>;
+  /** Swaps in the token a password change returns, and keeps it for next launch (U2). */
+  replaceToken: (token: string) => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -101,9 +104,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode; onSignOut?: 
     }));
   }, [api]);
 
+  const replaceToken = useCallback((token: string) => {
+    setState(current => {
+      void saveStoredSession({ token, user: current.user, apiUrl: current.apiUrl });
+      return { ...current, token };
+    });
+  }, []);
+
   const value = useMemo<SessionValue>(
-    () => ({ ...state, api, can, signIn, signOut, refreshAccess }),
-    [state, api, can, signIn, signOut, refreshAccess]
+    () => ({ ...state, api, can, signIn, signOut, refreshAccess, replaceToken }),
+    [state, api, can, signIn, signOut, refreshAccess, replaceToken]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -101,7 +101,8 @@ const SUITES = [
   'changeTracking',
   'opsRescue',
   'addressPin',
-  'dishOptions'
+  'dishOptions',
+  'accessRevoked'
 ];
 
 /*

@@ -366,7 +366,8 @@ export const PASSWORD_RECOVERY_GUIDANCE =
   'Call Quick Bites operations and an administrator will set a temporary password for you. Change it from Settings once you are back in.';
 
 export function changePassword(currentPassword: string, newPassword: string) {
-  return request<{ changed: boolean }>(
+  // `token` replaces this device's: the change retires every older one (U2).
+  return request<{ changed: boolean; token?: string }>(
     '/auth/change-password',
     { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
     'Your password could not be changed.'

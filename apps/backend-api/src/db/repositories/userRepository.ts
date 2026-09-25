@@ -7,6 +7,26 @@ export interface UserRecord extends UserProfile {
   passwordHash?: string;
 }
 
+/*
+ * Who to tell when an account loses access, so open connections are closed.
+ * A listener rather than an import: the socket server already imports this
+ * file, and importing it back would be a cycle.
+ */
+const accessRevokedListeners: Array<(userId: string) => void> = [];
+export function onAccessRevoked(listener: (userId: string) => void): void {
+  accessRevokedListeners.push(listener);
+}
+function revokeLiveAccess(userId: string): void {
+  for (const listener of accessRevokedListeners) {
+    try {
+      listener(userId);
+    } catch {
+      // A failed disconnect must not fail the block itself; the next socket
+      // handshake refuses a blocked account anyway.
+    }
+  }
+}
+
 export const userRepository = {
   async findById(id: string): Promise<UserRecord | null> {
     return memoryStore.users.get(id) || null;
@@ -64,6 +84,11 @@ export const userRepository = {
     const updated = { ...existing, ...updates };
     memoryStore.users.set(id, updated);
     triggerAutoSave();
+    // Blocking, or retiring every token, must also end connections already
+    // open: the socket handshake is the only place those were checked (S11).
+    const blockedNow = (updated as any).isBlocked && !(existing as any).isBlocked;
+    const tokensRetired = (Number((updated as any).tokenVersion) || 0) !== (Number((existing as any).tokenVersion) || 0);
+    if (blockedNow || tokensRetired) revokeLiveAccess(id);
     return updated;
   },
 
@@ -103,6 +128,7 @@ export const userRepository = {
 
     memoryStore.users.delete(userId);
     triggerAutoSave();
+    revokeLiveAccess(userId);
     return true;
   },
 

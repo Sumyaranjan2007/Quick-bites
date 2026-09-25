@@ -449,6 +449,10 @@ function AppRoot() {
               // revert to the old one on the next launch.
               void saveStoredSession({ token: authToken, user: next, apiUrl });
             }}
+            onTokenRefreshed={next => {
+              setAuthToken(next);
+              void saveStoredSession({ token: next, user: currentUser, apiUrl });
+            }}
             onLogout={handleLogout}
             notificationsEnabled={notificationsEnabled}
             onToggleNotifications={setNotificationsEnabled}

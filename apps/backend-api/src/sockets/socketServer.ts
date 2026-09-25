@@ -1,5 +1,5 @@
 import { memoryStore } from '../db/client.ts';
-import { rolesOf } from '../db/repositories/userRepository.ts';
+import { rolesOf, onAccessRevoked } from '../db/repositories/userRepository.ts';
 import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import type { Server as HttpServer } from 'http';
@@ -34,6 +34,12 @@ export interface SocketUserContext {
   /** @deprecated Ignored by the server. Role comes from the token. */
   role?: SocketRole;
 }
+
+/** Closes every open connection an account holds (S11: block, password change, deletion). */
+export function disconnectUser(userId: string): void {
+  ioInstance?.in(`user:${userId}`).disconnectSockets(true);
+}
+onAccessRevoked(disconnectUser);
 
 export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   if (ioInstance) {

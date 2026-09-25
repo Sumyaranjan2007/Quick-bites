@@ -200,8 +200,14 @@ function DeliveryApp() {
 
   const handleChangePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     try {
-      await api.changePassword(ctxRef.current, currentPassword, newPassword);
-      Alert.alert('Password changed', 'Use the new password the next time you sign in.');
+      const result = await api.changePassword(ctxRef.current, currentPassword, newPassword);
+      // Every other token is retired by the change; keep this phone signed in.
+      if (result?.token) {
+        setToken(result.token);
+        const stored = await loadSession();
+        if (stored) await saveSession({ ...stored, token: result.token });
+      }
+      Alert.alert('Password changed', 'Any other phone signed in to this account has been signed out.');
       return true;
     } catch (err: any) {
       Alert.alert('Could not change your password', err?.message || 'Your password is unchanged.');
