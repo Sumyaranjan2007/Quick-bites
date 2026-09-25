@@ -63,6 +63,9 @@ first-order-only, budget. Rates: minute/count units.
 - **Customer app needs** the cancellation quote shown before cancel, and to
   store `data.token` from change-password (then bump the token version there
   too — see the comment in `authRouter.ts`).
+
+---
+
 ## [2026-09-25] -- Claude Opus 5 / 5.5 -- Session 35: the full audit — money paths made true, everyone told, every screen honest
 
 > **Session names — read this first.** The owner calls the planning/review session
