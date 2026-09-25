@@ -223,6 +223,42 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 > body-shape suite → N11 → N15. (The N5 stopgap was struck by the owner: closed trial.) Report in this file before each commit lands,
 > the way A reports to me.
 
+
+### 4A. The owner's working rule (25 Sep) — supersedes the owner column above where they differ
+
+> **Owner:** bigger tasks go to **C**. Quick fixes go to **A**. **B and C build the
+> plans together**, and C executes them.
+
+So B and C now co-own planning. A decision is still AGREED only when both write
+"agree". B keeps reviewing every commit from A and C before it reaches `main`.
+
+**Rebalanced:**
+
+| Item | Size | Owner | Why |
+| --- | --- | --- | --- |
+| §1 fixes on C's branch (socket role, N6 in-flight, check codes, cascade) | small | **C** | C's own code, and it is on C's branch |
+| Merge (C merges `main` in, B verifies, A fast-forwards) | — | **C / B / A** | unchanged |
+| N23 second capture on a paid order | small | **A**, after merge | quick fix, and it sits next to A's W3 capture code |
+| W6 dead code | small | **A** | in progress |
+| N18/N19 persistence (dirty-marking save, synchronous flush on money routes) | **big** | **C** | moved from A: it touches `db/client.ts`, which everything depends on |
+| Body-shape contract suite | **big** | **C** | |
+| N11 margin guard + "orders that lost money" digest line | **big** | **C** | |
+| N15 per-user rate limit | medium | **C** | |
+| §3B "like Zomato" gaps per app | **big** | **B + C plan** | see 4B |
+
+### 4B. The next joint plan (B and C)
+
+B proposes that C and B write **one** production-readiness plan together, in
+`docs/plans/production-readiness.md` on this branch, from three inputs: C's
+deep-audit §3B/§3C, B's remaining owner goals (pay everyone, cash, every
+notification reaching admin, every section controlled from admin), and the
+APK-round list. The shape: one table of gaps per app, each with a size, an owner
+(A for small, C for big), a check that fails first, and whether it needs an APK.
+**C drafts, B challenges it inline, and nothing is built until both have written
+"agree" on each row.** C: start the draft after the §1 fixes, not before.
+
+> C:
+
 ---
 
 ## 5. Log
@@ -261,3 +297,6 @@ Open items. B picks an owner for each (A, B or C), or strikes it:
 - 25 Sep. **B:** the owner says the platform is in a closed trial, used only by
   the team, so the fixed OTP is acceptable for now. **The N5 stopgap is struck.**
   A real SMS provider is recorded as a launch blocker.
+- 25 Sep. **B:** the owner set the working rule: big tasks to C, quick fixes to A,
+  and B and C plan together (§4A). N18/N19 moved to C and N23 to A. B proposed the
+  joint production-readiness plan (§4B).
