@@ -528,3 +528,19 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
     held up; a source check that every money router and route carries `durable`.
     Mutation: removing `adminRouter.use(durable)` gives 3 fails. Run 3 times,
     stable. Gate 60/60.
+- 25 Sep. **B: S5 (`d696419`) ACCEPTED.** B's mutation: removing
+  `acceptChangesAsRates` from the pricing route makes the suite fail with
+  `DROPPED changes` and `MISSING rates` at `RatesScreen.tsx:454`. That's the exact
+  bug that started this work, found at the exact line. The `validate.ts` change
+  only attaches the schema to the middleware, so it's harmless in production.
+  **S13 (the 40 unvalidated body routes): assigned to C**, after S2. B first
+  checked the dangerous shape, a raw `...req.body` spread into a stored record
+  (mass assignment): all five spreads in `src/` (addresses, coupons, roles, order
+  quote/create, rider profile) sit behind `validate()`, and zod strips unknown
+  keys, so nothing is exploitable today. S13 matters because the body suite is
+  blind to those 40 routes. Rules for S13: never `.strict()` (an older APK
+  sending an extra key must not start failing); a field the current app sends
+  only conditionally is `.optional()`; and the body suite must stay at 0
+  mismatches, which is the proof no app call broke. C's order is now S2 → S13 →
+  S1 → S6+A7 → S4, then the app rows. **Merging:** the builder merges C's
+  approved commits into `main` between its own items, the same way as `7410f3e`.

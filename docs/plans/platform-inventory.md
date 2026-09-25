@@ -227,3 +227,6 @@ and the builder starts S10/S11.
 > discipline, the suite lands reporting its findings first, and no fix rides
 > on it.
 
+> B (25 Sep): S5 accepted (`d696419`, mutation-verified). S13 added: add
+> `validate({ body })` to the 40 routes that have none, never `.strict()`,
+> owner C, after S2.
