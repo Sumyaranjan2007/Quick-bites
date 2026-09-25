@@ -43,8 +43,15 @@ interface OptionGroup {
   id: string;
   title: string;
   isRequired: boolean;
+  minSelections?: number;
+  maxSelections?: number;
   options: Array<{ id: string; name: string; priceDelta: number }>;
 }
+
+/** A group where the customer picks exactly one (sizes): radio buttons. */
+const isSingle = (g: OptionGroup) => (g.maxSelections ?? 1) === 1;
+/** How many a group needs before the dish can go in the cart. */
+const minFor = (g: OptionGroup) => Math.max(g.minSelections ?? 0, g.isRequired ? 1 : 0);
 
 interface Dish {
   id: string;
@@ -94,7 +101,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   token
 }) => {
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+  // Chosen option ids per group, for every group on the dish (F05).
+  const [picks, setPicks] = useState<Record<string, string[]>>({});
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -181,7 +189,18 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   const handleAddDish = (dish: Dish) => {
     if (!dish.isAvailable) return;
     if (dish.hasCustomizations) {
-      setSelectedOptionId(dish.optionGroups?.[0]?.options?.[0]?.id ?? null);
+      // A required single choice starts on its cheapest option, the price on
+      // the menu; everything else starts empty.
+      const start: Record<string, string[]> = {};
+      for (const g of dish.optionGroups || []) {
+        if (isSingle(g) && minFor(g) === 1 && g.options.length) {
+          const cheapest = g.options.reduce((a, b) => (b.priceDelta < a.priceDelta ? b : a));
+          start[g.id] = [cheapest.id];
+        } else {
+          start[g.id] = [];
+        }
+      }
+      setPicks(start);
       setSelectedDish(dish);
     } else {
       onAddToCart({
@@ -197,24 +216,50 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
     }
   };
 
+  const togglePick = (group: OptionGroup, optionId: string) => {
+    setPicks(prev => {
+      const current = prev[group.id] || [];
+      if (isSingle(group)) {
+        // A required single choice cannot be emptied; an optional one can.
+        const next = current[0] === optionId && minFor(group) === 0 ? [] : [optionId];
+        return { ...prev, [group.id]: next };
+      }
+      if (current.includes(optionId)) return { ...prev, [group.id]: current.filter(id => id !== optionId) };
+      const max = group.maxSelections ?? group.options.length;
+      if (current.length >= max) return prev;
+      return { ...prev, [group.id]: [...current, optionId] };
+    });
+  };
+
+  const chosen = (dish: Dish) =>
+    (dish.optionGroups || []).flatMap(g =>
+      (picks[g.id] || [])
+        .map(id => g.options.find(o => o.id === id))
+        .filter(Boolean)
+        .map(o => ({ group: g, option: o! }))
+    );
+  const missingGroup = (dish: Dish) =>
+    (dish.optionGroups || []).find(g => (picks[g.id] || []).length < minFor(g));
+
   const handleConfirmCustomization = () => {
     if (!selectedDish) return;
-    const group = selectedDish.optionGroups?.[0];
-    const option = group?.options?.find(o => o.id === selectedOptionId) ?? group?.options?.[0];
-    const delta = option?.priceDelta ?? 0;
-    const variant = option?.name ?? 'Standard';
+    if (missingGroup(selectedDish)) return;
+    const list = chosen(selectedDish);
+    const delta = list.reduce((t, c) => t + (Number(c.option.priceDelta) || 0), 0);
+    const variant = list.length ? list.map(c => c.option.name).join(' + ') : 'Standard';
+    const key = list.map(c => c.option.id).sort().join('_') || 'standard';
 
     onAddToCart({
-      id: `cart_${selectedDish.id}_${option?.id ?? 'standard'}`,
+      id: `cart_${selectedDish.id}_${key}`,
       dishId: selectedDish.id,
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
-      name: `${selectedDish.name} (${variant})`,
+      name: list.length ? `${selectedDish.name} (${variant})` : selectedDish.name,
       price: selectedDish.price + delta,
       quantity: 1,
       isVeg: selectedDish.isVeg,
       variant,
-      selectedOptions: group && option ? [{ groupId: group.id, optionId: option.id }] : undefined
+      selectedOptions: list.length ? list.map(c => ({ groupId: c.group.id, optionId: c.option.id })) : undefined
     });
     setSelectedDish(null);
   };
@@ -434,29 +479,59 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             <View style={styles.sheet}>
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>{selectedDish.name}</Text>
-              <Text style={styles.sheetSub}>{selectedDish.optionGroups?.[0]?.title || 'Choose an option'}</Text>
-
-              {(selectedDish.optionGroups?.[0]?.options || []).map(option => {
-                const active = selectedOptionId === option.id;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[styles.optionRow, active && styles.optionRowActive]}
-                    onPress={() => setSelectedOptionId(option.id)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.radio, active && styles.radioActive]}>
-                      {active && <View style={styles.radioInner} />}
+              <ScrollView style={{ maxHeight: 420 }}>
+                {(selectedDish.optionGroups || []).map(group => {
+                  const single = isSingle(group);
+                  const max = group.maxSelections ?? group.options.length;
+                  return (
+                    <View key={group.id}>
+                      <Text style={styles.sheetSub}>
+                        {group.title}
+                        {minFor(group) > 0 ? ' · required' : single ? ' · optional' : ` · up to ${max}`}
+                      </Text>
+                      {group.options.map(option => {
+                        const active = (picks[group.id] || []).includes(option.id);
+                        return (
+                          <TouchableOpacity
+                            key={option.id}
+                            style={[styles.optionRow, active && styles.optionRowActive]}
+                            onPress={() => togglePick(group, option.id)}
+                            activeOpacity={0.85}
+                          >
+                            <View style={[single ? styles.radio : styles.checkbox, active && styles.radioActive]}>
+                              {active && <View style={single ? styles.radioInner : styles.checkboxInner} />}
+                            </View>
+                            <Text style={styles.optionName}>{option.name}</Text>
+                            <Text style={styles.optionPrice}>
+                              {/* A size shows what the dish costs in that size; an extra shows what it adds. */}
+                              {single && minFor(group) > 0
+                                ? `₹${(selectedDish.price + option.priceDelta).toFixed(0)}`
+                                : option.priceDelta > 0
+                                  ? `+₹${option.priceDelta.toFixed(0)}`
+                                  : 'Free'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
-                    <Text style={styles.optionName}>{option.name}</Text>
-                    <Text style={styles.optionPrice}>₹{(selectedDish.price + option.priceDelta).toFixed(0)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+                  );
+                })}
+              </ScrollView>
 
               <View style={styles.sheetActions}>
                 <Button label="Cancel" variant="ghost" onPress={() => setSelectedDish(null)} />
-                <Button label="Add to Cart" variant="accent" onPress={handleConfirmCustomization} style={{ flex: 1 }} full />
+                <Button
+                  label={
+                    missingGroup(selectedDish)
+                      ? `Choose ${missingGroup(selectedDish)!.title.toLowerCase()}`
+                      : `Add · ₹${(selectedDish.price + chosen(selectedDish).reduce((t, x) => t + (Number(x.option.priceDelta) || 0), 0)).toFixed(0)}`
+                  }
+                  variant="accent"
+                  onPress={handleConfirmCustomization}
+                  disabled={Boolean(missingGroup(selectedDish))}
+                  style={{ flex: 1 }}
+                  full
+                />
               </View>
             </View>
           </View>
@@ -716,6 +791,17 @@ const styles = StyleSheet.create({
     marginRight: 12
   },
   radioActive: { borderColor: c.primary[500] },
+  checkbox: {
+    width: 19,
+    height: 19,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: c.border.strong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
+  },
+  checkboxInner: { width: 9, height: 9, borderRadius: 2, backgroundColor: c.primary[500] },
   radioInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary[500] },
   optionName: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, fontWeight: tokens.font.weight.medium },
   optionPrice: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },

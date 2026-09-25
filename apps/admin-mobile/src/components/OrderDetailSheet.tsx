@@ -400,6 +400,9 @@ export const OrderDetailSheet: React.FC<{
                   <Text style={s.itemName} numberOfLines={2}>
                     {item.name}
                   </Text>
+                  {item.selectedOptions?.length ? (
+                    <Text style={s.itemUnit}>{item.selectedOptions.map((o: any) => o.optionName).join(' · ')}</Text>
+                  ) : null}
                   <Text style={s.itemUnit}>{formatMoney(item.unitPrice, true)} each</Text>
                 </View>
                 <Text style={s.itemTotal}>{formatMoney(item.totalPrice, true)}</Text>

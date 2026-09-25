@@ -43,6 +43,45 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
    * nothing.
    */
   const [photo, setPhoto] = useState<string | null>(null);
+  // F05: the dish being edited (null = a new dish), and its sizes and extras.
+  const [editing, setEditing] = useState<{ dishId: string } | null>(null);
+  const [sizes, setSizes] = useState<Array<{ name: string; price: string }>>([]);
+  const [extras, setExtras] = useState<Array<{ name: string; price: string }>>([]);
+
+  /** Opens the form empty for a new dish, or filled in from one on the menu. */
+  const openComposer = (item?: any, categoryName?: string) => {
+    setSubmitError(null);
+    setFormErrors({});
+    setPhoto(null);
+    if (!item) {
+      setEditing(null);
+      setForm({ name: '', description: '', price: '', categoryName: '', isVeg: true });
+      setSizes([]);
+      setExtras([]);
+    } else {
+      const base = Number(item.price) || 0;
+      const groups: any[] = item.optionGroups || [];
+      const toRows = (kind: string, withBase: boolean) =>
+        (groups.find(g => g.kind === kind)?.options || []).map((o: any) => ({
+          name: String(o.name),
+          price: String(Math.round(((withBase ? base : 0) + (Number(o.priceDelta) || 0)) * 100) / 100)
+        }));
+      setEditing({ dishId: item.id });
+      setForm({
+        name: item.name || '',
+        description: item.description || '',
+        price: String(base),
+        categoryName: categoryName || '',
+        isVeg: item.isVeg !== false
+      });
+      setSizes(toRows('SIZE', true));
+      setExtras(toRows('EXTRAS', false));
+    }
+    setComposerOpen(true);
+  };
+
+  const filled = (rows: Array<{ name: string; price: string }>) =>
+    rows.filter(r => r.name.trim() || r.price.trim());
   const [photoBusy, setPhotoBusy] = useState(false);
 
   const choosePhoto = async (source: 'camera' | 'library') => {
@@ -113,9 +152,23 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (form.name.trim().length < 2) errs.name = 'Give the dish a name.';
-    const price = Number(form.price);
-    if (!Number.isFinite(price) || price <= 0) errs.price = 'Enter a price greater than zero.';
-    if (price > 100000) errs.price = 'That price looks wrong.';
+    const sizeRows = filled(sizes);
+    const extraRows = filled(extras);
+    const badRow = (r: { name: string; price: string }) =>
+      !r.name.trim() || !(Number(r.price) > 0) || Number(r.price) > 100000;
+    const dupes = (rows: Array<{ name: string }>) =>
+      new Set(rows.map(r => r.name.trim().toLowerCase())).size !== rows.length;
+    if (sizeRows.length === 1) errs.sizes = 'Give at least 2 sizes (for example Half and Full), or none.';
+    else if (sizeRows.some(badRow)) errs.sizes = 'Every size needs a name and a price above zero.';
+    else if (dupes(sizeRows)) errs.sizes = 'Two sizes have the same name.';
+    if (extraRows.some(badRow)) errs.extras = 'Every extra needs a name and a price above zero.';
+    else if (dupes(extraRows)) errs.extras = 'Two extras have the same name.';
+    // With sizes, the customer always picks one, so the plain price is not used.
+    if (sizeRows.length < 2) {
+      const price = Number(form.price);
+      if (!Number.isFinite(price) || price <= 0) errs.price = 'Enter a price greater than zero.';
+      if (price > 100000) errs.price = 'That price looks wrong.';
+    }
     if (form.categoryName.trim().length < 1) errs.categoryName = 'Which section of the menu?';
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
@@ -126,11 +179,19 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
     if (!validate()) return;
 
     setSubmitting(true);
+    const sizeList = filled(sizes).map(r => ({ name: r.name.trim(), price: Number(r.price) }));
+    const extraList = filled(extras).map(r => ({ name: r.name.trim(), price: Number(r.price) }));
     const res = await submitMenuRequest(restaurantId, {
-      kind: 'ADD_ITEM',
+      kind: editing ? 'EDIT_ITEM' : 'ADD_ITEM',
+      ...(editing ? { dishId: editing.dishId } : {}),
       name: form.name.trim(),
       description: form.description.trim() || undefined,
-      price: Number(form.price),
+      // With sizes the cheapest one is the dish price; the server works it out
+      // the same way.
+      price: sizeList.length >= 2 ? Math.min(...sizeList.map(s => s.price)) : Number(form.price),
+      // An edit always says what the sizes and extras are now ([] removes them).
+      ...(editing || sizeList.length ? { sizes: sizeList } : {}),
+      ...(editing || extraList.length ? { extras: extraList } : {}),
       isVeg: form.isVeg,
       categoryName: form.categoryName.trim(),
       ...(photo ? { imageUrl: photo } : {})
@@ -144,6 +205,9 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
     setComposerOpen(false);
     setForm({ name: '', description: '', price: '', categoryName: '', isVeg: true });
     setPhoto(null);
+    setEditing(null);
+    setSizes([]);
+    setExtras([]);
     setSentNote(true);
     setTimeout(() => setSentNote(false), 4000);
     load('initial');
@@ -169,11 +233,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
 
         <Button
           label="Request a new dish"
-          onPress={() => {
-            setSubmitError(null);
-            setFormErrors({});
-            setComposerOpen(true);
-          }}
+          onPress={() => openComposer()}
           style={{ marginBottom: spacing.lg }}
         />
 
@@ -228,10 +288,20 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
               {(cat.items || []).map((item: any) => (
                 <View key={item.id} style={styles.dishRow}>
                   <View style={[styles.dietDot, { backgroundColor: item.isVeg ? c.veg : c.nonVeg }]} />
-                  <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => openComposer(item, cat.name)} activeOpacity={0.7}>
                     <Text style={[styles.dishName, !item.isAvailable && styles.dishNameOff]}>{item.name}</Text>
-                    <Text style={styles.dishPrice}>Rs {Number(item.price).toFixed(2)}</Text>
-                  </View>
+                    <Text style={styles.dishPrice}>
+                      {(() => {
+                        const size = (item.optionGroups || []).find((g: any) => g.kind === 'SIZE');
+                        return size
+                          ? size.options
+                              .map((o: any) => `${o.name} Rs ${(Number(item.price) + Number(o.priceDelta || 0)).toFixed(0)}`)
+                              .join(' · ')
+                          : `Rs ${Number(item.price).toFixed(2)}`;
+                      })()}
+                      {'  ·  Edit'}
+                    </Text>
+                  </TouchableOpacity>
                   <Switch
                     value={item.isAvailable !== false}
                     onValueChange={next => toggleStock(item.id, next)}
@@ -255,7 +325,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>Request a new dish</Text>
+              <Text style={styles.sheetTitle}>{editing ? 'Change this dish' : 'Request a new dish'}</Text>
               <Text style={styles.sheetBody}>
                 Our team checks new dishes before they go live, usually within a working day.
               </Text>
@@ -277,14 +347,104 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                 hint="An existing section, or a new one."
                 error={formErrors.categoryName}
               />
-              <Field
-                label="Price"
-                value={form.price}
-                onChangeText={v => setForm(f => ({ ...f, price: v }))}
-                placeholder="320"
-                keyboardType="decimal-pad"
-                error={formErrors.price}
-              />
+              {filled(sizes).length < 2 ? (
+                <Field
+                  label="Price"
+                  value={form.price}
+                  onChangeText={v => setForm(f => ({ ...f, price: v }))}
+                  placeholder="320"
+                  keyboardType="decimal-pad"
+                  error={formErrors.price}
+                />
+              ) : null}
+
+              {/* F05: sizes, each with its REAL price. The customer picks one. */}
+              <Text style={styles.photoLabel}>Sizes (optional)</Text>
+              <Text style={styles.rowHint}>
+                For Half / Full plate and the like. Type what each size costs; customers choose one.
+              </Text>
+              {sizes.map((row, i) => (
+                <View key={`s${i}`} style={styles.choiceRow}>
+                  <View style={{ flex: 2 }}>
+                    <Field
+                      label={`Size ${i + 1}`}
+                      value={row.name}
+                      onChangeText={v => setSizes(list => list.map((r, j) => (j === i ? { ...r, name: v } : r)))}
+                      placeholder={i === 0 ? 'Half' : 'Full'}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="Price"
+                      value={row.price}
+                      onChangeText={v => setSizes(list => list.map((r, j) => (j === i ? { ...r, price: v } : r)))}
+                      placeholder={i === 0 ? '120' : '200'}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.choiceRemove}
+                    onPress={() => setSizes(list => list.filter((_, j) => j !== i))}
+                    accessibilityLabel="Remove size"
+                  >
+                    <X size={16} color={c.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {!!formErrors.sizes && <Text style={styles.rowError}>{formErrors.sizes}</Text>}
+              {sizes.length < 4 && (
+                <TouchableOpacity
+                  style={styles.addRow}
+                  onPress={() =>
+                    setSizes(list =>
+                      list.length === 0
+                        ? [{ name: 'Half', price: '' }, { name: 'Full', price: '' }]
+                        : [...list, { name: '', price: '' }]
+                    )
+                  }
+                >
+                  <Plus size={15} color={c.brand} />
+                  <Text style={styles.photoBtnText}>{sizes.length === 0 ? 'Add sizes (Half / Full)' : 'Add another size'}</Text>
+                </TouchableOpacity>
+              )}
+
+              <Text style={styles.photoLabel}>Extras (optional)</Text>
+              <Text style={styles.rowHint}>Things a customer can add, like extra raita. Type the extra price.</Text>
+              {extras.map((row, i) => (
+                <View key={`e${i}`} style={styles.choiceRow}>
+                  <View style={{ flex: 2 }}>
+                    <Field
+                      label={`Extra ${i + 1}`}
+                      value={row.name}
+                      onChangeText={v => setExtras(list => list.map((r, j) => (j === i ? { ...r, name: v } : r)))}
+                      placeholder="Extra raita"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="Price"
+                      value={row.price}
+                      onChangeText={v => setExtras(list => list.map((r, j) => (j === i ? { ...r, price: v } : r)))}
+                      placeholder="30"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.choiceRemove}
+                    onPress={() => setExtras(list => list.filter((_, j) => j !== i))}
+                    accessibilityLabel="Remove extra"
+                  >
+                    <X size={16} color={c.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {!!formErrors.extras && <Text style={styles.rowError}>{formErrors.extras}</Text>}
+              {extras.length < 10 && (
+                <TouchableOpacity style={styles.addRow} onPress={() => setExtras(list => [...list, { name: '', price: '' }])}>
+                  <Plus size={15} color={c.brand} />
+                  <Text style={styles.photoBtnText}>Add an extra</Text>
+                </TouchableOpacity>
+              )}
               <Field
                 label="Description"
                 value={form.description}
@@ -427,5 +587,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl
   },
-  vegLabel: { fontSize: 14, color: c.textSoft, fontWeight: '700' }
+  vegLabel: { fontSize: 14, color: c.textSoft, fontWeight: '700' },
+  rowHint: { fontSize: 12, color: c.textMuted, marginTop: 4, lineHeight: 17 },
+  rowError: { fontSize: 12, color: c.danger, marginTop: 4 },
+  choiceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
+  choiceRemove: { padding: spacing.sm, marginBottom: spacing.md },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm, paddingVertical: 6 }
 });

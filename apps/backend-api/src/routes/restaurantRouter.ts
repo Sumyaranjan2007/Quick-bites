@@ -693,7 +693,29 @@ const MenuRequestSchema = z.object({
    * administrator could ever edit, so the first attempt to correct that dish
    * would fail validation on a field nobody had touched.
    */
-  imageUrl: z.string().trim().max(200000).optional()
+  imageUrl: z.string().trim().max(200000).optional(),
+  /**
+   * F05. Half/full plate and the like: each size with its REAL price. Two to
+   * four, names distinct. An empty list on an edit removes the sizes.
+   */
+  sizes: z
+    .array(z.object({
+      name: z.string().trim().min(1, 'Name each size').max(40),
+      price: z.number().positive('Each size needs a price above zero').max(100000)
+    }))
+    .max(4, 'At most 4 sizes')
+    .refine(list => list.length === 0 || list.length >= 2, 'Give at least 2 sizes, or none')
+    .refine(list => new Set(list.map(s => s.name.toLowerCase())).size === list.length, 'Two sizes have the same name')
+    .optional(),
+  /** F05. Optional extras a customer can add, each with its own price. */
+  extras: z
+    .array(z.object({
+      name: z.string().trim().min(1, 'Name each extra').max(40),
+      price: z.number().positive('Each extra needs a price above zero').max(100000)
+    }))
+    .max(10, 'At most 10 extras')
+    .refine(list => new Set(list.map(s => s.name.toLowerCase())).size === list.length, 'Two extras have the same name')
+    .optional()
 });
 
 // POST /api/restaurants/:id/menu/requests — partner submits a menu change for review

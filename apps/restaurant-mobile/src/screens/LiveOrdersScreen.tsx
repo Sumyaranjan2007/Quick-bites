@@ -262,7 +262,16 @@ export const LiveOrdersScreen: React.FC<Props> = ({
           {(item.items || []).map((line: any, idx: number) => (
             <View key={`${item.id}-${line.dishId}-${idx}`} style={styles.itemRow}>
               <Text style={styles.itemQty}>{line.quantity}x</Text>
-              <Text style={styles.itemName}>{line.name}</Text>
+              <Text style={styles.itemName}>
+                {line.name}
+                {/* The size and extras the customer chose: the kitchen cooks to this. */}
+                {line.selectedOptions?.length ? (
+                  <Text style={styles.itemOptions}>
+                    {'\n'}
+                    {line.selectedOptions.map((o: any) => o.optionName).join(' · ')}
+                  </Text>
+                ) : null}
+              </Text>
             </View>
           ))}
         </View>
@@ -478,6 +487,7 @@ const styles = StyleSheet.create({
   itemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   itemQty: { fontSize: 14, fontWeight: '800', color: c.brand, width: 34 },
   itemName: { fontSize: 14, color: c.text, flex: 1 },
+  itemOptions: { fontSize: 13, color: c.brand, fontWeight: '700' },
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   billTotal: { fontSize: 16, fontWeight: '800', color: c.text },
   pickupCode: { fontSize: 13, color: c.info, fontWeight: '700' },

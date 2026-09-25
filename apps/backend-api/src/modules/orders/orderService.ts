@@ -15,6 +15,7 @@ import {
   customerAddonsPrice
 } from '../payments/restaurantCharges.ts';
 import { completeDelivery } from './deliveryCompletion.ts';
+import { resolveDishOptions } from './dishOptions.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
 import {
@@ -370,14 +371,9 @@ export const orderService = {
       if (!dish) {
         throw new AppError(`Dish ID ${reqItem.dishId} does not exist in this restaurant menu.`, 400, 'INVALID_DISH_ID');
       }
-      let addonsTotal = 0;
-      if (reqItem.selectedOptions && dish.optionGroups) {
-        for (const sel of reqItem.selectedOptions) {
-          const group = dish.optionGroups.find((g: any) => g.id === sel.groupId);
-          const opt = group?.options.find((o: any) => o.id === sel.optionId);
-          if (opt) addonsTotal += opt.priceDelta;
-        }
-      }
+      // The same check as checkout, so the cart can never show a price the
+      // order then refuses or changes (S10).
+      const { addonsTotal } = resolveDishOptions(dish, reqItem.selectedOptions);
       /*
        * Two prices per line, and the customer pays the second.
        *
@@ -627,27 +623,9 @@ export const orderService = {
         throw new AppError(`Item "${dish.name}" is currently out of stock.`, 409, 'DISH_OUT_OF_STOCK');
       }
 
-      let addonsTotal = 0;
-      const selectedOptionsDetails: any[] = [];
-
-      if (reqItem.selectedOptions && dish.optionGroups) {
-        for (const sel of reqItem.selectedOptions) {
-          const group = dish.optionGroups.find((g: any) => g.id === sel.groupId);
-          if (group) {
-            const opt = group.options.find((o: any) => o.id === sel.optionId);
-            if (opt) {
-              addonsTotal += opt.priceDelta;
-              selectedOptionsDetails.push({
-                groupId: group.id,
-                groupTitle: group.title,
-                optionId: opt.id,
-                optionName: opt.name,
-                priceDelta: opt.priceDelta
-              });
-            }
-          }
-        }
-      }
+      // Refuses unknown, repeated and over-limit choices, and fills a required
+      // single choice left empty with its cheapest option (S10).
+      const { options: selectedOptionsDetails, addonsTotal } = resolveDishOptions(dish, reqItem.selectedOptions);
 
       /*
        * The same two prices as the quote path, and they must agree with it.

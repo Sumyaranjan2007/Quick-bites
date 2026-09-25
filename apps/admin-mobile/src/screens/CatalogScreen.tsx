@@ -358,7 +358,11 @@ const RequestsTab: React.FC = () => {
                 <Text style={s.dishName} numberOfLines={1}>
                   {request.payload.name}
                 </Text>
-                <Text style={s.dishPrice}>{formatMoney(request.payload.price)}</Text>
+                <Text style={s.dishPrice}>
+                  {request.payload.sizes?.length
+                    ? request.payload.sizes.map((z: any) => `${z.name} ${formatMoney(z.price)}`).join(' · ')
+                    : formatMoney(request.payload.price)}
+                </Text>
               </View>
             ))}
             {group.requests.length > 4 ? (
@@ -498,6 +502,13 @@ const RestaurantReviewSheet: React.FC<{
 
                 <Divider />
                 <KeyValue label="Price" value={formatMoney(request.payload.price)} tone="money" />
+                {/* F05: what the partner asked for, exactly as the customer will see it. */}
+                {(request.payload.sizes || []).map((z: any) => (
+                  <KeyValue key={`size-${z.name}`} label={`Size: ${z.name}`} value={formatMoney(z.price)} tone="money" />
+                ))}
+                {(request.payload.extras || []).map((x: any) => (
+                  <KeyValue key={`extra-${x.name}`} label={`Extra: ${x.name}`} value={`+${formatMoney(x.price)}`} />
+                ))}
                 <KeyValue label="Category" value={request.payload.categoryName} />
                 <KeyValue label="Diet" value={request.payload.isVeg ? 'Vegetarian' : 'Non-vegetarian'} />
                 {request.payload.description ? (

@@ -2,6 +2,7 @@
  * The catalogue: every partner's menu, the queue of changes they have asked for,
  * and the platform-wide categories that organise it.
  */
+import { optionGroupsFromChoices } from '../../modules/orders/dishOptions.ts';
 import { Router } from 'express';
 import {
   marginPreservingPrice,
@@ -379,7 +380,14 @@ catalogRoutes.post(
           }
 
           const final = { ...request.payload };
-          const { categoryName, ...item } = final;
+          const { categoryName, sizes, extras, ...plain } = final as any;
+          const item = {
+            ...plain,
+            ...optionGroupsFromChoices(
+              { sizes, extras },
+              request.dishId ? (await menuRepository.findItem(restaurantId, request.dishId))?.optionGroups : []
+            )
+          };
 
           let dish;
           if (request.kind === 'EDIT_ITEM' && request.dishId) {
@@ -591,7 +599,16 @@ catalogRoutes.post(
       // the partner asked for, so a mispriced submission can be fixed in review
       // rather than bounced back.
       const final = { ...request.payload, ...(overrides || {}) };
-      const { categoryName, ...item } = final;
+      // Sizes and extras become option groups here, with ids made at approval,
+      // and the cheapest size sets the dish price (F05).
+      const { categoryName, sizes, extras, ...plain } = final as any;
+      const item = {
+        ...plain,
+        ...optionGroupsFromChoices(
+          { sizes, extras },
+          request.dishId ? (await menuRepository.findItem(request.restaurantId, request.dishId))?.optionGroups : []
+        )
+      };
 
       let dish;
       let markupHeld: any = null;

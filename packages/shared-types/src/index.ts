@@ -119,6 +119,10 @@ export interface MenuChangeRequest {
     isVeg: boolean;
     categoryName: string;
     imageUrl?: string;
+    /** F05: each size's real price; the cheapest becomes the dish price. */
+    sizes?: Array<{ name: string; price: number }>;
+    /** F05: optional extras, each with its own price. */
+    extras?: Array<{ name: string; price: number }>;
   };
   status: MenuRequestStatus;
   submittedAt: string;
@@ -415,6 +419,8 @@ export interface OptionItem {
 
 export interface OptionGroup {
   id: string;
+  /** Set on groups built from a partner's sizes or extras (F05). */
+  kind?: 'SIZE' | 'EXTRAS';
   title: string;
   isRequired: boolean;
   minSelections: number;

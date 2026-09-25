@@ -100,7 +100,8 @@ const SUITES = [
   'rateLimitPerUser',
   'changeTracking',
   'opsRescue',
-  'addressPin'
+  'addressPin',
+  'dishOptions'
 ];
 
 /*

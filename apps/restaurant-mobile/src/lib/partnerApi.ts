@@ -286,6 +286,10 @@ export function submitMenuRequest(
     categoryName: string;
     /** A data URI from photo.ts, already resized to fit the request body. */
     imageUrl?: string;
+    /** Half/full plate and the like, each with its real price. [] removes them. */
+    sizes?: Array<{ name: string; price: number }>;
+    /** Extras a customer can add, each with its price. [] removes them. */
+    extras?: Array<{ name: string; price: number }>;
   }
 ) {
   return request<{ request: any }>(

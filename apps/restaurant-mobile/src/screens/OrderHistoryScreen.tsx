@@ -76,6 +76,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ restaurantId }) => {
           {(item.items || []).map((line: any, idx: number) => (
             <Text key={`${item.id}-${idx}`} style={styles.line} numberOfLines={1}>
               {line.quantity}x {line.name}
+              {line.selectedOptions?.length ? ` (${line.selectedOptions.map((o: any) => o.optionName).join(', ')})` : ''}
             </Text>
           ))}
         </View>
