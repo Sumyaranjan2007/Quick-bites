@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { config } from '../config/env.ts';
 
 interface TokenBucket {
   tokens: number;
@@ -119,40 +121,87 @@ export function resetAuthRateLimit(): void {
  */
 export function resetRequestRateLimit(): void {
   buckets.clear();
+  userBuckets.clear();
+  addressBuckets.clear();
+  anonBuckets.clear();
+}
+
+/*
+ * PER USER, NOT PER ADDRESS (N15 / S4).
+ *
+ * The one bucket was keyed on the IP address. Indian mobile carriers put
+ * thousands of phones behind one address (CGNAT), so one busy tower throttled
+ * every customer, rider and kitchen on it: at 100 requests a minute shared,
+ * a handful of riders streaming their position used up everyone's allowance.
+ *
+ * Now a signed-in request spends from its OWN bucket (100 a minute per
+ * account, as before per phone), and every request also spends from a per-
+ * address bucket that is wide enough for a carrier address and still stops
+ * one machine flooding the server. Anonymous requests have a per-address bucket
+ * of their own. The credential limiter above is unchanged: it keys on the
+ * account being tried AND the address, which is right for guessing.
+ */
+const USER_CAPACITY = CAPACITY;
+const USER_REFILL = REFILL_RATE;
+const ADDRESS_CAPACITY = 1500; // per minute, per IP, all traffic
+const ADDRESS_REFILL = 1500 / 60;
+const ANON_CAPACITY = 300; // per minute, per IP, requests with no valid token
+const ANON_REFILL = 300 / 60;
+const userBuckets = new Map<string, TokenBucket>();
+const addressBuckets = new Map<string, TokenBucket>();
+const anonBuckets = new Map<string, TokenBucket>();
+
+function spend(map: Map<string, TokenBucket>, key: string, capacity: number, refill: number, now: number): { ok: boolean; left: number } {
+  let bucket = map.get(key);
+  if (!bucket) {
+    bucket = { tokens: capacity, lastRefill: now };
+    map.set(key, bucket);
+  } else {
+    bucket.tokens = Math.min(capacity, bucket.tokens + (now - bucket.lastRefill) * refill);
+    bucket.lastRefill = now;
+  }
+  if (bucket.tokens < 1) return { ok: false, left: 0 };
+  bucket.tokens -= 1;
+  return { ok: true, left: Math.floor(bucket.tokens) };
+}
+
+/** The account a request is signed in as, or null. A bad token counts as anonymous. */
+function signedInAs(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(header.slice(7), config.JWT_SECRET, { algorithms: ['HS256'] }) as any;
+    return typeof payload?.sub === 'string' ? payload.sub : null;
+  } catch {
+    return null;
+  }
 }
 
 export function rateLimiterMiddleware(req: Request, res: Response, next: NextFunction): void {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now() / 1000;
-  
-  let bucket = buckets.get(ip);
-  if (!bucket) {
-    bucket = { tokens: CAPACITY, lastRefill: now };
-    buckets.set(ip, bucket);
-  } else {
-    // Refill tokens
-    const elapsed = now - bucket.lastRefill;
-    bucket.tokens = Math.min(CAPACITY, bucket.tokens + elapsed * REFILL_RATE);
-    bucket.lastRefill = now;
-  }
-  
-  if (bucket.tokens >= 1) {
-    bucket.tokens -= 1;
-    res.setHeader('X-RateLimit-Limit', CAPACITY);
-    res.setHeader('X-RateLimit-Remaining', Math.floor(bucket.tokens));
+  const user = signedInAs(req);
+
+  const address = spend(addressBuckets, ip, ADDRESS_CAPACITY, ADDRESS_REFILL, now);
+  const own = user
+    ? spend(userBuckets, user, USER_CAPACITY, USER_REFILL, now)
+    : spend(anonBuckets, ip, ANON_CAPACITY, ANON_REFILL, now);
+
+  if (address.ok && own.ok) {
+    res.setHeader('X-RateLimit-Limit', user ? USER_CAPACITY : ANON_CAPACITY);
+    res.setHeader('X-RateLimit-Remaining', own.left);
     return next();
-  } else {
-    res.setHeader('Retry-After', 60);
-    res.status(429).json({
-      success: false,
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: 'Too many requests. Please retry in 60 seconds.'
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        correlationId: req.correlationId
-      }
-    });
   }
+  res.setHeader('Retry-After', 60);
+  res.status(429).json({
+    success: false,
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many requests. Please retry in 60 seconds.'
+    },
+    meta: {
+      timestamp: new Date().toISOString(),
+      correlationId: req.correlationId
+    }
+  });
 }
