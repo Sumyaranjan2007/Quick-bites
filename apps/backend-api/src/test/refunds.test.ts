@@ -26,8 +26,7 @@ import {
   routeFor,
   sendRefund,
   partnerShareOfRefund,
-  recordCashRefundAtDoor,
-  refundAlreadyPaid
+  recordCashRefundAtDoor
 } from '../modules/payments/refunds.ts';
 
 console.log('====================================================');
@@ -296,8 +295,24 @@ async function run() {
    *  IDEMPOTENCY                                                      *
    * ---------------------------------------------------------------- */
 
-  await check('A refund that has not been paid reports so', () => {
-    assert.equal(refundAlreadyPaid('case_never_paid'), false);
+  /*
+   * Asserted against the ledger key directly. `refundAlreadyPaid` wrapped exactly this
+   * lookup, had no production caller, and was removed in W6 — and its only check here
+   * asserted the NEGATIVE alone, which a function that always answered "no" would also
+   * pass. So both directions now.
+   */
+  await check('A refund that has been paid is recorded, and one that has not is not', async () => {
+    const paid = order();
+    await sendRefund({
+      order: paid,
+      amountPaise: toPaise(100),
+      reason: 'Recorded by hand',
+      actorUserId: 'usr_admin',
+      caseId: 'case_idem_paid',
+      manualReference: 'NEFT-IDEM-1'
+    });
+    assert.equal(ledger.hasTransaction('refund_paid:case_idem_paid'), true, 'a paid refund left no record');
+    assert.equal(ledger.hasTransaction('refund_paid:case_never_paid'), false, 'an unpaid case reads as paid');
   });
 
   await check('The books balance after every case above', () => {

@@ -86,19 +86,32 @@ const CreditWalletSchema = z.object({
   description: z.string().optional()
 });
 
+/*
+ * THE TWO WRITE ROUTES REFUSE, AND STAY MOUNTED.
+ *
+ * The customer wallet cannot be spent anywhere on this platform: checkout takes
+ * cash or an online payment and nothing deducts from a wallet. So a credit here
+ * recorded money going to somebody who could never use it, and answered "done" —
+ * the "told it happened and nothing did" shape this platform has spent two days
+ * removing.
+ *
+ * Refused rather than deleted, because an app built before today may still call
+ * them, and a 404 reads to the owner as the app breaking. A refusal that says what
+ * to do instead is something an operator can act on.
+ *
+ * Non-staff callers never reach this: `requireStaff` still answers them 403 first,
+ * which is what stops a customer topping themselves up.
+ */
+const WALLET_RETIRED =
+  'The customer wallet has been retired and cannot be spent anywhere, so crediting it gives nobody anything. ' +
+  'To give a customer money back, refund the order — it returns to the card or UPI they paid with, or by payout link for a cash order.';
+
 // POST /api/wallets/:userId/credit
-walletRouter.post('/:userId/credit', requireStaff, validate({ body: CreditWalletSchema }), async (req, res) => {
-  try {
-    const { amount, description } = req.body;
-    const wallet = await walletRepository.credit(
-      req.params.userId,
-      Number(amount),
-      description || 'Top-up Credit'
-    );
-    return res.json({ success: true, data: { wallet } });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+walletRouter.post('/:userId/credit', requireStaff, validate({ body: CreditWalletSchema }), (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    error: { code: 'WALLET_RETIRED', message: WALLET_RETIRED }
+  });
 });
 
 const DebitWalletSchema = z.object({
@@ -107,18 +120,13 @@ const DebitWalletSchema = z.object({
   orderId: z.string().optional()
 });
 
-// POST /api/wallets/:userId/debit
-walletRouter.post('/:userId/debit', requireStaff, validate({ body: DebitWalletSchema }), async (req, res) => {
-  try {
-    const { amount, description, orderId } = req.body;
-    const wallet = await walletRepository.debit(
-      req.params.userId,
-      Number(amount),
-      description || 'Order Payment Deduction',
-      orderId
-    );
-    return res.json({ success: true, data: { wallet } });
-  } catch (error: any) {
-    return res.status(400).json({ success: false, error: error.message });
-  }
+// POST /api/wallets/:userId/debit — the same retirement, the other direction.
+walletRouter.post('/:userId/debit', requireStaff, validate({ body: DebitWalletSchema }), (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    error: {
+      code: 'WALLET_RETIRED',
+      message: 'The customer wallet has been retired. Orders are paid online or in cash, and nothing is deducted from a wallet.'
+    }
+  });
 });

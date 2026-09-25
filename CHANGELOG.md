@@ -63,6 +63,168 @@ first-order-only, budget. Rates: minute/count units.
 - **Customer app needs** the cancellation quote shown before cancel, and to
   store `data.token` from change-password (then bump the token version there
   too — see the comment in `authRouter.ts`).
+## [2026-09-25] -- Claude Opus 5 / 5.5 -- Session 35: the full audit — money paths made true, everyone told, every screen honest
+
+> **Session names — read this first.** The owner calls the planning/review session
+> **"Session A"**, the session that writes the code **"Session B"**, and the cloud session
+> **"Session C"**. This entry, the plan and the commit messages use the OLDER letters, where
+> the builder was "A" and the planner "B". History is not rewritten; when the owner says
+> "B" they mean the builder.
+
+**Covers 57 commits after `d0af361`, through `c962f9c`, 24–25 Sep 2026.** Session A (the
+builder) wrote the code; Session B (the planner) planned and reviewed every commit against
+`docs/plans/full-audit-2026-09-24.md`. A third session, **Session C** (cloud, branch
+`claude/nice-lamport-vxf4yf`), audited in parallel and is **not merged yet** — its
+verdicts are in `docs/plans/brain-sync.md` on that branch. **No APK was built during
+this period, on the owner's instruction.**
+
+> **IF YOU ARE AN AI PICKING THIS UP, READ THESE FIRST, IN THIS ORDER:**
+> 1. `docs/plans/full-audit-2026-09-24.md` — the plan this entry executed. §4 is the
+>    work, §5 is what only the owner can do, §11 is the rules — each earned by a real
+>    defect, several of them from this session.
+> 2. `docs/plans/brain-sync.md` on Session C's branch, until it is merged.
+> 3. `SIGNING_KEYS.md`, then this entry.
+
+### What changed for the owner, in one paragraph
+
+Four defects would have cost real money, and none of them showed on any screen. An
+admin cancelling a paid order refunded nothing while telling the customer they had
+been refunded. Every rider bonus ever earned was shown as paid and never paid. **After
+anybody's first payout, the platform stopped paying them** — the Pay screen said
+"nothing owed" and read as correct. And the Settlements screen was a second way to pay
+restaurants that the books never saw, so the same restaurant could be paid twice. All
+four are fixed, and each has a check that fails if it comes back. Separately: riders
+are now actually told about trips, the admin is told about every problem the platform
+detects, people are told when money reaches them, and fourteen admin screens that
+showed a server error as an empty list now say what went wrong.
+
+---
+
+### How to resume safely (updated)
+
+- **Three sessions now touch this repository.** Never `git add -A`; never `git stash`.
+  Stage by explicit path. Run `git log --oneline origin/main..HEAD` after every push.
+- **The gate:** `node scripts/run-backend-tests.mjs` — **56 suites.** Read the exit
+  code. The runner now **refuses a suite that exists on disk but is not registered**,
+  so a failing suite can no longer hide behind a green gate.
+- **The backend tsconfig excludes `src/test`.** A change that breaks a test is
+  invisible to the typechecker and caught only by the gate.
+- **Routes an installed APK may call are never deleted.** The owner has APKs from
+  23 Sep in the field; "no app in the current source calls it" is not "nothing calls
+  it". Decide what the route should DO — usually refuse, naming what to do instead.
+- **Do not build an APK** unless the owner says so.
+
+### Where the platform is
+
+| | |
+| --- | --- |
+| Backend suites | **56**, green on exit code at `c962f9c` |
+| Last APKs built | 23 Sep — **predate everything in this entry** |
+| Unmerged | Session C's branch; B coordinates the merge. It touches orderService, financeRoutes, peopleRoutes, pricingConfig and about fifteen more files. |
+
+---
+
+### 1. Money — the four defects that cost real money
+
+| | What was wrong | Fix |
+| --- | --- | --- |
+| **M1** | `POST /admin/orders/:id/cancel` was a third cancellation implementation: it credited a wallet nobody can spend, marked the order REFUNDED, posted nothing to the ledger and never asked the gateway. | Delegates to `orderService.cancelOrder`, the path the customer and partner apps use. `3b92ce1` |
+| **M2** | Rider incentives were credited to the customer wallet — which no payout reads — while the rider's screen showed them PAID. | Booked as `EXPENSE_RIDER_INCENTIVE` / `RIDER_PAYABLE` and paid by the next run; the ones already shown as paid are backfilled at boot. `3b92ce1` |
+| **M4** | `duesFor` subtracted each payout's own debit *and* skipped the credits it covered. After a first payout, a payee was owed "nothing" until one period's earnings exceeded everything they had ever been paid. | Skip entries carrying `payoutId`. Found only because a lifecycle paid a rider, awarded a bonus, then paid them again. `1ef9e3e` |
+| **M3** | Marking a Settlements row PAID posted nothing, and its amount used a different formula (TDS at 1% of commission, no packaging, no clawbacks). With M4 fixed this became a live double payment. | Settlements reads `duesFor`; its PAID action goes through `payouts.ts`; legacy PAID settlements become real payout records. `39ead40`, `0a42496` |
+
+Also in money: online payments are booked at the gateway rather than the bank, and the
+gateway's fee is recorded (`2702c81`); a payment is booked when the customer pays, so a
+cancelled prepaid order can no longer block a day's settlement; refunds reverse at the
+gateway rather than the bank; the settlement form takes the three columns Razorpay's
+statement actually prints; `markPayoutPaid` is the single place a payout becomes PAID
+(`deb5583`); a "Card & UPI in" tab records settlements (`d9daca3`); failed refunds,
+money held at the gateway past T+2, and overpaid partners are all surfaced to the admin.
+
+### 2. People are told
+
+Riders are pushed trips — they never had been — in widening waves, and the other
+alarms are withdrawn when one rider accepts. Operations are pushed every problem the
+platform detects, including a rider who goes silent while carrying food. Payees are
+told when money lands, and "on its way" rather than "paid" when a transfer is only
+queued. Customers are told when the kitchen takes the order (once, not twice), when a
+rider is assigned (first name only), when a refund is sent, and a second time only if
+"running late" becomes "we have lost contact". The admin gets a twice-daily summary and
+a switch per category in Settings — **SOS and "no rider has taken this" cannot be
+switched off.** No payment or progress message uses the order-alarm channel.
+
+### 3. Every admin screen says when it failed (W7.1)
+
+Fourteen data sources across eleven screens rendered a failed request as an empty list
+— the Inflation screen said "No restaurants yet" for a server error. Fixed with
+`ResourceError` and `ResourceState` in `admin-mobile/src/components/ui.tsx`, and a check
+fails the gate if a fifteenth appears.
+
+### 4. What is now proved by a check, not by reading
+
+- **Route contract** — every route the four apps call exists, with the method they use:
+  217 calls read directly and 17 query-built paths checked at their prefix.
+- **Whole lifecycles over HTTP** — cash, online, customer cancel, kitchen reject, admin
+  cancel, sweeper cancel, payouts (the same payee paid twice), refunds after delivery and
+  clawbacks — with the books checked after every step.
+- **Every rate** has a bounds entry and survives a round trip; the rates that gate a
+  decision are driven; every feature flag is enforced somewhere.
+- **Every admin section** loads (46 of them), and a change sticks and is audited.
+- **Every store write is saved** (`src/test/helpers/persistenceScan.ts`).
+
+### 5. Removed (W6)
+
+Eleven dead exports, `canTakeCodOrder`, `ledger.reverse` (its location is recorded in
+the plan for G3, with a warning), and the frontend dead code from V4. Server routes were
+**kept mounted** and decided: the three wallet-writing routes now refuse with
+`WALLET_RETIRED`, and `/kyc/submit` already raised the admin alert and stays.
+
+---
+
+### Decided after W6
+
+- **`recordCashRefundAtDoor`** — kept, **deliberately not exposed**. A rider saying "I
+  handed the cash back" would lower what they owe on their word alone, which cannot be
+  verified and is the easiest fraud on a cash-on-delivery platform. If it is ever
+  exposed, an administrator records it or the customer confirms it. Tracked in the
+  production-readiness plan.
+- **`refundAlreadyPaid`** — removed; its check now asserts both directions against the
+  ledger key (`c962f9c`).
+- **`/kyc/submit` and old document names** — no change needed. No app, in any commit,
+  has ever called that route or sent `FSSAI_LICENSE`, so no installed APK can hit the
+  gap. `onboarding.test` asserts that 400 on purpose.
+
+### Open — needs a decision
+- **The rider app says a bonus is "paid"** when it now means "going out with your next
+  payout". Correct wording needs a rider build.
+- **No durable delivery promise** (plan V7) — nothing records the arrival time a customer
+  was shown, so nothing can be "late" against a commitment.
+- **G3** — RazorpayX `payout.reversed` / `payout.failed` webhooks must exist **before**
+  RazorpayX is switched on.
+- **The admin Rates screen saves platform rates as `{ changes }`; the route requires
+  `{ rates }`** — found by Session C and fixed on C's branch, not on main.
+
+### Next, already assigned
+
+- Session C: its branch merge, then N18/N19 (persistence in `db/client.ts`).
+- Session A: **N23** after the merge — a second Razorpay capture against an order that is
+  already PAID is kept silently; it should be booked and refunded.
+
+### Only the owner can do these
+
+Run the bank diagnostic; test a push on a real phone with the app force-stopped; supply
+live Razorpay and RazorpayX keys; rotate the Mapbox `sk.` token shipped in three APKs;
+seed real data and place one real order; say when to build.
+
+### Rules this session added to §11
+
+A check reports PASS whenever its assertions do not run. A fixture more permissive than
+the rule hides the rule — a zero hold period hid a double payment. Pay the same payee
+twice; the first payout is always right. When the fix is "the route now calls the
+module", the check must drive the route. A check asserting a refusal must make sure
+nothing else could have caused it. A floor set from a guess licenses whatever the scan
+finds. A check must not hardcode a date. A mutation harness must read stderr. A round
+trip must send the body the app sends.
 
 ---
 
