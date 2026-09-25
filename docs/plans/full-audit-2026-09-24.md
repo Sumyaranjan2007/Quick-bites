@@ -784,7 +784,7 @@ no conflicts. B re-ran the gate on `7410f3e` in a separate worktree: lock check
 first, then the app-side list, then the owner's "make APK".
 
 **APK update safety:** the 23 Sep APKs (what the owner's phones run) are archived
-at `D:\my all projects\quick-bites-release-archive6-09-23\`. Their v2
+at `D:\my all projects\quick-bites-release-archive\2026-09-23\`. Their v2
 certificate SHA-256s were extracted twice, independently, with `apksigner`: customer
 `3a31fead…fe1d`, partner `3e6d32d2…f576`, rider `070e4fb4…f881`, admin
 `d4294353…d92b`. `keytool -printcert` returns NOTHING for v2-only APKs, so the
