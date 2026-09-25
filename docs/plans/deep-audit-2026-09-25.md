@@ -28,6 +28,7 @@ repeatable loss or hole, **S2** = wrong, but bounded, **S3** = hygiene.
 | N7 | S1 | **Commission GST (18%) and TCS (1%) are paid out of the platform's margin**, never deducted from the partner, which is about 3.7% of food value on every order | no (decision first) |
 | N8 | S1 | **Coupon farming and exhaustion**: unlimited accounts (see N5), no new-user-only rule, redemptions never released, and a race on `usageLimit` | no |
 | N9 | S1 | **Client-supplied `distanceKm`** prices the delivery whenever an address has no coordinates; no delivery radius, no minimum order | no |
+| N21 | S0 | The rider's **"cancel trip" puts any non-delivered order back to ready-for-pickup**, including after pickup and on cancelled/refunded orders | no |
 | N10 | S1 | **Nine admin tools built on the server have no button in the admin app**: cash desk, held-payment release, payout cancel, payout requests… | admin APK |
 
 ---
@@ -233,7 +234,7 @@ calls, so false positives were removed. **All of these are admin-app buttons
 | C2 | `POST /admin/cash/bank-deposits` | Record office cash going to the bank. The pot panel and the payday-shortfall warning never see it |
 | C3 | `POST /admin/payments/held/:orderId/release` | Release a payment held for missing proof of delivery. **The partner is never paid for a real order** |
 | C4 | `POST /admin/payouts/:id/cancel` | Cancel a drafted payout |
-| C5 | `POST /admin/payouts/requests/:id/{seen,decline}` + `POST/GET/DELETE /earnings/payout-requests` | The whole "request an early payout" feature. **Partner and rider apps cannot create a request; admin cannot answer one** (partner + rider + admin APKs) |
+| ~~C5~~ | `POST /admin/payouts/requests/:id/{seen,decline}` + `/earnings/payout-requests` | **Withdrawn, my error.** The "Ask to be paid" button was removed on purpose (step 9, see the comment in both `EarningsStatementScreen.tsx`); payouts run on the cadence. The earnings routes are leftovers, so they go to **W6 as dead code**. Keep the admin decline route until the orphaned requests (`admin-revamp` §11A) are cleared |
 | C6 | `POST /orders/:id/call` | Masked calling between customer, rider and kitchen (all three apps) |
 | C7 | `GET /admin/payouts/statement/:ownerType/:ownerId` | A per-partner or per-rider statement for disputes |
 | C8 | `POST /admin/payments/health-check` | "Check the books now" (it runs only on the timer) |
@@ -242,9 +243,141 @@ calls, so false positives were removed. **All of these are admin-app buttons
 | C11 | `/kyc/submit`, `/kyc/status/*`, `/admin/kyc/*`, `/admin/suspend`, `/wallets/*` | Legacy duplicates. Delete in W6, don't connect |
 
 Decision for the brain: C1–C4 are money-blocking and small, so they go into the
-next admin APK. C5 is a product decision (does the owner want on-demand payouts
-at all?). C6 needs a telephony provider (Exotel/Knowlarity) before it can be
-connected.
+next admin APK. C6 needs a telephony provider (Exotel/Knowlarity) before it can
+be connected.
+
+> **Plan vs. reality: C1/C2 are marked done in `admin-revamp-and-inflation.md`
+> §11A ("office cash and the admin cash return" under *Built and proved*), and
+> §4.3 records the owner's explicit request for the button on the rider's
+> People page.** The server half is built and tested. **No app calls it.**
+> `PeopleScreen.tsx:544` shows "Cash in hand (COD)" read-only, and `grep` finds
+> no `cash/returns` or `bank-deposits` in any app, at any commit. The owner
+> believes this works. It is the plan's §11.2c ("the plan is a secondhand
+> account") again. The fix is two buttons: Rider page → "Cash handed in", and
+> Pay → Cash → "Banked".
+
+| # | Missing admin tool | Why a non-technical staff member needs it |
+| --- | --- | --- |
+| C12 | **Staff password reset** (`POST /admin/staff/:userId/reset-password` exists, no screen, also noted in `road-to-launch.md` §2.2) | A locked-out colleague otherwise needs a developer |
+
+---
+
+## 3A. Rider app: the "cancel trip" route puts food back on the shelf
+
+### N21 — S0 — `POST /riders/orders/:id/cancel` has no stage check
+
+`riderRouter.ts:1213` refuses only `DELIVERED`. Otherwise it **unconditionally
+sets `order.status = 'READY_FOR_PICKUP'`** and re-offers the trip to every
+rider. So:
+- **After pickup** (`OUT_FOR_DELIVERY`), the rider holding the food releases it.
+  The order goes back on offer at the restaurant while the food is in rider 1's
+  bag. On a COD order, rider 1 also leaves with nothing owed against them.
+- **On a `CANCELLED`/`REFUNDED` order** that still carries its `riderId`, the
+  order is **resurrected** to `READY_FOR_PICKUP`, re-offered, and can be
+  delivered. Delivery then posts earnings for an order whose money was already
+  refunded. It is the same class of hole as N1, from the rider side.
+- **Before the food is ready** (`ACCEPTED`/`PREPARING`, when the restaurant
+  offers riders early via `riderOfferAtStatus`), it **jumps the kitchen's food
+  track forward** to ready. That breaks the two-track model
+  (`order-flow-and-money-rebuild.md` §1.2: "`assignRider()` must not touch
+  `order.status`"). The same rule applies to its inverse.
+- It also stamps `cancelledAt` and `cancellationReason` on a live order, so
+  reports and the customer app may read it as cancelled.
+
+**Fix:** release is allowed only while `riderStage` is before `PICKED_UP` and
+the order is not terminal. It touches **only** the rider track (clear rider
+fields, `riderStage = 'UNASSIGNED'`) and **never** writes `status` or
+`cancelledAt`. After pickup the only paths are delivery, SOS, or an admin
+decision. Count releases per rider and feed them into the no-show metrics.
+
+### N22 — S1 — A restaurant rejection costs the restaurant nothing
+
+Restaurants may cancel with `ITEM_UNAVAILABLE`/`KITCHEN_OVERLOADED`/
+`KITCHEN_CLOSED` at any stage before delivery. The platform refunds 100% and
+eats any coupon, and the restaurant pays nothing. Zomato tracks a rejection
+rate, lowers ranking, and charges for rejections after acceptance. **Fix:**
+count restaurant cancellations per restaurant and show the rate on its admin
+page. Above a threshold, auto-pause the kitchen and alert admin. After
+`ACCEPTED`, an optional per-order penalty is clawed back from the partner
+payable (the same mechanism as the refund clawback).
+
+---
+
+## 3B. "Like Zomato": what each app still lacks for production
+
+Checked by listing every route each app calls against the server's routes.
+
+**Partner app (restaurant-mobile).** Present: live orders with the four taps,
+out-of-stock toggle, kitchen on/off, hours override, menu changes by request,
+documents, bank, statement, settlements, profile edits, support, ratings
+summary. **Missing:**
+- **Read and reply to customer reviews.** Only an aggregate is shown, but
+  replies drive repeat orders.
+- **Order issue and complaint visibility.** A refund clawback reaches the
+  statement with no link to the complaint that caused it, which leads to
+  disputes.
+- **Self-serve offers** (restaurant-funded discounts). This is also the main
+  way to move coupon cost off the platform (see §5).
+- **Commission tax invoice** (monthly GST invoice from the platform). This is
+  mandatory the moment N7 charges GST on commission.
+- **Staff or outlet logins** (a manager who is not the owner). Today one
+  phone is the whole restaurant.
+- **Rejection rate and ranking impact**, visible to the partner (N22).
+
+**Rider app (delivery-mobile).** Present: shift, broadcast, claim or decline,
+stages, pickup and OTP, cash declare and deposits, earnings, statement,
+settlements, incentives, ratings, documents, bank, SOS, policies, chat.
+**Missing:** the "trip taken" handler (W1.1), a quiet Payments channel (V6),
+the incentive label saying *earned* not *paid* (M2), and a safe release flow
+(N21).
+
+**Customer app (customer-mobile).** Present: OTP login, discovery, search,
+menu, cart and quote, coupons, tip, pay or COD, tracking with map and chat,
+cancel, rating, reorder, invoices, refunds, support, Gold, addresses,
+favourites. **Missing:**
+- The cancellation fee shown before confirming (N2).
+- Search suggestions (C10).
+- Notification channels (V6).
+- The address map pin **required**, not optional (N9).
+- The **in-app account deletion** entry. The route exists, and the app calls
+  `DELETE /auth/me` from `ProfileScreen`. Confirm it is visible, because Play
+  Store policy requires it.
+
+**Admin app (admin-mobile).** Adds C1–C4, C7–C9, C12, the cash-return button
+on the rider page, and a **restaurant rejection-rate** and **loss-making
+orders** view (N11, N22).
+
+---
+
+## 3C. Profit from day one: the levers that already exist, and the gaps
+
+The platform has more pricing levers than most: food markup, packaging markup,
+delivery markup, platform fee, extra charge, per-restaurant commission, and Gold
+(`admin-revamp` §6). The risk is not a missing lever. **It is day-one defaults
+that lose money, and holes that give it back.**
+
+1. **A new restaurant starts at zero markup** (the Inflation screen warns about
+   this). Set a non-zero default at approval, so no restaurant goes live
+   earning only commission.
+2. **Delivery is at or below cost at short distances with the defaults:**
+   customer ₹30 (≤3 km), rider ₹25 + ₹6/km beyond 2 km, floor ₹30. At 3 km the
+   rider costs ₹31. Either raise `deliveryBaseFee` or set
+   `riderDeliveryMarkupPercent`, which starts at 0.
+3. **Coupons are 100% platform-funded.** Add a `fundedBy`
+   (platform / restaurant / split) field on coupons. Restaurant-funded offers
+   are how Zomato and Swiggy run most discounts.
+4. **Close the holes that give money back:** N1, N2, N3, N6, N21 (all
+   server-only).
+5. **Fix the tax leakage:** N7 (about 3.7% of food value per order).
+6. **Minimum order and maximum radius:** N9.
+7. **A margin guard and a daily "orders that lost money" report:** N11.
+8. **Gold** needs live Razorpay keys before anyone can buy it.
+
+With the defaults and none of the above, a ₹300 order nets about ₹31, and a
+`WELCOME50` order loses about ₹19. With items 1, 2 and 5 at conservative
+settings (5% food markup, ₹40 delivery base, commission GST charged), the same
+order nets about ₹67 after the gateway fee (₹396.65 billed; partner ₹263.90;
+rider ₹31; tax ₹26.85), and a ₹50 coupon order stays positive at about ₹17.
 
 ---
 
@@ -278,7 +411,7 @@ connected.
 
 ## 5. Suggested order of work (for the brain to slot in after W7(a)/W6)
 
-1. **N1, N3, N4** — server-only, S0, small. One commit each, with the replay
+1. **N1, N3, N4, N21** — server-only, S0, small. One commit each, with the replay
    checks written as mutations first.
 2. **N6, N12, N13, N9 (server half)** — server-only.
 3. **N2** — needs the owner's fee numbers first (ask now, build after 1–2).
