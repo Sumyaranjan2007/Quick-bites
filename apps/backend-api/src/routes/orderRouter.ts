@@ -335,7 +335,8 @@ orderRouter.post('/:id/confirm-payment', authMiddleware(), validate({ body: Conf
     const order = await orderService.confirmPayment(
       req.params.id,
       req.body.razorpayPaymentId,
-      req.body.razorpaySignature
+      req.body.razorpaySignature,
+      { id: req.user!.id, role: req.user!.role }
     );
 
     res.json({
@@ -401,6 +402,9 @@ const StatusTransitionSchema = z.object({
  * any order by id — a customer could mark someone else's order DELIVERED, or a
  * stranger could cancel a restaurant's queue.
  */
+const KITCHEN_MAY_SET = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'CANCELLED'];
+const KITCHEN_MAY_CANCEL_FROM = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'];
+
 async function assertMayTransition(req: any, orderId: string, nextStatus: string) {
   const order = await orderRepository.findById(orderId);
   if (!order) {
@@ -416,16 +420,45 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
     if (!restaurant || restaurant.ownerId !== req.user?.id) {
       throw new AppError('You do not manage this restaurant.', 403, 'NOT_RESTAURANT_OWNER');
     }
+    /*
+     * The kitchen's four taps, and a cancellation while the food is still
+     * theirs. This used to let the kitchen move its own order to ANY state the
+     * machine allowed: out for delivery with no rider, or cancelled after a
+     * rider had already driven off with it.
+     */
+    if (!KITCHEN_MAY_SET.includes(nextStatus)) {
+      throw new AppError(
+        'The kitchen can accept, prepare, mark ready and hand over. The rider confirms collection and delivery.',
+        403,
+        'NOT_A_KITCHEN_STEP'
+      );
+    }
+    if (nextStatus === 'HANDED_TO_RIDER' && !order.riderId) {
+      throw new AppError('No rider has taken this order yet, so it cannot be handed over.', 409, 'NO_RIDER_ASSIGNED');
+    }
+    if (nextStatus === 'CANCELLED' && !KITCHEN_MAY_CANCEL_FROM.includes(order.status)) {
+      throw new AppError(
+        'The food has left the kitchen, so the kitchen can no longer cancel it. Contact Quick Bites support.',
+        409,
+        'KITCHEN_CANNOT_CANCEL_NOW'
+      );
+    }
     return;
   }
 
-  // The assigned rider carries it out for delivery and closes it with the OTP.
+  /*
+   * A rider moves an order only through the rider routes, which check the
+   * pickup code, the stage and the doorstep code. Through this route an
+   * assigned rider could skip the pickup code, or cancel a prepaid order they
+   * were holding (with the operations reason list), so the customer was
+   * refunded in full and the kitchen never paid.
+   */
   if (role === 'rider') {
-    const rider = await riderRepository.findByUserId(req.user!.id);
-    if (!rider || order.riderId !== rider.id) {
-      throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
-    }
-    return;
+    throw new AppError(
+      'Use the trip screen in the rider app to collect or deliver this order.',
+      403,
+      'RIDER_USES_TRIP_ROUTES'
+    );
   }
 
   // A customer may only cancel their own order, and only before the kitchen starts.

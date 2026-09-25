@@ -1,3 +1,10 @@
+import {
+  recordWrongCode,
+  clearWrongCodes,
+  lockedMinutesLeft,
+  lockedMessage,
+  LOCK_MINUTES
+} from '../../modules/orders/codeAttempts.ts';
 import crypto from 'crypto';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
 import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
@@ -291,13 +298,39 @@ export const orderRepository = {
   ): Promise<{ success: boolean; order?: Order; error?: string; code?: string }> {
     const order = memoryStore.orders.get(id);
     if (!order) return { success: false, error: 'Order not found', code: 'ORDER_NOT_FOUND' };
+
+    /*
+     * ONLY FOOD THAT IS WAITING ON THE COUNTER CAN BE COLLECTED.
+     *
+     * `readyAt` alone let a CANCELLED or REFUNDED order that had once been
+     * ready be "collected" again, which moved it to OUT_FOR_DELIVERY and let
+     * it be delivered and paid out after its money went back to the customer.
+     * A collected or delivered order answers with what actually happened.
+     */
+    if (order.status === 'OUT_FOR_DELIVERY' || order.status === 'DELIVERED') {
+      return { success: false, error: 'This order has already been collected.', code: 'ALREADY_COLLECTED' };
+    }
+    if (order.status === 'CANCELLED' || order.status === 'REFUNDED') {
+      return { success: false, error: 'This order was cancelled. Do not collect it.', code: 'ORDER_CANCELLED' };
+    }
+
+    const pickupLock = lockedMinutesLeft(order);
+    if (pickupLock > 0) {
+      return { success: false, error: lockedMessage(pickupLock), code: 'CODE_LOCKED' };
+    }
     if (order.pickupCode !== pickupCode.trim()) {
+      const locked = recordWrongCode(order, 'pickup');
+      memoryStore.orders.set(id, order);
+      triggerAutoSave();
       return {
         success: false,
-        error: 'That code does not match this order. Check the code on the restaurant screen.',
-        code: 'INVALID_PICKUP_CODE'
+        error: locked
+          ? lockedMessage(LOCK_MINUTES)
+          : 'That code does not match this order. Check the code on the restaurant screen.',
+        code: locked ? 'CODE_LOCKED' : 'INVALID_PICKUP_CODE'
       };
     }
+    clearWrongCodes(order, 'pickup');
 
     /*
      * THE FOOD HAS TO EXIST BEFORE ANYBODY CAN CARRY IT.
@@ -416,13 +449,23 @@ export const orderRepository = {
       };
     }
 
+    const deliveryLock = lockedMinutesLeft(order);
+    if (deliveryLock > 0) {
+      return { success: false, error: lockedMessage(deliveryLock), code: 'CODE_LOCKED' };
+    }
     if (order.deliveryOtp !== otp.trim()) {
+      const locked = recordWrongCode(order, 'delivery');
+      memoryStore.orders.set(id, order);
+      triggerAutoSave();
       return {
         success: false,
-        error: 'That code does not match. Ask the customer to read it from their order screen.',
-        code: 'INVALID_OTP'
+        error: locked
+          ? lockedMessage(LOCK_MINUTES)
+          : 'That code does not match. Ask the customer to read it from their order screen.',
+        code: locked ? 'CODE_LOCKED' : 'INVALID_OTP'
       };
     }
+    clearWrongCodes(order, 'delivery');
 
     order.status = 'DELIVERED';
     order.riderStage = 'DELIVERED';

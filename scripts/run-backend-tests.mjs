@@ -89,7 +89,8 @@ const SUITES = [
   'resilience',
   'platform',
   'flows',
-  'regression'
+  'regression',
+  'abuseGuards'
 ];
 
 /*

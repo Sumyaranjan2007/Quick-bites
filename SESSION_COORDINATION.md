@@ -238,6 +238,30 @@ Add a line. Delete it when done.
 
 ---
 
+## 4A. Session C — the cloud session ("Quick Bite"), added 25 Sep
+
+A third session, **in a different working tree** (a cloud container, not the
+owner's machine). It commits to its own branch `claude/nice-lamport-vxf4yf`,
+**never to `main`**, so it cannot sweep your index or stash your files. Its work
+reaches `main` only through a merge (or a PR) that A or B reviews first.
+
+Plan: `docs/plans/deep-audit-2026-09-25.md` (N1–N22, C1–C12). Session C
+**claims these while its branch is open**. Please don't edit them on `main`
+until that branch is merged, or tell Session C first so it can rebase onto you:
+
+| Area | Files |
+| --- | --- |
+| N1 payment replay | `modules/orders/orderService.ts` (`confirmPayment`, `markPaidByGateway`, `createOrder` idempotency/distance, `cancelOrder` coupon release), `routes/orderRouter.ts`, `routes/paymentRouter.ts` (start guard only) |
+| N3/N4 transitions, OTP limit | `routes/orderRouter.ts` `assertMayTransition`, `modules/orders/cancellationReasons.ts` `actorForRole`, `db/repositories/orderRepository.ts` (`verifyPickup`, `verifyDeliveryOtp`, `findByIdempotencyKey`) |
+| N21 rider release | `routes/riderRouter.ts` `POST /orders/:id/cancel` only |
+| N6 refund cap | `routes/supportRouter.ts` refund-requests, `routes/admin/financeRoutes.ts` refund pay path |
+| N8 coupons | `modules/orders/couponService.ts`, `db/repositories/couponRepository.ts` |
+| Admin buttons C1–C4, C12 | `apps/admin-mobile/src/screens/PeopleScreen.tsx`, `PayoutsScreen.tsx`, `RolesScreen.tsx` (additive sections) |
+| Its own checks | `src/test/abuseGuards.test.ts` (new), one line in `scripts/run-backend-tests.mjs` |
+
+Shared-file rules in §1.4 still apply: additive only in `shared-types` and
+`pricingConfig` (new rate keys, never renamed).
+
 ## 5. Verified — what each session has checked about the other
 
 **22 Sep, Session B checked Session A's uncommitted P1 work.** Every shared file

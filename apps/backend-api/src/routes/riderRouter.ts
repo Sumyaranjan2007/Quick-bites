@@ -1221,26 +1221,50 @@ riderRouter.post('/orders/:id/cancel', validate({ body: CancelSchema }), async (
     if (order.status === 'DELIVERED') {
       throw new AppError('That order has already been delivered.', 409, 'ALREADY_DELIVERED');
     }
+    /*
+     * RELEASING A TRIP TOUCHES THE RIDER TRACK, AND ONLY BEFORE PICKUP.
+     *
+     * This used to set `status = READY_FOR_PICKUP` whatever the order was
+     * doing. After pickup, the rider holding the food put it back on offer at
+     * the restaurant it had already left. On a cancelled or refunded order it
+     * brought the order back to life, to be delivered and paid out after the
+     * customer had their money back. Before the kitchen finished, it jumped the
+     * food forward to "ready". It also stamped `cancelledAt` on a live order.
+     */
+    if (order.status === 'CANCELLED' || order.status === 'REFUNDED') {
+      throw new AppError('That order was cancelled. There is nothing to hand back.', 409, 'ORDER_CANCELLED');
+    }
+    if (order.status === 'OUT_FOR_DELIVERY' || order.pickedUpAt) {
+      throw new AppError(
+        'You have already collected this food, so it cannot go back to dispatch. ' +
+          'Deliver it, or press SOS or call support if you cannot.',
+        409,
+        'ALREADY_COLLECTED'
+      );
+    }
 
+    const releasedAt = new Date().toISOString();
     order.riderId = undefined;
     order.riderName = undefined;
     order.riderPhone = undefined;
     order.riderStage = 'UNASSIGNED';
     order.riderAssignedAt = undefined;
-    order.cancellationReason = req.body.reason;
-    order.cancelledAt = new Date().toISOString();
-    // Back into the pool the kitchen released it into, so dispatch can offer it
-    // to somebody else. Food already collected still has to reach the customer,
-    // so the reason is kept on the order for operations to chase.
-    order.status = 'READY_FOR_PICKUP';
+    order.riderReleases = [
+      ...(order.riderReleases || []),
+      { riderId: self.id, reason: req.body.reason, at: releasedAt }
+    ];
+    // The kitchen tapped "handed over" to a rider who then gave the trip back:
+    // the bag is still on the counter, so the food is ready again. Every other
+    // status is the kitchen's and stays exactly where it was.
+    if (order.status === 'HANDED_TO_RIDER') order.status = 'READY_FOR_PICKUP';
     order.declinedByRiderIds = Array.from(new Set([...(order.declinedByRiderIds || []), self.id]));
-    order.updatedAt = order.cancelledAt;
+    order.updatedAt = releasedAt;
     memoryStore.orders.set(order.id, order);
     triggerAutoSave();
 
     emitOrderStatusUpdate(order.id, {
       orderId: order.id,
-      status: 'READY_FOR_PICKUP',
+      status: order.status,
       updatedAt: order.updatedAt,
       restaurantId: order.restaurantId
     });

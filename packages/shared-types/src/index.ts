@@ -697,6 +697,22 @@ export interface Order {
     flaggedAt: string;
   };
   pickedUpAt?: string;
+  /**
+   * Wrong guesses at this order's handover codes, and when the code stops
+   * being accepted. A four-digit code is proof of a handover only if it cannot
+   * be guessed: without a count, 10,000 tries is an afternoon.
+   */
+  codeAttempts?: {
+    pickupFailures?: number;
+    deliveryFailures?: number;
+    lockedUntil?: string;
+  };
+  /**
+   * Riders who took this trip and handed it back before collecting, and why.
+   * Kept apart from the cancellation fields: a released trip is still a live
+   * order, and stamping `cancelledAt` on it made it read as cancelled.
+   */
+  riderReleases?: Array<{ riderId: string; reason: string; at: string }>;
   cancelledAt?: string;
   cancellationReason?: string;
   /**
