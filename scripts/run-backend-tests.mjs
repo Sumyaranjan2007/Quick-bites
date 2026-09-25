@@ -104,7 +104,8 @@ const SUITES = [
   'dishOptions',
   'accessRevoked',
   'adminTools',
-  'optionGroups'
+  'optionGroups',
+  'handoverPosition'
 ];
 
 /*

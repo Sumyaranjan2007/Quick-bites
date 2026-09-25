@@ -44,7 +44,12 @@
  */
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { recordOrderEarnings } from '../payments/earnings.ts';
-import { memoryStore, triggerAutoSave } from '../../db/client.ts';
+import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../../db/client.ts';
+import { orderRepository } from '../../db/repositories/orderRepository.ts';
+import { getActiveRates } from '../payments/pricingConfig.ts';
+import { config } from '../../config/env.ts';
+import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
 import type { Order } from '@quick-bites/shared-types';
 
 export interface CompletionOutcome {
@@ -77,6 +82,23 @@ export interface CompletionOutcome {
 export async function completeDelivery(order: Order): Promise<CompletionOutcome> {
   const outcome: CompletionOutcome = { cashRecorded: 0, earningsPosted: false };
   if (!order?.id) return outcome;
+
+  /* ---------------------------------------------------------------- *
+   *  0. WHERE THE RIDER WAS WHEN THEY SAID IT WAS HANDED OVER          *
+   * ---------------------------------------------------------------- */
+  try {
+    await checkHandoverPosition(order.id);
+  } catch (error) {
+    console.log(
+      JSON.stringify({
+        level: 'ERROR',
+        timestamp: new Date().toISOString(),
+        event: 'HANDOVER_POSITION_CHECK_FAILED',
+        orderId: order.id,
+        reason: error instanceof Error ? error.message : String(error)
+      })
+    );
+  }
 
   /* ---------------------------------------------------------------- *
    *  1. THE CASH THE RIDER IS NOW CARRYING                             *
@@ -143,4 +165,91 @@ export async function completeDelivery(order: Order): Promise<CompletionOutcome>
   }
 
   return outcome;
+}
+
+/**
+ * Where the rider was when the handover was confirmed.
+ *
+ * The OTP proves the customer was involved; it does not prove the rider was
+ * there, because a customer can read four digits down a phone. That is the
+ * shape of the most common delivery fraud there is: mark it delivered from a
+ * mile away, keep the food, tell the customer it was left at the door. The
+ * distance is recorded, never enforced: a handover at the gate of a large
+ * complex looks the same from here, and refusing it would strand an honest
+ * rider. What it gives operations is whether the same rider does it every time.
+ *
+ * HERE, AND ONLY HERE. It used to live in orderService.transitionStatus, which
+ * the rider app never calls: riders deliver through /riders/orders/:id/verify-otp.
+ * So it never ran for a single real delivery, while its test called
+ * transitionStatus directly and passed. Every DELIVERED path ends in
+ * completeDelivery, so this cannot be skipped by a route again.
+ *
+ * Two refinements, so the alert means something:
+ *   - A STALE position is not a distance. If the rider's last point is older
+ *     than the silent-rider threshold, a GPS that dropped at the kitchen would
+ *     read as "delivered from 3 km away". That is recorded as
+ *     NO_RECENT_POSITION, with no alert.
+ *   - A delivery marked by OPERATIONS carries a staff member's recorded reason.
+ *     The distance is recorded, with no fraud alert.
+ *
+ * Once per order: a repeated completion finds the flag and does nothing.
+ */
+async function checkHandoverPosition(orderId: string): Promise<void> {
+  const order = memoryStore.orders.get(orderId) as Order | undefined;
+  if (!order || order.deliveryProximityFlag || !order.deliveryCoordinates) return;
+
+  const thresholdMetres = config.DELIVERY_PROXIMITY_METRES;
+  const flaggedAt = new Date().toISOString();
+  const silentMinutes = Number(getActiveRates().riderLocationSilentMinutes) || 0;
+  const positionAt = order.riderLocationUpdatedAt ? new Date(order.riderLocationUpdatedAt).getTime() : NaN;
+  const positionAgeMinutes = Number.isFinite(positionAt)
+    ? Math.max(0, Math.round((Date.now() - positionAt) / 60_000))
+    : undefined;
+  const byOperations = Boolean(order.deliveredByOperations);
+
+  const recent =
+    Boolean(order.riderCoordinates) && positionAgeMinutes !== undefined && positionAgeMinutes <= silentMinutes;
+
+  if (!recent) {
+    await orderRepository.flagDeliveryProximity(orderId, {
+      proximity: 'NO_RECENT_POSITION',
+      thresholdMetres,
+      flaggedAt,
+      ...(positionAgeMinutes !== undefined ? { positionAgeMinutes } : {}),
+      ...(byOperations ? { byOperations } : {})
+    });
+    return;
+  }
+
+  const distanceMetres = Math.round(
+    calculateDistanceKm(
+      order.riderCoordinates!.latitude,
+      order.riderCoordinates!.longitude,
+      order.deliveryCoordinates.latitude,
+      order.deliveryCoordinates.longitude
+    ) * 1000
+  );
+  if (distanceMetres <= thresholdMetres) return;
+
+  await orderRepository.flagDeliveryProximity(orderId, {
+    proximity: 'FAR',
+    distanceMetres,
+    thresholdMetres,
+    flaggedAt,
+    positionAgeMinutes,
+    ...(byOperations ? { byOperations } : {})
+  });
+  if (byOperations) return;
+
+  emitOpsAlert({
+    kind: 'DELIVERY_LOCATION_MISMATCH',
+    orderId,
+    orderNumber: order.orderNumber,
+    restaurantId: order.restaurantId,
+    detail:
+      `Marked delivered ${distanceMetres} m from the delivery address ` +
+      `(threshold ${thresholdMetres} m), rider ${order.riderId || 'unknown'}.`,
+    raisedAt: flaggedAt
+  });
+  void notifyAdminsDeliveryLocationMismatch({ orderId, orderNumber: order.orderNumber, distanceMetres });
 }

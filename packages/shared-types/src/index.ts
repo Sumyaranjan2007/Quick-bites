@@ -698,9 +698,21 @@ export interface Order {
    * recorded so a rider who does it on every order can be found.
    */
   deliveryProximityFlag?: {
-    distanceMetres: number;
+    /** Absent when there was no recent position to measure from. */
+    distanceMetres?: number;
     thresholdMetres: number;
     flaggedAt: string;
+    /**
+     * FAR: the rider's recent position was further than the threshold.
+     * NO_RECENT_POSITION: the last position was older than the silent-rider
+     * threshold (or there was none), so no distance means anything. Absent on
+     * flags written before this field existed, which were all FAR.
+     */
+    proximity?: 'FAR' | 'NO_RECENT_POSITION';
+    /** Minutes between the rider's last position and the handover. */
+    positionAgeMinutes?: number;
+    /** Marked delivered by operations, whose recorded reason is the record. */
+    byOperations?: boolean;
   };
   pickedUpAt?: string;
   /**

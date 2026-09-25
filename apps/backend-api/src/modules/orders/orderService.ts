@@ -17,7 +17,6 @@ import {
 import { completeDelivery } from './deliveryCompletion.ts';
 import { resolveDishOptions, type ResolvedOption } from './dishOptions.ts';
 import { watchRejections } from '../restaurants/rejectionWatch.ts';
-import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
 import {
   isGoldActive,
@@ -49,7 +48,6 @@ import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
 import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor, codOverrideFor } from './cancellationFee.ts';
 import { contributionPaise } from '../payments/orderMargin.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
-import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
 
 /**
  * Tells the kitchen, on the phone in somebody's pocket.
@@ -1278,52 +1276,8 @@ export const orderService = {
       }
     }
 
-    // Where the rider was standing when they said the food had been handed over.
-    //
-    // The OTP above proves the customer was involved; it does not prove the
-    // rider was there, because a customer can read four digits down a phone.
-    // That is the shape of the most common delivery fraud there is: mark it
-    // delivered from a mile away, keep the food, tell the customer it was left
-    // at the door. The distance is recorded rather than enforced — a genuine
-    // handover at the gate of a gated complex looks identical from here, and
-    // refusing the transition would strand an honest rider mid-trip. What it
-    // gives operations is the one thing that distinguishes the two: whether the
-    // same rider does it on every single order.
-    if (nextStatus === 'DELIVERED' && order.riderCoordinates && order.deliveryCoordinates) {
-      const distanceMetres = Math.round(
-        calculateDistanceKm(
-          order.riderCoordinates.latitude,
-          order.riderCoordinates.longitude,
-          order.deliveryCoordinates.latitude,
-          order.deliveryCoordinates.longitude
-        ) * 1000
-      );
-
-      if (distanceMetres > config.DELIVERY_PROXIMITY_METRES) {
-        const flaggedAt = new Date().toISOString();
-        await orderRepository.flagDeliveryProximity(orderId, {
-          distanceMetres,
-          thresholdMetres: config.DELIVERY_PROXIMITY_METRES,
-          flaggedAt
-        });
-        emitOpsAlert({
-          kind: 'DELIVERY_LOCATION_MISMATCH',
-          orderId,
-          orderNumber: order.orderNumber,
-          restaurantId: order.restaurantId,
-          detail:
-            `Marked delivered ${distanceMetres} m from the delivery address ` +
-            `(threshold ${config.DELIVERY_PROXIMITY_METRES} m), rider ${order.riderId || 'unknown'}.`,
-          raisedAt: flaggedAt
-        });
-
-        void notifyAdminsDeliveryLocationMismatch({
-          orderId,
-          orderNumber: order.orderNumber,
-          distanceMetres
-        });
-      }
-    }
+    // Where the rider was at the handover is checked in completeDelivery, which
+    // EVERY delivery path reaches; see checkHandoverPosition there.
 
     const updated = await orderRepository.updateStatus(orderId, nextStatus, prepMinutes);
     if (!updated) {

@@ -356,7 +356,7 @@ async function run() {
       await orderRepository.updateRiderLocation(order.id, {
         latitude: destination.latitude + 0.01,
         longitude: destination.longitude
-      } as any);
+      } as any, 0, new Date().toISOString());
 
       const delivered = await orderService.transitionStatus(
         order.id,
@@ -396,7 +396,7 @@ async function run() {
       await orderRepository.updateRiderLocation(order.id, {
         latitude: live.deliveryCoordinates.latitude,
         longitude: live.deliveryCoordinates.longitude
-      } as any);
+      } as any, 0, new Date().toISOString());
       await orderService.transitionStatus(order.id, 'DELIVERED', undefined, live.deliveryOtp);
       const clean = await orderRepository.findById(order.id);
       check('A handover at the door is not flagged', !clean?.deliveryProximityFlag);

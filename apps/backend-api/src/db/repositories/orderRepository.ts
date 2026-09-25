@@ -697,7 +697,7 @@ export const orderRepository = {
    */
   async flagDeliveryProximity(
     id: string,
-    flag: { distanceMetres: number; thresholdMetres: number; flaggedAt: string }
+    flag: NonNullable<Order['deliveryProximityFlag']>
   ): Promise<boolean> {
     const order = memoryStore.orders.get(id);
     if (!order) return false;
