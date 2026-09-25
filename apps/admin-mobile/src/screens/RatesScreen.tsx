@@ -405,7 +405,7 @@ export const RatesScreen: React.FC = () => {
                             keyboardType="numeric"
                           />
                           <Text style={s.fieldSuffix}>
-                            {bound.unit === 'PERCENT' ? '%' : bound.unit === 'KM' ? 'km' : bound.unit === 'DAYS' ? 'days' : 'Rs'}
+                            {bound.unit === 'PERCENT' ? '%' : bound.unit === 'KM' ? 'km' : bound.unit === 'DAYS' ? 'days' : bound.unit === 'MINUTES' ? 'min' : bound.unit === 'COUNT' ? 'times' : 'Rs'}
                           </Text>
                         </View>
                         {changed && (

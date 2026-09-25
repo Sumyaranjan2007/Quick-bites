@@ -1,3 +1,5 @@
+import { quoteCancellation } from '../modules/orders/cancellationFee.ts';
+import { canTransition } from '../modules/orders/orderStateMachine.ts';
 import { Router } from 'express';
 import { orderService } from '../modules/orders/orderService.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
@@ -75,6 +77,33 @@ orderRouter.get('/cancellation-reasons', authMiddleware(), async (req, res, next
 });
 
 // GET /api/v1/orders/:id - Single order detail
+/**
+ * GET /api/orders/:id/cancellation-quote
+ *
+ * What cancelling now would cost the customer, and what they get back. The app
+ * shows this BEFORE the cancel button is confirmed: a fee a customer learns
+ * about from their bank statement is a support call and a lost customer.
+ */
+orderRouter.get('/:id/cancellation-quote', authMiddleware('customer'), async (req, res, next) => {
+  try {
+    const order = await orderRepository.findById(req.params.id);
+    if (!order || order.customerId !== req.user!.id) {
+      throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    }
+    const quote = quoteCancellation(order);
+    res.json({
+      success: true,
+      data: {
+        ...quote,
+        canCancel: canTransition(order.status, 'CANCELLED') && !CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status)
+      },
+      meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
   try {
     const order = await orderRepository.findById(req.params.id);
@@ -90,10 +119,24 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
     }
 
     const isCustomer = order.customerId === req.user?.id;
-    const isRider = order.riderId === req.user?.id;
-    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.role === 'restaurant_owner';
+    // `order.riderId` is the rider's own id (rdr_…), not their user id, so the
+    // rider is looked up rather than compared with the token directly.
+    const viewerRider = req.user?.role === 'rider' ? await riderRepository.findByUserId(req.user!.id) : null;
+    const isRider =
+      order.riderId === req.user?.id || Boolean(viewerRider && order.riderId === viewerRider.id);
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
+    /*
+     * A restaurant sees ITS OWN orders. Every restaurant owner used to count as
+     * staff here, so any partner could read any order on the platform by id:
+     * another kitchen's customer, address and bill.
+     */
+    let isKitchen = false;
+    if (req.user?.role === 'restaurant_owner') {
+      const restaurant = await restaurantRepository.findById(order.restaurantId);
+      isKitchen = Boolean(restaurant && restaurant.ownerId === req.user.id);
+    }
 
-    if (!isCustomer && !isRider && !isStaff) {
+    if (!isCustomer && !isRider && !isStaff && !isKitchen) {
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'Forbidden: You do not have permission to view this order.' },
@@ -110,7 +153,7 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
       // OTP, and this route used to hand it to the assigned rider — the one
       // person who must not have it, because it is the only proof that the food
       // reached the customer.
-      data: { order: shapeOrderForViewer(order, viewerFor(order, req.user)) },
+      data: { order: shapeOrderForViewer(order, isRider ? 'rider' : viewerFor(order, req.user)) },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
@@ -335,7 +378,8 @@ orderRouter.post('/:id/confirm-payment', authMiddleware(), validate({ body: Conf
     const order = await orderService.confirmPayment(
       req.params.id,
       req.body.razorpayPaymentId,
-      req.body.razorpaySignature
+      req.body.razorpaySignature,
+      { id: req.user!.id, role: req.user!.role }
     );
 
     res.json({
@@ -401,6 +445,10 @@ const StatusTransitionSchema = z.object({
  * any order by id — a customer could mark someone else's order DELIVERED, or a
  * stranger could cancel a restaurant's queue.
  */
+const KITCHEN_MAY_SET = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'CANCELLED'];
+const KITCHEN_MAY_CANCEL_FROM = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'];
+const CUSTOMER_CANNOT_CANCEL_FROM = ['HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'];
+
 async function assertMayTransition(req: any, orderId: string, nextStatus: string) {
   const order = await orderRepository.findById(orderId);
   if (!order) {
@@ -416,16 +464,45 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
     if (!restaurant || restaurant.ownerId !== req.user?.id) {
       throw new AppError('You do not manage this restaurant.', 403, 'NOT_RESTAURANT_OWNER');
     }
+    /*
+     * The kitchen's four taps, and a cancellation while the food is still
+     * theirs. This used to let the kitchen move its own order to ANY state the
+     * machine allowed: out for delivery with no rider, or cancelled after a
+     * rider had already driven off with it.
+     */
+    if (!KITCHEN_MAY_SET.includes(nextStatus)) {
+      throw new AppError(
+        'The kitchen can accept, prepare, mark ready and hand over. The rider confirms collection and delivery.',
+        403,
+        'NOT_A_KITCHEN_STEP'
+      );
+    }
+    if (nextStatus === 'HANDED_TO_RIDER' && !order.riderId) {
+      throw new AppError('No rider has taken this order yet, so it cannot be handed over.', 409, 'NO_RIDER_ASSIGNED');
+    }
+    if (nextStatus === 'CANCELLED' && !KITCHEN_MAY_CANCEL_FROM.includes(order.status)) {
+      throw new AppError(
+        'The food has left the kitchen, so the kitchen can no longer cancel it. Contact Quick Bites support.',
+        409,
+        'KITCHEN_CANNOT_CANCEL_NOW'
+      );
+    }
     return;
   }
 
-  // The assigned rider carries it out for delivery and closes it with the OTP.
+  /*
+   * A rider moves an order only through the rider routes, which check the
+   * pickup code, the stage and the doorstep code. Through this route an
+   * assigned rider could skip the pickup code, or cancel a prepaid order they
+   * were holding (with the operations reason list), so the customer was
+   * refunded in full and the kitchen never paid.
+   */
   if (role === 'rider') {
-    const rider = await riderRepository.findByUserId(req.user!.id);
-    if (!rider || order.riderId !== rider.id) {
-      throw new AppError('This order is not assigned to you.', 403, 'NOT_YOUR_DELIVERY');
-    }
-    return;
+    throw new AppError(
+      'Use the trip screen in the rider app to collect or deliver this order.',
+      403,
+      'RIDER_USES_TRIP_ROUTES'
+    );
   }
 
   // A customer may only cancel their own order, and only before the kitchen starts.
@@ -434,6 +511,19 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
   }
   if (nextStatus !== 'CANCELLED') {
     throw new AppError('Customers can only cancel an order.', 403, 'CUSTOMER_CANNOT_ADVANCE');
+  }
+  /*
+   * The food is in the rider's bag. Cancelling now would refund the customer
+   * for a meal that is already on its way to them, with the kitchen and the
+   * rider having done all of their work. Agreed with B (brain-sync §2.1):
+   * refuse rather than invent a rider share of a fee. Support can still act.
+   */
+  if (CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status)) {
+    throw new AppError(
+      'Your food is already on its way, so this order can no longer be cancelled in the app. Contact support if something is wrong.',
+      409,
+      'CUSTOMER_CANNOT_CANCEL_NOW'
+    );
   }
 }
 

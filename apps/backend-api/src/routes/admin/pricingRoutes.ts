@@ -150,6 +150,20 @@ const RateChangeSchema = z.object({
 pricingRoutes.put(
   '/pricing/config',
   requirePermission('finance.config.edit'),
+  /*
+   * The admin app (RatesScreen) sends `{ changes, note }`; this route has only
+   * ever accepted `{ rates, note }`. So every "Save these rates" from the
+   * shipped app was refused as a validation error, and the owner could not
+   * change a single platform rate from their phone. Accepting both names here
+   * fixes it without waiting for an APK.
+   */
+  (req, _res, next) => {
+    if (req.body && req.body.rates === undefined && req.body.changes !== undefined) {
+      req.body.rates = req.body.changes;
+      delete req.body.changes;
+    }
+    next();
+  },
   validate({ body: RateChangeSchema }),
   async (req, res, next) => {
     try {

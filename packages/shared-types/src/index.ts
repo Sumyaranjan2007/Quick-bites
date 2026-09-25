@@ -697,6 +697,22 @@ export interface Order {
     flaggedAt: string;
   };
   pickedUpAt?: string;
+  /**
+   * Wrong guesses at this order's handover codes, and when the code stops
+   * being accepted. A four-digit code is proof of a handover only if it cannot
+   * be guessed: without a count, 10,000 tries is an afternoon.
+   */
+  codeAttempts?: {
+    pickupFailures?: number;
+    deliveryFailures?: number;
+    lockedUntil?: string;
+  };
+  /**
+   * Riders who took this trip and handed it back before collecting, and why.
+   * Kept apart from the cancellation fields: a released trip is still a live
+   * order, and stamping `cancelledAt` on it made it read as cancelled.
+   */
+  riderReleases?: Array<{ riderId: string; reason: string; at: string }>;
   cancelledAt?: string;
   cancellationReason?: string;
   /**
@@ -706,6 +722,16 @@ export interface Order {
    * improved the wording or the customer switched language.
    */
   cancellationReasonCode?: string;
+  /**
+   * True while this order holds one use of its coupon. Released when the order
+   * is cancelled, so an abandoned or cancelled checkout does not burn a limited
+   * campaign (or the customer's own single use).
+   */
+  couponRedeemed?: boolean;
+  /** The food's status at the moment of cancellation. Decides the fee, and counts cash cancels. */
+  cancelledFromStatus?: OrderStatus;
+  /** What was kept of the bill when the customer cancelled, and what the kitchen got of it. */
+  cancellationFee?: { amount: number; percent: number; kitchenShare: number };
   /** Who cancelled: the customer, the kitchen, or operations. */
   cancelledByRole?: UserRole;
   cancelledByUserId?: string;
@@ -1273,6 +1299,18 @@ export interface Coupon {
   usageLimit?: number;
   /** Redemptions allowed per customer. Absent means unlimited. */
   perUserLimit?: number;
+  /**
+   * Only for customers with no delivered order yet. Without it a "welcome"
+   * code works for every existing customer too.
+   */
+  newCustomersOnly?: boolean;
+  /**
+   * The most this campaign may cost the platform in discounts, in rupees.
+   * A usage limit counts redemptions; this caps the money. Absent = no budget.
+   */
+  budget?: number;
+  /** Discount given so far against `budget`. Maintained by redemption and release. */
+  spent?: number;
   timesUsed: number;
   /** Empty means every restaurant; otherwise only these. */
   applicableRestaurantIds?: string[];
@@ -1491,6 +1529,28 @@ export interface PricingRates {
   payoutLinkExpiryHours: number;
   /** How long a door-collection QR code stays payable. Razorpay caps this at 120. */
   doorQrExpiryMinutes: number;
+
+  /*
+   * Day-one profit and abuse controls (deep-audit N2, N7, N9). Every one of
+   * them defaults to "off", so adding them changes nobody's bill until the
+   * owner sets a number.
+   */
+  /** Furthest a customer may be from the kitchen, by road. 0 = no limit. */
+  maxDeliveryKm: number;
+  /** Smallest food total the platform accepts. 0 = no minimum. */
+  minOrderValue: number;
+  /** Share of the bill kept when a customer cancels after the kitchen accepted. */
+  cancelFeePercentAfterAccept: number;
+  /** Share of the bill kept when a customer cancels once the food is ready or on its way. */
+  cancelFeePercentAfterReady: number;
+  /** Cash orders a customer may cancel or refuse before cash is switched off for them. 0 = never. */
+  codCancelLimit: number;
+  /**
+   * Share of the GST on commission that is charged to the restaurant rather
+   * than absorbed by the platform. 0 keeps today's behaviour; 100 is how Zomato
+   * and Swiggy invoice it. A CA decides.
+   */
+  commissionGstChargedToPartnerPercent: number;
 }
 
 export interface PricingConfig {
@@ -1654,6 +1714,8 @@ export type LedgerEvent =
   | 'RIDER_INCENTIVE_AWARDED'
   | 'SETTLEMENT_ADJUSTMENT'
   | 'MEMBERSHIP_PURCHASED'
+  /** Part of a cancelled order's bill kept as a cancellation fee. */
+  | 'CANCELLATION_FEE_KEPT'
   | 'CORRECTION';
 
 export interface LedgerEntry {
@@ -1783,7 +1845,14 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   dailyPayoutCap: 200000,
   payoutLinkExpiryHours: 72,
   // Razorpay closes a single-use QR at two hours whatever we ask for.
-  doorQrExpiryMinutes: 15
+  doorQrExpiryMinutes: 15,
+
+  maxDeliveryKm: 0,
+  minOrderValue: 0,
+  cancelFeePercentAfterAccept: 0,
+  cancelFeePercentAfterReady: 0,
+  codCancelLimit: 0,
+  commissionGstChargedToPartnerPercent: 0
 };
 
 /* ------------------------------------------------------------------------- *

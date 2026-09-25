@@ -63,7 +63,7 @@ export interface RateBound {
   key: keyof PricingRates;
   label: string;
   help: string;
-  unit: 'PERCENT' | 'RUPEES' | 'KM' | 'DAYS' | 'MINUTES';
+  unit: 'PERCENT' | 'RUPEES' | 'KM' | 'DAYS' | 'MINUTES' | 'COUNT';
   min: number;
   max: number;
   /** Rates a change to which alters what customers are charged. */
@@ -145,7 +145,17 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'makerCheckerThreshold', label: 'Second approver above', help: 'Payouts above this need a second administrator to approve them.', unit: 'RUPEES', min: 0, max: 1000000, affectsCustomerBill: false },
   { key: 'dailyPayoutCap', label: 'Daily payout cap', help: 'Everything the platform may pay out in any 24 hours.', unit: 'RUPEES', min: 0, max: 100000000, affectsCustomerBill: false },
   { key: 'payoutLinkExpiryHours', label: 'Refund link expiry', help: 'How long a refund link stays claimable.', unit: 'MINUTES', min: 1, max: 720, affectsCustomerBill: false },
-  { key: 'doorQrExpiryMinutes', label: 'Door QR expiry', help: 'How long a doorstep QR stays payable. Razorpay caps this at 120 minutes.', unit: 'MINUTES', min: 2, max: 120, affectsCustomerBill: false }
+  { key: 'doorQrExpiryMinutes', label: 'Door QR expiry', help: 'How long a doorstep QR stays payable. Razorpay caps this at 120 minutes.', unit: 'MINUTES', min: 2, max: 120, affectsCustomerBill: false },
+  /*
+   * Day-one profit and abuse controls. All start at 0, which means off, so
+   * they arrive changing nothing until the owner decides a number.
+   */
+  { key: 'maxDeliveryKm', label: 'Furthest delivery', help: 'Customers further than this from the kitchen, by road, cannot order from it. 0 = no limit.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: true },
+  { key: 'minOrderValue', label: 'Minimum order', help: 'Smallest food total accepted at checkout. 0 = no minimum.', unit: 'RUPEES', min: 0, max: 2000, affectsCustomerBill: true },
+  { key: 'cancelFeePercentAfterAccept', label: 'Cancel fee after kitchen accepts', help: 'Share of the bill kept when a customer cancels after the kitchen accepted. Pays the kitchen for food it started. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
+  { key: 'cancelFeePercentAfterReady', label: 'Cancel fee once food is ready', help: 'Share of the bill kept when a customer cancels once the food is ready or on its way. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
+  { key: 'codCancelLimit', label: 'Cash cancels before cash is switched off', help: 'Cash orders a customer may cancel after acceptance before cash-on-delivery is turned off for them. 0 = never.', unit: 'COUNT', min: 0, max: 20, affectsCustomerBill: false },
+  { key: 'commissionGstChargedToPartnerPercent', label: 'Commission GST charged to restaurant', help: 'Share of the 18% GST on commission deducted from the restaurant instead of paid by us. 0 = we pay it all; 100 = how Zomato invoices it. Ask your CA.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: false }
 ];
 
 const boundsByKey = new Map(RATE_BOUNDS.map(b => [b.key, b]));
@@ -175,7 +185,26 @@ export function validateRates(rates: PricingRates): string[] {
  */
 export function getActiveConfig(): PricingConfig {
   const all = listConfigs();
-  if (all.length > 0) return all[0];
+  /*
+   * A STORED VERSION IS MISSING EVERY RATE ADDED AFTER IT WAS SAVED.
+   *
+   * Production saved version 1 on its first boot. Every rate added since
+   * (the rider search wave, the silent-rider and overdue minutes, the gateway
+   * overdue days, and so on) is absent from that record, so it read as
+   * `undefined` — and `createVersion` spreads the stored rates and then
+   * validates EVERY bound, so the first attempt to change any rate failed with
+   * "must be a number" for a field the administrator never touched. The rate
+   * screen could not save anything at all.
+   *
+   * Filled from the defaults on read, never written back: the stored version
+   * stays the record of what was actually set, and a missing key means "never
+   * set", which is exactly what the default is.
+   */
+  if (all.length > 0) {
+    const stored = all[0];
+    const missing = Object.keys(DEFAULT_RATES).some(k => (stored.rates as any)[k] === undefined);
+    return missing ? { ...stored, rates: { ...DEFAULT_RATES, ...stored.rates } } : stored;
+  }
 
   const initial: PricingConfig = {
     id: 'pcfg_1',

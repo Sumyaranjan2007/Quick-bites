@@ -110,7 +110,21 @@ export function splitForOrder(order: Order, rates: PricingRates = getActiveRates
     ? toPaise(Number(bill.partnerPackagingFee))
     : packagingPaise;
 
-  const partnerPaise = Math.max(0, itemsPaise + partnerPackagingPaise - commissionPaise - tdsPaise);
+  /*
+   * The share of the GST on commission the restaurant pays, frozen on the bill
+   * at pricing time. Absent on every order placed before the share existed,
+   * which is 0 — exactly what those orders were priced with. The tax itself is
+   * still credited in full to TAX_GST_PAYABLE below; this only decides whose
+   * money pays it.
+   */
+  const commissionGstToPartnerPaise = Number.isFinite(Number(bill.commissionGstToPartner))
+    ? toPaise(Number(bill.commissionGstToPartner))
+    : 0;
+
+  const partnerPaise = Math.max(
+    0,
+    itemsPaise + partnerPackagingPaise - commissionPaise - tdsPaise - commissionGstToPartnerPaise
+  );
 
   // What the rider earned on this trip, plus the whole tip.
   const riderPaise = toPaise(Number(order.riderPayout) || 0) + tipPaise;

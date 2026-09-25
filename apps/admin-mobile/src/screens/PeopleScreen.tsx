@@ -460,13 +460,151 @@ const DriversTab: React.FC = () => {
   );
 };
 
+/**
+ * A partner or rider is locked out and phones operations.
+ *
+ * The server route existed with no screen, so recovering an account needed a
+ * developer. The temporary password is read out over the phone; setting it also
+ * signs out every device still holding the old session (a lost phone).
+ */
+const PasswordResetCard: React.FC<{ userId: string; name?: string }> = ({ userId, name }) => {
+  const { api } = useSession();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (password.trim().length < 10) {
+      Alert.alert('Too short', 'Use at least 10 characters. It is read out over the phone.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(`/admin/staff/${userId}/reset-password`, { temporaryPassword: password.trim() });
+      Alert.alert(
+        'Password reset',
+        `Tell ${name || 'them'} the new password now. Their old sessions are signed out; ask them to change it after signing in.`
+      );
+      setPassword('');
+      setOpen(false);
+    } catch (err: any) {
+      Alert.alert('Not reset', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <Text style={s.cardHeading}>Locked out?</Text>
+      {!open ? (
+        <Button label="Set a temporary password" variant="ghost" onPress={() => setOpen(true)} />
+      ) : (
+        <>
+          <Field
+            label="Temporary password (10+ characters)"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="blue-mango-4821"
+            autoCapitalize="none"
+          />
+          <View style={s.actionRow}>
+            <Button label="Set it" variant="primary" full loading={busy} onPress={submit} />
+            <Button label="Cancel" variant="ghost" full onPress={() => setOpen(false)} />
+          </View>
+        </>
+      )}
+    </Card>
+  );
+};
+
+/**
+ * A rider hands cash in at the office and has tapped nothing in their app.
+ *
+ * The owner asked for exactly this, on the rider's page: "when they come to our
+ * office and hand over the money we remove them from their portal". The server
+ * route (POST /admin/cash/returns) was built and tested; no screen called it,
+ * so the cash stayed on the rider's account and blocked their payout.
+ *
+ * The count is what was physically received. A partial hand-over is normal: the
+ * remainder is said back, because it still blocks their payout.
+ */
+const CashReturnCard: React.FC<{ riderId: string; holding: number; onDone: () => void | Promise<void> }> = ({
+  riderId,
+  holding,
+  onDone
+}) => {
+  const { api } = useSession();
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = () => {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      Alert.alert('Enter the amount', 'Type the cash you counted, in rupees.');
+      return;
+    }
+    if (value > holding) {
+      Alert.alert('More than they hold', `They are holding ${formatMoney(holding)}. Count again.`);
+      return;
+    }
+    Alert.alert('Record cash handed in?', `${formatMoney(value)} received from this rider at the office.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Record it',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const res: any = await api.post('/admin/cash/returns', {
+              riderId,
+              amount: value,
+              ...(note.trim() ? { note: note.trim() } : {})
+            });
+            setAmount('');
+            setNote('');
+            const remaining = Number(res?.remainingCashInHand);
+            Alert.alert(
+              'Recorded',
+              Number.isFinite(remaining) && remaining > 0
+                ? `${formatMoney(value)} received. ${formatMoney(remaining)} is still with them and still blocks their payout.`
+                : `${formatMoney(value)} received. They are carrying nothing now and can be paid.`
+            );
+            await onDone();
+          } catch (err: any) {
+            Alert.alert('Not recorded', err?.message || 'Nothing was changed.');
+          } finally {
+            setBusy(false);
+          }
+        }
+      }
+    ]);
+  };
+
+  return (
+    <Card>
+      <Text style={s.cardHeading}>Cash handed in at the office</Text>
+      <Text style={s.muted}>
+        They are holding {formatMoney(holding)} of customers' cash. Count what they give you and record it here. Their
+        payout stays blocked until they are holding nothing.
+      </Text>
+      <Field label="Amount counted (Rs)" value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder={String(holding)} />
+      <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="Counted by Ravi at the front desk" />
+      <View style={s.actionRow}>
+        <Button label="Record cash received" variant="success" full loading={busy} onPress={submit} />
+      </View>
+    </Card>
+  );
+};
+
 const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged: () => void; canManage: boolean }> = ({
   id,
   onClose,
   onChanged,
   canManage
 }) => {
-  const { api } = useSession();
+  const { api, can } = useSession();
+  const canTakeCash = can('finance.payouts.manage');
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState('');
   const resource = useResource(() => api.get<any>(`/admin/drivers/${id}`), [id], { enabled: Boolean(id) });
@@ -544,6 +682,19 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             <KeyValue label="Cash in hand (COD)" value={formatMoney(resource.data.stats.codCashInHand)} />
             <KeyValue label="Wallet balance" value={formatMoney(resource.data.wallet?.balance)} />
           </Card>
+
+          {canTakeCash && Number(resource.data.stats.codCashInHand) > 0 ? (
+            <CashReturnCard
+              riderId={driver.id}
+              holding={Number(resource.data.stats.codCashInHand)}
+              onDone={async () => {
+                await resource.reload();
+                onChanged();
+              }}
+            />
+          ) : null}
+
+          {canManage && driver.userId ? <PasswordResetCard userId={driver.userId} name={driver.fullName} /> : null}
 
           <PaidIntoCard destination={resource.data.payoutDestination} />
 
@@ -826,6 +977,13 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
             <KeyValue label="Orders" value={resource.data.stats.orders} tone="strong" />
             <KeyValue label="Delivered" value={resource.data.stats.delivered} />
             <KeyValue label="Cancelled" value={resource.data.stats.cancelled} />
+            {resource.data.stats.rejectedByKitchen != null ? (
+              <KeyValue
+                label="Rejected by the kitchen"
+                value={`${resource.data.stats.rejectedByKitchen} (${resource.data.stats.rejectionRatePercent}% of orders)`}
+                tone={Number(resource.data.stats.rejectionRatePercent) >= 10 ? 'strong' : undefined}
+              />
+            ) : null}
             <KeyValue label="Revenue billed" value={formatMoney(resource.data.stats.revenue)} tone="money" />
             <KeyValue label="Owed to this partner" value={formatMoney(resource.data.stats.payable)} />
             <Divider />
@@ -834,6 +992,10 @@ const RestaurantSheet: React.FC<{ id: string | null; onClose: () => void; onChan
 
           {/* Directly under what they are owed, because those two lines are read
               together: the amount, and where it would go. */}
+          {canManage && resource.data.owner?.id ? (
+            <PasswordResetCard userId={resource.data.owner.id} name={resource.data.owner.fullName} />
+          ) : null}
+
           <PaidIntoCard destination={resource.data.payoutDestination} />
 
           <Card>

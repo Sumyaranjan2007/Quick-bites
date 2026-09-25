@@ -2,6 +2,7 @@
  * Money: what was paid, what the platform earned, what is owed to riders, and
  * the return/refund cases that give some of it back.
  */
+import { refundableRemaining } from '../../modules/payments/refundCap.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
@@ -218,6 +219,25 @@ financeRoutes.post(
         );
       }
 
+      // Approving commits money: it is capped by what the OTHER committed cases
+      // on the order have not already taken (refundCap counts APPROVED too).
+      if (action === 'APPROVE') {
+        const approving = amount ?? request.requestedAmount;
+        const forOrder = await orderRepository.findById(request.orderId);
+        if (forOrder) {
+          const remaining = await refundableRemaining(forOrder, request.id);
+          if (approving > remaining) {
+            throw new AppError(
+              remaining <= 0
+                ? 'This order is already refunded, or committed to be, in full by another case.'
+                : `Only Rs ${remaining} of this order is not already refunded or committed.`,
+              409,
+              'REFUND_EXCEEDS_REMAINING'
+            );
+          }
+        }
+      }
+
       if (action === 'PROCESSING' || action === 'APPROVE' || action === 'REJECT') {
         const status = action === 'PROCESSING' ? 'PROCESSING' : action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
         const updated = await refundRepository.transition(request.id, status, actor, {
@@ -252,6 +272,17 @@ financeRoutes.post(
           `A refund cannot exceed the order total of Rs ${request.orderTotal}.`,
           400,
           'REFUND_EXCEEDS_ORDER'
+        );
+      }
+      // Across every case on the order, not just this one.
+      const remaining = await refundableRemaining(order, request.id);
+      if (payable > remaining) {
+        throw new AppError(
+          remaining <= 0
+            ? 'This order has already been refunded in full by another case.'
+            : `Only Rs ${remaining} of this order has not already been refunded.`,
+          409,
+          'REFUND_EXCEEDS_REMAINING'
         );
       }
 
@@ -386,9 +417,28 @@ financeRoutes.post(
       }
 
       const total = Number(order.bill?.totalAmount) || 0;
-      const amount = req.body.amount ?? total;
+      const remaining = await refundableRemaining(order);
+      // Nothing left means nothing to do: defaulting the amount to "what is
+      // left" would otherwise record a Rs 0 refund as a settled case.
+      if (remaining <= 0) {
+        throw new AppError(
+          'This order is already refunded, or committed to be, in full.',
+          409,
+          'REFUND_EXCEEDS_REMAINING'
+        );
+      }
+      const amount = req.body.amount ?? remaining;
       if (amount > total) {
         throw new AppError(`A refund cannot exceed the order total of Rs ${total}.`, 400, 'REFUND_EXCEEDS_ORDER');
+      }
+      if (amount > remaining) {
+        throw new AppError(
+          remaining <= 0
+            ? 'This order has already been refunded in full.'
+            : `Only Rs ${remaining} of this order has not already been refunded.`,
+          409,
+          'REFUND_EXCEEDS_REMAINING'
+        );
       }
       const reason = req.body.reason || 'Admin dispute resolution';
       const actor = { userId: req.user!.id, name: req.user!.fullName || req.user!.email };

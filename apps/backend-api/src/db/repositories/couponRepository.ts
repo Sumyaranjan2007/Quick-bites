@@ -38,6 +38,9 @@ export const couponRepository = {
       expiresAt: input.expiresAt,
       usageLimit: input.usageLimit !== undefined ? Number(input.usageLimit) : undefined,
       perUserLimit: input.perUserLimit !== undefined ? Number(input.perUserLimit) : undefined,
+      newCustomersOnly: input.newCustomersOnly === true ? true : undefined,
+      budget: input.budget !== undefined ? Number(input.budget) : undefined,
+      spent: 0,
       timesUsed: 0,
       applicableRestaurantIds: input.applicableRestaurantIds || [],
       applicableCategories: input.applicableCategories || [],
@@ -56,7 +59,7 @@ export const couponRepository = {
     if (!coupon) return null;
     // The code identifies the row and is what customers have already been told;
     // everything else is the campaign and may be tuned.
-    const { code: _ignored, timesUsed: _used, createdAt: _created, ...editable } = changes as any;
+    const { code: _ignored, timesUsed: _used, spent: _spent, createdAt: _created, ...editable } = changes as any;
     Object.assign(coupon, editable);
     coupon.updatedAt = new Date().toISOString();
     memoryStore.coupons.set(key, coupon);
@@ -73,11 +76,37 @@ export const couponRepository = {
   },
 
   /** Counted at checkout so a usage limit means something. */
-  async recordRedemption(code: string): Promise<void> {
+  async recordRedemption(code: string, discount = 0): Promise<void> {
+    couponRepository.redeemNow(code, discount);
+  },
+
+  /**
+   * Checks the campaign's limits and takes one use, with no await in between.
+   *
+   * Validation and redemption were separated by a road-distance lookup, so two
+   * checkouts could both pass a limit with one use left. Returns false (and
+   * takes nothing) when the campaign is full or its budget is spent.
+   */
+  redeemNow(code: string, discount = 0): boolean {
+    const key = normalizeCode(code);
+    const coupon = memoryStore.coupons.get(key) as Coupon | undefined;
+    if (!coupon) return false;
+    if (coupon.usageLimit && (coupon.timesUsed || 0) >= coupon.usageLimit) return false;
+    if (coupon.budget && (coupon.spent || 0) + discount > coupon.budget) return false;
+    coupon.timesUsed = (coupon.timesUsed || 0) + 1;
+    coupon.spent = Math.round(((coupon.spent || 0) + discount) * 100) / 100;
+    memoryStore.coupons.set(key, coupon);
+    triggerAutoSave();
+    return true;
+  },
+
+  /** Gives one use (and its discount) back, for an order that never happened. */
+  releaseRedemption(code: string, discount = 0): void {
     const key = normalizeCode(code);
     const coupon = memoryStore.coupons.get(key) as Coupon | undefined;
     if (!coupon) return;
-    coupon.timesUsed = (coupon.timesUsed || 0) + 1;
+    coupon.timesUsed = Math.max(0, (coupon.timesUsed || 0) - 1);
+    coupon.spent = Math.max(0, Math.round(((coupon.spent || 0) - discount) * 100) / 100);
     memoryStore.coupons.set(key, coupon);
     triggerAutoSave();
   },

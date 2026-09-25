@@ -52,6 +52,19 @@ export const couponService = {
     if (coupon.usageLimit && (coupon.timesUsed || 0) >= coupon.usageLimit) {
       return { valid: false, reason: 'This offer has been fully claimed.' };
     }
+    if (coupon.budget && (coupon.spent || 0) >= coupon.budget) {
+      return { valid: false, reason: 'This offer has been fully claimed.' };
+    }
+    // A welcome offer is for somebody who has not ordered yet. Checked on
+    // DELIVERED orders, so a customer whose first order was cancelled still
+    // qualifies.
+    if (coupon.newCustomersOnly && context.customerId) {
+      for (const order of memoryStore.orders.values()) {
+        if (order.customerId === context.customerId && order.status === 'DELIVERED') {
+          return { valid: false, reason: 'This offer is for your first order only.' };
+        }
+      }
+    }
     if (
       coupon.applicableRestaurantIds?.length &&
       context.restaurantId &&

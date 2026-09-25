@@ -42,6 +42,8 @@ import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
+import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
+import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor } from './cancellationFee.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
 
@@ -136,6 +138,153 @@ function clampTip(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(Math.round(n * 100) / 100, config.MAX_TIP_AMOUNT);
+}
+
+/**
+ * The distance a trip is priced on.
+ *
+ * Measured between the two real points wherever both exist. Where they do
+ * not, the app's own figure used to be taken as given, so an app sending
+ * `distanceKm: 0.1` bought base-fare delivery from anywhere, and the rider was
+ * paid for 0.1 km off the same number. The app may now only RAISE the nominal
+ * figure (it may know better that the trip is long); it can never lower it.
+ */
+const NOMINAL_TRIP_KM = 3.5;
+function tripDistanceFrom(measuredKm: number | undefined, claimedKm: number | undefined): number {
+  if (typeof measuredKm === 'number' && Number.isFinite(measuredKm)) return measuredKm;
+  const claimed = Number(claimedKm);
+  return Number.isFinite(claimed) && claimed > NOMINAL_TRIP_KM ? claimed : NOMINAL_TRIP_KM;
+}
+
+/**
+ * The owner's minimum order and furthest delivery. Both are 0 (off) by default.
+ * The radius is enforced only on a MEASURED distance: refusing on a guess would
+ * turn away customers whose address simply has no pin.
+ */
+function assertDeliverable(restaurantName: string, distanceKm: number, measured: boolean, foodTotal: number): void {
+  const rates = getActiveRates();
+  const maxKm = Number(rates.maxDeliveryKm) || 0;
+  if (maxKm > 0 && measured && distanceKm > maxKm) {
+    throw new AppError(
+      `${restaurantName} does not deliver this far (${distanceKm.toFixed(1)} km; the limit is ${maxKm} km).`,
+      409,
+      'OUT_OF_DELIVERY_RANGE'
+    );
+  }
+  const minOrder = Number(rates.minOrderValue) || 0;
+  if (minOrder > 0 && foodTotal < minOrder) {
+    throw new AppError(
+      `The minimum order is Rs ${minOrder}. Add Rs ${Math.ceil(minOrder - foodTotal)} more to check out.`,
+      409,
+      'BELOW_MINIMUM_ORDER'
+    );
+  }
+}
+
+/**
+ * Returns a paid order's money after it has been cancelled.
+ *
+ * One implementation for every way a paid order ends up cancelled: a person
+ * cancelling it, and a payment that the gateway captured AFTER the order had
+ * already been abandoned. The second used to bring the order back to life as a
+ * new order for the kitchen. Now it is refunded, like any other cancellation.
+ */
+async function refundPaidCancellation(
+  updated: Order,
+  refundable: number,
+  reasonText: string,
+  actor: { userId: string; name: string; role: UserRole }
+): Promise<{ requestId: string; amount: number; status: string; gatewayRefundId?: string }> {
+  const request = await refundRepository.create({
+    orderId: updated.id,
+    orderNumber: updated.orderNumber,
+    raisedByUserId: actor.userId,
+    raisedByRole: actor.role as any,
+    raisedByName: actor.name,
+    customerId: updated.customerId,
+    customerName: updated.customerName,
+    customerPhone: updated.customerPhone,
+    restaurantId: updated.restaurantId,
+    restaurantName: updated.restaurantName,
+    riderId: updated.riderId,
+    riderName: updated.riderName,
+    reasonCode: 'ORDER_CANCELLED',
+    description: `Order cancelled before delivery: ${reasonText}`,
+    attachments: [],
+    requestedAmount: refundable,
+    orderTotal: Number(updated.bill?.totalAmount) || refundable
+  });
+
+  updated.refundRequestId = request.id;
+
+  /*
+   * ONE REFUND FUNCTION, AND THIS USED NOT TO BE IT.
+   *
+   * Cancelling called the gateway here directly and WROTE NOTHING TO THE
+   * LEDGER. That was accidentally consistent while online money was only
+   * booked at delivery — nothing had been recorded coming in, so nothing
+   * needed recording going out, and the two silences cancelled.
+   *
+   * They stopped cancelling the moment payments were booked when the gateway
+   * took them. A cancelled prepaid order would leave its capture sitting in
+   * GATEWAY_RECEIVABLE and CUSTOMER_PREPAID for ever: the owner's "at
+   * Razorpay" figure overstated by every cancellation, showing money that is
+   * never going to arrive, and every settlement afterwards measured against
+   * it.
+   *
+   * So this goes through `sendRefund` like every other refund on the
+   * platform. It decides the route from the order, posts the ledger entries,
+   * and — for a wallet order, which has no gateway payment to reverse —
+   * leaves the case unsettled when no payout rail is configured, which is
+   * exactly what the branch here used to do by hand. Where a rail IS
+   * configured the customer now gets their money by link instead of waiting
+   * on a queue, which is the point of there being one implementation.
+   */
+  const outcome = await sendRefund({
+    order: updated,
+    amountPaise: Math.round(refundable * 100),
+    reason: `Order cancelled: ${reasonText}`,
+    actorUserId: actor.userId,
+    caseId: request.id,
+    customerPhone: updated.customerPhone
+  });
+
+  const gatewayRefundId = outcome.reference;
+  const settled = outcome.settled;
+
+  if (settled) {
+    await refundRepository.transition(
+      request.id,
+      'REFUNDED',
+      { userId: 'system', name: 'Quick Bites' },
+      {
+        note: 'Refunded automatically on cancellation.',
+        approvedAmount: refundable,
+        refundTransactionId: gatewayRefundId
+      }
+    );
+    updated.paymentStatus = 'REFUNDED';
+    updated.status = 'REFUNDED';
+  } else {
+    // Deliberately left open rather than reported as refunded. The
+    // customer's money has not moved, and the queue is where that gets
+    // noticed; a green tick here would hide it.
+    await refundRepository.transition(
+      request.id,
+      'PROCESSING',
+      { userId: 'system', name: 'Quick Bites' },
+      { note: 'Automatic refund could not be completed. Needs manual settlement.' }
+    );
+  }
+
+  await orderRepository.save(updated);
+
+  return {
+    requestId: request.id,
+    amount: refundable,
+    status: settled ? 'REFUNDED' : 'PROCESSING',
+    gatewayRefundId
+  };
 }
 
 export const orderService = {
@@ -245,10 +394,11 @@ export const orderService = {
     // with a river or a railway in it, and the customer was being charged for
     // the short version of a journey the rider actually rides.
     const measured =
-      restaurant.coordinates && address?.coordinates
+      hasRealLocation(restaurant) && address?.coordinates
         ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
-    const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
+    const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
+    assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), pricedItems.reduce((t, i) => t + i.totalPrice, 0));
 
     let validatedCoupon = undefined;
     let couponError: string | undefined;
@@ -335,12 +485,27 @@ export const orderService = {
     // stop orders reaching the kitchens now, and a replay would put one there.
     assertEnabled('ordering');
     if (input.paymentMethod === 'CASH_ON_DELIVERY') assertEnabled('cash_on_delivery');
+    // A customer who keeps cancelling cash orders after the kitchen started
+    // pays online from then on (owner-set limit, 0 = never).
+    if (input.paymentMethod === 'CASH_ON_DELIVERY' && cashSwitchedOffFor(input.customerId)) {
+      throw new AppError(
+        'Cash on delivery is switched off for your account because of cancelled cash orders. Please pay online.',
+        409,
+        'COD_DISABLED_FOR_ACCOUNT'
+      );
+    }
     if (input.paymentMethod === 'RAZORPAY_SANDBOX') assertEnabled('online_payments');
     if (input.couponCode) assertEnabled('coupons');
 
     // 1. Check Idempotency Key (Rule 44 & 45)
     const existing = await orderRepository.findByIdempotencyKey(input.idempotencyKey);
     if (existing) {
+      // A retry is a retry of YOUR checkout. The key was looked up across every
+      // customer, so sending someone else's key returned their order — address,
+      // bill and doorstep code included.
+      if (existing.customerId !== input.customerId) {
+        throw new AppError('That checkout reference has already been used.', 409, 'IDEMPOTENCY_KEY_REUSED');
+      }
       return { order: existing, isDuplicate: true };
     }
 
@@ -506,10 +671,11 @@ export const orderService = {
     // client claimed, falling back to the client's figure (and then to a nominal
     // 3.5 km) only when either end has no coordinates recorded.
     const measured =
-      restaurant.coordinates && address.coordinates
+      hasRealLocation(restaurant) && address.coordinates
         ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
-    const tripDistanceKm = measured?.distanceKm ?? input.distanceKm ?? 3.5;
+    const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
+    assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), orderItems.reduce((t, i) => t + i.totalPrice, 0));
 
     const charges = effectiveCharges(restaurant.id, getActiveRates());
     const bill = calculateOrderPricing({
@@ -595,13 +761,21 @@ export const orderService = {
       updatedAt: new Date().toISOString()
     };
 
-    await orderRepository.create(order);
-
-    // Counted once the order exists, so a usage limit reflects codes that were
-    // actually spent rather than every checkout that looked at one.
+    /*
+     * The coupon's use is taken HERE, synchronously, re-checking the
+     * campaign's limit and budget with no await in between. Validation ran
+     * before a road-distance lookup, so two checkouts could both pass a limit
+     * with one use left. The use is released again if the order is cancelled
+     * (see cancelOrder), so an abandoned checkout no longer burns a campaign.
+     */
     if (order.couponCode) {
-      await couponRepository.recordRedemption(order.couponCode);
+      if (!couponRepository.redeemNow(order.couponCode, Number(bill.couponDiscount) || 0)) {
+        throw new AppError('This offer has just been fully claimed. Remove it to check out.', 409, 'COUPON_FULLY_CLAIMED');
+      }
+      order.couponRedeemed = true;
     }
+
+    await orderRepository.create(order);
 
     // 8. Payment is started separately, by POST /payments/start.
     //
@@ -780,6 +954,14 @@ export const orderService = {
 
     validateTransition(order.status, 'CANCELLED');
 
+    // A rider hands a trip back (the rider release route); they never cancel
+    // the customer's order. `actorForRole` maps them to the operations reasons,
+    // so without this a rider holding a prepaid order could cancel it, refund
+    // the customer in full and keep the food.
+    if (actor.role === 'rider') {
+      throw new AppError('A rider cannot cancel an order. Hand the trip back instead.', 403, 'RIDER_CANNOT_CANCEL');
+    }
+
     const reason = findCancellationReason(reasonCode);
     if (!reason) {
       throw new AppError('That is not a cancellation reason we recognise.', 400, 'UNKNOWN_CANCELLATION_REASON');
@@ -796,7 +978,16 @@ export const orderService = {
     const reasonText = trimmedNote ? `${reason.label.en} — ${trimmedNote}` : reason.label.en;
 
     const wasPaid = order.paymentStatus === 'PAID';
-    const refundable = wasPaid ? Number(order.bill?.totalAmount) || 0 : 0;
+    const fromStatus = order.status;
+    /*
+     * A customer cancelling after the kitchen has started pays the owner-set
+     * fee (0 by default, which is today's behaviour). The kitchen, the
+     * restaurant and operations never pay one: their cancellations are the
+     * platform's failure, not the customer's choice.
+     */
+    const feeQuote = actor.role === 'customer' ? quoteCancellation(order) : null;
+    const fee = feeQuote?.fee || 0;
+    const refundable = wasPaid ? Math.round(((Number(order.bill?.totalAmount) || 0) - fee) * 100) / 100 : 0;
 
     const updated = await orderRepository.recordCancellation(orderId, {
       reason: reasonText,
@@ -807,100 +998,25 @@ export const orderService = {
     if (!updated) {
       throw new AppError('Failed to cancel this order.', 500, 'CANCELLATION_FAILED');
     }
+    updated.cancelledFromStatus = fromStatus;
+    if (fee > 0) {
+      const { kitchenShare } = bookCancellationFee(updated, fee);
+      updated.cancellationFee = { amount: fee, percent: feeQuote!.percent, kitchenShare };
+    }
+    await orderRepository.save(updated);
+
+    // The order never happened, so its coupon use goes back to the campaign
+    // and to the customer.
+    if (updated.couponRedeemed && updated.couponCode) {
+      couponRepository.releaseRedemption(updated.couponCode, Number(updated.bill?.couponDiscount) || 0);
+      updated.couponRedeemed = false;
+      await orderRepository.save(updated);
+    }
 
     let refund: { requestId: string; amount: number; status: string; gatewayRefundId?: string } | null = null;
 
     if (wasPaid && refundable > 0) {
-      const request = await refundRepository.create({
-        orderId: updated.id,
-        orderNumber: updated.orderNumber,
-        raisedByUserId: actor.userId,
-        raisedByRole: actor.role as any,
-        raisedByName: actor.name,
-        customerId: updated.customerId,
-        customerName: updated.customerName,
-        customerPhone: updated.customerPhone,
-        restaurantId: updated.restaurantId,
-        restaurantName: updated.restaurantName,
-        riderId: updated.riderId,
-        riderName: updated.riderName,
-        reasonCode: 'ORDER_CANCELLED',
-        description: `Order cancelled before delivery: ${reasonText}`,
-        attachments: [],
-        requestedAmount: refundable,
-        orderTotal: refundable
-      });
-
-      updated.refundRequestId = request.id;
-
-      /*
-       * ONE REFUND FUNCTION, AND THIS USED NOT TO BE IT.
-       *
-       * Cancelling called the gateway here directly and WROTE NOTHING TO THE
-       * LEDGER. That was accidentally consistent while online money was only
-       * booked at delivery — nothing had been recorded coming in, so nothing
-       * needed recording going out, and the two silences cancelled.
-       *
-       * They stopped cancelling the moment payments were booked when the gateway
-       * took them. A cancelled prepaid order would leave its capture sitting in
-       * GATEWAY_RECEIVABLE and CUSTOMER_PREPAID for ever: the owner's "at
-       * Razorpay" figure overstated by every cancellation, showing money that is
-       * never going to arrive, and every settlement afterwards measured against
-       * it.
-       *
-       * So this goes through `sendRefund` like every other refund on the
-       * platform. It decides the route from the order, posts the ledger entries,
-       * and — for a wallet order, which has no gateway payment to reverse —
-       * leaves the case unsettled when no payout rail is configured, which is
-       * exactly what the branch here used to do by hand. Where a rail IS
-       * configured the customer now gets their money by link instead of waiting
-       * on a queue, which is the point of there being one implementation.
-       */
-      const outcome = await sendRefund({
-        order: updated,
-        amountPaise: Math.round(refundable * 100),
-        reason: `Order cancelled: ${reasonText}`,
-        actorUserId: actor.userId,
-        caseId: request.id,
-        customerPhone: updated.customerPhone
-      });
-
-      const gatewayRefundId = outcome.reference;
-      const settled = outcome.settled;
-
-      if (settled) {
-        await refundRepository.transition(
-          request.id,
-          'REFUNDED',
-          { userId: 'system', name: 'Quick Bites' },
-          {
-            note: 'Refunded automatically on cancellation.',
-            approvedAmount: refundable,
-            refundTransactionId: gatewayRefundId
-          }
-        );
-        updated.paymentStatus = 'REFUNDED';
-        updated.status = 'REFUNDED';
-      } else {
-        // Deliberately left open rather than reported as refunded. The
-        // customer's money has not moved, and the queue is where that gets
-        // noticed; a green tick here would hide it.
-        await refundRepository.transition(
-          request.id,
-          'PROCESSING',
-          { userId: 'system', name: 'Quick Bites' },
-          { note: 'Automatic refund could not be completed. Needs manual settlement.' }
-        );
-      }
-
-      await orderRepository.save(updated);
-
-      refund = {
-        requestId: request.id,
-        amount: refundable,
-        status: settled ? 'REFUNDED' : 'PROCESSING',
-        gatewayRefundId
-      };
+      refund = await refundPaidCancellation(updated, refundable, reasonText, actor);
     }
 
     emitOrderStatusUpdate(updated.id, {
@@ -926,9 +1042,48 @@ export const orderService = {
     return { order: updated, refund };
   },
 
-  async confirmPayment(orderId: string, razorpayPaymentId: string, signature: string) {
+  async confirmPayment(
+    orderId: string,
+    razorpayPaymentId: string,
+    signature: string,
+    requester?: { id: string; role?: string }
+  ) {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+
+    // Only the customer who placed it (or staff) confirms its payment.
+    if (
+      requester &&
+      requester.id !== order.customerId &&
+      requester.role !== 'admin' &&
+      requester.role !== 'super_admin'
+    ) {
+      throw new AppError('This is not your order.', 403, 'NOT_YOUR_ORDER');
+    }
+
+    /*
+     * A CONFIRMATION MOVES AN ORDER OUT OF PAYMENT_PENDING, AND NOTHING ELSE.
+     *
+     * This used to set PAID and ORDER_PLACED whatever the order's state. A
+     * signature stays valid for ever, so pay -> cancel -> refund -> send the
+     * same confirmation again put a refunded order back in the kitchen: free
+     * food, and the kitchen and rider paid out of platform money on delivery.
+     * The same replay on a delivered order sent it back to be cooked twice.
+     *
+     * An already-paid order is answered as it stands (a retry on a bad
+     * connection is normal and must not re-notify the kitchen). Anything
+     * else is refused.
+     */
+    if (order.paymentStatus === 'PAID' && order.status !== 'PAYMENT_PENDING') {
+      return order;
+    }
+    if (order.status !== 'PAYMENT_PENDING') {
+      throw new AppError(
+        'This order is no longer waiting for payment.',
+        409,
+        'ORDER_NOT_AWAITING_PAYMENT'
+      );
+    }
 
     // Against Razorpay's order id, not our order number. Razorpay signs what
     // it issued and has never seen "QB-000123"; verifying against the order
@@ -992,11 +1147,14 @@ export const orderService = {
   ) {
     const order = await orderRepository.findById(orderId);
     if (!order) return null;
-    if (order.paymentStatus === 'PAID') return order;
+    if (order.paymentStatus === 'PAID' || order.paymentStatus === 'REFUNDED') return order;
+    if (order.status === 'REFUNDED') return order;
+
+    const wasPending = order.status === 'PAYMENT_PENDING';
 
     order.paymentStatus = 'PAID';
-    order.status = 'ORDER_PLACED';
     order.razorpayPaymentId = detail.razorpayPaymentId;
+    if (wasPending) order.status = 'ORDER_PLACED';
 
     // The gateway's own amount, where the webhook carried one. It is what
     // Razorpay is actually holding, and the settlement is checked against it.
@@ -1008,6 +1166,45 @@ export const orderService = {
     // would have brought the order back as unpaid with the customer's money
     // already taken.
     await orderRepository.save(order);
+
+    /*
+     * MONEY THAT ARRIVED FOR AN ORDER WE HAD ALREADY GIVEN UP ON.
+     *
+     * Reconciliation cancels an order whose payment never came back; the
+     * customer can still complete it at the gateway minutes later. That capture
+     * used to resurrect the order as ORDER_PLACED, sending the kitchen food to
+     * cook for an order the customer had been told was cancelled. The money is
+     * recorded above and sent straight back here, through the same refund every
+     * other cancellation uses.
+     */
+    if (order.status === 'CANCELLED') {
+      const refundable = Number(order.bill?.totalAmount) || 0;
+      if (refundable > 0) {
+        await refundPaidCancellation(
+          order,
+          refundable,
+          'Payment arrived after the order had been cancelled',
+          { userId: 'system', name: 'Quick Bites', role: 'admin' as UserRole }
+        );
+      }
+      emitOpsAlert({
+        kind: 'PAYMENT_AFTER_CANCELLATION',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurantId: order.restaurantId,
+        detail: `Payment ${detail.razorpayPaymentId} captured on a cancelled order; refund started.`,
+        raisedAt: new Date().toISOString()
+      });
+      return order;
+    }
+
+    /*
+     * A live order that was already in the kitchen (a cash order the customer
+     * then paid online): the money is recorded, and the order stays exactly
+     * where it is. Only a PAYMENT_PENDING order is announced to the kitchen;
+     * announcing anything else would send it an order it already has.
+     */
+    if (!wasPending) return order;
 
     emitOrderCreated(order.restaurantId, order);
     emitOrderStatusUpdate(order.id, {

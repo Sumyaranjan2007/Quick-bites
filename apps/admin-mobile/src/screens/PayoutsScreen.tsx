@@ -151,6 +151,8 @@ interface CashPayload {
   awaiting: DepositRow[];
   recent: DepositRow[];
   ageing: AgeingRow[];
+  /** Cash counted in at the office and not yet banked. Absent on older servers. */
+  officeCash?: number;
 }
 
 const rupees = (n: number) =>
@@ -269,6 +271,16 @@ export const PayoutsScreen: React.FC = () => {
 
   /* Counting cash in. */
   const [counting, setCounting] = useState<DepositRow | null>(null);
+  // Office desk: cash taken from a rider who declared nothing, and cash banked.
+  const [takingFrom, setTakingFrom] = useState<string | null>(null);
+  const [takenAmount, setTakenAmount] = useState('');
+  const [bankAmount, setBankAmount] = useState('');
+  const [bankReference, setBankReference] = useState('');
+  // A held order is released with a sentence saying what was checked.
+  const [releaseNotes, setReleaseNotes] = useState<Record<string, string>>({});
+  // Cancelling a drafted or approved payout puts what they are owed back in the queue.
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [countedAmount, setCountedAmount] = useState('');
   const [varianceNote, setVarianceNote] = useState('');
 
@@ -301,6 +313,22 @@ export const PayoutsScreen: React.FC = () => {
     void cash.silentReload();
     void overview.silentReload();
     void gateway.silentReload();
+  };
+
+  /** Runs one desk action, reloads everything, and shows what went wrong if it did. */
+  const deskAction = async (work: () => Promise<unknown>, failure: string) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await work();
+      await reloadAll();
+      return true;
+    } catch (err: any) {
+      setActionError(err?.message || failure);
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const draft = async () => {
@@ -582,6 +610,40 @@ export const PayoutsScreen: React.FC = () => {
                             style={{ marginTop: 10 }}
                           />
                         )}
+                        {blocker.where === 'HELD' &&
+                          (overview.data.held || []).map((row: any) => (
+                            <View key={row.orderId} style={{ marginTop: 12 }}>
+                              <Text style={s.dueName}>
+                                #{row.orderNumber || row.orderId}
+                                {row.restaurantName ? ` · ${row.restaurantName}` : ''}
+                              </Text>
+                              <Text style={s.blockTextMuted}>{row.reason}</Text>
+                              {canPay && (
+                                <>
+                                  <Field
+                                    label="What you checked"
+                                    value={releaseNotes[row.orderId] || ''}
+                                    onChangeText={text => setReleaseNotes(prev => ({ ...prev, [row.orderId]: text }))}
+                                    placeholder="Called the customer, food arrived"
+                                  />
+                                  <Button
+                                    label="It was real — release the earnings"
+                                    variant="secondary"
+                                    disabled={busy || (releaseNotes[row.orderId] || '').trim().length < 8}
+                                    onPress={() =>
+                                      void deskAction(
+                                        () =>
+                                          api.post(`/admin/payments/held/${row.orderId}/release`, {
+                                            note: (releaseNotes[row.orderId] || '').trim()
+                                          }),
+                                        'That order could not be released.'
+                                      )
+                                    }
+                                  />
+                                </>
+                              )}
+                            </View>
+                          ))}
                       </Card>
                     ))}
                   </>
@@ -687,6 +749,7 @@ export const PayoutsScreen: React.FC = () => {
 
         {tab === 'sending' && (
           <>
+            {!!actionError && <Text style={s.errorText}>{actionError}</Text>}
             {pendingApproval.length > 0 && (
               <>
                 <SectionTitle
@@ -722,6 +785,37 @@ export const PayoutsScreen: React.FC = () => {
                         />
                       )
                     )}
+                    {canPay && cancelling !== payout.id && (
+                      <Button
+                        label="Cancel this payment"
+                        variant="ghost"
+                        onPress={() => {
+                          setCancelling(payout.id);
+                          setCancelReason('');
+                          setActionError(null);
+                        }}
+                        disabled={busy}
+                        style={{ marginTop: 6 }}
+                      />
+                    )}
+                    {canPay && cancelling === payout.id && (
+                      <View style={{ marginTop: 10 }}>
+                        <Field label="Why it is being cancelled" value={cancelReason} onChangeText={setCancelReason} placeholder="Wrong account, will redo" />
+                        <Button
+                          label="Cancel it — they stay owed"
+                          variant="danger"
+                          disabled={busy || cancelReason.trim().length < 3}
+                          onPress={async () => {
+                            const ok = await deskAction(
+                              () => api.post(`/admin/payouts/${payout.id}/cancel`, { reason: cancelReason.trim() }),
+                              'That payment could not be cancelled.'
+                            );
+                            if (ok) setCancelling(null);
+                          }}
+                        />
+                        <Button label="Keep it" variant="ghost" onPress={() => setCancelling(null)} style={{ marginTop: 6 }} />
+                      </View>
+                    )}
                   </Card>
                 ))}
               </>
@@ -753,6 +847,37 @@ export const PayoutsScreen: React.FC = () => {
                         disabled={busy}
                         style={{ marginTop: 10 }}
                       />
+                    )}
+                    {canPay && cancelling !== payout.id && (
+                      <Button
+                        label="Cancel this payment"
+                        variant="ghost"
+                        onPress={() => {
+                          setCancelling(payout.id);
+                          setCancelReason('');
+                          setActionError(null);
+                        }}
+                        disabled={busy}
+                        style={{ marginTop: 6 }}
+                      />
+                    )}
+                    {canPay && cancelling === payout.id && (
+                      <View style={{ marginTop: 10 }}>
+                        <Field label="Why it is being cancelled" value={cancelReason} onChangeText={setCancelReason} placeholder="Wrong account, will redo" />
+                        <Button
+                          label="Cancel it — they stay owed"
+                          variant="danger"
+                          disabled={busy || cancelReason.trim().length < 3}
+                          onPress={async () => {
+                            const ok = await deskAction(
+                              () => api.post(`/admin/payouts/${payout.id}/cancel`, { reason: cancelReason.trim() }),
+                              'That payment could not be cancelled.'
+                            );
+                            if (ok) setCancelling(null);
+                          }}
+                        />
+                        <Button label="Keep it" variant="ghost" onPress={() => setCancelling(null)} style={{ marginTop: 6 }} />
+                      </View>
                     )}
                   </Card>
                 ))}
@@ -866,6 +991,41 @@ export const PayoutsScreen: React.FC = () => {
               </Card>
             )}
 
+            {!!actionError && <Text style={s.errorText}>{actionError}</Text>}
+
+            {/* Office cash -> bank. Recorded after the deposit slip is in hand. */}
+            {canPay && (
+              <Card style={s.dueCard}>
+                <Text style={s.dueName}>Cash in the office: {rupees(cash.data?.officeCash ?? 0)}</Text>
+                <Text style={s.blockTextMuted}>
+                  Counted in from riders and not yet in the bank. When you pay it in, record the slip here so
+                  payday knows the money is in the bank.
+                </Text>
+                <Field label="Amount paid into the bank (Rs)" value={bankAmount} onChangeText={setBankAmount} keyboardType="numeric" />
+                <Field label="Deposit slip or reference" value={bankReference} onChangeText={setBankReference} placeholder="SBI slip 004512" />
+                <Button
+                  label="Record bank deposit"
+                  variant="secondary"
+                  disabled={busy || !(Number(bankAmount) > 0) || !bankReference.trim()}
+                  onPress={async () => {
+                    const ok = await deskAction(
+                      () =>
+                        api.post('/admin/cash/bank-deposits', {
+                          amount: Number(bankAmount),
+                          reference: bankReference.trim()
+                        }),
+                      'The bank deposit could not be recorded.'
+                    );
+                    if (ok) {
+                      setBankAmount('');
+                      setBankReference('');
+                    }
+                  }}
+                  style={{ marginTop: 10 }}
+                />
+              </Card>
+            )}
+
             <SectionTitle
               title="Riders coming in"
               subtitle="What they said they are bringing. Count it, then record what you actually counted."
@@ -961,6 +1121,42 @@ export const PayoutsScreen: React.FC = () => {
                         Over the cash limit. They cannot take cash orders, and they cannot be paid, until this
                         is counted in.
                       </Text>
+                    </View>
+                  )}
+
+                  {/* A rider at the desk who declared nothing in the app. */}
+                  {canPay && takingFrom !== row.riderId && (
+                    <Button
+                      label="They are here — take cash"
+                      variant="ghost"
+                      onPress={() => {
+                        setTakingFrom(row.riderId);
+                        setTakenAmount(String(row.cashInHand));
+                        setActionError(null);
+                      }}
+                      disabled={busy}
+                      style={{ marginTop: 10 }}
+                    />
+                  )}
+                  {canPay && takingFrom === row.riderId && (
+                    <View style={{ marginTop: 10 }}>
+                      <Field label="Amount you counted (Rs)" value={takenAmount} onChangeText={setTakenAmount} keyboardType="numeric" />
+                      <Button
+                        label="Record cash received"
+                        variant="success"
+                        disabled={busy || !(Number(takenAmount) > 0)}
+                        onPress={async () => {
+                          const ok = await deskAction(
+                            () => api.post('/admin/cash/returns', { riderId: row.riderId, amount: Number(takenAmount) }),
+                            'The cash could not be recorded.'
+                          );
+                          if (ok) {
+                            setTakingFrom(null);
+                            setTakenAmount('');
+                          }
+                        }}
+                      />
+                      <Button label="Cancel" variant="ghost" onPress={() => setTakingFrom(null)} style={{ marginTop: 6 }} />
                     </View>
                   )}
                 </Card>

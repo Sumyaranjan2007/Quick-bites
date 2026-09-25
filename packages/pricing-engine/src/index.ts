@@ -215,6 +215,8 @@ export interface CalculatedBill {
   commissionAmount?: number;
   /** TDS withheld, as its own line, for the same reason. */
   tdsAmount?: number;
+  /** The part of the GST on commission charged to the restaurant. 0 unless the owner set a share. */
+  commissionGstToPartner?: number;
 }
 
 export function calculateOrderPricing(input: PricingInput): CalculatedBill {
@@ -403,8 +405,22 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
    * platform's own revenue, and nothing would have looked wrong: the bill still
    * balances, the ledger still balances, and the money simply leaves.
    */
+  /*
+   * The GST on our commission that the RESTAURANT pays (0 by default: the
+   * platform has absorbed all of it, about 2.7% of food value on every order).
+   * Zomato and Swiggy invoice it to the restaurant; the owner and their CA set
+   * the share. Frozen onto the bill so a later change never reaches an order
+   * already placed.
+   */
+  const commissionGstSharePercent = Math.min(
+    100,
+    Math.max(0, Number((rates as any).commissionGstChargedToPartnerPercent) || 0)
+  );
+  const commissionGstToPartner =
+    Math.round(commission * ((Number(rates.commissionGstPercent) || 0) / 100) * (commissionGstSharePercent / 100) * 100) / 100;
+
   const restaurantNetPayout =
-    Math.round((partnerItemsTotal - commission - tds + partnerPackagingFee) * 100) / 100;
+    Math.round((partnerItemsTotal - commission - tds - commissionGstToPartner + partnerPackagingFee) * 100) / 100;
 
   return {
     itemsTotal,
@@ -425,6 +441,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     restaurantNetPayout,
     commissionPercent,
     commissionAmount: commission,
-    tdsAmount: tds
+    tdsAmount: tds,
+    commissionGstToPartner
   };
 }

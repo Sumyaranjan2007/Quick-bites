@@ -1,3 +1,5 @@
+import { memoryStore } from '../db/client.ts';
+import { rolesOf } from '../db/repositories/userRepository.ts';
 import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import type { Server as HttpServer } from 'http';
@@ -77,7 +79,29 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
       userId = payload.sub;
 
-      const mappedRole = payload.role?.toUpperCase();
+      /*
+       * The ACCOUNT decides, not the token. The role used to come straight
+       * from the token, and blocked or deleted accounts were never checked, so
+       * a staff member removed or blocked kept the control-tower feed (every
+       * rider's live position, every ops alert) until their token expired a
+       * week later. The HTTP middleware already re-reads the account; this is
+       * the same rule for the socket.
+       */
+      const stored = memoryStore.users.get(userId) as any;
+      if (!stored || stored.isBlocked) {
+        return next(new Error('ACCOUNT_UNAVAILABLE: This account cannot connect.'));
+      }
+      if ((Number(payload.tv) || 0) !== (Number(stored.tokenVersion) || 0)) {
+        return next(new Error('SESSION_REVOKED: Sign in again.'));
+      }
+      // The token's role when the account still holds it (B's review: a
+      // partner-app socket of a multi-role account must join as a partner),
+      // else the account's primary role. A removed role never survives.
+      const storedRoles: string[] = rolesOf(stored);
+      const effective =
+        payload.role && storedRoles.includes(payload.role) ? payload.role : stored.role;
+
+      const mappedRole = String(effective || '').toUpperCase();
       if (mappedRole === 'ADMIN' || mappedRole === 'SUPER_ADMIN') {
         role = 'ADMIN';
       } else if (mappedRole === 'RESTAURANT_OWNER') {

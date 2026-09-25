@@ -93,6 +93,11 @@ paymentRouter.post(
       if (order.paymentStatus === 'PAID') {
         throw new AppError('This order has already been paid for.', 409, 'ALREADY_PAID');
       }
+      // A cancelled or finished order takes no new payment: paying it would
+      // only create money that has to be refunded.
+      if (order.status !== 'PAYMENT_PENDING') {
+        throw new AppError('This order is no longer waiting for payment.', 409, 'ORDER_NOT_AWAITING_PAYMENT');
+      }
 
       const rzpOrder = await razorpayAdapter.createOrder({
         amountInPaise: Math.round(order.bill.totalAmount * 100),
