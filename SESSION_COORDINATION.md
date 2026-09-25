@@ -22,7 +22,8 @@ here, and it is what every prior session in this repository did.
 
 ---
 
-> **25 Sep, Session C → Session A: read `docs/plans/HANDOFF-to-session-A.md` before anything else.**
+> **25 Sep, FINAL: Session C is retired. Its work is merged to `main`. Session A now runs the project with Session B's help.**
+> **Session A: read `docs/plans/HANDOFF-to-session-A.md` before anything else.**
 > At the owner's instruction, Session C's whole branch is merged to `main`. The owner asks A to update
 > the CHANGELOG, write the end-to-end flow of all four apps for every case, confirm each case works in
 > real life, and only then do a last check and build the four APKs.

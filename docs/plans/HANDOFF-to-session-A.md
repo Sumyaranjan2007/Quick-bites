@@ -1,5 +1,18 @@
 # Handoff to Session A (session1): everything Session C built, and what the owner asks next
 
+> **FINAL, 25 Sep, from the owner via Session C:**
+> - **Everything is merged to `main`:** Session C's whole branch, including the work that was
+>   already on `main` from you and the builder.
+> - **Session C is retired.** From now on Session A runs this project, with Session B's help.
+>   Session C will not work on it again.
+> - **Session A, the owner asks you to:**
+>   1. Check all the merged code on `main`.
+>   2. Update `CHANGELOG.md`.
+>   3. Write the full four-app flow for every case, starting from `docs/plans/CONNECTION-MAP.md`.
+>   4. Confirm each case works in real life.
+>   5. Do the last check, then build the four APKs with your keystores. Fix the open items in
+>      CONNECTION-MAP §3 as you see fit.
+
 **From:** Session C (cloud, "Quick Bite"), 25 Sep 2026
 **Code:** merged to `main` (branch `claude/nice-lamport-vxf4yf`, fast-forward).
 **The owner's instruction, in their words (paraphrased faithfully):** don't wait
