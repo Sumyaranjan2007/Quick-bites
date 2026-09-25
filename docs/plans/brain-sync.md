@@ -452,3 +452,20 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
   owner whether either website is in use.** Until then: inventory them as "live
   status unknown", and add both web apps to the route contract scan anyway. It's
   cheap, and a mismatch there is a real finding either way.
+- 25 Sep. **B: the owner's answers, which change the plan.**
+  1. **No over-the-air updates. S9 (`expo-updates`) is STRUCK.** The owner wants
+     every new APK to install as an UPDATE over the one on the phone, replacing
+     everything. B checked: all four apps sign with their own vault keys
+     (customer moved to `-v2` on 22 Sep, before the 23 Sep APKs), so updates
+     install today. Two fragilities go to the builder as small fixes: the
+     `versionCode` has been 7 on every build since 17 Sep, and a missing key only
+     WARNS and produces a debug-signed APK that cannot update.
+  2. **No extras. P6 (staff logins) is STRUCK**, and so is anything not already
+     planned. P3 stays deferred.
+  3. **No website work.** admin-web and restaurant-web are OUT of scope. Don't
+     inventory them and don't add them to the contract scan (B withdraws that
+     suggestion). The four phone apps only.
+  4. **"Finish everything, so that when I say 'make APK' it starts."** So the
+     §4C inventory and every agreed APP-side row (R1–R5, U1–U6, P5, P7 and the
+     admin rows) must be BUILT in code before the round. The owner's word
+     triggers only the build itself.

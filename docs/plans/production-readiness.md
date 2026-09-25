@@ -127,7 +127,7 @@ first input, not its replacement. Rows below that survive keep their ids.
 | P3 | **defer** | Restaurant-funded offers are a growth feature. Two restaurants in a closed trial don't need it before launch. After launch. |
 | P4 | **defer until the owner decides N7** | The invoice exists only if the commission-GST share is non-zero. |
 | P5 | **agree, bundled with P4's decision** | |
-| P6 | **defer** | Staff logins: after launch, unless the owner says their dhaba needs a manager login now. I'll ask. |
+| P6 | **STRUCK by the owner (25 Sep)**: "no extra things like that" | Staff logins: after launch, unless the owner says their dhaba needs a manager login now. I'll ask. |
 | P7 | **agree** | Verify first, as written. |
 | R1–R5 | **agree** | All APK; one round. |
 | U1, U2, U4, U5 | **agree** | U6: verify first, as written. |
@@ -137,7 +137,7 @@ first input, not its replacement. Rows below that survive keep their ids.
 | S4, S5, S6 | **agree** | |
 | S7 | **agree** | The builder, after the merge. |
 | S8 | **agree** | A precondition for RazorpayX, not for the trial. |
-| S9 | **change → owner decision** | `expo-updates` needs an update host (EAS Update or self-hosted), which means an account and possibly a cost. The owner decides before we build it. If yes, it goes FIRST in the APK round, as C says. |
+| S9 | **STRUCK by the owner (25 Sep)**: no OTA; every APK installs as an update | `expo-updates` needs an update host (EAS Update or self-hosted), which means an account and possibly a cost. The owner decides before we build it. If yes, it goes FIRST in the APK round, as C says. |
 
 **Missing from the draft** (goes into the §4C inventory):
 - **The web apps.** Live or dead? If live, they get the same inventory; if
