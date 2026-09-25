@@ -174,6 +174,27 @@ export function optionGroupsFromChoices(
     groups.push(keptExtras);
   }
 
+  /*
+   * No option may LOWER a dish's price. The customer's price counts a negative
+   * change as zero while the kitchen's share would subtract it, so a negative
+   * option would price the two sides differently (and the current customer app
+   * adds it raw in the cart). The request schema already refuses a price at or
+   * below zero; this is the same rule where option groups are actually MADE,
+   * so a request stored before that schema, or any future caller, cannot slip
+   * one through.
+   */
+  for (const g of groups) {
+    for (const o of g.options || []) {
+      if (!(Number(o.priceDelta) >= 0)) {
+        throw new AppError(
+          `"${o.name}" would lower the dish's price. Every size and extra must cost at least as much as the dish.`,
+          400,
+          'NEGATIVE_OPTION_PRICE'
+        );
+      }
+    }
+  }
+
   // Groups made some other way (the seeded menus) are kept as they are.
   for (const g of existing) if (g.kind !== 'SIZE' && g.kind !== 'EXTRAS') groups.push(g);
 

@@ -13,6 +13,7 @@ import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
 import { resetConfigsForTesting } from '../modules/payments/pricingConfig.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
+import { optionGroupsFromChoices } from '../modules/orders/dishOptions.ts';
 
 const PORT = 5268;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -134,8 +135,43 @@ try {
   const negative = await api(`/restaurants/${RESTAURANT_ID}/menu/requests`, { method: 'POST', body: {
     name: 'Paneer Tikka', price: 120, isVeg: true, categoryName: 'Starters', extras: [{ name: 'Discount', price: -20 }]
   } }, partner);
-  it('A negative price is refused at request time', () => {
+  it('A negative price is refused at request time, FOR its price', () => {
     assert.equal(negative.status, 400);
+    assert.match(JSON.stringify(negative.json), /price above zero/, JSON.stringify(negative.json).slice(0, 300));
+  });
+  const negativeSize = await api(`/restaurants/${RESTAURANT_ID}/menu/requests`, { method: 'POST', body: {
+    name: 'Paneer Tikka', price: 120, isVeg: true, categoryName: 'Starters',
+    sizes: [{ name: 'Half', price: -120 }, { name: 'Full', price: 200 }]
+  } }, partner);
+  const freeExtra = await api(`/restaurants/${RESTAURANT_ID}/menu/requests`, { method: 'POST', body: {
+    name: 'Paneer Tikka', price: 120, isVeg: true, categoryName: 'Starters', extras: [{ name: 'Onion', price: 0 }]
+  } }, partner);
+  it('So is a negative size, and an extra priced at nothing, each for its price', () => {
+    assert.equal(negativeSize.status, 400);
+    assert.match(JSON.stringify(negativeSize.json), /price above zero/);
+    assert.equal(freeExtra.status, 400);
+    assert.match(JSON.stringify(freeExtra.json), /price above zero/);
+  });
+  // Where option groups are MADE: a request stored before the schema, or any
+  // other caller, still cannot produce an option that lowers the price.
+  let madeNegative: any = null;
+  try {
+    optionGroupsFromChoices({ extras: [{ name: 'Discount', price: -20 }] });
+  } catch (err) {
+    madeNegative = err;
+  }
+  let madeFine: any = null;
+  try {
+    madeFine = optionGroupsFromChoices({ sizes: [{ name: 'Half', price: 120 }, { name: 'Full', price: 200 }], extras: [{ name: 'Raita', price: 30 }] });
+  } catch (err) {
+    madeFine = err;
+  }
+  it('Building option groups refuses a negative change as NEGATIVE_OPTION_PRICE', () => {
+    assert.equal(madeNegative?.code, 'NEGATIVE_OPTION_PRICE', `got ${madeNegative?.code || 'no refusal'}`);
+  });
+  it('Control: sizes and a paid extra build, every change zero or more', () => {
+    const deltas = (madeFine?.optionGroups || []).flatMap((g: any) => g.options.map((o: any) => o.priceDelta));
+    assert.deepEqual(deltas.sort((a: number, b: number) => a - b), [0, 30, 80], JSON.stringify(madeFine).slice(0, 200));
   });
   const asked = await api(`/restaurants/${RESTAURANT_ID}/menu/requests`, { method: 'POST', body: {
     name: 'Paneer Tikka', price: 120, isVeg: true, categoryName: 'Starters',
