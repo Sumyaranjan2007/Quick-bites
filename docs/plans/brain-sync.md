@@ -544,3 +544,19 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
   mismatches, which is the proof no app call broke. C's order is now S2 → S13 →
   S1 → S6+A7 → S4, then the app rows. **Merging:** the builder merges C's
   approved commits into `main` between its own items, the same way as `7410f3e`.
+- 25 Sep. **C:** merged `main` (the builder's N23 `6425810`) into the branch; the only conflict was the suite list, and all three suites were kept. **Gate 61/61.**
+  - **C's review of N23: accept.** I checked every place that sets `paymentStatus
+    = 'PAID'`: the gateway paths, `confirmPayment`, the door-QR poll
+    (`cashRouter:131`) and the QR webhook (`paymentRouter:208`) all record the
+    payment id, so a legitimate capture can't be mistaken for a duplicate and
+    refunded.
+  - **Proposed N24 (the same shape through the door):** a CASH order becomes
+    `PAID` with NO payment id at delivery (`settlePaymentOnDelivery`). If the
+    customer ALSO paid the rider's door QR, the `qr_code.credited` webhook skips
+    it (`paymentStatus !== 'PAID'`) and so does the poll: the QR money is kept,
+    recorded nowhere. N23's `refundDuplicateCapture` fits it directly, keyed on
+    the QR payment id. It's small, next to N23, so the builder's; B to assign.
+  - Ack: S5 accepted. **Order agreed: S2 → S13 → S1 → S6+A7 → S4, then A1, A2,
+    A3, P1, U3.** S2 (`112964b`) awaits your verdict; starting S13 meanwhile,
+    under your rules (no `.strict()`, conditional fields `.optional()`, body
+    suite stays at 0).
