@@ -26,12 +26,13 @@ import { query } from '../lib/api';
 
 const c = tokens.colors;
 
-type Tab = 'revenue' | 'payments' | 'settlements';
+type Tab = 'revenue' | 'losses' | 'payments' | 'settlements';
 
 export const FinanceScreen: React.FC = () => {
   const { can } = useSession();
   const tabs: Array<{ key: Tab; label: string }> = [
     ...(can('finance.revenue.view') ? [{ key: 'revenue' as Tab, label: 'Revenue' }] : []),
+    ...(can('finance.reports.view') ? [{ key: 'losses' as Tab, label: 'Orders that lost money' }] : []),
     ...(can('finance.payments.view') ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
     ...(can('finance.settlements.view')
       ? [{ key: 'settlements' as Tab, label: 'Restaurant settlements' }]
@@ -47,6 +48,7 @@ export const FinanceScreen: React.FC = () => {
         <Segmented options={tabs} value={tab} onChange={next => setTab(next as Tab)} />
       </View>
       {tab === 'revenue' ? <RevenueTab /> : null}
+      {tab === 'losses' ? <LossesTab /> : null}
       {tab === 'payments' ? <PaymentsTab /> : null}
       {tab === 'settlements' ? <SettlementsTab /> : null}
     </View>
@@ -129,6 +131,84 @@ const RevenueTab: React.FC = () => {
           ))}
         </Card>
       ) : null}
+    </ScrollView>
+  );
+};
+
+/* ---------------------------------- Losses --------------------------------- */
+
+/**
+ * Delivered orders that cost the platform money (A7), worst first, with what
+ * drove each loss, so the owner can see which coupon or which restaurant's
+ * delivery pricing to change. The fix is on the Rates screen: "Minimum we keep
+ * per order" trims coupons so no order goes below it.
+ */
+const LossesTab: React.FC = () => {
+  const { api } = useSession();
+  const [days, setDays] = useState('7');
+  const resource = useResource(() => api.get<any>(`/admin/reports/losses${query({ days })}`), [days]);
+
+  if (resource.loading && !resource.data) return <Loading label="Checking every delivered order…" />;
+  if (!resource.data) return <EmptyState title="Could not load the loss report" message={resource.error || undefined} />;
+
+  const report = resource.data;
+  const orders: any[] = report.orders || [];
+
+  /** The biggest single cause on an order, in plain words. */
+  const cause = (o: any) => {
+    const riderGap = Math.max(0, (Number(o.riderCost) || 0) - (Number(o.deliveryFee) || 0));
+    const parts = [
+      { amount: Number(o.couponDiscount) || 0, text: `Coupon ${o.couponCode || ''}`.trim() },
+      { amount: Number(o.membershipDiscount) || 0, text: 'Membership discount' },
+      { amount: riderGap, text: 'Rider paid more than the delivery fee' }
+    ].sort((a, b) => b.amount - a.amount);
+    return parts[0].amount > 0 ? `${parts[0].text} (${formatMoney(parts[0].amount)})` : 'Commission too low for this order';
+  };
+
+  return (
+    <ScrollView
+      contentContainerStyle={s.scroll}
+      refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
+    >
+      <Segmented
+        options={[
+          { key: '1', label: 'Today' },
+          { key: '7', label: '7 days' },
+          { key: '30', label: '30 days' },
+          { key: '90', label: '90 days' }
+        ]}
+        value={days}
+        onChange={setDays}
+      />
+
+      <View style={s.grid}>
+        <StatTile
+          label="Orders that lost money"
+          value={`${report.lossMaking} of ${report.delivered}`}
+          tone={report.lossMaking > 0 ? 'danger' : 'success'}
+        />
+        <StatTile label="Total lost" value={formatMoney(report.totalLoss)} tone={report.totalLoss > 0 ? 'danger' : 'success'} />
+      </View>
+
+      {orders.length === 0 ? (
+        <EmptyState title="No order lost money" message="Every delivered order in this period kept something for the platform." />
+      ) : (
+        <Card>
+          <Text style={s.cardHeading}>Worst first</Text>
+          {orders.map(o => (
+            <View key={o.orderId}>
+              <KeyValue label={`#${o.orderNumber} · ${o.restaurantName || o.restaurantId}`} value={formatMoney(o.contribution)} tone="strong" />
+              <Text style={s.lossCause}>{cause(o)}</Text>
+              <Divider />
+            </View>
+          ))}
+        </Card>
+      )}
+
+      <Text style={s.lossCause}>
+        {report.note} To stop this, set "Least we keep per order" on the Rates screen: coupons are then trimmed so no
+        order goes below it.
+      </Text>
     </ScrollView>
   );
 };
@@ -233,6 +313,7 @@ const PayCell: React.FC<{ label: string; value: string }> = ({ label, value }) =
  */
 
 const s = StyleSheet.create({
+  lossCause: { fontSize: 12, color: c.text.secondary, marginTop: 2, marginBottom: 8, lineHeight: 17 },
   tabs: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   scroll: { padding: tokens.space[5], paddingBottom: tokens.space[8] },
