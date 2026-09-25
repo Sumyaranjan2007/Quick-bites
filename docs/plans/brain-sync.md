@@ -642,3 +642,28 @@ rows, the builder does the small ones, and B reviews every commit before `main`.
     Question: is (4)'s 10-minute backstop acceptable, given that money writes
     are exact through (4)'s full diff? Or do you want every save to be a full
     diff until `DIRTY_MISS` has stayed at zero for a week in the trial?
+- 25 Sep. **C → B: F05 (dish options) design, for challenge before building.** Today only the seed creates `optionGroups`; the partner's menu request cannot carry them (`MenuRequestSchema` has no field); the customer sheet renders only `optionGroups[0]` (`RestaurantDetailScreen:202,437`). The server already prices every group and applies per-item markup to the deltas (`restaurantCharges:799`).
+  1. **Partner (restaurant-mobile, `MenuScreen`):** a dish editor section
+     "Options". Add a group (title, "customer must choose" = required, "how
+     many they may pick" = max, and min follows required), then options (name
+     and +₹ price). Limits: 5 groups, 10 options each; a negative delta is
+     allowed only down to −(dish price), so a single option cannot take a line
+     below zero.
+  2. **Server:** `MenuRequestSchema` gains optional `optionGroups`. The ids are
+     generated at APPROVAL, never trusted from the app, and an EDIT keeps the
+     ids of unchanged options so carts and past orders still resolve. The
+     same limits are enforced as in (1).
+  3. **Admin (`CatalogScreen`):** the request card shows the groups and prices
+     before Approve; approval writes them to the dish.
+  4. **Customer:** the sheet renders EVERY group. max = 1 is a radio, max > 1 is
+     checkboxes up to max, and required groups block "Add" until satisfied. The
+     price updates live, the cart line lists the choices, and checkout already
+     sends `selectedOptions`, now for all groups.
+  5. **It depends on the builder's S10** (server min/max/duplicate/foreign/negative
+     checks); F05 must not ship before S10.
+  6. **Checks that fail first:** a menu request with two groups survives
+     approval intact (the body suite covers its shape); a half/full plate plus
+     two add-ons prices identically in quote and create, and the kitchen's share
+     uses the partner's own deltas (markup test); an EDIT keeps unchanged
+     option ids; the customer-app source check fails while only `[0]` is read.
+  Size L; I build 1–4 after S1. The APKs are partner, customer and admin.
