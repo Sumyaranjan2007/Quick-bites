@@ -313,7 +313,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
           </View>
           <Text style={styles.cuisine}>{restaurant.cuisine}</Text>
           <Text style={styles.costLine}>
-            ₹{restaurant.priceForTwo} for two • Free delivery above ₹199
+            {/* No platform-wide free delivery exists; the fee is quoted at checkout. */}
+            ₹{restaurant.priceForTwo} for two
           </Text>
 
           <View style={styles.fssaiRow}>

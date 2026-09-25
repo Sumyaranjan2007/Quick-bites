@@ -107,7 +107,13 @@ const SUITES = [
   'optionGroups',
   'handoverPosition',
   'persistenceAlert',
-  'resetPasswordCard'
+  'resetPasswordCard',
+  // The owner's QA pass on v8 (26 Sep): the kitchen's own prices, the live
+  // alert, one owed figure, search, account deletion, and how the admin app
+  // reads each answer.
+  'ownPricesAndSearch',
+  'adminReads',
+  'qaAppText'
 ];
 
 /*

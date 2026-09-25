@@ -26,8 +26,14 @@ export const c = {
 
   success: '#1E7A4C',
   successSoft: '#E3F5EB',
+  // Light grounds for badges and notes. The dark ones left over from the old
+  // dark theme put burgundy text on dark brown — the unreadable "ACCEPTED".
+  brandSoft: '#F6E3E8',
   danger: '#C0392B',
+  dangerSoft: '#FDECEC',
+  dangerText: '#8E2A1F',
   warning: '#B76E00',
+  warningSoft: '#FFF0D6',
   info: '#2A6FB5',
 
   veg: '#1E7A4C',

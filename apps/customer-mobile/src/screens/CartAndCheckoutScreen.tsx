@@ -711,7 +711,13 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           <View style={styles.goldCard}>
             <Sparkles size={16} color={c.dietary.gold} />
             <Text style={styles.goldText}>
-              Gold applied — {pricingResult.deliveryFee === 0 ? 'delivery fee waived' : 'free delivery above ₹199'}
+              {/* Gold is a percentage off delivery, above a minimum order, not
+                  free delivery; the saving is the server's own figure. */}
+              {pricingResult.deliveryFee === 0
+                ? 'Gold applied — delivery fee waived'
+                : Number((pricingResult as any).membershipDeliverySaving) > 0
+                  ? `Gold applied — ₹${Number((pricingResult as any).membershipDeliverySaving).toFixed(2)} off delivery`
+                  : 'Gold — a discount on delivery once your order reaches the Gold minimum'}
             </Text>
           </View>
         )}

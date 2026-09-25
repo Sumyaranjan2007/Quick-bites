@@ -6,6 +6,60 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-09-26] -- Claude Opus 5.5 -- Session 37: the owner's four-app QA pass on v8, fixed
+
+**Source:** the "Quick Bites Fix Plan" (16 problems, found by using every screen of
+all four v8 apps on an emulator). The owner confirmed all four v8 apps installed as
+updates on their phones, so #2 (signing keys) needs nothing. #16 is two decisions
+still waiting on the owner and is unchanged.
+
+> **For the owner.** The server fixes are live as soon as this is deployed, with
+> no APK needed. That covers: restaurants no longer see your markup or the
+> customer's doorstep code, the restaurant's "owed" figure agrees with its
+> Statement, search works, and phone customers can delete their account. The
+> rest is in the apps and reaches phones with **v9**. That covers: the seven
+> blank admin money screens, the admin menu that stopped responding, the partner
+> app's hidden tabs and freeze, and the wording. v9 has not been built yet. Say
+> "make APK" when you want it.
+
+### Server (live on deploy; works with the v8 apps already on phones)
+
+| # | Problem | Fix |
+| --- | --- | --- |
+| 5 | The kitchen saw the customer's bill (Rs 582.90), and with it the markup. | `shapeOrderForViewer('restaurant')` now gives the kitchen its own line prices and a kitchen-only bill: its food, its packaging, what it earns. `totalAmount` means the kitchen's own total, so the v8 card shows the right figure. The same view feeds the order card, history, order detail and the partner dashboard. |
+| 5 | The partner **Statement** printed the customer's marked-up food total as "Food total", and left the markup as an unexplained gap. | Uses the kitchen's own food and packaging, and adds its share of GST on commission as a line. Every order now nets to zero unexplained. |
+| 6 | The live new-order alert sent the kitchen the raw order, including the doorstep code. | `emitOrderCreated` shapes it per room: the kitchen gets the kitchen view, the control tower the whole order. |
+| 7 | Payouts tab said Rs 424.25, Statement said Rs 445. | `GET /restaurants/:id/settlements` reads `statementFor` (the ledger) and payouts, in the same response shape. `netPending` equals the Statement's outstanding, split into `payableNow` and `onHold`. History lists settlements drafted on the admin Settlements screen and payouts sent from Pay. A payout that paid a settlement is listed once. |
+| 8 | Search found no restaurant or cuisine, and never suggested anything. The index was never filled. | Filled at boot and rebuilt 1.5 s after any change to restaurants, menus or charges, through a new `onCollectionChange` hook in the store. Every hit is re-checked against live data (suspended, sold out, deleted, current customer price). The dish fallback now shows the customer's price, not the kitchen's. |
+| 4 | Phone-code customers could never delete their account ("Password is incorrect"). | `DELETE /auth/me` accepts `{ code }`, a fresh phone code, as well as `{ password }`. `hasPassword` is reported on sign-in and on `/auth/me/:id`. |
+
+### Apps (need v9)
+
+| # | App | Fix |
+| --- | --- | --- |
+| 1, 3 | Admin | 17 loaders unwrapped `data` twice. Two more on Switches (`result.data.flags`) would have crashed after a toggle. All are fixed. `useResource` now treats `undefined` as an error, not an empty page. This also unblocks counting a rider's cash in, and so paying them (#3). |
+| 9 | Admin | The top menu row stopped answering taps. Nothing overlays it. The likely cause is Android's scroll responder stuck in a fling. Both nav rows and the in-screen tabs are now fixed or wrapping rows, not horizontal ScrollViews. Not reproduced on a device: confirm on v9. |
+| 10, 13 | Partner | Ten tabs sat in one sideways-scrolling bar, and four were off-screen. It was also the only view mounted all the time that could keep redrawing. Replaced with five fixed groups: Home, Orders (Live, History), Menu, Money (Payouts, Statement, Bank), More (Profile, Docs, Help). The freeze was not reproduced: confirm with a long session on v9. |
+| 11 | Rider, Admin | "Wallet · Withdrawable" is now "Earned · With your next payout" (or "Paid once cash is in"). Admin customer and rider pages lose the retired wallet balance and the adjust-wallet form. Refund messages say where the money actually went, not "the customer's wallet". |
+| 12 | Rider | With no bonuses set up, the rider sees "No bonuses running right now", not "Every target cleared". |
+| 14 | Customer | Wording corrected: "Waiting for the kitchen to accept" before acceptance; "To pay in cash" on an unpaid cash order; Gold shows its real delivery saving; no "FREE DELIVERY" or "Free delivery above ₹199" anywhere, since no order has that; "Kitchen Accepted" no longer says the chef started. |
+| 15 | All | Partner badges and notes get light backgrounds (the dark ones were left from the old theme, which made "ACCEPTED" unreadable). Counts are pluralised in 20 places. Paise always show two digits. The rider's "Cannot complete this trip" is hidden after pickup. |
+| 4 | Customer | Delete account asks a phone-only customer for a code sent to their phone. "Change password" is hidden when there is no password. |
+
+### Checks added (in the gate)
+
+- `ownPricesAndSearch` (32): drives the routes and sockets the apps use, with a
+  real 20% markup and a real 7-day hold. 11 mutations were tried. 9 were caught.
+  The other two change nothing a customer can see, because the live re-check
+  covers them.
+- `adminReads` (24): a scanner for double unwraps (proved against a planted one),
+  and every typed admin loader called as the super admin, checking each key its
+  screen's type promises. All 3 mutations were caught, including a renamed
+  response key.
+- `qaAppText` (14): source rules for #9 to #15, comments stripped first.
+
+---
+
 ## [2026-09-25] -- Claude Opus 5.5 -- Session 36: Session C's merge reviewed, the fixes it needed, and v8 of all four apps
 
 **Covers `063a4a2` (Session C's merge) through `f67571f`, including the v8 build of all four apps (`70fa4b6`).** Two sessions

@@ -94,7 +94,7 @@ export const ActiveOrderBar: React.FC<Props> = ({ orders, onOpen }) => {
         card(orders[0])
       ) : (
         <>
-          <Text style={styles.heading}>{orders.length} orders on the way</Text>
+          <Text style={styles.heading}>{orders.length} order{orders.length === 1 ? '' : 's'} on the way</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}

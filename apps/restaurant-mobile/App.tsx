@@ -6,11 +6,10 @@ import {
   StatusBar,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
   Alert
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
-import { LayoutDashboard, Bell, History, Layers, ShieldCheck, LifeBuoy, Banknote, Landmark, Store, ReceiptText } from 'lucide-react-native';
+import { LayoutDashboard, Bell, Layers, Wallet, MoreHorizontal, ShieldCheck } from 'lucide-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { c, radii, spacing } from './src/theme';
 import {
@@ -58,26 +57,57 @@ type Tab =
   | 'statement'
   | 'profile';
 
-const TABS: Array<{ key: Tab; label: string; icon: any }> = [
-  { key: 'dashboard', label: 'Home', icon: LayoutDashboard },
-  { key: 'orders', label: 'Orders', icon: Bell },
-  { key: 'history', label: 'History', icon: History },
-  { key: 'settlements', label: 'Payouts', icon: Banknote },
-  // "Bank", not "Payouts". The tab above is already called Payouts and shows
-  // what the partner is OWED; this one is the account it gets paid into. Two
-  // tabs with one name is worse than either name on its own.
-  { key: 'bank', label: 'Bank', icon: Landmark },
-  // The order-by-order breakdown: what the food came to, what we took, at the
-  // rate frozen on that order. Beside the two tabs above because a partner
-  // looking at a settlement figure is one tap from asking why it is that much,
-  // and the answer being a tab away is the whole point of having it.
-  { key: 'statement', label: 'Statement', icon: ReceiptText },
-  { key: 'menu', label: 'Menu', icon: Layers },
-  // Next to Menu, because the two together are everything a customer sees.
-  { key: 'profile', label: 'Profile', icon: Store },
-  { key: 'documents', label: 'Docs', icon: ShieldCheck },
-  { key: 'help', label: 'Help', icon: LifeBuoy }
+/*
+ * FIVE GROUPS, ALL ON SCREEN (QA #10 and #13, 26 Sep).
+ *
+ * Ten tabs used to sit in one sideways-scrolling bar. Menu, Profile, Docs and
+ * Help were off the right edge with nothing to say they were there, and that
+ * bar was the one scrolling view mounted for the app's whole life — the
+ * kitchen app that froze after hours, redrawing continuously and ignoring
+ * taps, had nothing else always on screen that could keep drawing. A bar that
+ * cannot scroll can neither hide a tab nor get stuck mid-fling.
+ *
+ * So the bottom bar is five fixed groups, and a group with more than one page
+ * shows its pages as a fixed row at the top. Every page is at most two taps
+ * away, and every label is always visible.
+ */
+const GROUPS: Array<{ key: string; label: string; icon: any; tabs: Array<{ key: Tab; label: string }> }> = [
+  { key: 'home', label: 'Home', icon: LayoutDashboard, tabs: [{ key: 'dashboard', label: 'Home' }] },
+  {
+    key: 'orders',
+    label: 'Orders',
+    icon: Bell,
+    tabs: [
+      { key: 'orders', label: 'Live orders' },
+      { key: 'history', label: 'History' }
+    ]
+  },
+  { key: 'menu', label: 'Menu', icon: Layers, tabs: [{ key: 'menu', label: 'Menu' }] },
+  {
+    key: 'money',
+    label: 'Money',
+    icon: Wallet,
+    // Payouts is what the partner is OWED; Statement is why it is that much,
+    // order by order; Bank is the account it is paid into.
+    tabs: [
+      { key: 'settlements', label: 'Payouts' },
+      { key: 'statement', label: 'Statement' },
+      { key: 'bank', label: 'Bank' }
+    ]
+  },
+  {
+    key: 'more',
+    label: 'More',
+    icon: MoreHorizontal,
+    tabs: [
+      { key: 'profile', label: 'Profile' },
+      { key: 'documents', label: 'Docs' },
+      { key: 'help', label: 'Help' }
+    ]
+  }
 ];
+
+const groupOf = (tab: Tab) => GROUPS.find(g => g.tabs.some(t => t.key === tab)) || GROUPS[0];
 
 /**
  * The partner app shell.
@@ -410,6 +440,28 @@ function PartnerApp() {
         </View>
       )}
 
+      {groupOf(tab).tabs.length > 1 && (
+        <View style={styles.subTabs} accessibilityRole="tablist">
+          {groupOf(tab).tabs.map(t => {
+            const active = t.key === tab;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.subTab, active && styles.subTabActive]}
+                onPress={() => setTab(t.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                testID={`subtab-${t.key}`}
+              >
+                <Text style={[styles.subTabText, active && styles.subTabTextActive]} numberOfLines={1}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       <View style={styles.body}>
         {tab === 'dashboard' && <DashboardScreen restaurantId={restaurant.id} refreshSignal={refreshSignal} />}
         {tab === 'orders' && (
@@ -444,23 +496,27 @@ function PartnerApp() {
         )}
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabBar}
-        contentContainerStyle={styles.tabBarContent}
-      >
-        {TABS.map(t => {
-          const Icon = t.icon;
-          const active = tab === t.key;
+      <View style={styles.tabBar} accessibilityRole="tablist">
+        {GROUPS.map(g => {
+          const Icon = g.icon;
+          const active = groupOf(tab).key === g.key;
           return (
-            <TouchableOpacity key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
-              <Icon size={19} color={active ? c.brand : c.textMuted} />
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
+            <TouchableOpacity
+              key={g.key}
+              style={styles.tabItem}
+              onPress={() => setTab(active ? tab : g.tabs[0].key)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              testID={`tab-${g.key}`}
+            >
+              <Icon size={20} color={active ? c.brand : c.textMuted} />
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
+                {g.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
     </SafeScreen>
   );
 }
@@ -509,19 +565,33 @@ const styles = StyleSheet.create({
   kitchenToggleText: { fontSize: 13, fontWeight: '800', color: c.textSoft },
   body: { flex: 1 },
   tabBar: {
-    flexGrow: 0,
+    flexDirection: 'row',
     backgroundColor: c.surface,
     borderTopWidth: 1,
-    borderTopColor: c.border
+    borderTopColor: c.border,
+    paddingVertical: spacing.sm
   },
-  tabBarContent: {
+  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 6, gap: 3 },
+  subTabs: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm
+    borderBottomWidth: 1,
+    borderBottomColor: c.surface
   },
-  tabItem: { minWidth: 68, alignItems: 'center', paddingVertical: 6, paddingHorizontal: 6, gap: 3 },
-  tabLabel: { fontSize: 10, color: c.textMuted, fontWeight: '700' },
+  subTab: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: c.border
+  },
+  subTabActive: { backgroundColor: c.brand, borderColor: c.brand },
+  subTabText: { fontSize: 13, fontWeight: '700', color: c.textSoft },
+  subTabTextActive: { color: '#FFFFFF' },
+  tabLabel: { fontSize: 11, color: c.textMuted, fontWeight: '700' },
   tabLabelActive: { color: c.brand },
   blocked: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl },
   blockedTitle: { fontSize: 20, fontWeight: '800', color: c.text, marginTop: spacing.lg },

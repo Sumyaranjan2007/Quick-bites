@@ -207,7 +207,7 @@ export const TripScreen: React.FC<{
                     tone={offer.paymentMode === 'COD' ? 'money' : 'go'}
                     style={{ marginLeft: t.space[2] }}
                   />
-                  <Pill label={`${offer.itemCount} items`} style={{ marginLeft: t.space[2] }} />
+                  <Pill label={`${offer.itemCount} item${offer.itemCount === 1 ? '' : 's'}`} style={{ marginLeft: t.space[2] }} />
                 </View>
                 <View style={s.offerActions}>
                   <Button
@@ -495,9 +495,14 @@ export const TripScreen: React.FC<{
       ) : null}
 
       <View style={s.escapeRow}>
-        <TouchableOpacity onPress={confirmCancel} style={s.escapeBtn}>
-          <Text style={s.escapeText}>Cannot complete this trip</Text>
-        </TouchableOpacity>
+        {/* Only before pickup. Once the food is on the bike the server refuses
+            a release (the food cannot be handed to nobody), so offering it
+            only led to a refusal. After pickup, trouble is an SOS or a call. */}
+        {(headingToRestaurant || atRestaurant) && (
+          <TouchableOpacity onPress={confirmCancel} style={s.escapeBtn}>
+            <Text style={s.escapeText}>Cannot complete this trip</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={onSos} style={[s.escapeBtn, s.sosBtn]}>
           <TriangleAlert size={15} color={t.color.danger} />
           <Text style={[s.escapeText, { color: t.color.danger, marginLeft: 6 }]}>SOS</Text>

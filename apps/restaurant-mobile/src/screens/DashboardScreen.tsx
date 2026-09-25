@@ -136,7 +136,7 @@ export const DashboardScreen: React.FC<Props> = ({ restaurantId, refreshSignal }
                 <Clock size={14} color={c.textMuted} />
                 <Text style={styles.inlineStatText}>
                   Average preparation time {d.preparation.averageMinutes} minutes, across{' '}
-                  {d.preparation.ordersMeasured} orders
+                  {d.preparation.ordersMeasured} order{d.preparation.ordersMeasured === 1 ? '' : 's'}
                 </Text>
               </View>
             )}
@@ -200,7 +200,7 @@ export const DashboardScreen: React.FC<Props> = ({ restaurantId, refreshSignal }
                 <View key={cat.categoryName} style={styles.dishRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.dishName}>{cat.categoryName}</Text>
-                    <Text style={styles.dishMeta}>{cat.unitsSold} items</Text>
+                    <Text style={styles.dishMeta}>{cat.unitsSold} item{cat.unitsSold === 1 ? '' : 's'}</Text>
                   </View>
                   <Text style={styles.catMoney}>{rupees(cat.revenue)}</Text>
                 </View>

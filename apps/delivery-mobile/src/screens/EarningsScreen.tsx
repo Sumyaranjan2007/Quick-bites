@@ -111,7 +111,7 @@ export const EarningsScreen: React.FC<{
         <StatTile
           label="Today"
           value={rupeesShort(metrics.todayEarnings)}
-          caption={`${metrics.todayTrips} trips · ${hoursAndMinutes(metrics.onlineMinutesToday)} online`}
+          caption={`${metrics.todayTrips} trip${metrics.todayTrips === 1 ? '' : 's'} · ${hoursAndMinutes(metrics.onlineMinutesToday)} online`}
           tone="money"
           icon={<IndianRupee size={14} color={t.color.money} />}
           style={{ flex: 1, marginRight: t.space[3] }}
@@ -119,7 +119,7 @@ export const EarningsScreen: React.FC<{
         <StatTile
           label="This week"
           value={rupeesShort(metrics.weekEarnings)}
-          caption={`${metrics.weekTrips} trips`}
+          caption={`${metrics.weekTrips} trip${metrics.weekTrips === 1 ? '' : 's'}`}
           tone="money"
           icon={<CalendarDays size={14} color={t.color.money} />}
           onPress={onOpenWeekly}
@@ -130,7 +130,7 @@ export const EarningsScreen: React.FC<{
         <StatTile
           label="All time"
           value={rupeesShort(metrics.totalEarnings)}
-          caption={`${metrics.totalTrips} deliveries`}
+          caption={`${metrics.totalTrips} ${metrics.totalTrips === 1 ? 'delivery' : 'deliveries'}`}
           icon={<Package size={14} color={t.color.textMuted} />}
           style={{ flex: 1, marginRight: t.space[3] }}
         />
@@ -158,7 +158,7 @@ export const EarningsScreen: React.FC<{
           height={10}
         />
         <Text style={s.rateCaption}>
-          You accepted {metrics.offersAccepted} of the {metrics.offersReceived} trips offered to you.
+          You accepted {metrics.offersAccepted} of the {metrics.offersReceived} trip{metrics.offersReceived === 1 ? '' : 's'} offered to you.
           {metrics.acceptanceRate >= 80
             ? ' Keep it above 80% to stay first in line for dispatch.'
             : ' Riders above 80% are offered trips first.'}

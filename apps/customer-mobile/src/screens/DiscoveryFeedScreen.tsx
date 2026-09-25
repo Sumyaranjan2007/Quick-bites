@@ -798,18 +798,18 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                   </View>
                 )}
 
-                <View style={styles.etaBadge}>
-                  {/* Omitted rather than guessed. Every card used to read
-                      "25 MINS" because the server had no position to compute
-                      from and filled one in. */}
-                  {r.deliveryTimeMins !== undefined && (
+                {/* Omitted rather than guessed. Every card used to read
+                    "25 MINS" because the server had no position to compute
+                    from and filled one in — and "FREE DELIVERY", which no
+                    order on the platform is. */}
+                {r.deliveryTimeMins !== undefined && (
+                  <View style={styles.etaBadge}>
                     <View style={styles.etaRow}>
                       <Timer size={11} color={c.text.primary} />
                       <Text style={styles.etaText}>{r.deliveryTimeMins} MINS</Text>
                     </View>
-                  )}
-                  <Text style={styles.etaFree}>FREE DELIVERY</Text>
-                </View>
+                  </View>
+                )}
               </View>
 
               <View style={styles.cardBody}>
@@ -1204,12 +1204,6 @@ const styles = StyleSheet.create({
     fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary
-  },
-  etaFree: {
-    fontSize: 9,
-    fontWeight: tokens.font.weight.extrabold,
-    color: c.accent[600],
-    letterSpacing: 0.3
   },
 
   cardBody: { padding: 14 },

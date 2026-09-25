@@ -284,7 +284,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
         ) : (
           categories.map(cat => (
             <Card key={cat.id || cat.name}>
-              <SectionHeading title={cat.name} sub={`${(cat.items || []).length} items`} />
+              <SectionHeading title={cat.name} sub={`${(cat.items || []).length} item${(cat.items || []).length === 1 ? '' : 's'}`} />
               {(cat.items || []).map((item: any) => (
                 <View key={item.id} style={styles.dishRow}>
                   <View style={[styles.dietDot, { backgroundColor: item.isVeg ? c.veg : c.nonVeg }]} />

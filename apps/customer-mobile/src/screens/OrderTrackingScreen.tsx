@@ -232,7 +232,12 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         return t('tracking.etaEnRoute');
       case 'KITCHEN_ESTIMATE':
       case 'PREP_AND_TRAVEL':
-        return t('tracking.etaPrep');
+        // Nobody is cooking until the kitchen accepts. Saying so before then
+        // told a customer their food was on the stove while the order was
+        // still waiting to be seen.
+        return status === 'ORDER_PLACED' || status === 'PAYMENT_PENDING'
+          ? t('tracking.etaWaiting')
+          : t('tracking.etaPrep');
       default:
         return null;
     }
@@ -336,7 +341,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 
   const steps = [
     { title: 'Order Confirmed', desc: `Received by ${restaurantName}` },
-    { title: 'Kitchen Accepted', desc: 'Chef started food preparation' },
+    { title: 'Kitchen Accepted', desc: `${restaurantName} has taken your order` },
     { title: 'Cooking in Progress', desc: 'Your food is being prepared fresh' },
     {
       /*
@@ -619,7 +624,10 @@ export const OrderTrackingScreen: React.FC<Props> = ({
               </View>
             ))}
             <View style={styles.summaryTotal}>
-              <Text style={styles.summaryTotalLabel}>Total paid</Text>
+              <Text style={styles.summaryTotalLabel}>
+                {/* A cash order is not paid until the food arrives. */}
+                {order?.paymentStatus === 'PAID' ? 'Total paid' : order?.paymentMethod === 'CASH_ON_DELIVERY' ? 'To pay in cash' : 'Total'}
+              </Text>
               <Text style={styles.summaryTotalValue}>₹{total.toFixed(2)}</Text>
             </View>
           </>

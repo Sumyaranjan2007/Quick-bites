@@ -138,10 +138,13 @@ export const DashboardScreen: React.FC<{
         Your performance
       </SectionTitle>
       <View style={s.tileRow}>
+        {/* Not a wallet (retired): what the ledger says is earned and not yet
+            paid. It goes to the bank with the next payout, and never while the
+            rider still holds platform cash — so the caption says which. */}
         <StatTile
-          label="Wallet"
+          label="Earned"
           value={rupeesShort(metrics.walletBalance)}
-          caption="Withdrawable"
+          caption={metrics.codCashInHand > 0 ? 'Paid once cash is in' : 'With your next payout'}
           tone="money"
           icon={<Wallet size={14} color={t.color.money} />}
           onPress={onOpenEarnings}
@@ -150,7 +153,7 @@ export const DashboardScreen: React.FC<{
         <StatTile
           label="This week"
           value={rupeesShort(metrics.weekEarnings)}
-          caption={`${metrics.weekTrips} trips`}
+          caption={`${metrics.weekTrips} trip${metrics.weekTrips === 1 ? '' : 's'}`}
           icon={<TrendingUp size={14} color={t.color.goText} />}
           onPress={onOpenWeekly}
           style={{ flex: 1 }}
@@ -203,11 +206,22 @@ export const DashboardScreen: React.FC<{
             <Award size={18} color={t.color.money} />
           </View>
           <View style={{ flex: 1, marginLeft: t.space[3] }}>
-            <Text style={s.incentiveTitle}>{nextIncentive ? nextIncentive.title : 'Every target cleared'}</Text>
+            {/* Nothing to chase has two causes, and they need opposite words: no
+                bonuses are set up at all, or every one has been hit. A brand-new
+                rider with zero trips was congratulated on clearing every target. */}
+            <Text style={s.incentiveTitle}>
+              {nextIncentive
+                ? nextIncentive.title
+                : incentives.length === 0
+                  ? 'No bonuses running right now'
+                  : 'Every target cleared'}
+            </Text>
             <Text style={s.incentiveBody} numberOfLines={2}>
               {nextIncentive
                 ? nextIncentive.description
-                : 'You have hit every incentive available this period. New targets open tomorrow.'}
+                : incentives.length === 0
+                  ? 'When Quick Bites sets up a bonus, its target and your progress show here.'
+                  : 'You have hit every bonus available this period. New targets open tomorrow.'}
             </Text>
           </View>
           <Text style={s.incentiveReward}>{nextIncentive ? rupees(nextIncentive.reward, 0) : ''}</Text>
@@ -218,7 +232,7 @@ export const DashboardScreen: React.FC<{
             <Text style={s.incentiveProgress}>
               {nextIncentive.unit === 'rating'
                 ? `${nextIncentive.progress.toFixed(1)} of ${nextIncentive.target} rating`
-                : `${nextIncentive.progress} of ${nextIncentive.target} trips`}
+                : `${nextIncentive.progress} of ${nextIncentive.target} trip${nextIncentive.target === 1 ? '' : 's'}`}
             </Text>
           </>
         ) : null}

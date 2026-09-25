@@ -70,7 +70,7 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
           <Text style={s.progressText}>
             {incentive.unit === 'rating'
               ? `${incentive.progress.toFixed(1)} / ${incentive.target.toFixed(1)} rating`
-              : `${incentive.progress} / ${incentive.target} trips`}
+              : `${incentive.progress} / ${incentive.target} trip${incentive.target === 1 ? '' : 's'}`}
           </Text>
           {incentive.paid ? (
             <Pill label="Earned" tone="go" />
@@ -98,11 +98,29 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
         </Text>
       </Card>
 
-      <SectionTitle style={{ marginTop: t.space[6] }}>Today</SectionTitle>
-      {daily.map(renderCard)}
-
-      <SectionTitle style={{ marginTop: t.space[4] }}>This week</SectionTitle>
-      {weekly.map(renderCard)}
+      {incentives.length === 0 ? (
+        <View style={{ marginTop: t.space[6] }}>
+          <EmptyState
+            title="No bonuses running right now"
+            message="When Quick Bites sets up a bonus, its target and your progress show here."
+          />
+        </View>
+      ) : (
+        <>
+          {daily.length > 0 && (
+            <>
+              <SectionTitle style={{ marginTop: t.space[6] }}>Today</SectionTitle>
+              {daily.map(renderCard)}
+            </>
+          )}
+          {weekly.length > 0 && (
+            <>
+              <SectionTitle style={{ marginTop: t.space[4] }}>This week</SectionTitle>
+              {weekly.map(renderCard)}
+            </>
+          )}
+        </>
+      )}
     </ScrollView>
   );
 };

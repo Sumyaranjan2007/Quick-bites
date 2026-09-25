@@ -326,9 +326,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm
   },
   requirementText: { fontSize: 12, color: c.textSoft, marginTop: 3, lineHeight: 17 },
-  rejectBox: { backgroundColor: '#3A1714', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md },
+  rejectBox: { backgroundColor: c.dangerSoft, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md },
   rejectTitle: { fontSize: 12, fontWeight: '800', color: c.danger },
-  rejectBody: { fontSize: 13, color: '#F0B4AE', marginTop: 4, lineHeight: 18 },
+  rejectBody: { fontSize: 13, color: c.dangerText, marginTop: 4, lineHeight: 18 },
   quiet: { fontSize: 12, color: c.textMuted, marginTop: spacing.md, lineHeight: 17 },
   footnote: { fontSize: 12, color: c.textMuted, lineHeight: 18, marginTop: spacing.sm },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },

@@ -37,7 +37,11 @@ import { cashApi, type ApiContext, type CashStandingView, type CashDepositView }
  */
 
 const money = (rupees: number) =>
-  '₹' + rupees.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  '₹' +
+  rupees.toLocaleString('en-IN', {
+    minimumFractionDigits: Number.isInteger(rupees) ? 0 : 2,
+    maximumFractionDigits: 2
+  });
 
 const paise = (value: number) => money(Math.round(value) / 100);
 

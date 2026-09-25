@@ -28,10 +28,10 @@ export const Pill: React.FC<{ label: string; tone?: 'brand' | 'success' | 'dange
   tone = 'muted'
 }) => {
   const tones = {
-    brand: { bg: '#3E2A12', fg: c.brand },
+    brand: { bg: c.brandSoft, fg: c.brand },
     success: { bg: c.successSoft, fg: c.success },
-    danger: { bg: '#3A1714', fg: c.danger },
-    warning: { bg: '#3A2D12', fg: c.warning },
+    danger: { bg: c.dangerSoft, fg: c.dangerText },
+    warning: { bg: c.warningSoft, fg: '#7A4A00' },
     muted: { bg: c.border, fg: c.textSoft }
   } as const;
   const t = tones[tone];
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' },
   emptyBody: { fontSize: 13, color: c.textMuted, textAlign: 'center', lineHeight: 19 },
   errorNote: {
-    backgroundColor: '#3A1714',
+    backgroundColor: c.dangerSoft,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md
   },
-  errorNoteText: { color: '#F0B4AE', fontSize: 13, flex: 1, lineHeight: 18 },
+  errorNoteText: { color: c.dangerText, fontSize: 13, flex: 1, lineHeight: 18 },
   errorNoteRetry: { color: c.brand, fontSize: 13, fontWeight: '800' },
   metric: { flex: 1, minWidth: 140 },
   metricLabel: { fontSize: 11, color: c.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
