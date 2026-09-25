@@ -420,6 +420,103 @@ try {
   });
 
   fs.rmSync(probeDir, { recursive: true, force: true });
+
+  /* ================================================================ *
+   *  THE WALLET WRITES REFUSE, AND STAY MOUNTED                       *
+   * ================================================================ */
+  console.log('\n-- Crediting a wallet nobody can spend');
+
+  const seededCustomer = (Array.from(memoryStore.users.values()) as any[]).find(
+    u => u.email === 'customer@quickbite.app'
+  );
+  const balanceBefore = Number(
+    (memoryStore.wallets.get(seededCustomer?.id) as any)?.balance ?? 0
+  );
+
+  const adminCredit = await api(
+    `/admin/customers/${seededCustomer?.id}/wallet`,
+    { method: 'POST', body: { amount: 200, direction: 'CREDIT', reason: 'Goodwill for a late order' } },
+    admin.token
+  );
+  const staffCredit = await api(
+    `/wallets/${seededCustomer?.id}/credit`,
+    { method: 'POST', body: { amount: 200, description: 'Top-up' } },
+    admin.token
+  );
+  const staffDebit = await api(
+    `/wallets/${seededCustomer?.id}/debit`,
+    { method: 'POST', body: { amount: 50, description: 'Deduction' } },
+    admin.token
+  );
+
+  it('A GOODWILL CREDIT FROM THE ADMIN APP IS REFUSED, AND SAYS WHAT TO DO INSTEAD', () => {
+    /*
+     * The People screen's button, which the shipped admin app still has. The wallet
+     * cannot be spent anywhere on this platform, so this used to tell an administrator
+     * they had given a customer money the customer could never use.
+     *
+     * Refused rather than removed: a route an installed app calls must answer with
+     * something an operator can act on, and a 404 reads as the app breaking.
+     */
+    assert.equal(adminCredit.status, 410, `status ${adminCredit.status}`);
+    assert.equal(adminCredit.json?.error?.code, 'WALLET_RETIRED');
+    assert.match(
+      JSON.stringify(adminCredit.json),
+      /refund/i,
+      'the refusal does not point at the refund path'
+    );
+  });
+
+  it('and so do the staff credit and debit routes', () => {
+    assert.equal(staffCredit.status, 410, `credit status ${staffCredit.status}`);
+    assert.equal(staffDebit.status, 410, `debit status ${staffDebit.status}`);
+  });
+
+  it('and no balance moved, which is the point', () => {
+    const balanceAfter = Number(
+      (memoryStore.wallets.get(seededCustomer?.id) as any)?.balance ?? 0
+    );
+    assert.equal(balanceAfter, balanceBefore, 'a retired wallet was written anyway');
+  });
+
+  /* ================================================================ *
+   *  /kyc/submit STAYS, AS A SAFETY NET                               *
+   * ================================================================ */
+  console.log('\n-- The document route no current app calls');
+
+  const partnerLogin = await login('partner@quickbite.app');
+  captureSends();
+  const kycSubmit = await api(
+    '/kyc/submit',
+    {
+      method: 'POST',
+      body: {
+        entityType: 'RESTAURANT',
+        entityId: 'rst_bbh_01',
+        entityName: 'Biryani By Heart',
+        documentType: 'GSTIN',
+        fileUrl: 'https://example.test/gstin.jpg'
+      }
+    },
+    partnerLogin.token
+  );
+  await new Promise(r => setTimeout(r, 40));
+
+  it('A DOCUMENT SENT TO /kyc/submit STILL ALERTS AN ADMINISTRATOR', () => {
+    /*
+     * No app in the CURRENT source calls this route — the partner and rider apps upload
+     * through their own routes, which now notify. But an app built before that change
+     * may still call it, and deleting it would answer that app with a 404.
+     *
+     * So it stays mounted and keeps its alert: if an older build uses it the owner
+     * hears about the document, and if none does it costs nothing.
+     */
+    assert.ok(
+      kycSubmit.status === 201 || kycSubmit.status === 200,
+      `status ${kycSubmit.status}: ${JSON.stringify(kycSubmit.json).slice(0, 200)}`
+    );
+    assert.ok(ofType('ADMIN_KYC_SUBMITTED').length >= 1, 'a document arrived and nobody was told');
+  });
 } finally {
   (fcmDispatcher as any).sendPushNotification = realSend;
   (razorpayAdapter as any).refund = realRefund;

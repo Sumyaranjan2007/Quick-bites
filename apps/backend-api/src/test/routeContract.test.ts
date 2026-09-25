@@ -104,8 +104,29 @@ it('and the scan actually read the server, so a clean result is not an empty one
    */
   assert.ok(mounted.length > 300, `only ${mounted.length} routes were found on the server`);
   assert.ok(allCalls.length > 210, `only ${allCalls.length} app calls were read`);
+  /*
+   * MEASURED PER APP, not one number for all four.
+   *
+   * This was `> 10` for every app, and it is the floor that let the admin console
+   * report 69 calls and look healthy while every one of its list screens was being
+   * skipped. A floor set from a guess licenses whatever the scan happens to find.
+   *
+   * Each is set a little under what the scan reads today (admin 92, restaurant 30,
+   * delivery 42, customer 53), so ordinary churn does not trip it but losing a whole
+   * family of calls does.
+   */
+  const floors: Record<string, number> = {
+    'admin-mobile': 85,
+    'restaurant-mobile': 26,
+    'delivery-mobile': 37,
+    'customer-mobile': 47
+  };
   for (const one of scanned) {
-    assert.ok(one.calls.length > 10, `only ${one.calls.length} calls found in ${one.name}`);
+    const floor = floors[one.name] ?? 10;
+    assert.ok(
+      one.calls.length >= floor,
+      `only ${one.calls.length} calls found in ${one.name}, below its measured floor of ${floor}`
+    );
   }
 });
 

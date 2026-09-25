@@ -254,23 +254,20 @@ peopleRoutes.post(
       const user = await userRepository.findById(req.params.id);
       if (!user) throw new AppError('Customer not found.', 404, 'CUSTOMER_NOT_FOUND');
 
-      const { amount, direction, reason } = req.body;
-      const wallet =
-        direction === 'CREDIT'
-          ? await walletRepository.credit(user.id, amount, reason)
-          : await walletRepository.debit(user.id, amount, reason);
-
-      recordAudit(req, {
-        action: `WALLET_${direction}`,
-        entityType: 'CUSTOMER',
-        entityId: user.id,
-        summary: `${direction === 'CREDIT' ? 'Credited' : 'Debited'} Rs ${amount} ${
-          direction === 'CREDIT' ? 'to' : 'from'
-        } ${user.fullName}: ${reason}`,
-        after: { balance: wallet.balance }
-      });
-
-      res.json({ success: true, data: { wallet } });
+      /*
+       * Refused, and kept mounted. The wallet cannot be spent anywhere, so a
+       * "goodwill credit" here told an administrator they had given a customer money
+       * that the customer could never use. The admin app shows this message, which
+       * names what to do instead.
+       */
+      throw new AppError(
+        req.body.direction === 'CREDIT'
+          ? `The customer wallet has been retired and cannot be spent, so crediting it would give ${user.fullName || 'this customer'} nothing. ` +
+              'To give money back, refund one of their orders from the Refunds screen — it returns to the card or UPI they paid with.'
+          : 'The customer wallet has been retired. There is nothing on it to deduct.',
+        410,
+        'WALLET_RETIRED'
+      );
     } catch (err) {
       next(err);
     }
