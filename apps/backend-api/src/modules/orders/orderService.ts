@@ -15,7 +15,7 @@ import {
   customerAddonsPrice
 } from '../payments/restaurantCharges.ts';
 import { completeDelivery } from './deliveryCompletion.ts';
-import { resolveDishOptions } from './dishOptions.ts';
+import { resolveDishOptions, type ResolvedOption } from './dishOptions.ts';
 import { watchRejections } from '../restaurants/rejectionWatch.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { roadDistance } from '../places/routingService.ts';
@@ -365,6 +365,7 @@ export const orderService = {
       addonsTotal: number;
       totalPrice: number;
       isAvailable: boolean;
+      selectedOptions: ResolvedOption[];
     }> = [];
 
     for (const reqItem of input.items) {
@@ -374,7 +375,7 @@ export const orderService = {
       }
       // The same check as checkout, so the cart can never show a price the
       // order then refuses or changes (S10).
-      const { addonsTotal } = resolveDishOptions(dish, reqItem.selectedOptions);
+      const { addonsTotal, options: resolvedOptions } = resolveDishOptions(dish, reqItem.selectedOptions);
       /*
        * Two prices per line, and the customer pays the second.
        *
@@ -402,7 +403,11 @@ export const orderService = {
         totalPrice: Math.round((customerUnitPrice + customerAddons) * reqItem.quantity * 100) / 100,
         // Reported rather than refused: the cart should be able to show which
         // line went out of stock while it was open, not just fail to price.
-        isAvailable: Boolean(dish.isAvailable)
+        isAvailable: Boolean(dish.isAvailable),
+        // What checkout will record, including a required size left empty and
+        // filled with the cheapest (`defaulted`). Shown BEFORE the customer
+        // pays, not discovered on the bill afterwards.
+        selectedOptions: resolvedOptions
       });
     }
 

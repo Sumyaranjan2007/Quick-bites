@@ -103,7 +103,8 @@ const SUITES = [
   'addressPin',
   'dishOptions',
   'accessRevoked',
-  'adminTools'
+  'adminTools',
+  'optionGroups'
 ];
 
 /*
