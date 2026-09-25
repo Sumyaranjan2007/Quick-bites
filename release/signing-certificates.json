@@ -1,0 +1,27 @@
+{
+  "about": "The signing certificate of each app as INSTALLED on the owner's phones. Android installs a new APK over an old one only when both are signed by the same certificate, so every build is checked against these before it is handed out (scripts/release/releaseGuards.mjs). Read with apksigner from the four APKs built on 23 Sep 2026, which were copied to D:/my all projects/quick-bites-release-archive/2026-09-23 before any later build could overwrite them. Never edit a value to make a build pass: a different certificate means a different app to every phone that has this one.",
+  "source": "quick-bites-release-archive/2026-09-23/*.apk (apksigner verify --print-certs, build-tools 36.1.0)",
+  "installedVersionCode": 7,
+  "apps": {
+    "customer-mobile": {
+      "package": "com.quickbite.app",
+      "certificateSha256": "3a31fead5aaa2696d2e44a16de0d7d9bfc43cc125f014978948544c5ca61fe1d",
+      "certificateDn": "CN=Quick Bites, OU=customer, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
+    },
+    "restaurant-mobile": {
+      "package": "com.quickbite.partner",
+      "certificateSha256": "3e6d32d2afa44d31e8eb737d5bfee36f7efd2f114cbfc3e0bb90846f7db6f576",
+      "certificateDn": "CN=Quick Bites, OU=partner, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
+    },
+    "delivery-mobile": {
+      "package": "com.quickbite.rider",
+      "certificateSha256": "070e4fb4fb5e4c4900dca0e61defe2971ed1c2c2416ea4e2e51e23e64b4df881",
+      "certificateDn": "CN=Quick Bites, OU=rider, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
+    },
+    "admin-mobile": {
+      "package": "com.quickbite.admin",
+      "certificateSha256": "d4294353238a419bdbbd6de7bb1faa314a7d8f9a58a8cf380d83f74dc2cbd92b",
+      "certificateDn": "CN=Quick Bites, OU=admin, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
+    }
+  }
+}

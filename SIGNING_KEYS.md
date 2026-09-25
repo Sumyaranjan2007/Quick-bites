@@ -17,7 +17,7 @@ applications, and there is exactly one copy of each.
 
 | App | Package | Keystore |
 | --- | --- | --- |
-| Customer | `com.quickbite.app` | `C:\Users\priya\quickbites-keystores\quickbites-customer.jks` |
+| Customer | `com.quickbite.app` | `C:\Users\priya\quickbites-keystores\quickbites-customer-v2.jks` |
 | Partner | `com.quickbite.partner` | `C:\Users\priya\quickbites-keystores\quickbites-partner.jks` |
 | Rider | `com.quickbite.rider` | `C:\Users\priya\quickbites-keystores\quickbites-rider.jks` |
 | Admin | `com.quickbite.admin` | `C:\Users\priya\quickbites-keystores\quickbites-admin.jks` |
@@ -138,8 +138,8 @@ so the vault is not housekeeping - it is what keeps that promise true.
 ## Before every build
 
 ```bash
-# 1. All four present? A missing one does not fail the build — it silently
-#    falls back to a DEBUG key, and the build still says SUCCESSFUL.
+# 1. All four present? The build now REFUSES an app without one (it would
+#    otherwise fall back to Android's debug key and still say SUCCESSFUL).
 for a in customer-mobile restaurant-mobile delivery-mobile admin-mobile; do
   printf "%-20s %s\n" "$a" \
     "$(test -f apps/$a/android/keystore.properties && echo ok || echo MISSING)"
@@ -150,6 +150,33 @@ powershell -NoProfile -Command "Get-Process java -ErrorAction SilentlyContinue |
 ```
 
 ---
+
+## What the build checks for you (since 25 Sep 2026)
+
+`scripts/build-apks.sh` now makes every APK prove it installs as an update over
+the one on the phones, or refuses to hand it out:
+
+- **Signature.** Each APK is read with `apksigner` and must have exactly one
+  signer whose certificate matches the one pinned in
+  `release/signing-certificates.json`. Those values were read from the four
+  APKs built on 23 Sep (the ones on the owner's phones), archived at
+  `D:\my all projects\quick-bites-release-archive\2026-09-23\`. A mismatch stops
+  the build and renames the file `*.REJECTED.apk`.
+- **No silent debug key.** An app without its keystore stops the build.
+  `--allow-debug-signing` exists for a contributor without the keys; its output
+  is named `*-DEBUG-SIGNED.apk` and must never be handed out.
+- **versionCode.** Every build takes the next code (one more than the higher of
+  `release/version.json` and this machine's own record) and writes it into
+  `app.json` and `build.gradle`. **Commit `release/version.json` after a build.**
+- **Check without building:** `bash scripts/build-apks.sh --dry-run`, and the
+  guards' own checks: `node scripts/test-release-guards.mjs`.
+
+**These APKs are signed with APK Signature Scheme v2 only.** `keytool
+-printcert -jarfile` prints NOTHING for them, which reads like "no problem".
+Always use `apksigner verify --print-certs`, as below.
+
+Never change a pinned certificate to make a build pass. A different certificate
+is a different app to every phone that has this one.
 
 ## After every build, check the signature — not the exit code
 

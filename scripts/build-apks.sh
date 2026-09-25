@@ -125,6 +125,8 @@ APPS=(
 ABI_FLAG=""
 PREBUILD=1
 ONLY=""
+DRY_RUN=0
+ALLOW_DEBUG_SIGNING=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -132,9 +134,48 @@ while [[ $# -gt 0 ]]; do
     --arm-only) ABI_FLAG="-PqbPhoneAbisOnly"; shift ;;
     --no-prebuild) PREBUILD=0; shift ;;
     --only) ONLY="$2"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    # For a contributor without the keystores. The result can never update the
+    # app on a phone and must not be handed out; it is named so.
+    --allow-debug-signing) ALLOW_DEBUG_SIGNING=1; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+GUARDS="$ROOT/scripts/release/releaseGuards.mjs"
+SIGNING_FLAG=""
+[[ "$ALLOW_DEBUG_SIGNING" == "1" ]] && SIGNING_FLAG="--allow-debug-signing"
+
+#
+# EVERY APK MUST INSTALL AS AN UPDATE OVER THE ONE ON THE PHONE (U-1..U-3).
+#
+# The guards' own checks run first: a guard that has stopped guarding must not
+# wave a build through. See scripts/release/releaseGuards.mjs.
+#
+echo ""
+echo "Checking the release guards themselves"
+node "$ROOT/scripts/test-release-guards.mjs" > "$(mktemp)" || {
+  echo "FATAL: the release guards' own checks failed. Run: node scripts/test-release-guards.mjs" >&2
+  exit 1
+}
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo ""
+  echo "DRY RUN: nothing is built, and no versionCode is taken."
+  echo "  next versionCode: $(node "$GUARDS" next-version-code)"
+  for entry in "${APPS[@]}"; do
+    app="${entry%%:*}"
+    [[ -n "$ONLY" && "$ONLY" != "$app" ]] && continue
+    echo "  $app signing: $(node "$GUARDS" check-signing "$ROOT/apps/$app" $SIGNING_FLAG)"
+  done
+  echo "Dry run passed."
+  exit 0
+fi
+
+# One code for every app in this build, taken once, and recorded both in the
+# committed counter and on this machine so it can never be handed out twice.
+VERSION_CODE="$(node "$GUARDS" claim-version-code)"
+echo "versionCode for this build: $VERSION_CODE"
 
 mkdir -p "$OUT_DIR"
 
@@ -215,6 +256,10 @@ for entry in "${APPS[@]}"; do
 
   echo "sdk.dir=$ANDROID_HOME_NATIVE" > android/local.properties
 
+  # U-1: into app.json AND the generated build.gradle, so a --no-prebuild build
+  # carries it too.
+  node "$GUARDS" set-version "$ROOT/apps/$app" "$VERSION_CODE"
+
   #
   # THE MAPBOX SDK DOWNLOAD TOKEN, SUPPLIED TO GRADLE AND NOT TO EXPO.
   #
@@ -245,27 +290,18 @@ for entry in "${APPS[@]}"; do
     echo "  WARNING: no MAPBOX_DOWNLOAD_TOKEN - the Mapbox SDK cannot be fetched" >&2
   fi
 
-  # Refuse to quietly hand back a DEBUG-SIGNED release.
+  # Refuse to hand back a DEBUG-SIGNED release (U-2).
   #
   # withReleaseSigning falls back to Android's debug keystore when it cannot
   # find credentials, and Gradle says nothing about it. That is how the admin
-  # app came out of a full build signed with the debug key while the other
-  # three were signed properly — the APK looked normal, installed on a clean
+  # app once came out of a full build signed with the debug key while the other
+  # three were signed properly: the APK looked normal, installed on a clean
   # device, and would have been refused as an update by every phone that had
-  # the real one, besides being unpublishable.
-  #
-  # Not fatal, because a contributor without the keystores must still be able
-  # to build and run these apps. Loud, because the difference is invisible
-  # afterwards unless somebody thinks to check a fingerprint.
-  if [[ ! -f android/keystore.properties ]] && [[ -z "${QB_KEYSTORE_PATH:-}" ]]; then
-    echo "" >&2
-    echo "  ############################################################" >&2
-    echo "  #  WARNING: $app has no release keystore configured." >&2
-    echo "  #  This APK will be signed with the ANDROID DEBUG KEY." >&2
-    echo "  #  It cannot update an existing install and must not be" >&2
-    echo "  #  published. Create android/keystore.properties to fix." >&2
-    echo "  ############################################################" >&2
-    echo "" >&2
+  # the real one. This used to be a warning; it is now fatal, unless
+  # --allow-debug-signing says the build will never be handed out.
+  signing="$(node "$GUARDS" check-signing "$ROOT/apps/$app" $SIGNING_FLAG)"
+  if [[ "$signing" == "DEBUG" ]]; then
+    echo "  --allow-debug-signing: $app will be DEBUG-SIGNED and cannot update any phone." >&2
     DEBUG_SIGNED+=("$app")
   fi
 
@@ -286,16 +322,35 @@ for entry in "${APPS[@]}"; do
     exit 1
   fi
 
+  if [[ "$signing" == "DEBUG" ]]; then
+    # Named so it cannot be mistaken for a release, and not checked against the
+    # pinned certificate, which it cannot match.
+    cp "$built" "$OUT_DIR/$artifact-DEBUG-SIGNED.apk"
+    echo "  -> $OUT_DIR/$artifact-DEBUG-SIGNED.apk (NOT for anybody's phone)"
+    continue
+  fi
+
   cp "$built" "$OUT_DIR/$artifact.apk"
   echo "  -> $OUT_DIR/$artifact.apk ($(du -h "$OUT_DIR/$artifact.apk" | cut -f1))"
+
+  # U-3: the file that will be handed out, checked against the certificate on
+  # the phones, its package, and the versionCode this build claimed. A failure
+  # removes it, so a copy that would not install as an update is never left
+  # lying in build/apk looking like a release.
+  node "$GUARDS" verify-apk "$app" "$OUT_DIR/$artifact.apk" "$VERSION_CODE" || {
+    mv "$OUT_DIR/$artifact.apk" "$OUT_DIR/$artifact.REJECTED.apk"
+    echo "FATAL: $app was built but would not install as an update; kept as $artifact.REJECTED.apk for inspection." >&2
+    exit 1
+  }
 done
 
 echo ""
-echo "Done. APKs in $OUT_DIR"
+echo "Done. APKs in $OUT_DIR, versionCode $VERSION_CODE"
+echo "Commit release/version.json so the next build, on any machine, starts above $VERSION_CODE."
 
 if [[ ${#DEBUG_SIGNED[@]} -gt 0 ]]; then
   echo "" >&2
   echo "  DEBUG-SIGNED, DO NOT PUBLISH: ${DEBUG_SIGNED[*]}" >&2
-  echo "  Each needs apps/<app>/android/keystore.properties." >&2
+  echo "  Built with --allow-debug-signing. None of these can update an installed app." >&2
   echo "" >&2
 fi
