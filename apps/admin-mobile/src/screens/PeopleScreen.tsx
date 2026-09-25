@@ -244,6 +244,29 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
     }
   };
 
+  // A8: cash on delivery for this one customer.
+  const [codReason, setCodReason] = useState('');
+  const setCod = async (override: 'AUTO' | 'ON' | 'OFF') => {
+    if (override !== 'AUTO' && codReason.trim().length < 3) {
+      Alert.alert('A reason is required', 'Record why cash on delivery is being changed for this customer.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.patch(`/admin/customers/${id}`, {
+        codOverride: override,
+        ...(override !== 'AUTO' ? { codOverrideReason: codReason.trim() } : {})
+      });
+      setCodReason('');
+      await resource.reload();
+      onChanged();
+    } catch (err: any) {
+      Alert.alert('Could not change cash on delivery', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const adjustWallet = async (direction: 'CREDIT' | 'DEBIT') => {
     const amount = Number(creditAmount);
     if (!amount || amount <= 0 || !creditReason.trim()) {
@@ -288,6 +311,45 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
             <Divider />
             <KeyValue label="Wallet balance" value={formatMoney(resource.data.wallet?.balance)} tone="money" />
           </Card>
+
+          {resource.data.cash ? (
+            <Card>
+              <Text style={s.cardHeading}>Cash on delivery</Text>
+              <KeyValue
+                label="Can pay cash"
+                value={resource.data.cash.allowed ? 'Yes' : 'No, online only'}
+                tone="strong"
+              />
+              <KeyValue
+                label="Cash orders cancelled late"
+                value={`${resource.data.cash.lateCashCancels}${resource.data.cash.limit ? ` of ${resource.data.cash.limit} allowed` : ''}`}
+              />
+              <KeyValue
+                label="Decided by"
+                value={
+                  resource.data.cash.override === 'AUTO'
+                    ? 'The automatic limit'
+                    : `Staff (${resource.data.cash.override === 'OFF' ? 'switched off' : 'allowed'}): ${resource.data.cash.overrideReason || ''}`
+                }
+              />
+              {canManage ? (
+                <>
+                  <Field label="Reason" value={codReason} onChangeText={setCodReason} placeholder="Refused 3 cash orders at the door" />
+                  <View style={s.actionRow}>
+                    {resource.data.cash.override !== 'OFF' ? (
+                      <Button label="Switch cash off" variant="danger" full loading={busy} onPress={() => void setCod('OFF')} />
+                    ) : null}
+                    {resource.data.cash.override !== 'ON' && !resource.data.cash.allowed ? (
+                      <Button label="Allow cash" variant="secondary" full loading={busy} onPress={() => void setCod('ON')} />
+                    ) : null}
+                    {resource.data.cash.override !== 'AUTO' ? (
+                      <Button label="Back to automatic" variant="secondary" full loading={busy} onPress={() => void setCod('AUTO')} />
+                    ) : null}
+                  </View>
+                </>
+              ) : null}
+            </Card>
+          ) : null}
 
           {(resource.data.addresses || []).length > 0 ? (
             <Card>

@@ -2,6 +2,8 @@
  * The people on the platform: customers, delivery partners, restaurant partners,
  * and the documents that qualify the last two to trade.
  */
+import { cashSwitchedOffFor, lateCashCancels } from '../../modules/orders/cancellationFee.ts';
+import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -177,6 +179,14 @@ peopleRoutes.get('/customers/:id', requirePermission('users.customers.view'), as
         transactions: await walletRepository.getTransactions(wallet.id),
         addresses: Array.from(memoryStore.addresses.values()).filter((a: any) => a.userId === user.id),
         orders: orders.map(summariseOrder),
+        // A8: whether this customer can pay cash, and why.
+        cash: {
+          allowed: !cashSwitchedOffFor(user.id),
+          override: (user as any).codOverride || 'AUTO',
+          overrideReason: (user as any).codOverrideReason || null,
+          lateCashCancels: lateCashCancels(user.id),
+          limit: Number(getActiveRates().codCancelLimit) || 0
+        },
         stats: {
           total: orders.length,
           delivered: orders.filter(o => o.status === 'DELIVERED').length,
@@ -200,7 +210,10 @@ const CustomerUpdateSchema = z.object({
   phone: z.string().trim().max(20).optional(),
   isGold: z.boolean().optional(),
   isBlocked: z.boolean().optional(),
-  blockReason: z.string().trim().max(300).optional()
+  blockReason: z.string().trim().max(300).optional(),
+  /** A8: cash on delivery for this one customer. AUTO follows the owner's limit. */
+  codOverride: z.enum(['AUTO', 'ON', 'OFF']).optional(),
+  codOverrideReason: z.string().trim().max(300).optional()
 });
 
 /**
@@ -218,14 +231,36 @@ peopleRoutes.patch(
       const user = await userRepository.findById(req.params.id);
       if (!user) throw new AppError('Customer not found.', 404, 'CUSTOMER_NOT_FOUND');
 
-      const before = { fullName: user.fullName, isGold: user.isGold, isBlocked: (user as any).isBlocked };
-      const updated = await userRepository.update(user.id, req.body);
+      const before = {
+        fullName: user.fullName,
+        isGold: user.isGold,
+        isBlocked: (user as any).isBlocked,
+        codOverride: (user as any).codOverride || 'AUTO'
+      };
+      if (req.body.codOverride && req.body.codOverride !== 'AUTO' && (req.body.codOverrideReason || '').length < 3) {
+        throw new AppError('Record why cash on delivery is being changed for this customer.', 400, 'REASON_REQUIRED');
+      }
+      const changes: any = { ...req.body };
+      if (changes.codOverride === 'AUTO') {
+        changes.codOverride = undefined;
+        changes.codOverrideReason = undefined;
+      }
+      const updated = await userRepository.update(user.id, changes);
 
       recordAudit(req, {
-        action: req.body.isBlocked === undefined ? 'CUSTOMER_UPDATED' : req.body.isBlocked ? 'CUSTOMER_BLOCKED' : 'CUSTOMER_UNBLOCKED',
+        action:
+          req.body.isBlocked !== undefined
+            ? req.body.isBlocked
+              ? 'CUSTOMER_BLOCKED'
+              : 'CUSTOMER_UNBLOCKED'
+            : req.body.codOverride
+              ? `CUSTOMER_COD_${req.body.codOverride}`
+              : 'CUSTOMER_UPDATED',
         entityType: 'CUSTOMER',
         entityId: user.id,
-        summary: `Updated customer ${user.fullName}${req.body.blockReason ? ` — ${req.body.blockReason}` : ''}`,
+        summary: `Updated customer ${user.fullName}${
+          req.body.blockReason ? ` — ${req.body.blockReason}` : req.body.codOverrideReason ? ` — ${req.body.codOverrideReason}` : ''
+        }`,
         before,
         after: req.body
       });

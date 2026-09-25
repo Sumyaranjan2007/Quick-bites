@@ -45,7 +45,7 @@ import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
-import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor } from './cancellationFee.ts';
+import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor, codOverrideFor } from './cancellationFee.ts';
 import { contributionPaise } from '../payments/orderMargin.ts';
 import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { notifyAdminsDeliveryLocationMismatch } from '../../notifications/adminNotifier.ts';
@@ -514,7 +514,9 @@ export const orderService = {
     // pays online from then on (owner-set limit, 0 = never).
     if (input.paymentMethod === 'CASH_ON_DELIVERY' && cashSwitchedOffFor(input.customerId)) {
       throw new AppError(
-        'Cash on delivery is switched off for your account because of cancelled cash orders. Please pay online.',
+        codOverrideFor(input.customerId) === 'OFF'
+          ? 'Cash on delivery is not available on your account. Please pay online.'
+          : 'Cash on delivery is switched off for your account because of cancelled cash orders. Please pay online.',
         409,
         'COD_DISABLED_FOR_ACCOUNT'
       );

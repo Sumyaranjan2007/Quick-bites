@@ -158,28 +158,19 @@ orderRoutes.get('/deliveries/live', requirePermission('orders.deliveries.manage'
   }
 });
 
-/*
- * Kept in step with OrderStatus by hand, and it will not warn if it drifts.
- *
- * `z.enum` takes string literals, so removing a status from OrderStatus does
- * not fail here - the entry simply becomes a value an administrator can send
- * that nothing downstream accepts, or a real status they can no longer set.
- * Neither produces an error; both produce a support ticket. Anything added to
- * OrderStatus has to be added here too.
- */
 const StatusSchema = z.object({
-  status: z.enum([
-    'PAYMENT_PENDING',
-    'ORDER_PLACED',
-    'ACCEPTED',
-    'PREPARING',
-    'READY_FOR_PICKUP',
-    'HANDED_TO_RIDER',
-    'OUT_FOR_DELIVERY',
-    'DELIVERED',
-    'CANCELLED'
-  ]),
-  reason: z.string().trim().max(300).optional(),
+  /*
+   * A4: the KITCHEN's steps only, for a kitchen that forgot to tap. Everything
+   * past the counter has its own route with its own checks: pickup is the
+   * rider's code, delivery is "Mark delivered" (A3), cancelling is /cancel.
+   * Left open, this moved an order to DELIVERED or CANCELLED with none of them.
+   */
+  status: z.enum(['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'], {
+    errorMap: () => ({
+      message: 'Staff can only accept, start or mark ready. Use Mark delivered or Cancel for the rest.'
+    })
+  }),
+  reason: z.string().trim().min(3, 'Record why you are doing this for the kitchen.').max(300),
   preparationMinutes: z.number().int().positive().max(180).optional()
 });
 

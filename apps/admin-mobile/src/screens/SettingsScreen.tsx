@@ -17,6 +17,7 @@ import { tokens, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { GrievanceCard } from './GrievanceCard';
+import { BusinessCard } from './BusinessCard';
 
 const c = tokens.colors;
 
@@ -180,6 +181,8 @@ export const SettingsScreen: React.FC = () => {
           space for people who cannot act on it.
         */}
         <GrievanceCard />
+        {/* A31: GSTIN and legal identity, super administrator only. */}
+        <BusinessCard />
 
         {!!settings.error && (
           <Card style={s.errorCard}>

@@ -102,7 +102,8 @@ const SUITES = [
   'opsRescue',
   'addressPin',
   'dishOptions',
-  'accessRevoked'
+  'accessRevoked',
+  'adminTools'
 ];
 
 /*

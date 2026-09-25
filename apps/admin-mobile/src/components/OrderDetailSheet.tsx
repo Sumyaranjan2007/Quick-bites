@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Linking } from 'react-native';
 import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState, Segmented, CheckRow } from './ui';
 import { tokens, formatMoney, formatDateTime, humanise, toneForStatus } from '../theme/tokens';
 import { useSession } from '../lib/session';
@@ -26,7 +26,7 @@ export const OrderDetailSheet: React.FC<{
   onChanged?: () => void;
 }> = ({ orderId, onClose, onChanged }) => {
   const { api, can } = useSession();
-  const [action, setAction] = useState<'none' | 'refund' | 'cancel' | 'unassign' | 'reassign' | 'deliver'>('none');
+  const [action, setAction] = useState<'none' | 'refund' | 'cancel' | 'unassign' | 'reassign' | 'deliver' | 'kitchen'>('none');
   const [handoverNote, setHandoverNote] = useState('');
   const [pickedRiderId, setPickedRiderId] = useState<string | null>(null);
   const [cashCollectedBy, setCashCollectedBy] = useState<'RIDER' | 'NONE' | ''>('');
@@ -121,6 +121,30 @@ export const OrderDetailSheet: React.FC<{
     );
   };
 
+  /** A4: the next kitchen step, for a kitchen that forgot to tap. */
+  const KITCHEN_NEXT: Record<string, { status: string; label: string }> = {
+    ORDER_PLACED: { status: 'ACCEPTED', label: 'Accept for the kitchen' },
+    ACCEPTED: { status: 'PREPARING', label: 'Mark as cooking' },
+    PREPARING: { status: 'READY_FOR_PICKUP', label: 'Mark food ready' }
+  };
+  const submitKitchenStep = () => {
+    const next = KITCHEN_NEXT[resource.data?.order?.status];
+    if (!next) return;
+    if (reason.trim().length < 3) {
+      Alert.alert('A reason is required', 'Record why you are doing this for the kitchen, e.g. "Kitchen confirmed on call".');
+      return;
+    }
+    void rescue(
+      () =>
+        api.put<any>(`/admin/orders/${orderId}/status`, {
+          status: next.status,
+          reason: reason.trim(),
+          ...(next.status === 'ACCEPTED' ? { preparationMinutes: 20 } : {})
+        }),
+      'Done. The customer and any waiting rider are told.'
+    );
+  };
+
   const submitDeliver = () => {
     const isCash = resource.data?.order?.paymentMethod === 'CASH_ON_DELIVERY';
     if (reason.trim().length < 5) {
@@ -202,6 +226,9 @@ export const OrderDetailSheet: React.FC<{
                 full
                 onPress={() => setAction('reassign')}
               />
+            ) : null}
+            {can('orders.status.update') && ['ORDER_PLACED', 'ACCEPTED', 'PREPARING'].includes(order.status) ? (
+              <Button label="Kitchen step" variant="secondary" full onPress={() => setAction('kitchen')} />
             ) : null}
             {can('orders.status.update') && order.status === 'OUT_FOR_DELIVERY' ? (
               <Button label="Mark delivered" full onPress={() => setAction('deliver')} />
@@ -308,6 +335,21 @@ export const OrderDetailSheet: React.FC<{
         </Card>
       ) : null}
 
+      {data && action === 'kitchen' && KITCHEN_NEXT[order.status] ? (
+        <Card>
+          <Text style={s.blockTitle}>{KITCHEN_NEXT[order.status].label}</Text>
+          <Text style={s.blockBody}>
+            For when the kitchen has done it but forgot to tap, for example the rider is waiting and the food is on the
+            counter. Confirm with the kitchen first. Your name and reason are recorded.
+          </Text>
+          <Field label="Reason" value={reason} onChangeText={setReason} placeholder="Kitchen confirmed on call" multiline />
+          <View style={s.actionRow}>
+            <Button label="Back" variant="secondary" full onPress={() => setAction('none')} />
+            <Button label={KITCHEN_NEXT[order.status].label} full loading={busy} onPress={submitKitchenStep} />
+          </View>
+        </Card>
+      ) : null}
+
       {data && action === 'deliver' ? (
         <Card>
           <Text style={s.blockTitle}>Mark delivered</Text>
@@ -386,6 +428,27 @@ export const OrderDetailSheet: React.FC<{
             <KeyValue label="Delivery partner" value={data.rider?.fullName || 'Not yet assigned'} tone="strong" />
             <KeyValue label="Partner ID" value={data.rider?.driverCode} />
             <KeyValue label="Partner phone" value={data.rider?.phone} />
+            {/* A5: one tap to call whoever the problem is with. */}
+            <View style={s.callRow}>
+              {[
+                { label: 'Call customer', phone: data.customer?.phone },
+                { label: 'Call kitchen', phone: data.restaurant?.phone },
+                { label: 'Call rider', phone: data.rider?.phone }
+              ]
+                .filter(x => x.phone)
+                .map(x => (
+                  <Button
+                    key={x.label}
+                    label={x.label}
+                    variant="secondary"
+                    onPress={() =>
+                      void Linking.openURL(`tel:${String(x.phone).replace(/[^0-9+]/g, '')}`).catch(() =>
+                        Alert.alert('Could not start the call', String(x.phone))
+                      )
+                    }
+                  />
+                ))}
+            </View>
           </Card>
 
           {/* Items */}
@@ -538,6 +601,7 @@ export const OrderDetailSheet: React.FC<{
 };
 
 const s = StyleSheet.create({
+  callRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[2], marginBottom: tokens.space[3] },
   cardHeading: {
     fontSize: tokens.font.size.xs,

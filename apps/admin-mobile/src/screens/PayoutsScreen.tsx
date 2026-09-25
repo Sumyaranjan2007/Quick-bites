@@ -18,6 +18,7 @@ import {
 import { tokens, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { StatementSheet, type StatementOwner } from '../components/StatementSheet';
 
 const c = tokens.colors;
 
@@ -263,6 +264,8 @@ export const PayoutsScreen: React.FC = () => {
 
   const [tab, setTab] = useState('overview');
   const [drafting, setDrafting] = useState<DueRow | null>(null);
+  // A32: the statement behind a payee's figure, for a "why was I paid this?" call.
+  const [statementOf, setStatementOf] = useState<StatementOwner | null>(null);
   const [rail, setRail] = useState<string>('');
   const [sending, setSending] = useState<PayoutRow | null>(null);
   const [manualReference, setManualReference] = useState('');
@@ -731,6 +734,13 @@ export const PayoutsScreen: React.FC = () => {
                 )}
 
                 <WillPayInto willPayInto={row.willPayInto} />
+
+                <Button
+                  label="Statement"
+                  variant="ghost"
+                  onPress={() => setStatementOf({ ownerType: row.ownerType, ownerId: row.ownerId, ownerName: row.ownerName })}
+                  style={{ marginTop: 6 }}
+                />
 
                 {canPay && !row.blockedReason && row.payable > 0 && (
                   <Button
@@ -1605,6 +1615,7 @@ export const PayoutsScreen: React.FC = () => {
           disabled={busy || !countedValid || (needsNote && varianceNote.trim().length < 4)}
         />
       </Sheet>
+      <StatementSheet owner={statementOf} onClose={() => setStatementOf(null)} />
     </>
   );
 };

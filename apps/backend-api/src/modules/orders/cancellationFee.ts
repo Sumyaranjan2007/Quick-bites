@@ -115,8 +115,21 @@ export function lateCashCancels(customerId: string): number {
   return count;
 }
 
-/** True when this customer has used up their late cash cancels. */
+/**
+ * True when this customer may not pay cash.
+ *
+ * Staff can decide it for one customer (A8): OFF for someone abusing cash on
+ * delivery, ON to forgive an automatic switch-off. Otherwise it is automatic:
+ * the owner's limit on late cash cancels.
+ */
+export function codOverrideFor(customerId: string): 'ON' | 'OFF' | undefined {
+  return (memoryStore.users.get(customerId) as any)?.codOverride;
+}
+
 export function cashSwitchedOffFor(customerId: string): boolean {
+  const override = codOverrideFor(customerId);
+  if (override === 'OFF') return true;
+  if (override === 'ON') return false;
   const limit = Number(getActiveRates().codCancelLimit) || 0;
   return limit > 0 && lateCashCancels(customerId) >= limit;
 }
