@@ -260,6 +260,60 @@ APK-round list. The shape: one table of gaps per app, each with a size, an owner
 > **C: agree** with §4A and §4B, and with N5 being struck. The §1 fixes are done
 > (see the log); the draft follows once you have verified the merge.
 
+
+### 4C. The owner's next instruction (25 Sep): a whole-platform analysis, then a joint plan
+
+**Naming, in the owner's words:** the planning/review session is **"Session A"**,
+the local builder is **"Session B"**, and the cloud session is **"Session C"**.
+This file and the older plans use the old letters (brain = B, builder = A). Don't
+rewrite history; read "B:" in this file as the owner's Session A. When the owner
+says "b", they mean the builder.
+
+**The instruction:** once the current fixes are merged, C analyses the WHOLE
+codebase and finds every issue, so that every portal and every feature works. The
+admin section must have every feature planned so far, and every one must work.
+Partner, rider and customer are all fixed and all connected to admin, with clean
+code and every connection sound. **C and B (the owner's A) do the research
+together, make one plan, and execute it.** This replaces the narrower §4B draft:
+`production-readiness.md` becomes the output of this analysis.
+
+**When:** after (1) C's §1 fixes, (2) C merges `main` (the builder's W6 and
+CHANGELOG are in; `main` is at `1314575` or later), (3) B verifies the merge.
+
+**Scope — five portals:** customer-mobile, restaurant-mobile, delivery-mobile,
+admin-mobile, and the two web apps (admin-web, restaurant-web). Say for each web
+app whether it's live or dead, before auditing it.
+
+**"Planned so far" is an inventory, not a memory.** Build it from the documents:
+`docs/plans/*` (full-audit, admin-revamp-and-inflation, order-flow-and-money-rebuild,
+road-to-launch, mapbox-migration, deep-audit, brain-sync), plus `FEATURES_PLAN.md`,
+`FEATURE_TICKETS.md`, `APP_FLOW.md`, `PRD.md`, `PAYMENTS_PLAN.md` and
+`OWNER_ACTIONS.md`. One row per planned feature, with a verdict:
+
+| Verdict | Meaning |
+| --- | --- |
+| **WORKS** | driven end to end through the calls the APP makes, with the BODY the app sends, and the state and the ledger checked |
+| **PARTIAL** | works, but a case, an error state, or the admin control is missing |
+| **NO BUTTON** | the server has it and no app reaches it (the office-cash shape) |
+| **NO SERVER** | an app has a screen for it and the server doesn't serve it |
+| **MISSING** | planned and not built |
+| **DEAD** | built and not wanted; propose removing it (never a route an installed APK may call) |
+
+**Every lesson from the last three days applies to the analysis itself.** A route
+existing is not a feature. A round trip sends the app's body. An admin switch is
+proved by the behaviour moving, not the stored value. A floor is measured, not
+guessed. Reporting before fixing means you report first, and the fix waits.
+
+**Research (both of us):** what Zomato and Swiggy have per portal that this
+platform lacks and that a small-city launch actually needs. C drafts it from
+§3B; B challenges it. Every row that survives gets a size, an owner (the builder
+for small, C for big), a check that fails first, and an APK flag.
+
+**Execution:** after both have written "agree" on each row. C does the big
+rows, the builder does the small ones, and B reviews every commit before `main`.
+
+> C:
+
 ---
 
 ## 5. Log
@@ -340,4 +394,7 @@ APK-round list. The shape: one table of gaps per app, each with a size, an owner
     `findConfigByVersion()`, which return the stored rows; only
     `getActiveConfig()` fills from the defaults. Already satisfied.
   - Suites: `abuseGuards` 34, `profitGuards` 29.
-
+- 25 Sep. **B:** the owner's next instruction is recorded in §4C: a whole-platform
+  analysis by C, then research and a joint plan (B and C), then execution. It
+  starts after the §1 fixes, the merge, and B's verification. Owner naming: the
+  brain is the owner's "Session A" and the builder is the owner's "Session B".
