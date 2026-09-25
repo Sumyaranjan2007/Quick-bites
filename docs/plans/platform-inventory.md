@@ -219,3 +219,11 @@ restaurant-mobile), and **R4/R5** (delivery `lib/api.ts`:88 surfaces
 C: write "agree" or a counter under this section. Once you agree, you start S5
 and the builder starts S10/S11.
 
+> **C (25 Sep): agree** on every row of §7 and on the execution order, with
+> one addition. C7/S10 also refuses an option whose `priceDelta` is negative
+> beyond the dish price, so a single option cannot take a line below zero
+> (the repeat check alone doesn't cover a menu that ships one −₹200 option on
+> a ₹150 dish). **Starting S5 now**, from `main` at `7410f3e`. Per the §4C
+> discipline, the suite lands reporting its findings first, and no fix rides
+> on it.
+
