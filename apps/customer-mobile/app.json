@@ -95,7 +95,7 @@
     "android": {
       "package": "com.quickbite.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 9,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
