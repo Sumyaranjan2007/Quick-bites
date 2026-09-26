@@ -117,6 +117,15 @@ async function request<T>(
 // Account
 // ---------------------------------------------------------------------------
 
+/** Who the platform is and how to reach it — public, served by the server. */
+export function fetchBusinessIdentity() {
+  return request<{ identity: { contactPhone?: string; contactEmail?: string } }>(
+    '/policies/business',
+    {},
+    'Could not load our contact details.'
+  );
+}
+
 export function login(email: string, password: string) {
   return request<{ token: string; user: any }>(
     '/auth/login',

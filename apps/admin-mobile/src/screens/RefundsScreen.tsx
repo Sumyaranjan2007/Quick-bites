@@ -90,10 +90,18 @@ export const RefundsScreen: React.FC = () => {
             <View style={s.rowBottom}>
               <Text style={s.amount}>
                 {formatMoney(request.approvedAmount ?? request.requestedAmount)}
-                <Text style={s.amountHint}> of {formatMoney(request.orderTotal)}</Text>
+                <Text style={s.amountHint}> of {formatMoney(request.orderTotal, true)}</Text>
               </Text>
               <Text style={s.meta}>
-                {request.raisedByRole === 'rider' ? 'Raised by the rider' : 'Raised by the customer'} ·{' '}
+                {/* Staff refunds were labelled "Raised by the customer" (V10-2). */}
+                {request.raisedByRole === 'rider'
+                  ? 'Raised by the rider'
+                  : request.raisedByRole === 'customer'
+                    ? 'Raised by the customer'
+                    : request.raisedByRole === 'restaurant_owner'
+                      ? 'Raised by the restaurant'
+                      : `Raised by ${request.raisedByName || 'staff'}`}{' '}
+                ·{' '}
                 {timeAgo(request.createdAt)}
               </Text>
             </View>

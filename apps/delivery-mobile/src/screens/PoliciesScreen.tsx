@@ -18,6 +18,24 @@ export const PoliciesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const [error, setError] = useState<string | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
 
+  // The platform's real contact, from the server (V10-1): this line used to
+  // name "partners@quickbites.app", an address nobody reads.
+  const [contactLine, setContactLine] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${ctx.apiUrl}/policies/business`)
+      .then(r => r.json())
+      .then(d => {
+        const id = d?.data?.identity || {};
+        const parts = [id.contactEmail, id.contactPhone].filter(Boolean);
+        if (!cancelled && parts.length) setContactLine(parts.join(' · '));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [ctx.apiUrl]);
+
   /*
    * Which ids came from the payments library rather than the rider one.
    *
@@ -109,7 +127,7 @@ export const PoliciesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
           </View>
         ))}
 
-        <Text style={s.contact}>Questions about this policy: partners@quickbites.app</Text>
+        {!!contactLine && <Text style={s.contact}>Questions about this policy: {contactLine}</Text>}
       </ScrollView>
     );
   }

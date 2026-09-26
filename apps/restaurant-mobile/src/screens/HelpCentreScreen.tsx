@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Linking, R
 import { ChevronDown, ChevronUp, LifeBuoy, Phone, Mail, MessageSquare, LogOut } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
-import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile } from '../lib/partnerApi';
+import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity } from '../lib/partnerApi';
 import { PasswordField } from '../components/ui';
 
 interface Props {
@@ -15,8 +15,15 @@ interface Props {
   onTokenRefreshed?: (token: string) => void;
 }
 
-const SUPPORT_EMAIL = 'partners@quickbite.app';
-const SUPPORT_PHONE = '+918000123456';
+/*
+ * Contact details come from the server's business identity (QA v10, V10-1):
+ * these were placeholders ("+91 80001 23456", "partners@quickbite.app"), so a
+ * kitchen that tapped Call rang a number that is not the platform's.
+ */
+function contactFrom(identity: any): { phone: string; email: string } {
+  const digits = String(identity?.contactPhone || '').replace(/\D/g, '').slice(-10);
+  return { phone: digits.length === 10 ? `+91${digits}` : '', email: String(identity?.contactEmail || '').trim() };
+}
 
 /** Must match the server's TicketSchema enum exactly — an unknown value is a 400. */
 const CATEGORIES = [
@@ -31,11 +38,11 @@ const CATEGORIES = [
 const FAQS = [
   {
     q: 'Why can I not take orders?',
-    a: 'Two things must both be true: your documents are verified, and your kitchen is switched on. Check the Documents tab for anything outstanding, then use the toggle at the top of the screen to go online. A closed kitchen is hidden from customers and cannot receive orders.'
+    a: 'Two things must both be true: your documents are verified, and your kitchen is switched on. Check More → Docs for anything outstanding, then use the Online button at the top of the screen. A closed kitchen is hidden from customers and cannot receive orders.'
   },
   {
     q: 'When do I get paid, and how is the amount worked out?',
-    a: 'Your earnings are the order total minus the platform commission and taxes, shown per order in Order History and totalled on the Dashboard. Payouts are released to the bank account on your Bank account proof document.'
+    a: 'You earn your own food and packaging prices, less our commission and TDS. Money → Statement shows the working order by order, and Money → Payouts shows what is waiting. It is paid to the account in Money → Bank once our team has approved it. You do not need to ask.'
   },
   {
     q: 'Why does adding a dish need approval?',
@@ -43,7 +50,7 @@ const FAQS = [
   },
   {
     q: 'A customer says their order never arrived.',
-    a: 'Open the order in Order History and raise it with us from this screen. Do not refund directly — refunds are issued centrally so the amount is deducted correctly and the customer is notified.'
+    a: 'Find the order in Orders → History and raise it with us from this screen. Do not refund directly — refunds are issued centrally so the amount is deducted correctly and the customer is notified.'
   },
   {
     q: 'Why is there a 10 minute minimum preparation time?',
@@ -51,7 +58,7 @@ const FAQS = [
   },
   {
     q: 'My document was rejected. What now?',
-    a: 'The Documents tab shows the reason. Correct whatever was wrong — usually an unreadable scan or an expired licence — and send it again from the same screen.'
+    a: 'More → Docs shows the reason. Correct whatever was wrong — usually an unreadable scan or an expired licence — and send it again from the same screen.'
   }
 ];
 
@@ -64,6 +71,17 @@ const FAQS = [
  */
 export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, onSignOut, onTokenRefreshed }) => {
   const [expanded, setExpanded] = useState<number | null>(null);
+
+  const [contact, setContact] = useState<{ phone: string; email: string }>({ phone: '', email: '' });
+  useEffect(() => {
+    let cancelled = false;
+    fetchBusinessIdentity().then(res => {
+      if (!cancelled && res.ok) setContact(contactFrom((res.data as any)?.identity));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Account management lives here rather than behind another tab: the partner
   // app is used at the pass with one hand, and a seventh tab would push the row
@@ -193,14 +211,18 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
           </View>
           <Button label="Message support" onPress={() => setComposerOpen(true)} />
           <View style={styles.contactRow}>
-            <TouchableOpacity style={styles.contact} onPress={() => Linking.openURL(`tel:${SUPPORT_PHONE}`)}>
-              <Phone size={16} color={c.textSoft} />
-              <Text style={styles.contactText}>Call</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.contact} onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
-              <Mail size={16} color={c.textSoft} />
-              <Text style={styles.contactText}>Email</Text>
-            </TouchableOpacity>
+            {!!contact.phone && (
+              <TouchableOpacity style={styles.contact} onPress={() => Linking.openURL(`tel:${contact.phone}`)}>
+                <Phone size={16} color={c.textSoft} />
+                <Text style={styles.contactText}>Call {contact.phone}</Text>
+              </TouchableOpacity>
+            )}
+            {!!contact.email && (
+              <TouchableOpacity style={styles.contact} onPress={() => Linking.openURL(`mailto:${contact.email}`)}>
+                <Mail size={16} color={c.textSoft} />
+                <Text style={styles.contactText}>Email</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Card>
 

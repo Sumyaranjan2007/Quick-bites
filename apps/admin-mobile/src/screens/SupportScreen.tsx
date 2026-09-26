@@ -213,7 +213,7 @@ const TicketSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             {canManage ? (
               <>
                 <Divider />
-                <Field label="Reply" value={reply} onChangeText={setReply} placeholder="Sorry about that — we have credited your wallet." multiline />
+                <Field label="Reply" value={reply} onChangeText={setReply} placeholder="Sorry about that. We have looked into it and…" multiline />
                 <Button label="Send reply" loading={busy} onPress={send} />
               </>
             ) : null}

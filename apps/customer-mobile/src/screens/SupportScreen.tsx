@@ -38,9 +38,33 @@ const c = tokens.colors;
  * app no longer offers a delete button, and Google Play still expects a route to
  * deletion for an app with sign-up, so this is that route.
  */
-const SUPPORT_PHONE = '+918048123456';
-const SUPPORT_EMAIL = 'support@quickbite.app';
-const SUPPORT_WHATSAPP = '918048123456';
+/*
+ * THE CONTACT DETAILS COME FROM THE SERVER (QA v10, V10-1).
+ *
+ * These were placeholders written into the app ("+91 80481 23456",
+ * "support@quickbite.app"), so a customer who tapped "Call customer care" rang a
+ * number that is not the platform's. The real ones are the business identity an
+ * administrator keeps in Settings — the same figures printed on every receipt —
+ * served by GET /policies/business. Changing them there changes them here,
+ * without a new app.
+ */
+interface SupportContact {
+  phone: string;
+  whatsapp: string;
+  email: string;
+}
+
+function contactFrom(identity: any): SupportContact | null {
+  const digits = String(identity?.contactPhone || '').replace(/\D/g, '');
+  const email = String(identity?.contactEmail || '').trim();
+  if (digits.length < 10 && !email) return null;
+  const national = digits.slice(-10);
+  return {
+    phone: national.length === 10 ? `+91${national}` : '',
+    whatsapp: national.length === 10 ? `91${national}` : '',
+    email
+  };
+}
 
 interface Props {
   onBack: () => void;
@@ -76,6 +100,32 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
   const [composerError, setComposerError] = useState<string | null>(null);
 
   const authed = Boolean(apiUrl && token);
+
+  const [contact, setContact] = useState<SupportContact | null>(null);
+  const [contactFailed, setContactFailed] = useState(false);
+  useEffect(() => {
+    if (!apiUrl) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${apiUrl}/policies/business`);
+        const data = await res.json();
+        const next = contactFrom(data?.data?.identity);
+        if (!cancelled) {
+          setContact(next);
+          setContactFailed(!next);
+        }
+      } catch {
+        if (!cancelled) setContactFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl]);
+  const SUPPORT_PHONE = contact?.phone || '';
+  const SUPPORT_EMAIL = contact?.email || '';
+  const SUPPORT_WHATSAPP = contact?.whatsapp || '';
 
   const loadTickets = useCallback(async () => {
     if (!authed) return;
@@ -150,23 +200,23 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
   };
 
   const rows = [
-    {
+    SUPPORT_PHONE && {
       icon: <Phone size={18} color={c.dietary.veg} />,
       title: t('support.callUs'),
       sub: SUPPORT_PHONE,
       onPress: () => open(`tel:${SUPPORT_PHONE}`, `Dial ${SUPPORT_PHONE}`)
     },
-    {
+    SUPPORT_WHATSAPP && {
       icon: <MessageCircle size={18} color={c.dietary.veg} />,
       title: t('support.whatsapp'),
-      sub: 'Usually replies within minutes',
+      sub: SUPPORT_PHONE,
       onPress: () =>
         open(
           `whatsapp://send?phone=${SUPPORT_WHATSAPP}&text=${encodeURIComponent('Hi Quick Bites, I need help with an order.')}`,
           'WhatsApp is not installed on this phone.'
         )
     },
-    {
+    SUPPORT_EMAIL && {
       icon: <Mail size={18} color={c.primary[500]} />,
       title: t('support.emailUs'),
       sub: SUPPORT_EMAIL,
@@ -176,7 +226,7 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
           `Write to ${SUPPORT_EMAIL}`
         )
     }
-  ];
+  ].filter(Boolean) as Array<{ icon: React.ReactNode; title: string; sub: string; onPress: () => void }>;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -193,6 +243,13 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
       </Card>
 
       <Card style={styles.block}>
+        {rows.length === 0 && (
+          <Text style={styles.rowSub}>
+            {contactFailed
+              ? 'Our contact details could not be loaded. Raise a request below and the support desk will reply.'
+              : 'Loading our contact details…'}
+          </Text>
+        )}
         {rows.map((row, i) => (
           <TouchableOpacity
             key={row.title}
@@ -307,8 +364,8 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
         <View style={styles.faqDivider} />
         <Text style={styles.faqQ}>I want my account deleted</Text>
         <Text style={styles.faqA}>
-          Email {SUPPORT_EMAIL} from {customerEmail ? customerEmail : 'your registered address'} with the subject
-          “Delete my account”. We remove your addresses and detach your name from past orders, within 7 days.
+          Open Profile and tap “Delete my account” at the bottom. We remove your profile and addresses and detach
+          your name from past orders.
         </Text>
       </Card>
 

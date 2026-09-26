@@ -186,6 +186,30 @@ it('V9-10/11 A phone-only customer sees no internal address and honest code word
   assert.ok(pr.includes("codeSent ? 'Code sent to' : 'We will send a code to'"));
 });
 
+// ---------------------------------------------------------------------
+console.log('\n-- v10 QA round 2');
+
+it('V10-1 No app carries a made-up support phone or address; contacts come from the server', () => {
+  const offenders: string[] = [];
+  for (const f of [
+    'customer-mobile/src/screens/SupportScreen.tsx',
+    'restaurant-mobile/src/screens/HelpCentreScreen.tsx',
+    'delivery-mobile/src/screens/PoliciesScreen.tsx'
+  ]) {
+    const src = code(f);
+    if (/8048123456|8000123456|support@quickbite\.app|partners@quickbites?\.app/.test(src)) offenders.push(f);
+    if (!src.includes('/policies/business') && !src.includes('fetchBusinessIdentity')) offenders.push(`${f} (no server contact)`);
+  }
+  assert.deepEqual(offenders, []);
+});
+it('V10-2 A refund raised by staff is not labelled as raised by the customer', () => {
+  const r = code('admin-mobile/src/screens/RefundsScreen.tsx');
+  assert.equal(/'rider' \? 'Raised by the rider' : 'Raised by the customer'/.test(r), false);
+});
+it('V10-3 No admin text offers to credit the retired wallet', () => {
+  assert.equal(code('admin-mobile/src/screens/SupportScreen.tsx').includes('credited your wallet'), false);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
 process.exit(0);
