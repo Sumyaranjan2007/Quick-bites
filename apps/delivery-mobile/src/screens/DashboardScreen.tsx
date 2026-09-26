@@ -188,7 +188,7 @@ export const DashboardScreen: React.FC<{
         />
         <StatTile
           label="Cash in hand"
-          value={rupeesShort(metrics.codCashInHand)}
+          value={rupees(metrics.codCashInHand)}
           caption="To deposit"
           tone={metrics.codCashInHand > 0 ? 'money' : 'default'}
           icon={<IndianRupee size={14} color={t.color.textMuted} />}

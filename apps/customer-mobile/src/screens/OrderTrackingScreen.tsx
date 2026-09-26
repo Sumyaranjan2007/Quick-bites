@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Linking, Alert } from 'react-native';
-import { Bike, Phone, ArrowLeft, Check, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';
+import { Bike, Phone, ArrowLeft, Check, X, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';
 import { Card } from '../components/ui';
 import { LiveOrderMap } from '../components/LiveOrderMap';
 import { OrderChat } from '../components/OrderChat';
@@ -107,8 +107,21 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   // the step is a display detail, delivery is a fact about the order.
   const status: string = order?.status ?? '';
   const isDelivered = status === 'DELIVERED';
-  const isClosed = isDelivered || status === 'CANCELLED' || status === 'REFUNDED';
+  // Cancelled is closed but is NOT delivered. The screen used to treat the two
+  // alike and told a customer who had just cancelled "DELIVERY COMPLETED",
+  // "Order Confirmed" and "To pay in cash" (QA v9, V9-18).
+  const isCancelled = status === 'CANCELLED' || status === 'REFUNDED';
+  const isClosed = isDelivered || isCancelled;
   const riderAssigned = Boolean(order?.riderName) && !isClosed;
+  const cancelFeeAmount = Number(order?.cancellationFee?.amount) || 0;
+  const cancelledNothingPaid = isCancelled && order?.paymentStatus !== 'PAID' && order?.paymentStatus !== 'REFUNDED';
+  const cancelledMoneyLabel = !isCancelled
+    ? ''
+    : cancelledNothingPaid
+      ? cancelFeeAmount > 0
+        ? 'Cancellation fee'
+        : 'Nothing to pay'
+      : 'Paid · refund on its way';
 
   /*
    * WHEN THERE IS A MAP AT ALL, and which phase it is in.
@@ -219,12 +232,11 @@ export const OrderTrackingScreen: React.FC<Props> = ({
    */
   const serverEta = tracking?.eta;
   const fallbackEtaMinutes = (Number(order?.preparationMinutes) || 20) + 10;
-  const etaMinutes: number | null =
-    typeof serverEta?.minutesRemaining === 'number'
+  const etaMinutes: number | null = isClosed
+    ? null
+    : typeof serverEta?.minutesRemaining === 'number'
       ? serverEta.minutesRemaining
-      : isClosed
-        ? null
-        : fallbackEtaMinutes;
+      : fallbackEtaMinutes;
 
   const etaCaption = (() => {
     switch (serverEta?.basis) {
@@ -373,7 +385,12 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           <ArrowLeft size={17} color={c.text.primary} />
           <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>
-        {isClosed ? (
+        {isCancelled ? (
+          <View style={[styles.liveTag, styles.cancelledTag]}>
+            <X size={12} color={c.semantic.error} />
+            <Text style={[styles.liveText, { color: c.semantic.error }]}>ORDER CANCELLED</Text>
+          </View>
+        ) : isClosed ? (
           <View style={[styles.liveTag, styles.doneTag]}>
             <Check size={12} color={c.dietary.veg} />
             <Text style={[styles.liveText, { color: c.dietary.veg }]}>DELIVERY COMPLETED</Text>
@@ -393,10 +410,14 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         <View style={styles.heroTop}>
           <View style={{ flex: 1 }}>
             <Text style={styles.orderNo}>ORDER #{orderNumber}</Text>
-            <Text style={styles.statusTitle}>{steps[currentStep]?.title ?? 'Order Confirmed'}</Text>
-            <Text style={styles.statusSub}>{steps[currentStep]?.desc ?? ''}</Text>
+            <Text style={styles.statusTitle}>
+              {isCancelled ? 'Order cancelled' : steps[currentStep]?.title ?? 'Order Confirmed'}
+            </Text>
+            <Text style={styles.statusSub}>
+              {isCancelled ? order?.cancellationReason || 'This order was cancelled.' : steps[currentStep]?.desc ?? ''}
+            </Text>
           </View>
-          {isDelivered ? (
+          {isCancelled ? null : isDelivered ? (
             <View style={[styles.etaBox, styles.deliveredBox]}>
               <Text style={[styles.etaLabel, { color: c.dietary.veg }]}>DELIVERED</Text>
               <Text style={[styles.etaValue, { color: c.dietary.veg, fontSize: 15 }]}>
@@ -555,7 +576,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.riderName}>{riderName}</Text>
               <Text style={styles.riderMeta}>
-                {isClosed ? 'Delivered this order' : riderPhone || 'Verified delivery partner'}
+                {isDelivered ? 'Delivered this order' : isCancelled ? 'Was assigned to this order' : riderPhone || 'Verified delivery partner'}
               </Text>
             </View>
           </View>
@@ -582,7 +603,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             </View>
           )}
         </Card>
-      ) : (
+      ) : isClosed ? null : (
         <Card style={styles.block}>
           <Text style={styles.pendingRider}>A delivery partner will be assigned once your food is packed.</Text>
         </Card>
@@ -625,10 +646,19 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             ))}
             <View style={styles.summaryTotal}>
               <Text style={styles.summaryTotalLabel}>
-                {/* A cash order is not paid until the food arrives. */}
-                {order?.paymentStatus === 'PAID' ? 'Total paid' : order?.paymentMethod === 'CASH_ON_DELIVERY' ? 'To pay in cash' : 'Total'}
+                {/* A cash order is not paid until the food arrives, and a
+                    cancelled one that was never paid costs nothing. */}
+                {isCancelled
+                  ? cancelledMoneyLabel
+                  : order?.paymentStatus === 'PAID'
+                    ? 'Total paid'
+                    : order?.paymentMethod === 'CASH_ON_DELIVERY'
+                      ? 'To pay in cash'
+                      : 'Total'}
               </Text>
-              <Text style={styles.summaryTotalValue}>₹{total.toFixed(2)}</Text>
+              <Text style={styles.summaryTotalValue}>
+                ₹{(isCancelled && cancelledNothingPaid ? cancelFeeAmount : total).toFixed(2)}
+              </Text>
             </View>
           </>
         )}
@@ -739,6 +769,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
   doneTag: { backgroundColor: c.dietary.vegBg },
+  cancelledTag: { backgroundColor: '#FDECEC' },
   deliveredBox: { backgroundColor: c.dietary.vegBg },
   doneRow: { flexDirection: 'row', alignItems: 'center' },
   doneIcon: {

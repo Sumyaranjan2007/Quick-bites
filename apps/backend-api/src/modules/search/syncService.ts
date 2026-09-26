@@ -82,7 +82,10 @@ export const syncService = {
               price: customerDishPrice(r.id, item.id, item.price),
               isVeg: item.isVeg,
               categoryName: cat.name,
-              cuisineTags: r.cuisineTags,
+              // NOT `cuisineTags`: the index scores that field, so every dish of a
+              // "Biryani" restaurant matched "biry" — Paneer Butter Masala was
+              // suggested for biryani (V9-2). Restaurants still match on cuisine.
+              restaurantCuisines: r.cuisineTags,
               isAvailable: item.isAvailable && r.status === 'ACTIVE',
               city,
               rating: r.ratingAverage,

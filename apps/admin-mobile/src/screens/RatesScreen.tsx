@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Store, Percent, TriangleAlert, Info, Gift, Search } from 'lucide-react-native';
 import {
   Card,
@@ -191,6 +191,7 @@ export const RatesScreen: React.FC = () => {
       });
       setEditing(null);
       await rates.reload();
+      Alert.alert('Saved', 'This restaurant’s new charges apply from its next order.');
     } catch (err: any) {
       setError(err?.message || 'That could not be saved.');
     } finally {
@@ -460,6 +461,9 @@ export const RatesScreen: React.FC = () => {
                           setPlatformNote('');
                           await platform.reload();
                           await rates.reload();
+                          // The save card disappears once nothing is unsaved, so
+                          // say it worked rather than leave silence (V9-7).
+                          Alert.alert('Saved', 'The new rates apply from the next order. Orders already placed keep theirs.');
                         } catch (err: any) {
                           setError(err?.message || 'Those rates could not be saved.');
                         } finally {

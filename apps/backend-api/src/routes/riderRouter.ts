@@ -15,7 +15,8 @@ import { duesFor } from '../modules/payments/payouts.ts';
 import { notifyAdminsSosRaised, notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
 import { toRupees } from '../modules/payments/money.ts';
 import { getActiveRates } from '../modules/payments/pricingConfig.ts';
-import { payoutRepository } from '../db/repositories/payoutRepository.ts';
+import { statementFor } from '../modules/payments/statements.ts';
+import { riderPaymentHistory, riderPaidTotal } from '../modules/payments/riderPayoutHistory.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
@@ -1494,63 +1495,50 @@ riderRouter.get('/settlements', async (req, res, next) => {
   try {
     const self = await requireRiderSelf(req);
     const trips = (await orderRepository.listByRiderId(self.id)).filter(o => o.status === 'DELIVERED');
-    const unsettled = trips.filter(o => !o.payoutId);
-    const payouts = await payoutRepository.list({ riderId: self.id });
 
-    const pendingAmount = Math.round(unsettled.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100;
-    const paidToDate = await payoutRepository.paidTotal(self.id);
+    /*
+     * FROM THE LEDGER, LIKE EVERY OTHER MONEY SCREEN (QA v9, V9-16).
+     *
+     * This read `order.payoutId` and the retired rider payout records, which
+     * nothing has written since payments moved to the Pay screen. A rider paid
+     * Rs 30 from Pay was told "Pending settlement Rs 30.00 · Total paid to you
+     * Rs 0.00" here, while their Statement said the opposite. The partner side
+     * had the same defect (#7) and the same cure: `statementFor`.
+     */
+    const statement = statementFor('RIDER', self.id, self.fullName || 'Rider', {
+      from: new Date(0).toISOString()
+    });
+    const unsettledLines = statement.orders.filter(o => !o.settledByPayoutId && o.netPaise > 0);
+    const pendingAmount = toRupees(unsettledLines.reduce((t, o) => t + o.netPaise, 0));
+    const outstanding = toRupees(statement.summary.outstandingPaise);
+    const history = riderPaymentHistory(self.id);
+    const paidToDate = riderPaidTotal(self.id);
 
     /*
      * CASH COMES FROM THE RIDER'S OWN RECORD, NOT RECOMPUTED FROM ORDERS.
      *
-     * This used to add up the cash orders in `unsettled`, which is a second
-     * source for a number the platform already maintains — and the two diverge
-     * the moment an administrator records a cash return, because a return moves
-     * `codCashInHand` and does not touch the orders. A rider who had just handed
-     * over Rs 2,000 at the office would have gone on being shown Rs 2,000 in
-     * their bag, by the same app that told them a payout was blocked because of
-     * it.
-     *
-     * `cashInHandPaise` reads the field that `adjustCashInHand` maintains and
-     * that an admin return reduces, which is the field the payout itself is
-     * blocked on. One number, one source.
+     * The field `adjustCashInHand` maintains and an admin count-in reduces,
+     * which is the field the payout itself is blocked on. One number, one source.
      */
     const cashInHand = toRupees(cashInHandPaise(self.id));
 
     /*
-     * AND CASH IS NOT SUBTRACTED FROM EARNINGS.
-     *
-     * The old figure was `earnings + incentives - cash`, which is a net position
-     * and not a payment. The platform does not do that: `duesFor` BLOCKS the
-     * payout entirely while any of our cash is in the bag, and the payment
-     * policy says so in as many words — "you are not paid the difference between
-     * the two".
-     *
-     * So the subtraction was wrong twice over. A rider holding Rs 500 against
-     * Rs 1,800 of earnings was shown "you will receive Rs 1,300" and would
-     * receive nothing; one holding Rs 2,000 against Rs 1,800 was shown a
-     * NEGATIVE payout, which is not a thing that can happen.
-     *
-     * The block is now stated as a block, in the rider's own screen, using the
-     * authoritative reason rather than a second copy of the rule.
+     * AND CASH IS NOT SUBTRACTED FROM EARNINGS: `duesFor` blocks the payout
+     * while any platform cash is in the bag, and that is stated as a block.
      */
     const dues = duesFor('RIDER', self.id, self.fullName || 'Rider');
     const payoutBlockedBy =
       dues.blockedCode === 'CASH_IN_HAND' || dues.blockedCode === 'NO_ACCOUNT' ? dues.blockedReason : null;
 
-    const incentives = Array.from(memoryStore.riderIncentives.values()).filter(
-      (i: any) => i.riderId === self.id
-    );
-    const incentivesPending =
-      Math.round(incentives.filter((i: any) => !i.payoutId).reduce((t: number, i: any) => t + (i.amount || 0), 0) * 100) /
-      100;
+    // Bonuses are posted without an order, so they are what is owed beyond trips.
+    const incentivesPending = Math.max(0, Math.round((outstanding - pendingAmount) * 100) / 100);
 
     res.json({
       success: true,
       data: {
         summary: {
           tripsAllTime: trips.length,
-          tripsAwaitingSettlement: unsettled.length,
+          tripsAwaitingSettlement: unsettledLines.length,
           tripEarningsPending: pendingAmount,
           incentivesPending,
           cashInHand,
@@ -1558,24 +1546,27 @@ riderRouter.get('/settlements', async (req, res, next) => {
            * What is owed. NOT reduced by cash in hand — cash blocks a payout, it
            * does not shrink one, and `payoutBlockedBy` is where that is said.
            */
-          netPending: Math.round((pendingAmount + incentivesPending) * 100) / 100,
+          netPending: outstanding,
           /**
            * Why nothing will be sent yet, when the reason is something the rider
            * can do something about. Null when nothing is in the way.
            */
           payoutBlockedBy,
           paidToDate,
-          lastSettledAt: payouts.find(p => p.status === 'PAID')?.paidAt || null
+          lastSettledAt: history.find(p => p.status === 'PAID')?.paidAt || null
         },
-        history: payouts,
-        pendingTrips: unsettled.map(o => ({
-          orderId: o.id,
-          orderNumber: o.orderNumber,
-          deliveredAt: o.deliveredAt || o.updatedAt,
-          earning: Number(o.riderPayout) || 0,
-          paymentMethod: o.paymentMethod,
-          cashCollected: o.paymentMethod === 'CASH_ON_DELIVERY' ? Number(o.bill?.totalAmount) || 0 : 0
-        }))
+        history,
+        pendingTrips: unsettledLines.map(line => {
+          const o: any = memoryStore.orders.get(line.orderId);
+          return {
+            orderId: line.orderId,
+            orderNumber: line.orderNumber,
+            deliveredAt: o?.deliveredAt || line.occurredAt,
+            earning: toRupees(line.netPaise),
+            paymentMethod: o?.paymentMethod,
+            cashCollected: o?.paymentMethod === 'CASH_ON_DELIVERY' ? Number(o?.bill?.totalAmount) || 0 : 0
+          };
+        })
       }
     });
   } catch (err) {

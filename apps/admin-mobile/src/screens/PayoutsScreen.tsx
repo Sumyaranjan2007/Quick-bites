@@ -521,7 +521,9 @@ export const PayoutsScreen: React.FC = () => {
         <Segmented
           options={[
             { key: 'overview', label: 'What is going on' },
-            { key: 'due', label: `Owed${payload ? ` (${payload.summary.payableCount})` : ''}` },
+            // The count is who can be paid NOW; the list also shows people held or
+            // below the minimum, so "Owed (0)" above two rows read as a mistake (V9-5).
+            { key: 'due', label: `Owed${payload ? ` · ${payload.summary.payableCount} ready` : ''}` },
             {
               key: 'sending',
               label: `To send${pendingApproval.length + readyToSend.length ? ` (${pendingApproval.length + readyToSend.length})` : ''}`
@@ -1078,7 +1080,7 @@ export const PayoutsScreen: React.FC = () => {
                       label="Count it in"
                       onPress={() => {
                         setCounting(deposit);
-                        setCountedAmount(String(deposit.declaredPaise / 100));
+                        setCountedAmount((deposit.declaredPaise / 100).toFixed(2));
                         setVarianceNote('');
                         setActionError(null);
                       }}
@@ -1141,7 +1143,7 @@ export const PayoutsScreen: React.FC = () => {
                       variant="ghost"
                       onPress={() => {
                         setTakingFrom(row.riderId);
-                        setTakenAmount(String(row.cashInHand));
+                        setTakenAmount(Number(row.cashInHand).toFixed(2));
                         setActionError(null);
                       }}
                       disabled={busy}

@@ -138,7 +138,7 @@ export const NewOrderModal: React.FC<{
           <View style={s.metaRow}>
             <Pill label={`${trip.itemCount} item${trip.itemCount === 1 ? '' : 's'}`} />
             <Pill
-              label={trip.paymentMode === 'COD' ? `Collect ${rupees(trip.cashToCollect, 0)}` : 'Prepaid'}
+              label={trip.paymentMode === 'COD' ? `Collect ${rupees(trip.cashToCollect)}` : 'Prepaid'}
               tone={trip.paymentMode === 'COD' ? 'money' : 'go'}
               style={{ marginLeft: t.space[2] }}
             />

@@ -241,7 +241,7 @@ export const OrderDetailSheet: React.FC<{
                 label="Issue refund"
                 full
                 onPress={() => {
-                  setAmount(String(order.bill?.totalAmount ?? ''));
+                  setAmount(order.bill?.totalAmount != null ? Number(order.bill.totalAmount).toFixed(2) : '');
                   setAction('refund');
                 }}
               />
@@ -467,7 +467,13 @@ export const OrderDetailSheet: React.FC<{
                   {item.selectedOptions?.length ? (
                     <Text style={s.itemUnit}>{item.selectedOptions.map((o: any) => o.optionName).join(' · ')}</Text>
                   ) : null}
-                  <Text style={s.itemUnit}>{formatMoney(item.unitPrice, true)} each</Text>
+                  {/* Per unit INCLUDING the chosen size and extras: the base
+                      price alone read "₹384 each" under a ₹600 line (V9-12). */}
+                  {item.quantity > 1 && (
+                    <Text style={s.itemUnit}>
+                      {formatMoney((Number(item.totalPrice) || 0) / (Number(item.quantity) || 1), true)} each
+                    </Text>
+                  )}
                 </View>
                 <Text style={s.itemTotal}>{formatMoney(item.totalPrice, true)}</Text>
               </View>

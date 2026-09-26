@@ -177,7 +177,9 @@ export const SectionRail: React.FC<{
               {item.label}
             </Text>
             {item.badge ? (
-              <View style={s.railBadge}>
+              // In the group row the count sits in the cell's corner: inline, it
+              // pushed against the next name ("1 Money", "2People") (V9-1).
+              <View style={[s.railBadge, variant === 'group' && s.railBadgeCorner]}>
                 <Text style={s.railBadgeText}>{item.badge > 99 ? '99+' : item.badge}</Text>
               </View>
             ) : null}
@@ -920,6 +922,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  railBadgeCorner: { position: 'absolute', top: 0, right: 2, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4 },
   railBadgeText: { fontSize: 10, fontWeight: tokens.font.weight.heavy, color: '#2A0710' },
 
   card: {

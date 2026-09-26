@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import {
   LayoutDashboard,
@@ -48,7 +48,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/lib/storedSession';
-import { createClient } from './src/lib/api';
+import { createClient, onMutation } from './src/lib/api';
 import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 import * as Notifications from 'expo-notifications';
 import { prepareAdminChannels } from './src/lib/adminChannels';
@@ -317,6 +317,19 @@ const Console: React.FC = () => {
   const { connected } = useLiveUpdates(token ? { kind: 'admin' } : null, apiUrl, token, () => {
     void counts.silentReload();
   });
+
+  // Badges follow this console's own actions too, not only other people's
+  // (V9-6): after any write, on every change of section, and once a minute.
+  const countsRef = useRef(counts);
+  countsRef.current = counts;
+  useEffect(() => onMutation(() => void countsRef.current.silentReload()), []);
+  useEffect(() => {
+    void countsRef.current.silentReload();
+  }, [active]);
+  useEffect(() => {
+    const timer = setInterval(() => void countsRef.current.silentReload(), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const visible = useMemo(
     () => SECTIONS.filter(section => section.permissions.length === 0 || can(...section.permissions)),

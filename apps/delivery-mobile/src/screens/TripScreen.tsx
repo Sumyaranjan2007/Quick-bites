@@ -203,7 +203,7 @@ export const TripScreen: React.FC<{
                 <View style={s.offerMeta}>
                   <Pill label={distance(offer.distanceKm)} />
                   <Pill
-                    label={offer.paymentMode === 'COD' ? `COD ${rupees(offer.cashToCollect, 0)}` : 'Prepaid'}
+                    label={offer.paymentMode === 'COD' ? `COD ${rupees(offer.cashToCollect)}` : 'Prepaid'}
                     tone={offer.paymentMode === 'COD' ? 'money' : 'go'}
                     style={{ marginLeft: t.space[2] }}
                   />

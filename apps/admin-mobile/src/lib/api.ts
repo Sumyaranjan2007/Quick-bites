@@ -59,6 +59,23 @@ function messageFrom(payload: any, status: number): { message: string; code: str
   return { message: `The server returned an unexpected error (${status}).`, code: `HTTP_${status}` };
 }
 
+/*
+ * Something changed on the server because of this app.
+ *
+ * The navigation badges ("Bank 1", "Pay 1") are a separate, cheap count that
+ * reloaded only on a live event from somebody else. Approving the last bank
+ * account or counting in the last deposit left the badge saying there was work
+ * waiting when there was none (QA v9, V9-6). Every successful write now tells
+ * whoever is listening, and the console reloads its counts.
+ */
+const mutationListeners = new Set<() => void>();
+export function onMutation(listener: () => void): () => void {
+  mutationListeners.add(listener);
+  return () => {
+    mutationListeners.delete(listener);
+  };
+}
+
 export function createClient(baseUrl: string, token: string): ApiClient {
   async function request<T>(method: string, path: string, body?: any): Promise<T> {
     const response = await apiFetch(`${baseUrl}${path}`, {
@@ -74,6 +91,15 @@ export function createClient(baseUrl: string, token: string): ApiClient {
     if (!response.ok || payload?.success === false) {
       const { message, code } = messageFrom(payload, response.status);
       throw new ApiError(message, response.status, code);
+    }
+    if (method !== 'GET') {
+      for (const listener of mutationListeners) {
+        try {
+          listener();
+        } catch {
+          // A badge refresh must never fail the request that caused it.
+        }
+      }
     }
     return (payload?.data ?? payload) as T;
   }

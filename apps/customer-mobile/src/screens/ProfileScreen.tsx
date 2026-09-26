@@ -398,9 +398,13 @@ export const ProfileScreen: React.FC<Props> = ({
               </View>
             )}
           </View>
-          <Text style={styles.email} numberOfLines={1}>
-            {user?.email}
-          </Text>
+          {/* The address a phone sign-up is filed under is internal; showing it
+              read as though we had invented an email for them. */}
+          {!!user?.email && !String(user.email).endsWith('@phone.quickbite.app') && (
+            <Text style={styles.email} numberOfLines={1}>
+              {user.email}
+            </Text>
+          )}
           {!!user?.phone && <Text style={styles.email}>{user.phone}</Text>}
         </View>
         <TouchableOpacity style={styles.editBtn} onPress={() => setEditOpen(true)} activeOpacity={0.85}>
@@ -562,7 +566,9 @@ export const ProfileScreen: React.FC<Props> = ({
             </Text>
             {passwordless ? (
               <>
-                <Text style={styles.label}>Code sent to {user?.phone || 'your phone'}</Text>
+                <Text style={styles.label}>
+                  {codeSent ? 'Code sent to' : 'We will send a code to'} {user?.phone || 'your phone'}
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={deleteCode}

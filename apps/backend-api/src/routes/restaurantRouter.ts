@@ -1109,17 +1109,28 @@ restaurantRouter.get('/:id/settlements', authMiddleware('restaurant_owner'), asy
     const payouts = listPayouts({ ownerId: restaurant.id }).filter(
       p => p.ownerType === 'RESTAURANT' && !(p.settlementId && settlementIds.has(p.settlementId))
     );
-    const payoutRows = payouts.map(p => ({
+    // What each payment covered, from the statement lines it settled, so a
+    // payment row reads "sales · commission · TDS" and not three zeros (V9-8).
+    const coveredBy = (payoutId: string) => statement.orders.filter(o => o.settledByPayoutId === payoutId);
+    const payoutRows = payouts.map(p => {
+      const covered = coveredBy(p.id);
+      const sum = (fn: (lines: Array<{ label: string; amountPaise: number }>) => number) =>
+        toRupees(covered.reduce((t, o) => t + fn(o.lines), 0));
+      return {
       id: p.id,
+      grossSales: sum(l => amountOf(l, 'Food total') + amountOf(l, 'Packaging')),
+      commission: sum(l => -amountOf(l, 'Our commission') - amountOf(l, 'GST on our commission')),
+      tds: sum(l => -amountOf(l, 'TDS withheld')),
       netAmount: toRupees(p.amountPaise),
       status: PAYOUT_STATUS[p.state] || 'PROCESSING',
       periodStart: p.draftedAt,
       periodEnd: p.executedAt || p.draftedAt,
-      ordersCount: p.coversLedgerIds.length,
+      ordersCount: covered.length || p.coversLedgerIds.length,
       ...(p.reference ? { reference: p.reference } : {}),
       ...(p.executedAt && p.state === 'PAID' ? { paidAt: p.executedAt } : {}),
       ...(p.note ? { note: p.note } : {})
-    }));
+      };
+    });
     const history = [...settlements, ...payoutRows].sort((a: any, b: any) =>
       String(b.paidAt || b.periodEnd || '').localeCompare(String(a.paidAt || a.periodEnd || ''))
     );

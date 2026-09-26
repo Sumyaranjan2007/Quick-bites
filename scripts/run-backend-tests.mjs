@@ -113,7 +113,8 @@ const SUITES = [
   // reads each answer.
   'ownPricesAndSearch',
   'adminReads',
-  'qaAppText'
+  'qaAppText',
+  'qaRound1'
 ];
 
 /*

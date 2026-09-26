@@ -100,9 +100,15 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
    */
   const inHand = data?.cashInHand ?? 0;
   useEffect(() => {
-    if (data && !data.pendingDeposit && amount === '' && inHand > 0) {
-      setAmount(String(inHand));
+    if (!data) return;
+    // Nothing held (for instance, it was just counted in): nothing to type, and
+    // an old figure left in the box read as an error against Rs 0 (V9-15).
+    if (inHand <= 0) {
+      if (amount !== '') setAmount('');
+      return;
     }
+    // Two decimals, as the balance is shown: "690.9" looked like a typo (V9-13).
+    if (!data.pendingDeposit && amount === '') setAmount(inHand.toFixed(2));
   }, [data, inHand, amount]);
 
   const parsed = Number(amount.replace(/[^0-9.]/g, ''));
@@ -185,7 +191,7 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
             <Text style={s.sub}>
               {data.cashInHand > 0
                 ? 'This is the platform’s money. It is yours to carry, not to keep.'
-                : 'Nothing to bring in. Every order you took was paid online.'}
+                : 'You are not holding any Quick Bites cash. Nothing to bring in.'}
             </Text>
 
             <View style={{ marginTop: 14 }}>
@@ -263,7 +269,8 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
                 they count, and it is what protects you if the count comes out differently.
               </Text>
 
-              <Text style={s.label}>Amount you are bringing</Text>
+              {inHand > 0 && <Text style={s.label}>Amount you are bringing</Text>}
+              {inHand > 0 && (
               <TextInput
                 style={[s.input, (overstated || (!!amount && !amountValid)) && s.inputError]}
                 value={amount}
@@ -276,6 +283,7 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
                 placeholderTextColor={t.color.textMuted}
                 editable={!saving && inHand > 0}
               />
+              )}
               {overstated && (
                 <Text style={s.fieldError}>
                   That is more than the {money(inHand)} our records say you are holding. Check the figure — if you

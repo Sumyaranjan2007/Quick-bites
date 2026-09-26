@@ -242,7 +242,20 @@ export async function computeRiderMetrics(rider: DeliveryRider, now: Date = new 
     ? Math.round((rated.reduce((t, o) => t + (o.riderRating as number), 0) / rated.length) * 10) / 10
     : null;
 
-  const offersReceived = rider.offersReceived || 0;
+  /*
+   * An offer still on the rider's screen has not been answered yet. Counting it
+   * as received showed a brand-new rider "0% · 0 of 1 offers" while the first
+   * offer was still open (QA v9, V9-3). It counts once it is taken, passed, or
+   * gone to somebody else.
+   */
+  const stillOpen = (Array.from(memoryStore.orders.values()) as any[]).filter(
+    o =>
+      !o.riderId &&
+      (o.offeredToRiderIds || []).includes(rider.id) &&
+      !(o.declinedByRiderIds || []).includes(rider.id) &&
+      !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status)
+  ).length;
+  const offersReceived = Math.max(0, (rider.offersReceived || 0) - stillOpen);
   const offersAccepted = rider.offersAccepted || 0;
   // A rider who has not been offered anything yet is shown 100%, not 0% —
   // starting everyone at zero would read as a penalty for being new.

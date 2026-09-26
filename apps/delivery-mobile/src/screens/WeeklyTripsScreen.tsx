@@ -133,7 +133,7 @@ export const WeeklyTripsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
                     <Pill label={distance(trip.distanceKm)} />
                     {trip.cashCollected > 0 ? (
                       <Pill
-                        label={`COD ${rupees(trip.cashCollected, 0)}`}
+                        label={`COD ${rupees(trip.cashCollected)}`}
                         tone="money"
                         style={{ marginLeft: t.space[2] }}
                       />

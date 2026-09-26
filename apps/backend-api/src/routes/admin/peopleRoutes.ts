@@ -19,6 +19,7 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { kycRepository } from '../../db/repositories/kycRepository.ts';
 import { payoutRepository } from '../../db/repositories/payoutRepository.ts';
+import { riderPaymentHistory, riderPaidTotal } from '../../modules/payments/riderPayoutHistory.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
@@ -400,12 +401,14 @@ peopleRoutes.get('/drivers/:id', requirePermission('users.drivers.view'), async 
         documents: await kycRepository.findByEntity('RIDER', rider.id),
         payoutDestination: await payoutDestination('RIDER', rider.id),
         wallet: await walletRepository.getByUserId(rider.userId),
-        payouts: await payoutRepository.list({ riderId: rider.id }),
+        // Both kinds of payment record: the Pay screen writes ledger payouts,
+        // which the old repository cannot see (QA v9, V9-16).
+        payouts: riderPaymentHistory(rider.id),
         trips: orders.map(summariseOrder),
         stats: {
           trips: delivered.length,
           earnings: Math.round(delivered.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100,
-          paidOut: await payoutRepository.paidTotal(rider.id),
+          paidOut: riderPaidTotal(rider.id),
           codCashInHand: rider.codCashInHand || 0,
           cancelled: orders.filter(o => o.status === 'CANCELLED').length
         }

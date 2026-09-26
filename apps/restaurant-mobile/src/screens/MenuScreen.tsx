@@ -28,7 +28,11 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
   const [busyDish, setBusyDish] = useState<string | null>(null);
 
   const [composerOpen, setComposerOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', price: '', categoryName: '', isVeg: true });
+  // isVeg starts UNSET for a new dish (V9-9): it used to start as Vegetarian,
+  // so a kitchen that did not notice the switch listed meat as veg.
+  const [form, setForm] = useState<{ name: string; description: string; price: string; categoryName: string; isVeg: boolean | null }>(
+    { name: '', description: '', price: '', categoryName: '', isVeg: null }
+  );
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
     setPhoto(null);
     if (!item) {
       setEditing(null);
-      setForm({ name: '', description: '', price: '', categoryName: '', isVeg: true });
+      setForm({ name: '', description: '', price: '', categoryName: '', isVeg: null });
       setSizes([]);
       setExtras([]);
     } else {
@@ -170,6 +174,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
       if (price > 100000) errs.price = 'That price looks wrong.';
     }
     if (form.categoryName.trim().length < 1) errs.categoryName = 'Which section of the menu?';
+    if (form.isVeg === null) errs.isVeg = 'Choose Veg or Non-veg.';
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -192,7 +197,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
       // An edit always says what the sizes and extras are now ([] removes them).
       ...(editing || sizeList.length ? { sizes: sizeList } : {}),
       ...(editing || extraList.length ? { extras: extraList } : {}),
-      isVeg: form.isVeg,
+      isVeg: form.isVeg === true,
       categoryName: form.categoryName.trim(),
       ...(photo ? { imageUrl: photo } : {})
     });
@@ -203,7 +208,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
       return;
     }
     setComposerOpen(false);
-    setForm({ name: '', description: '', price: '', categoryName: '', isVeg: true });
+    setForm({ name: '', description: '', price: '', categoryName: '', isVeg: null });
     setPhoto(null);
     setEditing(null);
     setSizes([]);
@@ -488,15 +493,28 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                 </View>
               )}
 
-              <View style={styles.vegRow}>
-                <Text style={styles.vegLabel}>Vegetarian</Text>
-                <Switch
-                  value={form.isVeg}
-                  onValueChange={v => setForm(f => ({ ...f, isVeg: v }))}
-                  trackColor={{ true: c.veg, false: c.border }}
-                  thumbColor="#FFFFFF"
-                />
+              <Text style={styles.vegLabel}>Veg or non-veg?</Text>
+              <View style={styles.dietChoice}>
+                {([
+                  { v: true, label: 'Veg', color: c.veg },
+                  { v: false, label: 'Non-veg', color: c.nonVeg }
+                ] as const).map(opt => {
+                  const on = form.isVeg === opt.v;
+                  return (
+                    <TouchableOpacity
+                      key={opt.label}
+                      style={[styles.dietBtn, on && { borderColor: opt.color, backgroundColor: opt.color }]}
+                      onPress={() => setForm(f => ({ ...f, isVeg: opt.v }))}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                    >
+                      <View style={[styles.dietDot, { backgroundColor: on ? '#FFFFFF' : opt.color }]} />
+                      <Text style={[styles.dietBtnText, on && { color: '#FFFFFF' }]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
+              {!!formErrors.isVeg && <Text style={[styles.rowError, { marginBottom: spacing.lg }]}>{formErrors.isVeg}</Text>}
 
               <Button label="Send for approval" onPress={send} busy={submitting} />
               <Button
@@ -587,7 +605,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl
   },
-  vegLabel: { fontSize: 14, color: c.textSoft, fontWeight: '700' },
+  vegLabel: { fontSize: 14, color: c.textSoft, fontWeight: '700', marginBottom: spacing.sm },
+  dietChoice: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
+  dietBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: c.border
+  },
+  dietBtnText: { fontSize: 15, fontWeight: '800', color: c.text },
   rowHint: { fontSize: 12, color: c.textMuted, marginTop: 4, lineHeight: 17 },
   rowError: { fontSize: 12, color: c.danger, marginTop: 4 },
   choiceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },

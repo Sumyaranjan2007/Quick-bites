@@ -318,6 +318,28 @@ function DeliveryApp() {
     }
   }, [token, loadDashboard]);
 
+  /*
+   * THE MONEY ON SCREEN FOLLOWS THE MONEY ON THE SERVER (QA v9, V9-17).
+   *
+   * The dashboard used to load at sign-in and after the rider's own actions,
+   * and never otherwise. So after an administrator counted the rider's cash in
+   * and paid them, Home and Earnings went on saying "holding Rs 690.90" and
+   * "Rs 30 waiting" until the rider happened to pull to refresh. It now reloads
+   * whenever the app comes back to the front and whenever Home or Earnings is
+   * opened, quietly, because those are the moments a rider looks.
+   */
+  useEffect(() => {
+    if (!token) return;
+    const subscription = AppState.addEventListener('change', next => {
+      if (next === 'active') void loadDashboard({ silent: true });
+    });
+    return () => subscription.remove();
+  }, [token, loadDashboard]);
+
+  useEffect(() => {
+    if (token && (tab === 'home' || tab === 'earnings')) void loadDashboard({ silent: true });
+  }, [tab, token, loadDashboard]);
+
   // A rider who was on shift when the app last closed is still on shift as far
   // as dispatch is concerned, so the service that keeps them reachable has to
   // come back with them.

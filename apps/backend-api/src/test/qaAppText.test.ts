@@ -142,6 +142,50 @@ it('A phone-only customer is never asked for a password to delete, nor shown "Ch
   assert.ok(/!passwordless && \(/.test(profile), 'the Change password row is not hidden');
 });
 
+// ---------------------------------------------------------------------
+console.log('\n-- v9 QA round 1: app-side fixes');
+
+it('V9-18 A cancelled order is not shown as delivered, and shows no arrival time', () => {
+  const t = code('customer-mobile/src/screens/OrderTrackingScreen.tsx');
+  assert.ok(t.includes('>ORDER CANCELLED<') && t.includes("'Order cancelled'"), 'no cancelled state');
+  assert.ok(/const etaMinutes: number \| null = isClosed\s*\? null/.test(t), 'a closed order can still show an ETA');
+  assert.ok(t.includes("'Nothing to pay'"), 'a cancelled unpaid order still says "To pay in cash"');
+});
+it('V9-17 The rider app reloads its figures on returning to the front and on opening Home/Earnings', () => {
+  const a = code('delivery-mobile/App.tsx');
+  assert.ok(/AppState\.addEventListener\('change', next => \{\s*if \(next === 'active'\) void loadDashboard/.test(a));
+  assert.ok(/tab === 'home' \|\| tab === 'earnings'\)\) void loadDashboard/.test(a));
+});
+it('V9-14/15 The rider cash screen tells the truth at Rs 0 and clears the old amount', () => {
+  const cash = code('delivery-mobile/src/screens/CashScreen.tsx');
+  assert.equal(cash.includes('Every order you took was paid online'), false);
+  assert.ok(/if \(inHand <= 0\) \{\s*if \(amount !== ''\) setAmount\(''\)/.test(cash));
+});
+it("V9-6 Admin badges reload after the console's own writes", () => {
+  const api = code('admin-mobile/src/lib/api.ts');
+  const app = code('admin-mobile/App.tsx');
+  assert.ok(/if \(method !== 'GET'\) \{\s*for \(const listener of mutationListeners\)/.test(api));
+  assert.ok(app.includes('onMutation(() => void countsRef.current.silentReload())'));
+});
+it('V9-9 A new dish has no Veg/Non-veg default and cannot be sent without one', () => {
+  const m = code('restaurant-mobile/src/screens/MenuScreen.tsx');
+  assert.equal(/isVeg: true \}/.test(m), false, 'a form reset still defaults to Vegetarian');
+  assert.ok(m.includes("errs.isVeg = 'Choose Veg or Non-veg.'"));
+});
+it('V9-4/13 Cash amounts keep their paise', () => {
+  const rider =
+    code('delivery-mobile/src/screens/TripScreen.tsx') +
+    code('delivery-mobile/src/components/NewOrderModal.tsx') +
+    code('delivery-mobile/src/screens/WeeklyTripsScreen.tsx');
+  assert.equal(/cashToCollect, 0\)|cashCollected, 0\)/.test(rider), false);
+  assert.equal(code('admin-mobile/src/screens/PayoutsScreen.tsx').includes('String(deposit.declaredPaise / 100)'), false);
+});
+it('V9-10/11 A phone-only customer sees no internal address and honest code wording', () => {
+  const pr = code('customer-mobile/src/screens/ProfileScreen.tsx');
+  assert.ok(pr.includes("!String(user.email).endsWith('@phone.quickbite.app')"));
+  assert.ok(pr.includes("codeSent ? 'Code sent to' : 'We will send a code to'"));
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
 process.exit(0);
