@@ -583,7 +583,7 @@ const RestaurantReviewSheet: React.FC<{
               variant={approvingCount > 0 ? 'success' : 'danger'}
               disabled={pending.length === 0}
               loading={busy}
-              full
+              style={{ alignSelf: 'stretch' }}
               onPress={submit}
             />
           </View>
