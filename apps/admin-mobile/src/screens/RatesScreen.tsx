@@ -150,6 +150,46 @@ export const RatesScreen: React.FC = () => {
   if (!canView) return <NoAccess permission="finance.config.edit" />;
   if (rates.loading && !rates.data) return <Loading label="Reading what each restaurant costs…" />;
 
+  /*
+   * Unsaved rate changes, and saving them (owner, 2 Oct 2026). The save used
+   * to be a card at the very end of a long list, enabled only once a reason
+   * was typed, so it looked as if the screen had no save at all. It is now a
+   * bar fixed to the bottom that appears with the first change; the reason is
+   * optional and defaults to a plain one (the server keeps who changed it).
+   */
+  const liveRates: Record<string, number> = platform.data?.config?.rates || {};
+  const boundOf = (key: string) => (platform.data?.bounds || []).find((b: any) => b.key === key);
+  const shown = (key: string, v: number) => {
+    const unit = boundOf(key)?.unit;
+    return unit === 'PERCENT' ? `${v}%` : unit === 'RUPEES' ? `₹${v}` : String(v);
+  };
+  const pendingChanges = Object.entries(platformEdits)
+    .filter(([k, v]) => v !== '' && Number.isFinite(Number(v)) && Number(v) !== Number(liveRates[k]))
+    .map(([k, v]) => ({ key: k, label: boundOf(k)?.label || k, from: Number(liveRates[k]), to: Number(v) }));
+  const showSaveBar = tab === 'platform' && pendingChanges.length > 0;
+
+  const savePlatform = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const changes: Record<string, number> = {};
+      for (const change of pendingChanges) changes[change.key] = change.to;
+      await api.put('/admin/pricing/config', {
+        changes,
+        note: platformNote.trim().length >= 3 ? platformNote.trim() : 'Changed on the Rates screen'
+      });
+      setPlatformEdits({});
+      setPlatformNote('');
+      await platform.reload();
+      await rates.reload();
+      Alert.alert('Saved', 'The new rates apply from the next order. Orders already placed keep theirs.');
+    } catch (err: any) {
+      setError(err?.message || 'Those rates could not be saved.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const open = (row: ChargeRow) => {
     setEditing(row);
     setForm({
@@ -224,7 +264,7 @@ export const RatesScreen: React.FC = () => {
   return (
     <>
       <ScrollView
-        contentContainerStyle={s.content}
+        contentContainerStyle={[s.content, showSaveBar && { paddingBottom: 260 }]}
         refreshControl={<RefreshControl refreshing={rates.loading} onRefresh={rates.reload} />}
         keyboardShouldPersistTaps="handled"
       >
@@ -453,8 +493,8 @@ export const RatesScreen: React.FC = () => {
                         </View>
                         {changed && (
                           <Text style={s.fieldHint}>
-                            Now {String(live)}. Save at the bottom of this list — it creates a new version.
-                            Orders already placed keep what they were charged.
+                            Now {String(live)}. Tap Save at the bottom of the screen. Orders already placed keep
+                            what they were charged.
                           </Text>
                         )}
                       </View>
@@ -462,57 +502,6 @@ export const RatesScreen: React.FC = () => {
                   );
                 })}
 
-                {Object.keys(platformEdits).some(
-                  k => platformEdits[k] !== '' && Number(platformEdits[k]) !== Number(platform.data.config?.rates?.[k])
-                ) && (
-                  <Card>
-                    <Text style={s.fieldLabel}>Why are you changing these?</Text>
-                    <View style={s.fieldRow}>
-                      <TextInput
-                        style={s.fieldInput}
-                        value={platformNote}
-                        onChangeText={setPlatformNote}
-                        placeholder="e.g. raising rider pay for the monsoon"
-                        placeholderTextColor={c.text.muted}
-                      />
-                    </View>
-                    <Text style={s.fieldHint}>
-                      Required. Rates are versioned, never overwritten — this is what somebody reads when they
-                      ask why a number moved.
-                    </Text>
-
-                    {!!error && <Text style={s.error}>{error}</Text>}
-
-                    <Button
-                      label={busy ? 'Saving…' : 'Save these rates'}
-                      onPress={async () => {
-                        setBusy(true);
-                        setError(null);
-                        try {
-                          const changes: Record<string, number> = {};
-                          for (const [key, value] of Object.entries(platformEdits)) {
-                            if (value === '' || Number(value) === Number(platform.data.config?.rates?.[key])) continue;
-                            changes[key] = Number(value);
-                          }
-                          await api.put('/admin/pricing/config', { changes, note: platformNote.trim() });
-                          setPlatformEdits({});
-                          setPlatformNote('');
-                          await platform.reload();
-                          await rates.reload();
-                          // The save card disappears once nothing is unsaved, so
-                          // say it worked rather than leave silence (V9-7).
-                          Alert.alert('Saved', 'The new rates apply from the next order. Orders already placed keep theirs.');
-                        } catch (err: any) {
-                          setError(err?.message || 'Those rates could not be saved.');
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                      disabled={busy || platformNote.trim().length < 4}
-                      style={{ marginTop: 12 }}
-                    />
-                  </Card>
-                )}
               </>
             )}
           </>
@@ -749,6 +738,42 @@ export const RatesScreen: React.FC = () => {
         )}
       </ScrollView>
 
+      {showSaveBar ? (
+        <View style={s.saveBar}>
+          <Text style={s.saveBarTitle}>
+            {pendingChanges.length === 1 ? '1 change not saved' : `${pendingChanges.length} changes not saved`}
+          </Text>
+          {pendingChanges.map(change => (
+            <Text key={change.key} style={s.saveBarLine} numberOfLines={1}>
+              {change.label}: {shown(change.key, change.from)} → {shown(change.key, change.to)}
+            </Text>
+          ))}
+          <View style={[s.fieldRow, { marginTop: 8 }]}>
+            <TextInput
+              style={s.fieldInput}
+              value={platformNote}
+              onChangeText={setPlatformNote}
+              placeholder="Why? (optional) e.g. monsoon rider pay"
+              placeholderTextColor={c.text.muted}
+            />
+          </View>
+          {!!error && <Text style={s.error}>{error}</Text>}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <Button
+              label="Discard"
+              variant="secondary"
+              style={{ flex: 1 }}
+              onPress={() => {
+                setPlatformEdits({});
+                setPlatformNote('');
+                setError(null);
+              }}
+            />
+            <Button label={busy ? 'Saving…' : 'Save'} style={{ flex: 2 }} disabled={busy} onPress={savePlatform} />
+          </View>
+        </View>
+      ) : null}
+
       <Sheet
         visible={!!editing}
         onClose={() => setEditing(null)}
@@ -966,6 +991,20 @@ const Field: React.FC<{
 
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
+  saveBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: c.bg.raised,
+    borderTopWidth: 1,
+    borderTopColor: c.border.medium,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16
+  },
+  saveBarTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  saveBarLine: { color: c.text.secondary, fontSize: 13 },
   fieldRowLocked: { opacity: 0.55 },
   noMarkup: {
     color: c.state.warning,
