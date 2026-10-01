@@ -1,4 +1,4 @@
-# Quick Bite Platform -- Privacy Policy (PRIVACY_POLICY)
+# Quick Bites Privacy Policy
 
 **Effective Date:** September 5, 2026  
 **Last Updated:** September 5, 2026  

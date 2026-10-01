@@ -1,4 +1,4 @@
-# Quick Bite Platform -- Terms of Service (TERMS_OF_SERVICE)
+# Quick Bites Terms of Service
 
 **Effective Date:** September 5, 2026  
 **Last Updated:** September 5, 2026  
