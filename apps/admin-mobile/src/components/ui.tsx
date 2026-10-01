@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { tokens, toneForStatus, humanise } from '../theme/tokens';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const c = tokens.colors;
 
@@ -535,37 +535,44 @@ export const Divider: React.FC<{ style?: ViewStyle }> = ({ style }) => <View sty
  * scrolled to. Now the height is measured from the visible window, the bars
  * are kept clear, and the list shrinks to fit and scrolls.
  */
-export const Sheet: React.FC<{
+type SheetProps = {
   visible: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-}> = ({ visible, onClose, title, subtitle, children, footer }) => {
+};
+
+export const Sheet: React.FC<SheetProps> = props => (
+  <Modal visible={props.visible} transparent animationType="slide" onRequestClose={props.onClose} statusBarTranslucent>
+    {/*
+     * Its own safe-area measurement. On Android 15 a modal is drawn under the
+     * navigation bar, and the app's own insets (taken from a screen that is
+     * already padded for the bar) say 0 — so the footer, the Approve button,
+     * sat behind the bar (QA v13/v14). Measured inside the modal, the bottom
+     * inset is the bar's real height.
+     */}
+    <SafeAreaProvider>
+      <SheetPanel {...props} />
+    </SafeAreaProvider>
+  </Modal>
+);
+
+const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, footer }) => {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  /*
-   * On Android 15 a modal is drawn under the navigation bar while the app
-   * reports a bottom inset of 0, so the footer — the Approve button — sat
-   * behind the bar (QA v13). The overlay's real height, less the visible
-   * window, is exactly what the bar covers.
-   */
-  const [overlayHeight, setOverlayHeight] = React.useState(0);
-  const underBar = Math.max(insets.bottom, overlayHeight > height ? overlayHeight - height : 0);
-  const room = height - insets.top - tokens.space[6];
+  const room = height - insets.top - insets.bottom - tokens.space[6];
   return (
-  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={s.sheetOverlay}
-      onLayout={e => setOverlayHeight(e.nativeEvent.layout.height)}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.sheetOverlay}>
       <TouchableOpacity style={s.sheetBackdrop} activeOpacity={1} onPress={onClose} />
       <View
         style={[
           s.sheet,
-          { maxHeight: Math.min(room, height * 0.88) + underBar, paddingBottom: underBar + tokens.space[4] }
+          {
+            maxHeight: Math.min(room, height * 0.88) + insets.bottom,
+            paddingBottom: insets.bottom + tokens.space[4]
+          }
         ]}
       >
         <View style={s.sheetGrabber} />
@@ -594,7 +601,6 @@ export const Sheet: React.FC<{
         {footer ? <View style={s.sheetFooter}>{footer}</View> : null}
       </View>
     </KeyboardAvoidingView>
-  </Modal>
   );
 };
 
