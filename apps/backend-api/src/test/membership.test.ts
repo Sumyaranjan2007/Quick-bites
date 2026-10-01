@@ -143,9 +143,9 @@ const basket = {
  * rather than being relaxed to accommodate it.
  *
  * The numbers are worked out by hand rather than read off the code: this basket
- * travels 6km, the base fee of Rs 30 covers 3km, and the 3 whole kilometres
- * beyond cost Rs 10 each -- Rs 60. Ten percent off is Rs 54 and forty percent
- * off is Rs 36. Asserting the exact figure is the point; "it went down" would
+ * travels 6km and the rider earns Rs 12 a road km (owner, 2 Oct 2026), so the
+ * delivery fee is Rs 72 with no markup. Ten percent off is Rs 64.80 and forty
+ * percent off is Rs 43.20. Asserting the exact figure is the point; "it went down" would
  * pass for any discount, including one that gave the whole fee away.
  */
 check('A member pays a discounted delivery fee, not a free one', () => {
@@ -157,9 +157,9 @@ check('A member pays a discounted delivery fee, not a free one', () => {
   });
   const lapsed = calculateOrderPricing({ ...basket, isGold: false });
 
-  assert.equal(lapsed.deliveryFee, 60, 'Rs 30 base plus 3 whole km beyond at Rs 10');
-  assert.equal(live.deliveryFee, 54, '10% off Rs 60');
-  assert.equal(live.membershipDeliverySaving, 6, 'and the saving is stated, not just implied');
+  assert.equal(lapsed.deliveryFee, 72, '6 road km at Rs 12');
+  assert.equal(live.deliveryFee, 64.8, '10% off Rs 72');
+  assert.equal(live.membershipDeliverySaving, 7.2, 'and the saving is stated, not just implied');
 
   // The old rule is gone, and this is the line that says so. A member paying
   // nothing would mean the zeroing branch had survived.
@@ -172,9 +172,9 @@ check('A dearer plan is visibly better on the same basket', () => {
   const gold = calculateOrderPricing({ ...common, memberDeliveryDiscountPercent: 10 });
   const goldMax = calculateOrderPricing({ ...common, memberDeliveryDiscountPercent: 40 });
 
-  assert.equal(gold.deliveryFee, 54);
-  assert.equal(goldMax.deliveryFee, 36, '40% off Rs 60');
-  assert.equal(goldMax.membershipDeliverySaving, 24);
+  assert.equal(gold.deliveryFee, 64.8);
+  assert.equal(goldMax.deliveryFee, 43.2, '40% off Rs 72');
+  assert.equal(goldMax.membershipDeliverySaving, 28.8);
 });
 
 /*

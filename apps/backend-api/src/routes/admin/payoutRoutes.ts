@@ -76,6 +76,7 @@ import {
 import { statementFor, statementView } from '../../modules/payments/statements.ts';
 import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
 import type { PayeeOwnerType, PayoutRailId } from '@quick-bites/shared-types';
+import { revealAccountNumber } from '../../modules/payments/payeeAccountNumbers.ts';
 
 export const payoutRoutes = Router();
 
@@ -272,7 +273,7 @@ payoutRoutes.post(
   requirePermission('finance.payouts.manage', 'finance.settlements.manage'),
   async (req, res, next) => {
     try {
-      const payout = approvePayout(req.params.id, req.user!.id);
+      const payout = approvePayout(req.params.id, req.user!.id, req.user!.role);
 
       recordAudit(req, {
         action: 'PAYOUT_APPROVED',
@@ -296,6 +297,43 @@ const ExecuteSchema = z.object({
   manualReference: z.string().trim().max(120).optional(),
   payeePhone: z.string().trim().max(20).optional()
 });
+
+/**
+ * GET /api/admin/payee-accounts/:id/number — the full bank account number, to
+ * pay by hand (owner, 2 Oct 2026). Payout permission only; every reveal is in
+ * the audit log under the administrator's name.
+ */
+payoutRoutes.get(
+  '/payee-accounts/:id/number',
+  requirePermission('finance.payouts.manage', 'finance.settlements.manage'),
+  async (req, res, next) => {
+    try {
+      const account = memoryStore.payeeAccounts.get(req.params.id) as any;
+      if (!account || account.archivedAt) throw new AppError('No such account.', 404, 'ACCOUNT_NOT_FOUND');
+      const accountNumber = account.method === 'BANK' ? revealAccountNumber(account.id) : null;
+      recordAudit(req, {
+        action: 'PAYEE_ACCOUNT_NUMBER_VIEWED',
+        entityType: 'PAYEE_ACCOUNT',
+        entityId: account.id,
+        summary: `Viewed the full bank details of ${account.holderName} to pay by hand`
+      });
+      res.json({
+        success: true,
+        data: {
+          method: account.method,
+          holderName: account.holderName,
+          accountNumber,
+          ifsc: account.ifsc || null,
+          vpa: account.vpa || null,
+          // Filed before full numbers were kept: they re-enter it in their app.
+          missing: account.method === 'BANK' && !accountNumber
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
  * POST /api/admin/payouts/:id/send

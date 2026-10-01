@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 import { currentApiUrl } from './partnerApi';
 
@@ -50,7 +51,8 @@ export async function registerForPush(token: string): Promise<void> {
       body: JSON.stringify({
         token: value,
         platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
-        appVersion: '1.0.0'
+        // The version actually installed, so support can see who is out of date.
+        appVersion: Constants.expoConfig?.version || 'unknown'
       })
     });
 

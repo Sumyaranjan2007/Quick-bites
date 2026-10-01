@@ -215,7 +215,9 @@ async function run() {
     assert.equal(due.heldPaise, 0);
   });
 
-  await check('Money earned today is held back', () => {
+  await check('Money earned today is held back, when a hold is set', () => {
+    // No hold by default since 2 Oct 2026; the control is proved with one set.
+    createVersion({ partnerHoldDays: 1 }, { userId: 'usr_admin_01' }, 'A one-day hold, for this check');
     const fresh = deliveredOrder({ deliveredAt: new Date().toISOString() });
     recordOrderEarnings(fresh);
     const due = duesFor('RESTAURANT', RESTAURANT, 'Nandini Kitchen');

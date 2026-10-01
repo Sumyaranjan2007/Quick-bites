@@ -22,10 +22,11 @@ import { tokens, formatMoney, humanise, toneForStatus, timeAgo, formatDateTime }
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { RestaurantMenuSheet, MenuUploadModal } from '../components/RestaurantMenuTools';
 
 const c = tokens.colors;
 
-type Tab = 'customers' | 'drivers' | 'restaurants';
+type Tab = 'customers' | 'drivers' | 'restaurants' | 'deletions';
 
 /**
  * Where this partner's money goes.
@@ -71,8 +72,8 @@ const PaidIntoCard: React.FC<{ destination: any }> = ({ destination }) => {
           ) : (
             <>
               {/* The last four only. A profile is the screen most likely to be
-                  shown to somebody standing beside the desk, and the full
-                  number is never stored anyway. */}
+                  shown to somebody standing beside the desk; the full number
+                  appears only on the Pay now sheet, and each view is audited. */}
               <KeyValue label="Account" value={`Ending ${account.accountLast4 || '----'}`} />
               <KeyValue label="IFSC" value={account.ifsc} />
             </>
@@ -105,7 +106,10 @@ export const PeopleScreen: React.FC = () => {
   const available: Array<{ key: Tab; label: string }> = [
     ...(can('users.customers.view') ? [{ key: 'customers' as Tab, label: 'Customers' }] : []),
     ...(can('users.drivers.view') ? [{ key: 'drivers' as Tab, label: 'Delivery partners' }] : []),
-    ...(can('users.restaurants.view') ? [{ key: 'restaurants' as Tab, label: 'Restaurants' }] : [])
+    ...(can('users.restaurants.view') ? [{ key: 'restaurants' as Tab, label: 'Restaurants' }] : []),
+    ...(can('users.restaurants.manage', 'users.drivers.manage')
+      ? [{ key: 'deletions' as Tab, label: 'Deletion requests' }]
+      : [])
   ];
   const [tab, setTab] = useState<Tab>(available[0]?.key || 'customers');
 
@@ -119,6 +123,7 @@ export const PeopleScreen: React.FC = () => {
       {tab === 'customers' ? <CustomersTab /> : null}
       {tab === 'drivers' ? <DriversTab /> : null}
       {tab === 'restaurants' ? <RestaurantsTab /> : null}
+      {tab === 'deletions' ? <DeletionRequestsTab /> : null}
     </View>
   );
 };
@@ -827,6 +832,8 @@ const RestaurantsTab: React.FC = () => {
   const [submitted, setSubmitted] = useState('');
   const [status, setStatus] = useState('ALL');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [uploadFor, setUploadFor] = useState<{ id: string; name: string } | null>(null);
 
   const list = useResource(() => api.get<any>(`/admin/restaurants${query({ q: submitted, status })}`), [submitted, status]);
   const restaurants = list.data?.restaurants || [];
@@ -889,13 +896,93 @@ const RestaurantsTab: React.FC = () => {
         id={openId}
         onClose={() => setOpenId(null)}
         onChanged={list.silentReload}
+        // One sheet at a time: the profile closes, the menu opens.
+        onOpenMenu={rid => {
+          setOpenId(null);
+          setMenuFor(rid);
+        }}
+        onOpenUpload={(rid, name) => {
+          setOpenId(null);
+          setUploadFor({ id: rid, name });
+        }}
         canManage={can('users.restaurants.manage', 'catalog.restaurants.approve')}
         // Only what the reset route itself requires for a restaurant owner. A
         // catalogue approver sees the rest of the sheet, not a button that the
         // server then refuses.
         canResetPassword={can('users.restaurants.manage')}
       />
+      <RestaurantMenuSheet
+        restaurantId={menuFor}
+        onClose={() => setMenuFor(null)}
+        onChanged={list.silentReload}
+        onOpenBuilder={(rid, name) => {
+          setMenuFor(null);
+          setUploadFor({ id: rid, name });
+        }}
+      />
+      <MenuUploadModal target={uploadFor} onClose={() => setUploadFor(null)} onChanged={list.silentReload} />
     </View>
+  );
+};
+
+/**
+ * Partners and riders who pressed "Delete account" (owner, 2 Oct 2026). Their
+ * account is already closed; it is deleted here once nothing is owed either
+ * way, or reopened if they change their mind.
+ */
+const DeletionRequestsTab: React.FC = () => {
+  const { api } = useSession();
+  const list = useResource(() => api.get<any>('/admin/deletion-requests'), []);
+  const rows: any[] = list.data?.requests || [];
+  const act = (row: any, action: 'complete' | 'cancel') =>
+    Alert.alert(
+      action === 'complete' ? `Delete ${row.name}'s account?` : `Reopen ${row.name}'s account?`,
+      action === 'complete'
+        ? 'Their sign-in and personal details are deleted. Past orders and payouts stay, without their contact details.'
+        : 'They can sign in again. A kitchen goes back to how it was before they asked.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action === 'complete' ? 'Delete' : 'Reopen',
+          style: action === 'complete' ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              if (action === 'complete') await api.post(`/admin/deletion-requests/${row.userId}/complete`, {});
+              else await api.post(`/admin/deletion-requests/${row.userId}/cancel`, {});
+              await list.reload();
+            } catch (err: any) {
+              Alert.alert('Not done', err?.message || 'Nothing was changed.');
+            }
+          }
+        }
+      ]
+    );
+
+  return (
+    <ScrollView
+      contentContainerStyle={s.list}
+      refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
+    >
+      {list.loading && rows.length === 0 ? <Loading /> : null}
+      {!list.loading && rows.length === 0 ? (
+        <EmptyState title="No deletion requests" message={list.error || 'Partners and riders who delete their account appear here.'} />
+      ) : null}
+      {rows.map(row => (
+        <Card key={row.userId}>
+          <Text style={s.cardHeading}>{row.role === 'restaurant_owner' ? 'Restaurant partner' : 'Rider'}</Text>
+          <KeyValue label="Name" value={row.name} tone="strong" />
+          <KeyValue label="Email" value={row.email} />
+          <KeyValue label="Asked" value={formatDateTime(row.requestedAt)} />
+          <KeyValue label="We owe them" value={formatMoney(row.owedToThem)} />
+          {row.cashTheyHold > 0 ? <KeyValue label="Cash they hold" value={formatMoney(row.cashTheyHold)} tone="strong" /> : null}
+          {row.waitingFor ? <Text style={s.muted}>{row.waitingFor}</Text> : null}
+          <View style={s.actionRow}>
+            <Button label="Reopen" variant="secondary" full onPress={() => act(row, 'cancel')} />
+            <Button label="Delete" variant="danger" full disabled={!row.canComplete} onPress={() => act(row, 'complete')} />
+          </View>
+        </Card>
+      ))}
+    </ScrollView>
   );
 };
 
@@ -903,10 +990,18 @@ const RestaurantSheet: React.FC<{
   id: string | null;
   onClose: () => void;
   onChanged: () => void;
+  onOpenMenu: (restaurantId: string) => void;
+  onOpenUpload: (restaurantId: string, name: string) => void;
   canManage: boolean;
   canResetPassword: boolean;
-}> = ({ id, onClose, onChanged, canManage, canResetPassword }) => {
-  const { api } = useSession();
+}> = ({ id, onClose, onChanged, onOpenMenu, onOpenUpload, canManage, canResetPassword }) => {
+  const { api, can } = useSession();
+  const canEditMenu = can('catalog.menus.edit');
+  const canSetCash = can('users.restaurants.manage');
+  // Whether online payment is live: with it off, a kitchen without cash on
+  // delivery cannot take a single order, and the switch says so first.
+  const paymentConfig = useResource(() => api.get<any>('/payments/config'), []);
+  const onlineLive = Boolean(paymentConfig.data?.online);
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState('');
   const [editing, setEditing] = useState(false);
@@ -957,6 +1052,39 @@ const RestaurantSheet: React.FC<{
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Cash on delivery for this kitchen only (owner, 2 Oct 2026). */
+  const setCash = (acceptsCash: boolean) => {
+    const name = restaurant?.name || 'this restaurant';
+    const warning = !acceptsCash && !onlineLive
+      ? '\n\nOnline payment is not switched on, so with cash off nobody can order from them at all.'
+      : '';
+    Alert.alert(
+      acceptsCash ? 'Turn cash on delivery ON?' : 'Turn cash on delivery OFF?',
+      (acceptsCash
+        ? `Customers can pay ${name} in cash at the door again.`
+        : `Customers ordering from ${name} will have to pay online. Orders already placed are not affected.`) + warning,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: acceptsCash ? 'Turn on' : 'Turn off',
+          style: acceptsCash ? 'default' : 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            try {
+              await api.patch(`/admin/restaurants/${id}`, { acceptsCash });
+              await resource.reload();
+              onChanged();
+            } catch (err: any) {
+              Alert.alert('Could not change it', err?.message || 'Nothing was changed.');
+            } finally {
+              setBusy(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const save = async () => {
@@ -1019,6 +1147,45 @@ const RestaurantSheet: React.FC<{
             <Divider />
             <KeyValue label="Rating" value={restaurant.ratingAverage ? `${restaurant.ratingAverage} from ${restaurant.ratingCount}` : 'Not rated yet'} />
           </Card>
+
+          <Card>
+            <Text style={s.cardHeading}>Payments</Text>
+            {canSetCash ? (
+              <Toggle
+                label="Cash on delivery"
+                value={restaurant.acceptsCash !== false}
+                onChange={next => setCash(next)}
+              />
+            ) : (
+              <KeyValue label="Cash on delivery" value={restaurant.acceptsCash !== false ? 'Accepted' : 'Off'} />
+            )}
+            <Text style={s.muted}>
+              {restaurant.acceptsCash !== false
+                ? 'Customers can pay this restaurant online or in cash at the door.'
+                : 'Online payment only. Customers do not see cash on delivery for this restaurant.'}
+            </Text>
+            {paymentConfig.error ? (
+              <Text style={s.muted}>Could not check whether online payment is switched on: {paymentConfig.error}</Text>
+            ) : null}
+          </Card>
+
+          {canEditMenu ? (
+            <Card>
+              <Text style={s.cardHeading}>Menu</Text>
+              <Text style={s.muted}>
+                Change dishes, prices, photos, sizes and extras on their live menu, or upload a whole menu for them.
+                They are told about every change.
+              </Text>
+              <View style={{ height: tokens.space[3] }} />
+              <Button label="Edit their live menu" onPress={() => id && onOpenMenu(id)} />
+              <View style={{ height: tokens.space[2] }} />
+              <Button
+                label="Upload a menu (or read it from photos)"
+                variant="secondary"
+                onPress={() => id && onOpenUpload(id, restaurant.name)}
+              />
+            </Card>
+          ) : null}
 
           {/* Directly under what they are owed, because those two lines are read
               together: the amount, and where it would go. */}

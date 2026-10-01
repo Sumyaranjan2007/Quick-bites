@@ -22,6 +22,7 @@ import {
   Star,
   TriangleAlert
 } from 'lucide-react-native';
+import Constants from 'expo-constants';
 import { t } from '../theme';
 import { Avatar, Button, Card, Divider, LoadingBlock, Pill, Row, SectionTitle } from '../components/ui';
 import { titleCase } from '../lib/format';
@@ -46,6 +47,8 @@ export const ProfileScreen: React.FC<{
   onOpenSafety: () => void;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   onLogout: () => void;
+  /** Delete account: closes it now; Quick Bites deletes it once nothing is owed. */
+  onDeleteAccount: (password: string) => Promise<boolean>;
 }> = ({
   data,
   refreshing,
@@ -56,7 +59,8 @@ export const ProfileScreen: React.FC<{
   onOpenPolicies,
   onOpenSafety,
   onChangePassword,
-  onLogout
+  onLogout,
+  onDeleteAccount
 }) => {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -322,8 +326,67 @@ export const ProfileScreen: React.FC<{
         style={{ marginTop: t.space[6] }}
       />
 
-      <Text style={s.version}>Quick Bites Rider · v1.2.0</Text>
+      <DeleteAccount onDelete={onDeleteAccount} />
+
+      <Text style={s.version}>Quick Bites Rider · v{Constants.expoConfig?.version || ''}</Text>
     </ScrollView>
+  );
+};
+
+/** Delete account, as Google Play requires: confirmed with the password. */
+const DeleteAccount: React.FC<{ onDelete: (password: string) => Promise<boolean> }> = ({ onDelete }) => {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!open) {
+    return (
+      <TouchableOpacity onPress={() => setOpen(true)} style={{ marginTop: t.space[5], alignSelf: 'center' }}>
+        <Text style={{ color: t.color.danger, fontWeight: '600' }}>Delete account</Text>
+      </TouchableOpacity>
+    );
+  }
+  return (
+    <Card style={{ marginTop: t.space[5] }}>
+      <Text style={{ color: t.color.text, fontWeight: '700', marginBottom: 6 }}>Delete your account</Text>
+      <Text style={{ color: t.color.textMuted, marginBottom: 10 }}>
+        Your account closes straight away: you stop getting trips and cannot sign in. We pay you anything we still
+        owe (and collect any cash you hold), then delete it — usually within 7 days.
+      </Text>
+      <TextInput
+        style={s.deleteInput}
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        placeholder="Your password, to confirm"
+        placeholderTextColor={t.color.textMuted}
+      />
+      <View style={s.passwordRow}>
+        <Button label="Keep my account" variant="secondary" onPress={() => setOpen(false)} />
+        <Button
+          label="Delete"
+          loading={busy}
+          onPress={() => {
+            if (!password) {
+              Alert.alert('Enter your password', 'It confirms that it is you.');
+              return;
+            }
+            Alert.alert('Delete your account?', 'This cannot be undone from the app.', [
+              { text: 'Keep it', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  setBusy(true);
+                  const ok = await onDelete(password);
+                  setBusy(false);
+                  if (!ok) setPassword('');
+                }
+              }
+            ]);
+          }}
+        />
+      </View>
+    </Card>
   );
 };
 
@@ -363,6 +426,14 @@ const s = StyleSheet.create({
   checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[3] },
   checkLabel: { color: t.color.text, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   checkDetail: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
+  deleteInput: {
+    borderWidth: 1,
+    borderColor: t.color.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: t.color.text
+  },
   passwordRow: { flexDirection: 'row', gap: t.space[3], justifyContent: 'flex-end', marginTop: t.space[3] },
   fieldLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[2] },
   input: {

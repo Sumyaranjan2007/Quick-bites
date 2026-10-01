@@ -23,10 +23,11 @@ import { tokens, formatMoney, formatCompactMoney, humanise, formatDateTime } fro
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { StatementSheet, type StatementOwner } from '../components/StatementSheet';
 
 const c = tokens.colors;
 
-type Tab = 'revenue' | 'losses' | 'payments' | 'settlements';
+type Tab = 'revenue' | 'losses' | 'payments' | 'settlements' | 'riders';
 
 export const FinanceScreen: React.FC = () => {
   const { can } = useSession();
@@ -35,7 +36,10 @@ export const FinanceScreen: React.FC = () => {
     ...(can('finance.reports.view') ? [{ key: 'losses' as Tab, label: 'Orders that lost money' }] : []),
     ...(can('finance.payments.view') ? [{ key: 'payments' as Tab, label: 'Payments' }] : []),
     ...(can('finance.settlements.view')
-      ? [{ key: 'settlements' as Tab, label: 'Restaurant settlements' }]
+      ? [
+          { key: 'settlements' as Tab, label: 'Restaurant settlements' },
+          { key: 'riders' as Tab, label: 'Rider settlements' }
+        ]
       : [])
   ];
   const [tab, setTab] = useState<Tab>(tabs[0]?.key || 'revenue');
@@ -51,6 +55,7 @@ export const FinanceScreen: React.FC = () => {
       {tab === 'losses' ? <LossesTab /> : null}
       {tab === 'payments' ? <PaymentsTab /> : null}
       {tab === 'settlements' ? <SettlementsTab /> : null}
+      {tab === 'riders' ? <RiderSettlementsTab /> : null}
     </View>
   );
 };
@@ -105,7 +110,8 @@ const RevenueTab: React.FC = () => {
 
       <Card>
         <Text style={s.cardHeading}>Where the money came from</Text>
-        <KeyValue label="Commission (15%)" value={formatMoney(summary.commission)} tone="strong" />
+        {/* Each restaurant has its own rate, so no single percentage is true here. */}
+        <KeyValue label="Commission from restaurants" value={formatMoney(summary.commission)} tone="strong" />
         <KeyValue label="Delivery fees" value={formatMoney(summary.deliveryFees)} />
         <KeyValue label="Platform fees" value={formatMoney(summary.platformFees)} />
         <Divider />
@@ -367,6 +373,79 @@ const s = StyleSheet.create({
  * the driver payouts beside it: drafting a settlement and drafting a payout are
  * the same job, and an administrator should not have to learn it twice.
  */
+/**
+ * What every delivery partner has earned, been paid and is owed (owner, 2 Oct
+ * 2026). From the ledger, through the same functions Pay uses; tap a rider for
+ * their statement, trip by trip.
+ */
+const RiderSettlementsTab: React.FC = () => {
+  const { api } = useSession();
+  const [search, setSearch] = useState('');
+  const [submitted, setSubmitted] = useState('');
+  const [statementOf, setStatementOf] = useState<StatementOwner | null>(null);
+  const resource = useResource(() => api.get<any>(`/admin/settlements/riders${query({ q: submitted })}`), [submitted]);
+  const rows = resource.data?.riders || [];
+  const totals = resource.data?.totals;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={s.controls}>
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Rider name, phone or code" onSubmit={() => setSubmitted(search.trim())} />
+      </View>
+      <ScrollView
+        contentContainerStyle={s.list}
+        refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
+      >
+        {totals ? (
+          <View style={s.grid}>
+            <StatTile label="Owed to riders" value={formatCompactMoney(totals.owed)} tone="warning" icon={<Wallet size={16} color={c.state.warning} />} />
+            <StatTile label="Paid to date" value={formatCompactMoney(totals.paid)} tone="success" />
+            <StatTile label="Cash riders hold" value={formatCompactMoney(totals.cashInHand)} tone="neutral" />
+          </View>
+        ) : null}
+        {resource.loading && rows.length === 0 ? <Loading /> : null}
+        {!resource.loading && rows.length === 0 ? <EmptyState title="No riders" message={resource.error || undefined} /> : null}
+        {rows.map((row: any) => (
+          <Card key={row.riderId} onPress={() => setStatementOf({ ownerType: 'RIDER', ownerId: row.riderId, ownerName: row.riderName })}>
+            <View style={s.rowTop}>
+              <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
+                <Text style={s.title} numberOfLines={1}>{row.riderName}</Text>
+                <Text style={s.sub} numberOfLines={1}>
+                  {row.tripsDelivered} trip{row.tripsDelivered === 1 ? '' : 's'} delivered
+                </Text>
+              </View>
+              {row.cashInHand > 0 ? (
+                <Badge label="Cash to deposit" tone="warning" />
+              ) : row.owedNow > 0 ? (
+                <Badge label="Due" tone="warning" />
+              ) : (
+                <Badge label="Settled" tone="success" />
+              )}
+            </View>
+            <View style={s.paymentGrid}>
+              <PayCell label="Earned" value={formatMoney(row.earnedToDate)} />
+              <PayCell label="Paid" value={formatMoney(row.paidToDate)} />
+              <PayCell label="Owed now" value={formatMoney(row.owedNow)} />
+              <PayCell label="Cash held" value={formatMoney(row.cashInHand)} />
+            </View>
+            {row.willPayInto ? (
+              <Text style={s.sub} numberOfLines={1}>
+                Pays to {row.willPayInto.holderName} ·{' '}
+                {row.willPayInto.method === 'VPA' ? row.willPayInto.vpa : `ending ${row.willPayInto.accountLast4 || '----'}`}
+              </Text>
+            ) : row.owedNow > 0 ? (
+              <Text style={[s.sub, { color: c.state.warning }]} numberOfLines={2}>
+                No account connected. They add one in the Rider app; you apply it in Bank.
+              </Text>
+            ) : null}
+          </Card>
+        ))}
+      </ScrollView>
+      <StatementSheet owner={statementOf} onClose={() => setStatementOf(null)} />
+    </View>
+  );
+};
+
 const SettlementsTab: React.FC = () => {
   const { api, can } = useSession();
   const [search, setSearch] = useState('');

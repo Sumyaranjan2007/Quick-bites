@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
+import { ratesForRestaurant } from '../payments/riderCityRates.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { menuRepository } from '../../db/repositories/menuRepository.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
@@ -321,6 +322,11 @@ async function refundPaidCancellation(
  * without registration is not allowed — and it is why a Rs 10 fee used to
  * reach the customer as Rs 11.80.
  */
+/** Whether this kitchen takes cash on delivery. Absent means yes. */
+export function acceptsCash(restaurant: { acceptsCash?: boolean | null }): boolean {
+  return restaurant.acceptsCash !== false;
+}
+
 export function platformFeeGstFor(charges: { platformGstin?: string | null; platformGstPercent?: number | null }): number {
   if (!charges.platformGstin) return 0;
   const own = charges.platformGstPercent;
@@ -502,7 +508,8 @@ export const orderService = {
       // defaults so a rate change takes effect on the next order priced without
       // a deploy — and so the figure frozen onto the order is the one its
       // settlement will later be defended with.
-      rates: getActiveRates(),
+      // Its city's rider pay per km, if one is set (owner, 2 Oct 2026).
+      rates: ratesForRestaurant(restaurant),
       commissionPercent: charges.commissionPercent
     };
     const bill = holdMarginFloor(pricingInput, calculateOrderPricing(pricingInput), tripDistanceKm);
@@ -518,6 +525,7 @@ export const orderService = {
       appliedCouponCode: appliedCode,
       couponError,
       restaurantIsOpen: isKitchenServing(restaurant) && restaurant.status === 'ACTIVE',
+      acceptsCash: acceptsCash(restaurant),
       unavailableItems: pricedItems.filter(i => !i.isAvailable).map(i => i.name)
     };
   },
@@ -561,6 +569,15 @@ export const orderService = {
     }
     if (restaurant.status !== 'ACTIVE') {
       throw new AppError('Restaurant is currently not accepting orders.', 409, 'RESTAURANT_INACTIVE');
+    }
+    // Cash on delivery, per restaurant (owner, 2 Oct 2026): some kitchens do not
+    // want cash orders, and only an administrator can switch it.
+    if (input.paymentMethod === 'CASH_ON_DELIVERY' && !acceptsCash(restaurant)) {
+      throw new AppError(
+        `${restaurant.name} accepts online payment only. Please pay online.`,
+        409,
+        'COD_NOT_ACCEPTED'
+      );
     }
     // The comment above claimed "Exists & Open" but only status was checked, so a
     // kitchen that had switched itself offline still took orders — food ordered
@@ -744,7 +761,8 @@ export const orderService = {
       // defaults so a rate change takes effect on the next order priced without
       // a deploy — and so the figure frozen onto the order is the one its
       // settlement will later be defended with.
-      rates: getActiveRates(),
+      // Its city's rider pay per km, if one is set (owner, 2 Oct 2026).
+      rates: ratesForRestaurant(restaurant),
       commissionPercent: charges.commissionPercent
     };
     const bill = holdMarginFloor(pricingInput, calculateOrderPricing(pricingInput), tripDistanceKm);

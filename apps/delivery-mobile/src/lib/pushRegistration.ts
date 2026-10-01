@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // The rider app carries its api url in the session rather than in a module,
 // so it is passed in rather than read.
@@ -51,7 +52,8 @@ export async function registerForPush(apiUrl: string, token: string): Promise<vo
       body: JSON.stringify({
         token: value,
         platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
-        appVersion: '1.0.0'
+        // The version actually installed, so support can see who is out of date.
+        appVersion: Constants.expoConfig?.version || 'unknown'
       })
     });
 

@@ -184,6 +184,9 @@ platformRoutes.post('/platform/reset', validate({ body: z.object({ confirm: z.un
       collection.clear();
     }
 
+    // The encrypted bank numbers go with the accounts they belong to.
+    memoryStore.meta.delete('payee-account-numbers');
+
     // Users are filtered rather than cleared: the administrators stay.
     let customersRemoved = 0;
     for (const [id, user] of memoryStore.users) {

@@ -133,6 +133,13 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   );
   const [onlineKeyId, setOnlineKeyId] = useState<string | null>(null);
   const onlineAvailable = razorpayAvailable && !!onlineKeyId;
+  // Cash on delivery is per restaurant, set by Quick Bites (owner, 2 Oct
+  // 2026). Read from the server's quote; until it arrives, assume yes.
+  const cashAccepted = quote?.acceptsCash !== false;
+  const cannotPay = !cashAccepted && !onlineAvailable;
+  useEffect(() => {
+    if (!cashAccepted && onlineAvailable && paymentMethod === 'CASH_ON_DELIVERY') setPaymentMethod('RAZORPAY_SANDBOX');
+  }, [cashAccepted, onlineAvailable, paymentMethod]);
 
   useEffect(() => {
     if (!apiUrl) return;
@@ -871,10 +878,13 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           <Text style={styles.blockTitle}>Payment</Text>
           {onlineAvailable ? (
             <View style={styles.methodList}>
+              {!cashAccepted ? (
+                <Text style={styles.methodHint}>This restaurant accepts online payment only.</Text>
+              ) : null}
               {([
                 { key: 'RAZORPAY_SANDBOX', label: 'Pay now', hint: 'UPI, cards, netbanking or wallet' },
                 { key: 'CASH_ON_DELIVERY', label: 'Cash on delivery', hint: 'Pay the rider at your door' }
-              ] as const).map(m => {
+              ] as const).filter(m => cashAccepted || m.key !== 'CASH_ON_DELIVERY').map(m => {
                 const active = paymentMethod === m.key;
                 return (
                   <TouchableOpacity
@@ -896,7 +906,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             </View>
           ) : (
             <Text style={styles.methodHint}>
-              {razorpayAvailable
+              {!cashAccepted
+                ? 'This restaurant accepts online payment only, and online payment is not available right now, so this order cannot be placed. Please try another restaurant.'
+                : razorpayAvailable
                 ? 'Online payment is not switched on for this server yet, so this order is cash on delivery.'
                 : 'This build cannot open the payment sheet, so this order is cash on delivery.'}
             </Text>
@@ -1051,9 +1063,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.payButton, isProcessing && { opacity: 0.6 }]}
+          style={[styles.payButton, (isProcessing || cannotPay) && { opacity: 0.6 }]}
           onPress={handleCheckout}
-          disabled={isProcessing}
+          disabled={isProcessing || cannotPay}
           activeOpacity={0.88}
         >
           <CreditCard size={17} color={c.text.onAccent} />

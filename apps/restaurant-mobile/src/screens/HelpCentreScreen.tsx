@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Linking, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, Linking, RefreshControl, Alert } from 'react-native';
 import { ChevronDown, ChevronUp, LifeBuoy, Phone, Mail, MessageSquare, LogOut } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
-import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity } from '../lib/partnerApi';
+import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion } from '../lib/partnerApi';
 import { PasswordField } from '../components/ui';
 
 interface Props {
@@ -86,7 +86,8 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
   // Account management lives here rather than behind another tab: the partner
   // app is used at the pass with one hand, and a seventh tab would push the row
   // off the edge of the screen.
-  const [accountMode, setAccountMode] = useState<'none' | 'profile' | 'password'>('none');
+  const [accountMode, setAccountMode] = useState<'none' | 'profile' | 'password' | 'delete'>('none');
+  const [deletePassword, setDeletePassword] = useState('');
   const [profileName, setProfileName] = useState(ownerName || '');
   const [profilePhone, setProfilePhone] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -297,6 +298,66 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
               />
               <View style={{ height: spacing.md }} />
               <Button label="Sign out" variant="ghost" onPress={onSignOut} />
+              <View style={{ height: spacing.md }} />
+              {/* Delete account, as Google Play requires (owner, 2 Oct 2026). */}
+              <TouchableOpacity
+                onPress={() => {
+                  setAccountMode('delete');
+                  setAccountError(null);
+                  setAccountNotice(null);
+                }}
+                style={{ alignSelf: 'center', paddingVertical: spacing.sm }}
+              >
+                <Text style={styles.deleteLink}>Delete account</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {accountMode === 'delete' && (
+            <>
+              {!!accountError && <ErrorNote message={accountError} />}
+              <Text style={styles.deleteNote}>
+                Your account closes straight away: your kitchen stops taking orders and you cannot sign in. We pay you
+                anything we still owe, then delete the account — usually within 7 days.
+              </Text>
+              <PasswordField
+                label="Your password, to confirm"
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                placeholder="Your password"
+              />
+              <View style={styles.accountRow}>
+                <Button label="Keep my account" variant="ghost" onPress={() => setAccountMode('none')} />
+                <Button
+                  label="Delete"
+                  busy={accountBusy}
+                  onPress={() => {
+                    if (!deletePassword) {
+                      setAccountError('Enter your password to confirm it is you.');
+                      return;
+                    }
+                    Alert.alert('Delete your account?', 'This cannot be undone from the app.', [
+                      { text: 'Keep it', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          setAccountBusy(true);
+                          const result = await requestAccountDeletion(deletePassword);
+                          setAccountBusy(false);
+                          if (!result.ok) {
+                            setAccountError(result.message || 'Your account could not be closed.');
+                            return;
+                          }
+                          setDeletePassword('');
+                          Alert.alert('Account closed', result.message || 'We will settle what we owe you, then delete it.');
+                          onSignOut();
+                        }
+                      }
+                    ]);
+                  }}
+                />
+              </View>
             </>
           )}
 
@@ -391,6 +452,8 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 };
 
 const styles = StyleSheet.create({
+  deleteLink: { color: c.danger, fontWeight: '600' },
+  deleteNote: { color: c.textSoft, marginBottom: spacing.md, lineHeight: 20 },
   accountRow: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', marginTop: spacing.sm },
   accountNotice: { color: c.success, fontSize: 13, marginTop: spacing.md, lineHeight: 18 },
   screen: { flex: 1, backgroundColor: c.bg },

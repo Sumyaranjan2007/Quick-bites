@@ -140,6 +140,15 @@ export function sendMenuBatch(
   );
 }
 
+/** Delete account (Play Store): closes it now; Quick Bites deletes it once nothing is owed. */
+export function requestAccountDeletion(password: string) {
+  return request<{ deleted: boolean; requested?: boolean }>(
+    '/auth/me',
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+    'Your account could not be closed.'
+  );
+}
+
 /** Who the platform is and how to reach it — public, served by the server. */
 export function fetchBusinessIdentity() {
   return request<{ identity: { contactPhone?: string; contactEmail?: string } }>(

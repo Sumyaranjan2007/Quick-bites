@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import { isStaffRole, requestStaffDeletion } from '../modules/platform/staffDeletion.ts';
+import { notifyAdminsDeletionRequested } from '../notifications/adminNotifier.ts';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { userRepository, grantRole, hasRole, rolesOf } from '../db/repositories/userRepository.ts';
@@ -331,6 +333,23 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
           'INVALID_PASSWORD'
         );
       }
+    }
+
+    // A partner or rider: closed now, deleted by an administrator once nothing
+    // is owed either way (owner, 2 Oct 2026). See staffDeletion.ts.
+    if (isStaffRole(user.role)) {
+      await requestStaffDeletion(userId);
+      void notifyAdminsDeletionRequested({
+        userId,
+        name: user.fullName || user.email,
+        kind: user.role === 'restaurant_owner' ? 'RESTAURANT' : 'RIDER'
+      }).catch(() => undefined);
+      return res.json({
+        success: true,
+        data: { deleted: false, requested: true },
+        message:
+          'Your account is closed. We will pay anything we owe you, then delete it — usually within 7 days. You will not be able to sign in.'
+      });
     }
 
     // Not while money or food is in flight: a live order would lose its

@@ -321,6 +321,9 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             <ShieldCheck size={13} color={c.dietary.veg} />
             <Text style={styles.fssaiText}>FSSAI verified partner kitchen</Text>
           </View>
+          {restaurant.acceptsCash === false ? (
+            <Text style={styles.onlineOnly}>Online payment only — this restaurant does not take cash on delivery.</Text>
+          ) : null}
         </Card>
 
         {/* The offer that actually applies here, or nothing. */}
@@ -589,6 +592,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4
   },
   cuisine: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6 },
+  onlineOnly: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6, fontWeight: '600' },
   costLine: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4 },
   fssaiRow: {
     flexDirection: 'row',

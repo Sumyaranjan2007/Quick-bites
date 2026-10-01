@@ -114,9 +114,14 @@ async function run() {
      * number into the prose is how that happens, so the number is interpolated
      * and this test is what stops anybody typing it back in.
      */
+    // No hold by default (owner, 2 Oct 2026): the policy must not mention one.
+    const none = findPaymentPolicy('partner-settlements')!.sections.find(s => s.heading === 'When you are paid')!.body;
+    assert.ok(!/hold exists/.test(none), `a hold is explained while there is none: ${none}`);
+
+    createVersion({ partnerHoldDays: 1 }, { userId: ADMIN }, 'A one-day hold');
     const before = findPaymentPolicy('partner-settlements')!;
     const holdText = before.sections.find(s => s.heading === 'When you are paid')!.body;
-    assert.ok(holdText.includes('one day'), `expected the default hold in: ${holdText}`);
+    assert.ok(holdText.includes('one day'), `expected the one-day hold in: ${holdText}`);
 
     createVersion({ partnerHoldDays: 4, codCashCeiling: 9999 }, { userId: ADMIN }, 'Longer hold');
 

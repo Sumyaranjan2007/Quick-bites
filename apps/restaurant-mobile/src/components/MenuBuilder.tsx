@@ -875,3 +875,21 @@ function makeStyles(p: BuilderPalette) {
     photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, marginBottom: 8 }
   });
 }
+
+/**
+ * The same dish editor, on its own, for a dish that is already live
+ * (owner, 2 Oct 2026): the admin app edits a restaurant's menu with exactly
+ * the form and rules a partner uses — photo, sizes, extras, veg, description.
+ */
+export const DishEditorSheet: React.FC<{
+  palette: BuilderPalette;
+  sectionName: string;
+  dish: DraftDish;
+  pickDishPhoto: MenuBuilderProps['pickDishPhoto'];
+  onCancel: () => void;
+  onSave: (dish: DraftDish) => void;
+  onRemove: () => void;
+}> = props => {
+  const styles = useMemo(() => makeStyles(props.palette), [props.palette]);
+  return <DishEditor {...props} styles={styles} />;
+};

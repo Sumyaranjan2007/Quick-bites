@@ -54,6 +54,7 @@ const SUITES = [
   'riderPerKm',
   'menuBuilder',
   'appMaths',
+  'launchRound',
   'routes',
   'statements',
   'policies',

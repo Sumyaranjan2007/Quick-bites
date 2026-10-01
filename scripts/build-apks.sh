@@ -20,6 +20,9 @@
 #      if you are deliberately shipping something you will test on real ARM
 #      hardware instead.
 #
+# Pass --aab to also build the Play Store bundles (build/aab/), for Customer,
+# Partner and Rider.
+#
 # Requires JDK 17 — Gradle 8.10/AGP here reject Java 25 — and an Android SDK.
 set -euo pipefail
 
@@ -127,6 +130,9 @@ PREBUILD=1
 ONLY=""
 DRY_RUN=0
 ALLOW_DEBUG_SIGNING=0
+# Play Store bundles too (owner, 2 Oct 2026). Customer, Partner and Rider only:
+# the admin app is shared privately, never published.
+AAB=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -135,6 +141,7 @@ while [[ $# -gt 0 ]]; do
     --no-prebuild) PREBUILD=0; shift ;;
     --only) ONLY="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --aab) AAB=1; shift ;;
     # For a contributor without the keystores. The result can never update the
     # app on a phone and must not be handed out; it is named so.
     --allow-debug-signing) ALLOW_DEBUG_SIGNING=1; shift ;;
@@ -342,6 +349,21 @@ for entry in "${APPS[@]}"; do
     echo "FATAL: $app was built but would not install as an update; kept as $artifact.REJECTED.apk for inspection." >&2
     exit 1
   }
+
+  # The Play Store bundle, from the same source and signing key as the APK
+  # just verified, so the store build and the tested build cannot differ.
+  if [[ "$AAB" == "1" && "$app" != "admin-mobile" ]]; then
+    bundle="android/app/build/outputs/bundle/release/app-release.aab"
+    rm -f "$bundle"
+    (cd android && ./gradlew bundleRelease --console=plain)
+    if [[ ! -f "$bundle" ]]; then
+      echo "FATAL: $app built no bundle at $bundle" >&2
+      exit 1
+    fi
+    mkdir -p "$ROOT/build/aab"
+    cp "$bundle" "$ROOT/build/aab/$artifact.aab"
+    echo "  -> $ROOT/build/aab/$artifact.aab ($(du -h "$ROOT/build/aab/$artifact.aab" | cut -f1))"
+  fi
 done
 
 echo ""

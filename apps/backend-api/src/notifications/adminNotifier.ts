@@ -683,6 +683,25 @@ export function notifyAdminsNewSignup(input: {
   });
 }
 
+/** A partner or rider asked to delete their account (owner, 2 Oct 2026). */
+export function notifyAdminsDeletionRequested(input: {
+  userId: string;
+  name: string;
+  kind: 'RESTAURANT' | 'RIDER';
+}): Promise<string[]> {
+  const isKitchen = input.kind === 'RESTAURANT';
+  return notifyAdmins({
+    permission: isKitchen ? 'users.restaurants.manage' : 'users.drivers.manage',
+    title: 'Account deletion requested',
+    body: `${input.name} asked to delete their ${isKitchen ? 'partner' : 'rider'} account. Settle what is owed, then complete it in People.`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'people',
+    subject: input.userId,
+    type: 'ADMIN_DELETION_REQUESTED',
+    category: 'APPROVALS'
+  });
+}
+
 /** Marked delivered a long way from the delivery address. */
 export function notifyAdminsDeliveryLocationMismatch(input: {
   orderId: string;

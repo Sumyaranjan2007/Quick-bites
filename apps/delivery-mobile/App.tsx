@@ -242,6 +242,25 @@ function DeliveryApp() {
     announcedOffers.current.clear();
   }, []);
 
+  /** Delete account (Play Store): closed now; Quick Bites deletes it once nothing is owed. */
+  const handleDeleteAccount = useCallback(
+    async (password: string) => {
+      try {
+        await api.requestAccountDeletion(ctxRef.current, password);
+      } catch (err: any) {
+        Alert.alert('Account not closed', err?.message || 'Nothing was changed. Try again.');
+        return false;
+      }
+      Alert.alert(
+        'Account closed',
+        'We will pay anything we owe you, then delete your account — usually within 7 days. You can no longer sign in.'
+      );
+      await handleLogout();
+      return true;
+    },
+    [handleLogout]
+  );
+
   /*
    * R1: another rider took a trip this phone is ringing for. The alarm, the
    * shade entry and (if it is the one on screen) the offer card all go.
@@ -806,6 +825,7 @@ function DeliveryApp() {
             onOpenSafety={() => setSubScreen('safety')}
             onChangePassword={handleChangePassword}
             onLogout={handleLogout}
+            onDeleteAccount={handleDeleteAccount}
           />
         );
     }

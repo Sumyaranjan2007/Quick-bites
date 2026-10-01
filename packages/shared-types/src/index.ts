@@ -162,6 +162,11 @@ export interface Restaurant {
   fssaiLicenseNumber?: string;
   gstin?: string;
   isPureVeg: boolean;
+  /**
+   * Cash on delivery for this kitchen. Absent or true = accepted. Set only by an
+   * administrator (owner, 2 Oct 2026).
+   */
+  acceptsCash?: boolean;
   packagingFee: number;
   /**
    * What the partner says their packaging costs them, in rupees.
@@ -1900,7 +1905,7 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   // Rider earnings. Defaults agreed for the payouts rebuild.
   riderBaseFeePerTrip: 0,
   riderBaseKm: 0,
-  riderPerKmFee: 10,
+  riderPerKmFee: 12,
   riderMinEarningPerTrip: 30,
   // Starts at zero, so this lands changing nothing until somebody sets it.
   riderDeliveryMarkupPercent: 0,
@@ -1917,7 +1922,7 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   /** Days money may sit at the gateway before it is a problem. Razorpay is T+2. */
   gatewaySettlementOverdueDays: 3,
   codCashWarnPercent: 80,
-  partnerHoldDays: 1,
+  partnerHoldDays: 0,
   riderHoldDays: 0,
   payoutCadenceDays: 7,
   minPayoutAmount: 100,

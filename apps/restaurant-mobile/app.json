@@ -2,7 +2,7 @@
   "expo": {
     "name": "Quick Bites Partner",
     "slug": "quick-bite-partner",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "quickbitepartner",

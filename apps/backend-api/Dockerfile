@@ -22,6 +22,8 @@ RUN npm ci --include=dev
 COPY packages/shared-types ./packages/shared-types
 COPY packages/pricing-engine ./packages/pricing-engine
 COPY apps/backend-api ./apps/backend-api
+# The privacy policy and terms, served as public pages (Play Store, 2 Oct 2026).
+COPY legal ./legal
 
 # Stage 2: Production Runner
 FROM node:22-alpine AS runner
@@ -39,6 +41,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/backend-api ./apps/backend-api
+COPY --from=builder /app/legal ./legal
 
 # Create persistent data directory with correct permissions
 RUN mkdir -p /app/apps/backend-api/data && chown -R node:node /app

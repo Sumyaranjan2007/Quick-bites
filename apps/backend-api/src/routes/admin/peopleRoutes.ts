@@ -3,6 +3,7 @@
  * and the documents that qualify the last two to trade.
  */
 import { cashSwitchedOffFor, lateCashCancels } from '../../modules/orders/cancellationFee.ts';
+import { listDeletionRequests, completeStaffDeletion, cancelStaffDeletion } from '../../modules/platform/staffDeletion.ts';
 import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
@@ -621,6 +622,8 @@ const RestaurantUpdateSchema = z.object({
     .optional(),
   /** How far this kitchen delivers. Bounded as at registration. */
   serviceRadiusKm: z.number().min(1).max(25).optional(),
+  /** Cash on delivery for this kitchen (owner, 2 Oct 2026). Admin only. */
+  acceptsCash: z.boolean().optional(),
   /** Locks the owner's login account. See `setAccountBlocked` above. */
   isBlocked: z.boolean().optional(),
   blockReason: z.string().trim().max(300).optional(),
@@ -666,7 +669,11 @@ peopleRoutes.patch(
       triggerAutoSave();
 
       recordAudit(req, {
-        action: isBlocked !== undefined
+        action: req.body.acceptsCash !== undefined && Object.keys(req.body).every(k => k === 'acceptsCash' || k === 'reason')
+          ? req.body.acceptsCash
+            ? 'RESTAURANT_COD_ON'
+            : 'RESTAURANT_COD_OFF'
+          : isBlocked !== undefined
           ? isBlocked
             ? 'RESTAURANT_OWNER_BLOCKED'
             : 'RESTAURANT_OWNER_UNBLOCKED'
@@ -675,12 +682,71 @@ peopleRoutes.patch(
             : 'RESTAURANT_UPDATED',
         entityType: 'RESTAURANT',
         entityId: restaurant.id,
-        summary: `Updated restaurant ${restaurant.name}${reason ? ` — ${reason}` : ''}`,
+        summary:
+          req.body.acceptsCash !== undefined
+            ? `Cash on delivery ${req.body.acceptsCash ? 'turned on' : 'turned off'} for ${restaurant.name}${reason ? ` — ${reason}` : ''}`
+            : `Updated restaurant ${restaurant.name}${reason ? ` — ${reason}` : ''}`,
         before,
         after: req.body
       });
 
       res.json({ success: true, data: { restaurant } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ---------------------------- Deletion requests --------------------------- */
+
+/** GET /api/admin/deletion-requests — partners and riders who asked to be deleted. */
+peopleRoutes.get(
+  '/deletion-requests',
+  requirePermission('users.restaurants.manage', 'users.drivers.manage'),
+  async (_req, res, next) => {
+    try {
+      res.json({ success: true, data: { requests: listDeletionRequests() } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** POST /api/admin/deletion-requests/:userId/complete — delete, once nothing is owed. */
+peopleRoutes.post(
+  '/deletion-requests/:userId/complete',
+  requirePermission('users.restaurants.manage', 'users.drivers.manage'),
+  async (req, res, next) => {
+    try {
+      const before = listDeletionRequests().find(r => r.userId === req.params.userId);
+      await completeStaffDeletion(req.params.userId);
+      recordAudit(req, {
+        action: 'ACCOUNT_DELETED_ON_REQUEST',
+        entityType: 'USER',
+        entityId: req.params.userId,
+        summary: `Deleted the account of ${before?.name || req.params.userId}, as they asked`
+      });
+      res.json({ success: true, data: { requests: listDeletionRequests() } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** POST /api/admin/deletion-requests/:userId/cancel — they changed their mind. */
+peopleRoutes.post(
+  '/deletion-requests/:userId/cancel',
+  requirePermission('users.restaurants.manage', 'users.drivers.manage'),
+  async (req, res, next) => {
+    try {
+      await cancelStaffDeletion(req.params.userId);
+      recordAudit(req, {
+        action: 'ACCOUNT_DELETION_CANCELLED',
+        entityType: 'USER',
+        entityId: req.params.userId,
+        summary: `Cancelled the deletion request of ${req.params.userId}; the account can sign in again`
+      });
+      res.json({ success: true, data: { requests: listDeletionRequests() } });
     } catch (err) {
       next(err);
     }

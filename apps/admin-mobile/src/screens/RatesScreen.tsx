@@ -406,6 +406,15 @@ export const RatesScreen: React.FC = () => {
               ) : null}
             </Card>
 
+            {platform.data?.config?.rates ? (
+              <CityRatesCard
+                globalPerKm={Number(platform.data.config.rates.riderPerKmFee) || 0}
+                minimum={Number(platform.data.config.rates.riderMinEarningPerTrip) || 0}
+                markup={Number(platform.data.config.rates.riderDeliveryMarkupPercent) || 0}
+                canEdit={can('finance.config.edit')}
+              />
+            ) : null}
+
             {platform.loading && !platform.data ? (
               <Loading label="Reading your rates…" />
             ) : !platform.data ? (
@@ -1031,6 +1040,123 @@ export default RatesScreen;
  * values on screen (including unsaved edits). Same arithmetic as the bill:
  * rider pay = km x rate, rounded, never below the minimum; fee = pay + markup.
  */
+/**
+ * Rider pay per km for one city (owner, 2 Oct 2026). Orders from a restaurant
+ * in that city pay riders this rate; every other city uses the global rate.
+ * The minimum per trip and the delivery markup stay global.
+ */
+const CityRatesCard: React.FC<{ globalPerKm: number; minimum: number; markup: number; canEdit: boolean }> = ({
+  globalPerKm,
+  minimum,
+  markup,
+  canEdit
+}) => {
+  const { api } = useSession();
+  const resource = useResource(() => api.get<any>('/admin/pricing/rider-city-rates'), []);
+  const [city, setCity] = useState('');
+  const [perKm, setPerKm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const rows: Array<{ city: string; perKm: number; updatedByName: string }> = resource.data?.rates || [];
+  const cities: string[] = resource.data?.cities || [];
+  const unset = cities.filter(cn => !rows.some(r => r.city.toLowerCase() === cn.toLowerCase()));
+
+  const save = async (target: string, value: number | null) => {
+    setBusy(true);
+    try {
+      await api.put('/admin/pricing/rider-city-rates', { city: target, perKm: value });
+      setCity('');
+      setPerKm('');
+      await resource.reload();
+    } catch (err: any) {
+      Alert.alert('Could not save', err?.message || 'Nothing was changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <View style={s.rowHead}>
+        <Text style={s.rowName}>Rider pay by city</Text>
+      </View>
+      <Text style={s.explainerBody}>
+        A city with its own rate pays riders that much per km on orders from its restaurants. Every other city uses
+        the global rate, {rupees(globalPerKm)}/km. The minimum and the markup stay the same everywhere.
+      </Text>
+      <ResourceError resource={resource} what="City rates" />
+      {rows.length === 0 && resource.data ? (
+        <Text style={[s.explainerBody, { marginTop: 8 }]}>No city has its own rate yet.</Text>
+      ) : null}
+      {rows.map(r => (
+        <View key={r.city} style={{ marginTop: 10 }}>
+          <View style={s.rowHead}>
+            <Text style={s.rowName}>
+              {r.city} · {rupees(r.perKm)}/km
+            </Text>
+            {canEdit ? (
+              <Button
+                label="Use global"
+                size="sm"
+                variant="secondary"
+                onPress={() =>
+                  Alert.alert(`Remove ${r.city}'s rate?`, `Riders there go back to ${rupees(globalPerKm)}/km.`, [
+                    { text: 'Keep it', style: 'cancel' },
+                    { text: 'Remove', style: 'destructive', onPress: () => save(r.city, null) }
+                  ])
+                }
+              />
+            ) : null}
+          </View>
+          <DeliveryExamples perKm={r.perKm} minimum={minimum} markup={markup} />
+        </View>
+      ))}
+
+      {canEdit ? (
+        <View style={{ marginTop: 14 }}>
+          <Text style={s.fieldLabel}>Set a city's rate</Text>
+          {unset.length > 0 ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              {unset.map(cn => (
+                <TouchableOpacity key={cn} onPress={() => setCity(cn)}>
+                  <Badge label={cn} tone={city === cn ? 'warning' : 'neutral'} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+          <View style={s.fieldRow}>
+            <TextInput
+              style={s.fieldInput}
+              value={city}
+              onChangeText={setCity}
+              placeholder="City, e.g. Mysuru"
+              placeholderTextColor={c.text.muted}
+            />
+          </View>
+          <View style={{ height: 8 }} />
+          <View style={s.fieldRow}>
+            <TextInput
+              style={s.fieldInput}
+              value={perKm}
+              onChangeText={v => setPerKm(v.replace(/[^0-9.]/g, ''))}
+              placeholder={`Per km, e.g. ${globalPerKm + 2}`}
+              placeholderTextColor={c.text.muted}
+              keyboardType="numeric"
+            />
+            <Text style={s.fieldSuffix}>Rs/km</Text>
+          </View>
+          <View style={{ height: 10 }} />
+          <Button
+            label="Save city rate"
+            loading={busy}
+            disabled={!city.trim() || !(Number(perKm) >= 0) || perKm === ''}
+            onPress={() => save(city.trim(), Number(perKm))}
+          />
+        </View>
+      ) : null}
+    </Card>
+  );
+};
+
 const DeliveryExamples: React.FC<{ perKm: number; minimum: number; markup: number }> = ({ perKm, minimum, markup }) => (
   <View style={{ marginTop: 10, gap: 4 }}>
     {[2, 5, 8].map(km => {

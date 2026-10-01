@@ -282,14 +282,16 @@ export function paymentPolicies(): PaymentPolicy[] {
           heading: 'When you are paid',
           body:
             `${arrivalSentence('RESTAURANT')} ` +
-            'The hold exists so that a refund raised the day after delivery comes off a settlement rather than becoming a debt we have to ask you for. ' +
+            (rates.partnerHoldDays > 0
+              ? 'The hold exists so that a refund raised the day after delivery comes off a settlement rather than becoming a debt we have to ask you for. '
+              : 'A refund raised after you have been paid comes off your next payment, on the order it relates to. ') +
             `Anything below ${money(rates.minPayoutAmount)} carries to the next run rather than being sent as a fee-heavy transfer.`
         },
         {
           heading: 'Where you are paid',
           body:
             'To the bank account you register in the app. We verify it with a small test transfer that confirms the account exists and the name on it. ' +
-            'We do not keep your account number after verification — only the last four digits, so you can recognise it. Until an account is verified we have nowhere to send a settlement.'
+            'We keep your account number encrypted. Our staff see it only when sending you money by hand, and every time they do is recorded; everywhere else only the last four digits are shown. Until an account is verified we have nowhere to send a settlement.'
         },
         {
           heading: 'You do not have to ask',
@@ -361,7 +363,7 @@ export function paymentPolicies(): PaymentPolicy[] {
         {
           heading: 'Where you are paid',
           body:
-            'To the bank account or UPI id you register in the app, verified with a small test transfer. We do not keep your account number afterwards, only the last four digits. Until it is verified there is nowhere to send your earnings.'
+            'To the bank account or UPI id you register in the app, verified with a small test transfer. We keep your account number encrypted; staff see it only when paying you by hand, and each time is recorded. Until it is verified there is nowhere to send your earnings.'
         },
         {
           heading: 'You do not have to ask',

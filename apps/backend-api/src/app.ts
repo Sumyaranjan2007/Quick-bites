@@ -1,5 +1,6 @@
 import express from 'express';
 import type { Express } from 'express';
+import { publicPages } from './routes/publicPages.ts';
 import { correlationIdMiddleware } from './middlewares/correlationId.ts';
 import { securityHeadersMiddleware } from './middlewares/securityHeaders.ts';
 import { corsMiddleware } from './middlewares/cors.ts';
@@ -56,6 +57,9 @@ export function createApp(): Express {
 
   // 7. Direct /health probe at root
   app.get('/health', getHealth);
+
+  // Privacy policy, terms and account deletion as web pages (Play Store).
+  app.use(publicPages);
 
   // Root welcome & status endpoint
   app.get('/', (req, res) => {

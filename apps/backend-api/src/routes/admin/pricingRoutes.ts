@@ -52,6 +52,8 @@ import {
   DEFAULT_RATES
 } from '../../modules/payments/pricingConfig.ts';
 import { ledger } from '../../modules/payments/ledger.ts';
+import { memoryStore } from '../../db/client.ts';
+import { listCityRates, setCityRate } from '../../modules/payments/riderCityRates.ts';
 import { toRupees } from '../../modules/payments/money.ts';
 import type { LedgerAccountKind, PricingRates } from '@quick-bites/shared-types';
 
@@ -158,6 +160,58 @@ function acceptChangesAsRates(req: any, _res: any, next: () => void): void {
 }
 // Read by the body contract check, so the shipped app's shape counts as known.
 (acceptChangesAsRates as any).bodyAliases = { changes: 'rates' };
+
+/**
+ * GET /api/admin/pricing/rider-city-rates — rider pay per km by city
+ * (owner, 2 Oct 2026), and the cities restaurants are in, to choose from.
+ */
+pricingRoutes.get(
+  '/pricing/rider-city-rates',
+  requirePermission('finance.config.edit', 'finance.reports.view'),
+  async (_req, res, next) => {
+    try {
+      const byKey = new Map<string, string>();
+      for (const r of memoryStore.restaurants.values() as Iterable<any>) {
+        const city = String(r?.city || '').trim().replace(/ +/g, ' ');
+        if (city && !byKey.has(city.toLowerCase())) byKey.set(city.toLowerCase(), city);
+      }
+      const cities = Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
+      res.json({ success: true, data: { rates: listCityRates(), cities } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const CityRateSchema = z.object({
+  city: z.string().trim().min(1, 'Name the city.').max(80),
+  /** null removes the city's own rate: it follows the global rate again. */
+  perKm: z.number().min(0).max(200).nullable()
+});
+
+/** PUT /api/admin/pricing/rider-city-rates — set or clear one city's rate. */
+pricingRoutes.put(
+  '/pricing/rider-city-rates',
+  requirePermission('finance.config.edit'),
+  validate({ body: CityRateSchema }),
+  async (req, res, next) => {
+    try {
+      const row = setCityRate(req.body.city, req.body.perKm, req.user!.fullName || req.user!.email || 'an administrator');
+      recordAudit(req, {
+        action: row ? 'RIDER_CITY_RATE_SET' : 'RIDER_CITY_RATE_CLEARED',
+        entityType: 'PRICING',
+        entityId: `city:${req.body.city}`,
+        summary: row
+          ? `Rider pay in ${row.city} set to Rs ${row.perKm} per km`
+          : `${req.body.city} follows the global rider pay per km again`,
+        after: req.body
+      });
+      res.json({ success: true, data: { rates: listCityRates() } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 pricingRoutes.put(
   '/pricing/config',

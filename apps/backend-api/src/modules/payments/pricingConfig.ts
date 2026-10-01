@@ -362,3 +362,30 @@ export function applyRiderPerKmDecision(): boolean {
   memoryStore.meta.set(FLAG, new Date().toISOString());
   return true;
 }
+
+/**
+ * The owner's decisions of 2 Oct 2026, applied once to the live rates:
+ * riders earn ₹12 per road km (was ₹10), and there is no hold period —
+ * everything earned is payable at once and Quick Bites pays when it chooses.
+ * The ₹100 minimum payout stays. Guarded by a flag so a later change made on
+ * the Rates screen is never undone by a restart.
+ */
+export function applyOwnerDecisions20261002(): boolean {
+  const FLAG = 'rates:rider-12-no-hold-2026-10-02';
+  if (memoryStore.meta.get(FLAG)) return false;
+  const live = getActiveRates();
+  const changes: Partial<PricingRates> = {};
+  if (live.riderPerKmFee !== 12) changes.riderPerKmFee = 12;
+  if (live.partnerHoldDays !== 0) changes.partnerHoldDays = 0;
+  if (live.riderHoldDays !== 0) changes.riderHoldDays = 0;
+  if (Object.keys(changes).length > 0) {
+    createVersion(
+      changes,
+      { userId: 'system' },
+      "Owner's decision 2 Oct 2026: riders earn Rs 12 per road km; no hold period, pay whenever."
+    );
+  }
+  memoryStore.meta.set(FLAG, new Date().toISOString());
+  return true;
+}
+

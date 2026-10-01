@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Bike, Store, Landmark, ShieldAlert, Wallet } from 'lucide-react-native';
-import { Card, Segmented, Badge, Loading, EmptyState, NoAccess, SectionTitle } from '../components/ui';
+import { Card, Segmented, Badge, Loading, EmptyState, NoAccess, SectionTitle, Button, Sheet, Field, KeyValue } from '../components/ui';
 import { tokens, formatMoney, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
@@ -33,6 +33,8 @@ const c = tokens.colors;
 export const SettlementsScreen: React.FC = () => {
   const { api, can } = useSession();
   const [tab, setTab] = useState<'riders' | 'restaurants'>('riders');
+  const [paying, setPaying] = useState<any | null>(null);
+  const canPay = can('finance.payouts.manage') || can('finance.settlements.manage');
 
   const allowed = can('finance.settlements.view') || can('finance.payouts.view');
 
@@ -96,7 +98,7 @@ export const SettlementsScreen: React.FC = () => {
         <>
           <SectionTitle
             title={tab === 'riders' ? 'Owed to delivery partners' : 'Owed to restaurants'}
-            subtitle="The same figures Pay works from. A blocked row is somebody who is not getting paid until it is cleared."
+            subtitle="The same figures Pay works from. Ready rows can be paid now. Amber means something has to be done first."
           />
 
           {owing.map(row => (
@@ -112,11 +114,7 @@ export const SettlementsScreen: React.FC = () => {
                       : 'Everything earned is released'}
                   </Text>
                 </View>
-                {row.blockedReason ? (
-                  <Badge label="Blocked" tone="warning" />
-                ) : row.payable > 0 ? (
-                  <Badge label="Ready" tone="success" />
-                ) : null}
+                <StatusBadge row={row} />
               </View>
 
               <View style={s.figures}>
@@ -150,7 +148,8 @@ export const SettlementsScreen: React.FC = () => {
                 </View>
               )}
 
-              {!!row.blockedReason && (
+              {/* Only what somebody has to act on; "nothing owed" is not a problem. */}
+              {!!row.blockedReason && (row.blockedCode === 'CASH_IN_HAND' || row.blockedCode === 'BELOW_MINIMUM') && (
                 <View style={s.line}>
                   <Wallet size={14} color={c.state.warning} />
                   <Text style={[s.lineText, { color: c.state.warning }]}>{row.blockedReason}</Text>
@@ -160,11 +159,169 @@ export const SettlementsScreen: React.FC = () => {
               {!!row.requestedAt && (
                 <Text style={s.asked}>They asked to be paid {timeAgo(row.requestedAt)}.</Text>
               )}
+
+              {canPay && !row.blockedReason && row.payable > 0 ? (
+                <Button
+                  label={`Pay ${formatMoney(row.payable)} now`}
+                  variant="success"
+                  style={{ marginTop: tokens.space[3], alignSelf: 'stretch' }}
+                  onPress={() => setPaying(row)}
+                />
+              ) : null}
             </Card>
           ))}
         </>
       )}
+      <PayNowSheet
+        row={paying}
+        rails={dues.data?.rails || []}
+        defaultRail={dues.data?.defaultRail}
+        onClose={() => setPaying(null)}
+        onPaid={() => {
+          setPaying(null);
+          void dues.reload();
+        }}
+      />
     </ScrollView>
+  );
+};
+
+/** What a row's state is, in words. Amber only when someone must act. */
+const StatusBadge: React.FC<{ row: any }> = ({ row }) => {
+  if (row.blockedCode === 'CASH_IN_HAND') return <Badge label="Cash to deposit" tone="warning" />;
+  if (row.blockedCode === 'NO_ACCOUNT') return <Badge label="No bank account" tone="warning" />;
+  if (row.blockedCode === 'BELOW_MINIMUM') return <Badge label="Under minimum" tone="neutral" />;
+  if (row.blockedCode === 'NOTHING_OWED') return <Badge label={row.held > 0 ? 'In hold' : 'Settled'} tone="neutral" />;
+  if (row.payable > 0) return <Badge label="Ready to pay" tone="success" />;
+  return null;
+};
+
+/**
+ * Paying one partner in one go (owner, 2 Oct 2026): draft, approve and send,
+ * by hand (UPI or bank, with the UTR) or through RazorpayX. A super admin signs
+ * both sides of a large payout; anybody else is told a second approver is needed.
+ */
+const PayNowSheet: React.FC<{
+  row: any | null;
+  rails: Array<{ id: string; displayName: string; description: string; available: boolean; needsManualReference: boolean }>;
+  defaultRail?: string;
+  onClose: () => void;
+  onPaid: () => void;
+}> = ({ row, rails, defaultRail, onClose, onPaid }) => {
+  const { api } = useSession();
+  const usable = rails.filter(r => r.available);
+  const [railId, setRailId] = useState<string | null>(null);
+  const [utr, setUtr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [details, setDetails] = useState<any | null>(null);
+  const chosen = usable.find(r => r.id === (railId || defaultRail)) || usable[0];
+  const needsUtr = Boolean(chosen?.needsManualReference);
+  const dest = row?.willPayInto;
+
+  const reset = () => {
+    setRailId(null);
+    setUtr('');
+    setDetails(null);
+  };
+
+  const showDetails = async () => {
+    if (!dest?.accountId) return;
+    try {
+      setDetails(await api.get<any>(`/admin/payee-accounts/${dest.accountId}/number`));
+    } catch (err: any) {
+      Alert.alert('Could not show the details', err?.message || 'Try again.');
+    }
+  };
+
+  const pay = async () => {
+    if (!row || !chosen) return;
+    setBusy(true);
+    try {
+      const drafted = await api.post<any>('/admin/payouts', { ownerType: row.ownerType, ownerId: row.ownerId, rail: chosen.id });
+      const payout = drafted.payout;
+      if (payout.state === 'AWAITING_APPROVAL') await api.post(`/admin/payouts/${payout.id}/approve`, {});
+      await api.post(`/admin/payouts/${payout.id}/send`, { manualReference: utr.trim() || undefined });
+      Alert.alert('Paid', `${formatMoney(row.payable)} to ${row.ownerName} is recorded.`);
+      reset();
+      onPaid();
+    } catch (err: any) {
+      Alert.alert('Not paid', `${err?.message || 'The payment could not be completed.'} Anything left half-done is on the Pay screen.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      visible={Boolean(row)}
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+      title={row ? `Pay ${row.ownerName}` : 'Pay'}
+      subtitle={row ? `${formatMoney(row.payable)} payable now` : undefined}
+      footer={
+        <View style={{ flex: 1 }}>
+          <Button
+            label={row ? `Pay ${formatMoney(row.payable)}` : 'Pay'}
+            variant="success"
+            loading={busy}
+            disabled={!chosen || (needsUtr && utr.trim().length < 4)}
+            style={{ alignSelf: 'stretch' }}
+            onPress={pay}
+          />
+        </View>
+      }
+    >
+      {usable.length > 1 ? (
+        <Segmented
+          options={usable.map(r => ({ key: r.id, label: r.displayName }))}
+          value={chosen?.id || ''}
+          onChange={setRailId}
+        />
+      ) : null}
+      {chosen ? <Text style={s.sheetNote}>{chosen.description}</Text> : null}
+
+      <Card>
+        <Text style={s.sheetHeading}>Pay into</Text>
+        {dest ? (
+          <>
+            <KeyValue label="Name at the bank" value={dest.holderName} />
+            {dest.method === 'VPA' ? (
+              <KeyValue label="UPI ID" value={dest.vpa} tone="strong" />
+            ) : details ? (
+              details.missing ? (
+                <Text style={s.sheetNote}>
+                  This account was added before full numbers were kept. Ask them to re-enter it in their app, or pay
+                  through RazorpayX.
+                </Text>
+              ) : (
+                <>
+                  <KeyValue label="Account number" value={details.accountNumber} tone="strong" />
+                  <KeyValue label="IFSC" value={details.ifsc} tone="strong" />
+                </>
+              )
+            ) : (
+              <>
+                <KeyValue label="Account" value={`ending ${dest.accountLast4 || '----'} · ${dest.ifsc || ''}`} />
+                {needsUtr ? <Button label="Show full bank details" variant="secondary" size="sm" onPress={showDetails} /> : null}
+              </>
+            )}
+          </>
+        ) : (
+          <Text style={s.sheetNote}>No account connected.</Text>
+        )}
+      </Card>
+
+      {needsUtr ? (
+        <Field
+          label="UTR or transaction reference"
+          value={utr}
+          onChangeText={setUtr}
+          placeholder="From your bank or UPI app, after you send it"
+        />
+      ) : null}
+    </Sheet>
   );
 };
 
@@ -189,5 +346,7 @@ const s = StyleSheet.create({
   lineText: { flex: 1, fontSize: tokens.font.size.xxs, color: c.text.secondary },
   asked: { marginTop: tokens.space[2], fontSize: tokens.font.size.xxs, color: c.text.muted },
   errorCard: { borderColor: c.state.danger },
+  sheetNote: { fontSize: tokens.font.size.xs, color: c.text.secondary, marginVertical: tokens.space[2] },
+  sheetHeading: { fontSize: tokens.font.size.xs, fontWeight: '800', color: c.text.muted, marginBottom: tokens.space[2] },
   errorText: { color: c.state.danger, fontSize: 13 }
 });

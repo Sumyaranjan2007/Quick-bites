@@ -888,23 +888,23 @@ async function run() {
    *  DELIVERY MUST NOT LOSE MONEY ON EVERY ORDER                      *
    * ---------------------------------------------------------------- */
 
-  await check('A rider is paid Rs 10 a road km, with the minimum, from the configured rates', () => {
+  await check('A rider is paid Rs 12 a road km, with the minimum, from the configured rates', () => {
     /*
-     * The owner's rule (1 Oct 2026): a rider earns Rs 10 for every km of road
+     * The owner's rule (1 Oct 2026, Rs 12 from 2 Oct): a rider earns this for every km of road
      * from the restaurant to the customer, never less than the minimum per
      * trip, and the per-km amount is one global setting on the Rates screen.
      * The delivery fee the customer pays does not enter it.
      */
     const rates = getActiveRates();
-    assert.equal(rates.riderPerKmFee, 10);
+    assert.equal(rates.riderPerKmFee, 12);
 
-    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 32);
-    assert.equal(calculateTripPayout({ distanceKm: 5.5 }), 55);
+    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 38, '3.2 km at Rs 12 = 38.4, rounded');
+    assert.equal(calculateTripPayout({ distanceKm: 5.5 }), 66);
     assert.equal(calculateTripPayout({ distanceKm: 0.5 }), rates.riderMinEarningPerTrip, 'the minimum was not applied');
 
     assert.equal(
       calculateTripPayout({ distanceKm: 3.2, bill: { deliveryFee: 500 } }),
-      32,
+      38,
       'the delivery fee is being paid to the rider on top of their own rate'
     );
     // The pay frozen on the bill at checkout wins over today's rate.
@@ -914,15 +914,15 @@ async function run() {
   await check('Changing the per-km rate actually changes what a rider is paid', () => {
     createVersion({ riderPerKmFee: 15 }, { userId: ADMIN }, 'Higher rider pay');
     assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 48, '3.2 km at Rs 15');
-    createVersion({ riderPerKmFee: 10 }, { userId: ADMIN }, 'Back');
+    createVersion({ riderPerKmFee: 12 }, { userId: ADMIN }, 'Back');
   });
 
   await check('The tip reaches the rider on top, in full, and only once', () => {
     // calculateTripPayout is the trip pay; the tip is added exactly once, in
     // tripTakeHome. Both used to add it, so a Rs 50 tip showed as Rs 100.
-    assert.equal(calculateTripPayout({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 32, 'the tip is inside the trip pay');
-    assert.equal(tripTakeHome({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 82);
-    assert.equal(tripTakeHome({ distanceKm: 3.2, riderPayout: 32, bill: { tipAmount: 50 } }), 82, 'the tip was counted twice');
+    assert.equal(calculateTripPayout({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 38, 'the tip is inside the trip pay');
+    assert.equal(tripTakeHome({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 88);
+    assert.equal(tripTakeHome({ distanceKm: 3.2, riderPayout: 38, bill: { tipAmount: 50 } }), 88, 'the tip was counted twice');
   });
 
   await check('A small order is PROFITABLE: delivery is never charged below rider pay', () => {

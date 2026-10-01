@@ -24,6 +24,8 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { sendRefund } from '../../modules/payments/refunds.ts';
 import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
 import { duesFor, draftPayout, executePayout, listPayouts } from '../../modules/payments/payouts.ts';
+import { ledger, accountFor } from '../../modules/payments/ledger.ts';
+import { riderPaidTotal } from '../../modules/payments/riderPayoutHistory.ts';
 import { settlementEvidence } from '../../modules/payments/earnings.ts';
 import { connectedAccountFor, accountBlockReason } from '../../modules/payments/payeeAccounts.ts';
 import type { Order, RefundRequest } from '@quick-bites/shared-types';
@@ -708,6 +710,60 @@ function restaurantShareOf(order: Order) {
  * The shape deliberately matches `/payouts` so the console can present paying a
  * kitchen and paying a rider as the same job.
  */
+/**
+ * GET /api/admin/settlements/riders — what each delivery partner has earned,
+ * been paid, and is owed (owner, 2 Oct 2026: Finance had restaurants only).
+ *
+ * Every figure comes from the ledger through the same functions Pay and the
+ * rider's own app use (duesFor, riderPaidTotal), so the three never disagree.
+ */
+financeRoutes.get('/settlements/riders', requirePermission('finance.settlements.view'), async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const riders = (Array.from(memoryStore.riders.values()) as any[]).filter(
+      r => !q || [r.fullName, r.phone, r.driverCode, r.city].some((v: any) => String(v || '').toLowerCase().includes(q))
+    );
+    const rows = riders.map(rider => {
+      const due = duesFor('RIDER', rider.id, rider.fullName);
+      const earnedPaise = ledger
+        .query({ account: accountFor('RIDER_PAYABLE' as any, rider.id) })
+        .filter((e: any) => e.direction === 'CREDIT' && !e.payoutId)
+        .reduce((t: number, e: any) => t + e.amountPaise, 0);
+      const delivered = (Array.from(memoryStore.orders.values()) as any[]).filter(
+        o => o.riderId === rider.id && o.status === 'DELIVERED'
+      ).length;
+      return {
+        riderId: rider.id,
+        riderName: rider.fullName,
+        phone: rider.phone,
+        tripsDelivered: delivered,
+        earnedToDate: toRupees(earnedPaise),
+        paidToDate: riderPaidTotal(rider.id),
+        owedNow: toRupees(due.outstandingPaise),
+        payableNow: toRupees(due.payablePaise),
+        cashInHand: toRupees(due.cashInHandPaise),
+        blockedCode: due.blockedCode,
+        blockedReason: due.blockedReason,
+        willPayInto: due.willPayInto
+      };
+    });
+    rows.sort((a, b) => b.owedNow - a.owedNow || a.riderName.localeCompare(b.riderName));
+    res.json({
+      success: true,
+      data: {
+        riders: rows,
+        totals: {
+          owed: Math.round(rows.reduce((t, r) => t + r.owedNow, 0) * 100) / 100,
+          paid: Math.round(rows.reduce((t, r) => t + r.paidToDate, 0) * 100) / 100,
+          cashInHand: Math.round(rows.reduce((t, r) => t + r.cashInHand, 0) * 100) / 100
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 financeRoutes.get('/settlements', requirePermission('finance.settlements.view'), async (req, res, next) => {
   try {
     const { q } = req.query as Record<string, string>;

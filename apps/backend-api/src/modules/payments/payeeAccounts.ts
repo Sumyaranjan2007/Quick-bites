@@ -19,16 +19,16 @@
  * -------------------------------------------------------------------------
  * AND THEN THE NUMBER IS THROWN AWAY
  * -------------------------------------------------------------------------
- * Verification returns a `fund_account_id`, and that id is what payouts are
- * sent to afterwards. The account number is never persisted — it exists in
- * memory for the length of one request and then it is gone, leaving the last
- * four digits so a human can recognise the row.
+ * Verification returns a `fund_account_id`, and that id is what RazorpayX
+ * payouts are sent to. The account RECORD carries only the last four digits.
  *
- * Quick Bites therefore stores no full bank account number for anybody. That is
- * not a nicety; it is the difference between a breach of this database being
- * embarrassing and being a fraud campaign against every rider on the platform.
+ * Since 2 Oct 2026 the full number is also kept — encrypted, in its own table,
+ * readable through one audited admin route — because the owner pays by hand
+ * from their own bank as well, and nobody can send money to "ending 4321". See
+ * payeeAccountNumbers.ts. A breach of the database alone does not reveal it.
  */
 import crypto from 'crypto';
+import { storeAccountNumber } from './payeeAccountNumbers.ts';
 import { memoryStore, triggerAutoSave, flushStore } from '../../db/client.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { razorpayXAdapter, isRazorpayXConfigured } from './razorpayXAdapter.ts';
@@ -271,7 +271,7 @@ export interface AddAccountInput {
   ownerUserId: string;
   method: PayeeMethod;
   holderName: string;
-  /** Present for BANK. Never persisted. */
+  /** Present for BANK. Kept only encrypted, apart from the record (payeeAccountNumbers.ts). */
   accountNumber?: string;
   ifsc?: string;
   vpa?: string;
@@ -340,6 +340,8 @@ export async function addAccount(input: AddAccountInput): Promise<PayeeAccount> 
   };
 
   memoryStore.payeeAccounts.set(account.id, account);
+  // The full number, encrypted and kept apart, so it can be paid by hand.
+  if (input.accountNumber) storeAccountNumber(account.id, input.accountNumber);
 
   /*
    * Persisted NOW, not on the debounce.
@@ -370,9 +372,8 @@ export async function addAccount(input: AddAccountInput): Promise<PayeeAccount> 
  * Runs the penny drop and records what the bank said.
  *
  * Takes the account number as an ARGUMENT rather than reading it back off the
- * record, because it was never written to the record. That is the whole point:
- * there is no code path in this platform that can read a stored account number,
- * because there is nothing stored to read.
+ * record, because it is never written to the record (only, encrypted, to the
+ * separate table in payeeAccountNumbers.ts).
  */
 export async function verifyAccount(
   accountId: string,
@@ -397,9 +398,10 @@ export async function verifyAccount(
   let result: Awaited<ReturnType<typeof razorpayXAdapter.validateBankAccount>>;
 
   if (account.method === 'BANK') {
+    if (accountNumber) storeAccountNumber(account.id, accountNumber);
     if (!accountNumber) {
       throw new AppError(
-        'Re-enter the account number to verify it. It is not stored after verification.',
+        'Re-enter the account number to verify it.',
         400,
         'ACCOUNT_NUMBER_REQUIRED'
       );

@@ -9,7 +9,8 @@ import {
   setItemPrice
 } from '../../modules/payments/restaurantCharges.ts';
 import { z } from 'zod';
-import { MenuBatchSchema, createMenuBatch, menuOrder } from '../../modules/menu/menuBulk.ts';
+import { MenuBatchSchema, MenuDishSchema, createMenuBatch, menuOrder } from '../../modules/menu/menuBulk.ts';
+import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { readMenuPhoto, isMenuAiConfigured, consumeScan, MAX_IMAGE_CHARS as MAX_MENU_PHOTO_CHARS, checkMenuPhoto } from '../../modules/menu/menuAi.ts';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
@@ -87,15 +88,50 @@ catalogRoutes.get('/menus/:restaurantId', requirePermission('catalog.menus.view'
   }
 });
 
-const MenuItemSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(400).optional(),
-  price: z.number().positive().max(100000),
-  isVeg: z.boolean(),
-  categoryName: z.string().trim().min(1).max(80),
-  imageUrl: z.string().trim().max(200000).optional(),
-  isAvailable: z.boolean().optional()
-});
+/**
+ * A dish an administrator writes straight to a live menu: every field a
+ * partner can send, sizes and extras included (owner, 2 Oct 2026), under the
+ * same rules as the partner's own request.
+ */
+const MenuItemSchema = MenuDishSchema.extend({ isAvailable: z.boolean().optional() });
+
+/**
+ * The partner is told about every change Quick Bites makes to their menu
+ * (owner, 2 Oct 2026): a push, and an already-approved entry in their Recent
+ * decisions, so a price never changes behind their back.
+ */
+async function tellPartnerAboutAdminEdit(
+  req: any,
+  restaurantId: string,
+  kind: 'ADD_ITEM' | 'EDIT_ITEM',
+  dish: { id: string; name: string },
+  payload: any
+) {
+  const restaurant = await restaurantRepository.findById(restaurantId);
+  if (!restaurant) return;
+  const request = await menuRequestRepository.create({
+    restaurantId,
+    restaurantName: restaurant.name,
+    requestedByUserId: req.user!.id,
+    kind,
+    ...(kind === 'EDIT_ITEM' ? { dishId: dish.id } : {}),
+    // What the dish IS now, so the partner's list reads properly even when the
+    // edit itself changed only a photo.
+    payload: { ...payload, name: (dish as any).name, price: (dish as any).price, isVeg: (dish as any).isVeg },
+    uploadedByAdminName: req.user!.fullName || req.user!.email || 'Quick Bites'
+  } as any);
+  await menuRequestRepository.review(request.id, 'APPROVED', req.user!.id, { resultingDishId: dish.id });
+  emitMenuRequestReviewed({ id: request.id, restaurantId, status: 'APPROVED' });
+  void fcmDispatcher.sendPushNotification({
+    userId: restaurant.ownerId,
+    title: kind === 'ADD_ITEM' ? 'Quick Bites added a dish' : 'Quick Bites updated your menu',
+    body:
+      kind === 'ADD_ITEM'
+        ? `"${dish.name}" was added to your menu by the Quick Bites team.`
+        : `"${dish.name}" was changed by the Quick Bites team. Open Menu to see it.`,
+    data: { type: 'MENU_CHANGED_BY_ADMIN', restaurantId, dishId: dish.id }
+  });
+}
 
 /** POST /api/admin/menus/:restaurantId/items — add a dish directly. */
 /**
@@ -175,13 +211,15 @@ catalogRoutes.post(
   validate({ body: MenuItemSchema }),
   async (req, res, next) => {
     try {
-      const { categoryName, ...item } = req.body;
+      const { categoryName, sizes, extras, ...item } = req.body;
       const created = await menuRepository.addItem(req.params.restaurantId, categoryName, {
         ...item,
+        ...optionGroupsFromChoices({ sizes, extras }),
         description: item.description || '',
         isAvailable: item.isAvailable ?? true
       } as any);
       if (!created) throw new AppError('That restaurant has no menu to add to.', 404, 'MENU_NOT_FOUND');
+      await tellPartnerAboutAdminEdit(req, req.params.restaurantId, 'ADD_ITEM', created, req.body);
 
       emitMenuUpdated(req.params.restaurantId);
       recordAudit(req, {
@@ -208,8 +246,17 @@ catalogRoutes.patch(
   validate({ body: MenuItemPatchSchema }),
   async (req, res, next) => {
     try {
-      const updated = await menuRepository.updateItem(req.params.restaurantId, req.params.dishId, req.body);
+      const before = await menuRepository.findItem(req.params.restaurantId, req.params.dishId);
+      if (!before) throw new AppError('That dish no longer exists.', 404, 'DISH_NOT_FOUND');
+      const { sizes, extras, ...plain } = req.body;
+      // Sizes and extras become option groups exactly as an approved request's
+      // do; the ids of choices that are kept survive, so carts are not broken.
+      const updated = await menuRepository.updateItem(req.params.restaurantId, req.params.dishId, {
+        ...plain,
+        ...optionGroupsFromChoices({ sizes, extras }, (before as any).optionGroups || [])
+      });
       if (!updated) throw new AppError('That dish no longer exists.', 404, 'DISH_NOT_FOUND');
+      await tellPartnerAboutAdminEdit(req, req.params.restaurantId, 'EDIT_ITEM', updated, req.body);
 
       emitMenuUpdated(req.params.restaurantId);
       recordAudit(req, {

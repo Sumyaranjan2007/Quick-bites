@@ -141,6 +141,13 @@ export const api = {
     });
   },
 
+  /** Delete account (Play Store): closes it now; Quick Bites deletes it once nothing is owed. */
+  requestAccountDeletion(ctx: ApiContext, password: string) {
+    return request<{ deleted: boolean; requested?: boolean }>(ctx, '/auth/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ password })
+    });
+  },
   logout(ctx: ApiContext) {
     return request<unknown>(ctx, '/riders/logout', { method: 'POST', body: '{}' });
   },

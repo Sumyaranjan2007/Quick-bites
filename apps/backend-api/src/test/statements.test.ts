@@ -283,7 +283,9 @@ async function run() {
     );
   });
 
-  await check('An order delivered today is held, not payable', () => {
+  await check('An order delivered today is held, not payable, when a hold is set', () => {
+    // No hold by default since 2 Oct 2026; the control is proved with one set.
+    createVersion({ partnerHoldDays: 1 }, { userId: 'usr_admin_01' }, 'A one-day hold, for this check');
     const fresh = deliver({ deliveredAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     const statement = statementFor('RESTAURANT', RESTAURANT, 'Ganesh Bhavan');
     const order = statement.orders.find(o => o.orderId === fresh.id)!;

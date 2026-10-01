@@ -135,6 +135,8 @@ export interface DueRow {
    * is the one part of a payout that cannot be undone afterwards.
    */
   willPayInto: {
+    /** For an administrator paying by hand to ask for the full number. */
+    accountId: string;
     method: 'BANK' | 'VPA';
     holderName: string;
     accountLast4?: string;
@@ -318,6 +320,7 @@ export function duesFor(
     hasVerifiedAccount,
     willPayInto: account_
       ? {
+          accountId: account_.id,
           method: account_.method,
           holderName: account_.holderName,
           accountLast4: account_.accountLast4,
@@ -435,7 +438,7 @@ export function listPayouts(filter: { state?: PayoutState; ownerId?: string } = 
  * control that was supposed to require two people requires one person pressing
  * two buttons.
  */
-export function approvePayout(id: string, actorUserId: string): PayoutRecord {
+export function approvePayout(id: string, actorUserId: string, actorRole?: string): PayoutRecord {
   const payout = findPayout(id);
   if (!payout) throw new AppError('No such payout.', 404, 'PAYOUT_NOT_FOUND');
 
@@ -447,7 +450,10 @@ export function approvePayout(id: string, actorUserId: string): PayoutRecord {
     );
   }
 
-  if (payout.draftedByUserId === actorUserId) {
+  // The owner (super admin) may sign both sides of their own payout — they
+  // asked for it on 2 Oct 2026, being the only administrator who pays people.
+  // It is still recorded twice in the audit log. Everyone else needs a second.
+  if (payout.draftedByUserId === actorUserId && actorRole !== 'super_admin') {
     throw new AppError(
       'A payout this size needs a second administrator. You drafted it, so somebody else must approve it.',
       403,

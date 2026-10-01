@@ -16,6 +16,7 @@ import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
 import { resetAuthRateLimit, resetRequestRateLimit } from '../middlewares/rateLimiter.ts';
 import crypto from 'crypto';
+import { createVersion } from '../modules/payments/pricingConfig.ts';
 
 const PORT = 5193;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -525,6 +526,9 @@ async function run() {
    * out money it has not yet been settled for did not apply on the screen most likely
    * to be used to pay a restaurant.
    */
+  // The owner removed the hold on 2 Oct 2026; the control is still there for
+  // when one is set, and this is where it is proved.
+  createVersion({ partnerHoldDays: 1 }, { userId: 'usr_admin_01' }, 'A one-day hold, for this check');
   const tooSoon = await api('/admin/settlements', { method: 'POST', body: { restaurantId: 'rst_bbh_01' } }, superAdmin.token);
   check('Drafting inside the hold period is refused', tooSoon.status === 409, String(tooSoon.status));
   check(

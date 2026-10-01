@@ -37,6 +37,8 @@ export interface RestaurantItem {
    */
   distanceKm?: number;
   isPureVeg: boolean;
+  /** False when this kitchen takes online payment only (set by Quick Bites). */
+  acceptsCash?: boolean;
   priceForTwo: number;
   packagingFee?: number;
   bannerUrl?: string;
@@ -283,6 +285,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             deliveryTimeMins: r.estimatedDeliveryMinutes,
             distanceKm: r.distanceKm,
             isPureVeg: !!r.isPureVeg,
+            acceptsCash: r.acceptsCash !== false,
             priceForTwo: r.costForTwo ?? 400,
             packagingFee: r.packagingFee,
             bannerUrl: r.bannerUrl,

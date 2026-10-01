@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, Modal, Image } from 'react-native';
-import { MenuBuilder } from '../components/MenuBuilder';
-import { pickDishPhoto, pickMenuPages } from '../lib/photo';
+import { RestaurantMenuSheet, MenuUploadModal } from '../components/RestaurantMenuTools';
 import { UtensilsCrossed, Inbox, Tag } from 'lucide-react-native';
 import {
   Card,
@@ -61,7 +60,6 @@ const MenusTab: React.FC = () => {
   const [submitted, setSubmitted] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [builderFor, setBuilderFor] = useState<{ id: string; name: string } | null>(null);
-  const uploadedIds = useRef<string[]>([]);
   const list = useResource(() => api.get<any>(`/admin/menus${query({ q: submitted })}`), [submitted]);
   const menus = list.data?.menus || [];
 
@@ -100,7 +98,7 @@ const MenusTab: React.FC = () => {
         ))}
       </ScrollView>
 
-      <MenuSheet
+      <RestaurantMenuSheet
         restaurantId={openId}
         onClose={() => setOpenId(null)}
         onChanged={list.silentReload}
@@ -110,259 +108,8 @@ const MenusTab: React.FC = () => {
         }}
       />
       {/* A whole menu for a restaurant, typed or read from photos (owner, 1 Oct 2026). */}
-      <Modal visible={Boolean(builderFor)} animationType="slide" onRequestClose={() => setBuilderFor(null)}>
-        {builderFor ? (
-          <MenuBuilder
-            storageKey={`admin-menu-builder:${builderFor.id}`}
-            title={`Menu for ${builderFor.name}`}
-            subtitle="Uploaded on the restaurant's behalf. Reviewed like any menu request."
-            palette={{
-              bg: c.bg.base,
-              card: c.bg.card,
-              text: c.text.primary,
-              muted: c.text.muted,
-              border: c.border.subtle,
-              brand: c.brand.maroon,
-              onBrand: '#FFFFFF',
-              veg: c.state.success,
-              nonVeg: c.state.danger,
-              warn: c.state.warning,
-              warnBg: c.state.warningBg,
-              danger: c.state.danger
-            }}
-            pickDishPhoto={pickDishPhoto}
-            pickMenuPages={pickMenuPages}
-            readMenuPhoto={async image => {
-              const out = await api.post<any>(`/admin/menus/${builderFor.id}/ai-read`, { image });
-              return out.draft;
-            }}
-            sendBatch={async batch => {
-              const out = await api.post<any>(`/admin/menus/${builderFor.id}/bulk`, {
-                batchId: batch.batchId,
-                startIndex: batch.startIndex,
-                items: batch.items,
-                final: batch.final,
-                fromAiDraft: batch.fromAiDraft
-              });
-              uploadedIds.current.push(...(out.requestIds || []));
-            }}
-            sendLabel="Upload menu for review"
-            onSent={count => {
-              const target = builderFor;
-              const ids = [...uploadedIds.current];
-              uploadedIds.current = [];
-              setBuilderFor(null);
-              void list.silentReload();
-              Alert.alert(
-                `${count} dish${count === 1 ? '' : 'es'} uploaded`,
-                `They are waiting in Menu requests for ${target.name}. Approve them all now?`,
-                [
-                  { text: 'Review later', style: 'cancel' },
-                  {
-                    text: 'Approve all now',
-                    onPress: async () => {
-                      try {
-                        const result = await api.post<any>('/admin/menu-requests/bulk-review', {
-                          restaurantId: target.id,
-                          expectedRequestIds: ids
-                        });
-                        Alert.alert('Menu is live', `${result.approvedCount} approved${result.failed?.length ? `, ${result.failed.length} could not be applied` : ''}.`);
-                      } catch (err: any) {
-                        Alert.alert('Could not approve', err?.message || 'Approve them from Menu requests.');
-                      }
-                    }
-                  }
-                ]
-              );
-            }}
-            onClose={() => setBuilderFor(null)}
-          />
-        ) : null}
-      </Modal>
+      <MenuUploadModal target={builderFor} onClose={() => setBuilderFor(null)} onChanged={list.silentReload} />
     </View>
-  );
-};
-
-const MenuSheet: React.FC<{
-  restaurantId: string | null;
-  onClose: () => void;
-  onChanged: () => void;
-  onOpenBuilder: (restaurantId: string, name: string) => void;
-}> = ({ restaurantId, onClose, onChanged, onOpenBuilder }) => {
-  const { api, can } = useSession();
-  const [editing, setEditing] = useState<any | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: '', price: '', categoryName: '', description: '', isVeg: true });
-  const [busy, setBusy] = useState(false);
-
-  const resource = useResource(() => api.get<any>(`/admin/menus/${restaurantId}`), [restaurantId], {
-    enabled: Boolean(restaurantId)
-  });
-  const canEdit = can('catalog.menus.edit');
-
-  const reset = () => {
-    setEditing(null);
-    setAdding(false);
-    setForm({ name: '', price: '', categoryName: '', description: '', isVeg: true });
-  };
-
-  const save = async () => {
-    if (!form.name.trim() || !Number(form.price) || !form.categoryName.trim()) {
-      Alert.alert('Check the details', 'A name, a price and a category are all required.');
-      return;
-    }
-    setBusy(true);
-    try {
-      const body = {
-        name: form.name.trim(),
-        price: Number(form.price),
-        categoryName: form.categoryName.trim(),
-        description: form.description.trim() || undefined,
-        isVeg: form.isVeg
-      };
-      if (editing) await api.patch(`/admin/menus/${restaurantId}/items/${editing.id}`, body);
-      else await api.post(`/admin/menus/${restaurantId}/items`, body);
-      reset();
-      await resource.reload();
-      onChanged();
-    } catch (err: any) {
-      Alert.alert('Could not save the dish', err?.message || 'Nothing was changed.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const setStock = async (dishId: string, isAvailable: boolean) => {
-    try {
-      await api.post(`/admin/menus/${restaurantId}/items/${dishId}/stock`, { isAvailable });
-      await resource.silentReload();
-    } catch (err: any) {
-      Alert.alert('Could not change availability', err?.message || 'Nothing was changed.');
-    }
-  };
-
-  const remove = (dish: any) => {
-    Alert.alert('Remove this dish?', `"${dish.name}" will no longer appear for customers.`, [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Take off sale',
-        onPress: async () => {
-          await api.del(`/admin/menus/${restaurantId}/items/${dish.id}?soft=true`).catch(() => undefined);
-          await resource.reload();
-          onChanged();
-        }
-      },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.del(`/admin/menus/${restaurantId}/items/${dish.id}`);
-            await resource.reload();
-            onChanged();
-          } catch (err: any) {
-            Alert.alert('Could not delete', err?.message || 'Nothing was changed.');
-          }
-        }
-      }
-    ]);
-  };
-
-  const menu = resource.data?.menu;
-
-  return (
-    <Sheet
-      visible={Boolean(restaurantId)}
-      onClose={() => {
-        reset();
-        onClose();
-      }}
-      title={resource.data?.restaurant?.name || 'Menu'}
-      subtitle={menu ? dishCount((menu.categories || []).reduce((n: number, cat: any) => n + cat.items.length, 0)) : undefined}
-      footer={
-        canEdit && !editing && !adding ? (
-          <View style={{ gap: tokens.space[2] }}>
-            {/* The whole-menu builder: sizes, extras, photos, AI from photos. */}
-            <Button
-              label="Upload a menu (or read it from photos)"
-              full
-              onPress={() => restaurantId && onOpenBuilder(restaurantId, resource.data?.restaurant?.name || 'this restaurant')}
-            />
-            <Button label="Quick add one dish" variant="secondary" full onPress={() => setAdding(true)} />
-          </View>
-        ) : undefined
-      }
-    >
-      <ResourceError resource={resource} what="This menu" />
-      {resource.loading && !resource.data ? <Loading /> : null}
-
-      {(editing || adding) && canEdit ? (
-        <Card>
-          <Text style={s.cardHeading}>{editing ? 'Edit dish' : 'Add a dish'}</Text>
-          <Field label="Name" value={form.name} onChangeText={v => setForm(f => ({ ...f, name: v }))} />
-          <Field label="Price (₹)" value={form.price} onChangeText={v => setForm(f => ({ ...f, price: v }))} keyboardType="numeric" />
-          <Field label="Category" value={form.categoryName} onChangeText={v => setForm(f => ({ ...f, categoryName: v }))} placeholder="Biryani" />
-          <Field label="Description" value={form.description} onChangeText={v => setForm(f => ({ ...f, description: v }))} multiline />
-          <Toggle label="Vegetarian" value={form.isVeg} onChange={v => setForm(f => ({ ...f, isVeg: v }))} />
-          <View style={{ height: tokens.space[4] }} />
-          <View style={s.actionRow}>
-            <Button label="Cancel" variant="secondary" full onPress={reset} />
-            <Button label="Save" full loading={busy} onPress={save} />
-          </View>
-        </Card>
-      ) : null}
-
-      {menu && !editing && !adding
-        ? (menu.categories || []).map((category: any) => (
-            <Card key={category.id}>
-              <Text style={s.cardHeading}>{category.name}</Text>
-              {category.items.map((dish: any) => (
-                <View key={dish.id} style={s.dishRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.dishName} numberOfLines={1}>
-                      {dish.isVeg ? '🟢 ' : '🔴 '}
-                      {dish.name}
-                    </Text>
-                    <Text style={s.dishMeta} numberOfLines={1}>
-                      {formatMoney(dish.price)} · {dish.isAvailable ? 'In stock' : 'Out of stock'}
-                    </Text>
-                  </View>
-                  {canEdit ? (
-                    <View style={s.dishActions}>
-                      <Button
-                        label={dish.isAvailable ? 'Sold out' : 'Restock'}
-                        size="sm"
-                        variant="secondary"
-                        onPress={() => setStock(dish.id, !dish.isAvailable)}
-                      />
-                      <Button
-                        label="Edit"
-                        size="sm"
-                        variant="secondary"
-                        onPress={() => {
-                          setEditing(dish);
-                          setForm({
-                            name: dish.name,
-                            price: String(dish.price),
-                            categoryName: category.name,
-                            description: dish.description || '',
-                            isVeg: dish.isVeg
-                          });
-                        }}
-                      />
-                      <Button label="Remove" size="sm" variant="danger" onPress={() => remove(dish)} />
-                    </View>
-                  ) : null}
-                </View>
-              ))}
-            </Card>
-          ))
-        : null}
-
-      {menu && (menu.categories || []).length === 0 && !adding ? (
-        <EmptyState title="This partner has no dishes yet" message="Add the first one, or wait for their own submission." />
-      ) : null}
-    </Sheet>
   );
 };
 
