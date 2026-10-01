@@ -23,7 +23,10 @@ import { resetPayeeAccountsForTesting, addAccount } from '../modules/payments/pa
 import {
   resetPayoutsForTesting,
   draftPayout,
-  duesFor
+  duesFor,
+  executePayout,
+  cancelPayout,
+  listPayouts
 } from '../modules/payments/payouts.ts';
 import { recordOrderEarnings } from '../modules/payments/earnings.ts';
 import { statementFor, statementView } from '../modules/payments/statements.ts';
@@ -620,6 +623,38 @@ async function run() {
     const payee = await resolvePayee(PARTNER_USER, 'restaurant_owner');
     assert.equal(payee.kycName, 'Ganesh Bhavan', 'the bank would be asked about the proprietor, not the kitchen');
     assert.equal(payee.ownerName, 'Ganesh Bhavan');
+  });
+
+  await check('After a payment the statement and Pay agree on what is owed — paid twice (QA v17)', async () => {
+    /*
+     * The statement counted a payout's own ledger posting as an "adjustment"
+     * AND as "already paid", so a rider owed Rs 80 read as Rs 50 on the
+     * statement while Pay said Rs 80. A payee paid in full hid it (the total is
+     * floored at zero); it shows on the second, partial payment.
+     */
+    createVersion({ partnerHoldDays: 0, minPayoutAmount: 1 }, { userId: ADMIN }, 'Pay at once, for this check');
+    for (const open of listPayouts({ ownerId: RESTAURANT })) {
+      if (['DRAFT', 'AWAITING_APPROVAL', 'APPROVED'].includes(open.state)) cancelPayout(open.id, ADMIN, 'clearing for this check');
+    }
+    const agree = (when: string) => {
+      const due = duesFor('RESTAURANT', RESTAURANT, 'Ganesh Bhavan');
+      const st = statementFor('RESTAURANT', RESTAURANT, 'Ganesh Bhavan');
+      assert.equal(st.summary.payablePaise, due.payablePaise, `${when}: statement ${st.summary.payablePaise} vs Pay ${due.payablePaise}`);
+      assert.equal(st.summary.outstandingPaise, due.outstandingPaise, `${when}: outstanding differs`);
+      return due;
+    };
+    const first = draftPayout({ ownerType: 'RESTAURANT', ownerId: RESTAURANT, ownerName: 'Ganesh Bhavan', actorUserId: ADMIN, rail: 'MANUAL_BANK' });
+    await executePayout({ id: first.id, actorUserId: ADMIN, manualReference: 'UTR-FIRST-0001' });
+    assert.equal(agree('after the first payment').payablePaise, 0);
+
+    deliver({ deliveredAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    const owed = agree('after new earnings');
+    assert.ok(owed.payablePaise > 0, 'new earnings after a payment are owed');
+
+    const second = draftPayout({ ownerType: 'RESTAURANT', ownerId: RESTAURANT, ownerName: 'Ganesh Bhavan', actorUserId: ADMIN, rail: 'MANUAL_BANK' });
+    assert.equal(second.amountPaise, owed.payablePaise, 'the second payment is for what is owed');
+    await executePayout({ id: second.id, actorUserId: ADMIN, manualReference: 'UTR-SECOND-0002' });
+    assert.equal(agree('after the second payment').payablePaise, 0);
   });
 
   await check('The books balance after everything above', () => {

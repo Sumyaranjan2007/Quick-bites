@@ -110,7 +110,7 @@ export const SettlementsScreen: React.FC = () => {
                   </Text>
                   <Text style={s.sub} numberOfLines={1}>
                     {row.held > 0
-                      ? `${formatMoney(row.held)} still inside the hold period`
+                      ? `${formatMoney(row.held, true)} still inside the hold period`
                       : 'Everything earned is released'}
                   </Text>
                 </View>
@@ -118,10 +118,10 @@ export const SettlementsScreen: React.FC = () => {
               </View>
 
               <View style={s.figures}>
-                <Figure label="Payable now" value={formatMoney(row.payable)} strong />
-                <Figure label="Outstanding" value={formatMoney(row.outstanding)} />
+                <Figure label="Payable now" value={formatMoney(row.payable, true)} strong />
+                <Figure label="Outstanding" value={formatMoney(row.outstanding, true)} />
                 {row.ownerType === 'RIDER' ? (
-                  <Figure label="Cash in hand" value={formatMoney(row.cashInHand)} />
+                  <Figure label="Cash in hand" value={formatMoney(row.cashInHand, true)} />
                 ) : null}
               </View>
 
@@ -162,7 +162,7 @@ export const SettlementsScreen: React.FC = () => {
 
               {canPay && !row.blockedReason && row.payable > 0 ? (
                 <Button
-                  label={`Pay ${formatMoney(row.payable)} now`}
+                  label={`Pay ${formatMoney(row.payable, true)} now`}
                   variant="success"
                   style={{ marginTop: tokens.space[3], alignSelf: 'stretch' }}
                   onPress={() => setPaying(row)}
@@ -241,7 +241,7 @@ const PayNowSheet: React.FC<{
       const payout = drafted.payout;
       if (payout.state === 'AWAITING_APPROVAL') await api.post(`/admin/payouts/${payout.id}/approve`, {});
       await api.post(`/admin/payouts/${payout.id}/send`, { manualReference: utr.trim() || undefined });
-      Alert.alert('Paid', `${formatMoney(row.payable)} to ${row.ownerName} is recorded.`);
+      Alert.alert('Paid', `${formatMoney(row.payable, true)} to ${row.ownerName} is recorded.`);
       reset();
       onPaid();
     } catch (err: any) {
@@ -259,11 +259,11 @@ const PayNowSheet: React.FC<{
         onClose();
       }}
       title={row ? `Pay ${row.ownerName}` : 'Pay'}
-      subtitle={row ? `${formatMoney(row.payable)} payable now` : undefined}
+      subtitle={row ? `${formatMoney(row.payable, true)} payable now` : undefined}
       footer={
         <View style={{ flex: 1 }}>
           <Button
-            label={row ? `Pay ${formatMoney(row.payable)}` : 'Pay'}
+            label={row ? `Pay ${formatMoney(row.payable, true)}` : 'Pay'}
             variant="success"
             loading={busy}
             disabled={!chosen || (needsUtr && utr.trim().length < 4)}

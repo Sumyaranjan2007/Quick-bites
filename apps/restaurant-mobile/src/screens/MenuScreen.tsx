@@ -283,7 +283,16 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                   {r.status === 'REJECTED' && !!r.rejectionReason && (
                     <Text style={styles.rejectReason}>{r.rejectionReason}</Text>
                   )}
-                  {r.status === 'APPROVED' && <Text style={styles.requestMeta}>Now on your menu</Text>}
+                  {r.status === 'APPROVED' && (
+                    <Text style={styles.requestMeta}>
+                      {/* Changes the Quick Bites team made say so (owner, 2 Oct 2026). */}
+                      {(r as any).uploadedByAdminName
+                        ? r.kind === 'EDIT_ITEM'
+                          ? 'Changed by Quick Bites · live now'
+                          : 'Added by Quick Bites · live now'
+                        : 'Now on your menu'}
+                    </Text>
+                  )}
                 </View>
               </View>
             ))}

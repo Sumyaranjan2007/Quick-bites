@@ -1059,7 +1059,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
         <View>
           <Text style={styles.payBarAmount}>₹{pricingResult.totalAmount.toFixed(2)}</Text>
           <Text style={styles.payBarSub}>
-            {paymentMethod === 'RAZORPAY_SANDBOX' ? 'Pay online' : 'Cash on delivery'}
+            {paymentMethod === 'RAZORPAY_SANDBOX' || !cashAccepted ? 'Pay online' : 'Cash on delivery'}
           </Text>
         </View>
         <TouchableOpacity

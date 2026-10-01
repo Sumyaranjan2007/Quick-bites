@@ -261,6 +261,10 @@ export function statementFor(
   const loose: LedgerEntry[] = [];
 
   for (const entry of entries) {
+    // A payout's own posting is the payment itself, shown under "paid". As an
+    // adjustment it subtracted the same money a second time (QA v17: a rider
+    // owed Rs 80 read as Rs 50 here while Pay said Rs 80).
+    if (entry.payoutId) continue;
     if (entry.orderId) {
       const list = byOrder.get(entry.orderId);
       if (list) list.push(entry);
@@ -365,6 +369,8 @@ export function statementFor(
   let heldPaise = 0;
   for (const entry of allEntries) {
     if (coveredBy.has(entry.id)) continue;
+    // Same rule as duesFor: the payout's debit is not a second reduction.
+    if (entry.payoutId) continue;
     if (entry.occurredAt <= releasedBefore) payablePaise += signed(entry);
     else heldPaise += signed(entry);
   }
