@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Modal,
   KeyboardAvoidingView,
+  useWindowDimensions,
   type ViewStyle,
   type TextStyle
 } from 'react-native';
@@ -524,7 +525,16 @@ export const Divider: React.FC<{ style?: ViewStyle }> = ({ style }) => <View sty
 
 /* ---------------------------------- Sheet --------------------------------- */
 
-/** A bottom sheet, capped at 88% of the screen so it can never run off the top. */
+/**
+ * A bottom sheet that always fits on the screen.
+ *
+ * It was capped at "88%" of a modal that, drawn under the status and navigation
+ * bars, is taller than the part of the screen you can see, and its list was
+ * allowed to grow past the cap. A long sheet — a whole menu to review (QA v12)
+ * — ran off the bottom, and its last dishes and the Approve button could not be
+ * scrolled to. Now the height is measured from the visible window, the bars
+ * are kept clear, and the list shrinks to fit and scrolls.
+ */
 export const Sheet: React.FC<{
   visible: boolean;
   onClose: () => void;
@@ -532,14 +542,23 @@ export const Sheet: React.FC<{
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-}> = ({ visible, onClose, title, subtitle, children, footer }) => (
+}> = ({ visible, onClose, title, subtitle, children, footer }) => {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const room = height - insets.top - tokens.space[6];
+  return (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={s.sheetOverlay}
     >
       <TouchableOpacity style={s.sheetBackdrop} activeOpacity={1} onPress={onClose} />
-      <View style={s.sheet}>
+      <View
+        style={[
+          s.sheet,
+          { maxHeight: Math.min(room, height * 0.88) + insets.bottom, paddingBottom: insets.bottom + tokens.space[4] }
+        ]}
+      >
         <View style={s.sheetGrabber} />
         <View style={s.sheetHeader}>
           <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
@@ -567,7 +586,8 @@ export const Sheet: React.FC<{
       </View>
     </KeyboardAvoidingView>
   </Modal>
-);
+  );
+};
 
 /* --------------------------------- Toggle --------------------------------- */
 
@@ -1100,7 +1120,7 @@ const s = StyleSheet.create({
   sheetTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
   sheetSubtitle: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
   sheetClose: { fontSize: 17, color: c.text.muted, paddingLeft: tokens.space[3] },
-  sheetBody: { paddingHorizontal: tokens.space[5] },
+  sheetBody: { paddingHorizontal: tokens.space[5], flexGrow: 0, flexShrink: 1 },
   sheetFooter: {
     flexDirection: 'row',
     gap: tokens.space[3],

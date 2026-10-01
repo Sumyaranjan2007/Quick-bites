@@ -100,6 +100,14 @@ const INCENTIVE_LABEL: Record<string, string> = {
  * confused, and a screen showing two numbers side by side without saying which
  * is which is exactly how they get confused.
  */
+
+/** Rider pay per km, the minimum and the delivery markup lead the list. */
+const RIDER_KEYS = ['riderPerKmFee', 'riderMinEarningPerTrip', 'riderDeliveryMarkupPercent'];
+const riderFirst = (key: string) => {
+  const at = RIDER_KEYS.indexOf(key);
+  return at === -1 ? RIDER_KEYS.length : at;
+};
+
 export const RatesScreen: React.FC = () => {
   const { api, can } = useSession();
   const canView = can('finance.config.edit', 'finance.reports.view');
@@ -404,7 +412,11 @@ export const RatesScreen: React.FC = () => {
               <EmptyState title="Could not load these" message={platform.error || 'Pull down to try again.'} />
             ) : (
               <>
-                {(platform.data.bounds || []).map((bound: any) => {
+                {/* The three rider-pay settings first, under the examples they drive:
+                    the owner changes the per-km rate globally from here (1 Oct 2026). */}
+                {[...(platform.data.bounds || [])]
+                  .sort((a: any, b: any) => riderFirst(a.key) - riderFirst(b.key))
+                  .map((bound: any) => {
                   const live = platform.data.config?.rates?.[bound.key];
                   const edited = platformEdits[bound.key];
                   const changed = edited !== undefined && edited !== '' && Number(edited) !== Number(live);
@@ -432,8 +444,8 @@ export const RatesScreen: React.FC = () => {
                         </View>
                         {changed && (
                           <Text style={s.fieldHint}>
-                            Now {String(live)} — saving creates a new version. Orders already placed keep what
-                            they were charged.
+                            Now {String(live)}. Save at the bottom of this list — it creates a new version.
+                            Orders already placed keep what they were charged.
                           </Text>
                         )}
                       </View>

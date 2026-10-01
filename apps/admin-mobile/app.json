@@ -142,6 +142,14 @@
           "cameraPermission": "Quick Bites Operations uses the camera to photograph a restaurant's printed menu or a dish when uploading a menu for them."
         }
       ],
+      [
+        "expo-media-library",
+        {
+          "savePhotosPermission": "Quick Bites Operations saves the documents you download (licences, refund photos) to your gallery.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["photo"]
+        }
+      ],
       "../../packages/config/expo-plugins/withReleaseSigning",
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",

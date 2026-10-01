@@ -7,8 +7,8 @@ import { saveDocument } from '../lib/download';
 
 /**
  * "Download" for anything an administrator verifies (owner, 1 Oct 2026).
- * The first save asks for a folder (Downloads is offered); later saves go
- * straight there.
+ * Photos go straight to the gallery (a "Quick Bites" album); anything else
+ * asks for a folder once.
  */
 export const DownloadButton: React.FC<{ source?: string | null; name: string; label?: string; full?: boolean }> = ({
   source,
@@ -30,7 +30,7 @@ export const DownloadButton: React.FC<{ source?: string | null; name: string; la
         setBusy(true);
         try {
           const saved = await saveDocument(source, name);
-          Alert.alert('Saved', `${saved} is in the folder you chose.`);
+          Alert.alert('Saved', saved);
         } catch (err: any) {
           Alert.alert('Not saved', err?.message || 'The file could not be saved.');
         } finally {

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, Modal, Image } from 'react-native';
 import { MenuBuilder } from '../components/MenuBuilder';
 import { pickDishPhoto, pickMenuPages } from '../lib/photo';
 import { UtensilsCrossed, Inbox, Tag } from 'lucide-react-native';
@@ -564,6 +564,31 @@ const RestaurantReviewSheet: React.FC<{
       onClose={onClose}
       title={group?.restaurantName || 'Menu review'}
       subtitle={group ? `${pending.length} dish${pending.length === 1 ? '' : 'es'} waiting` : undefined}
+      footer={
+        group ? (
+          // In the footer, so it is on screen however long the menu is (QA v12).
+          <View style={{ flex: 1 }}>
+            <Text style={s.sub}>
+              {`${approvingCount} go${approvingCount === 1 ? 'es' : ''} live now · ${rejectedIds.length} sent back to the partner`}
+            </Text>
+            <View style={{ height: tokens.space[2] }} />
+            <Button
+              label={
+                approvingCount > 0
+                  ? `Approve ${approvingCount} and finish`
+                  : rejectedIds.length > 0
+                    ? `Reject all ${rejectedIds.length} and finish`
+                    : 'Nothing to review'
+              }
+              variant={approvingCount > 0 ? 'success' : 'danger'}
+              disabled={pending.length === 0}
+              loading={busy}
+              full
+              onPress={submit}
+            />
+          </View>
+        ) : undefined
+      }
     >
       {group ? (
         <>
@@ -592,7 +617,24 @@ const RestaurantReviewSheet: React.FC<{
                   <Badge label={isRejected ? 'Rejecting' : 'Approving'} tone={isRejected ? 'danger' : 'success'} />
                 </View>
 
+                {request.fromAiDraft || request.uploadedByAdminName ? (
+                  <Text style={s.origin}>
+                    {[
+                      request.uploadedByAdminName ? `Uploaded by ${request.uploadedByAdminName}` : null,
+                      request.fromAiDraft ? 'read from menu photos by AI, then checked by the sender' : null
+                    ]
+                      .filter(Boolean)
+                      .join(', ')
+                      .replace(/^r/, 'R')}
+                  </Text>
+                ) : null}
                 <Divider />
+                {/* The photo customers will see: a reviewer must see it too (QA v12). */}
+                {request.payload.imageUrl ? (
+                  <Image source={{ uri: request.payload.imageUrl }} style={s.reviewPhoto} resizeMode="cover" />
+                ) : (
+                  <Text style={s.sub}>No photo sent with this dish.</Text>
+                )}
                 <KeyValue label="Price" value={formatMoney(request.payload.price)} tone="money" />
                 {/* F05: what the partner asked for, exactly as the customer will see it. */}
                 {(request.payload.sizes || []).map((z: any) => (
@@ -626,26 +668,6 @@ const RestaurantReviewSheet: React.FC<{
             );
           })}
 
-          <Card>
-            <Text style={s.cardHeading}>What this will do</Text>
-            <KeyValue label="Go live now" value={`${approvingCount} dish${approvingCount === 1 ? '' : 'es'}`} tone="strong" />
-            <KeyValue label="Sent back to the partner" value={`${rejectedIds.length}`} />
-            <View style={{ height: tokens.space[4] }} />
-            <Button
-              label={
-                approvingCount > 0
-                  ? `Approve ${approvingCount} and finish`
-                  : rejectedIds.length > 0
-                    ? `Reject all ${rejectedIds.length} and finish`
-                    : 'Nothing to review'
-              }
-              variant={approvingCount > 0 ? 'success' : 'danger'}
-              disabled={pending.length === 0}
-              loading={busy}
-              full
-              onPress={submit}
-            />
-          </Card>
         </>
       ) : null}
     </Sheet>
@@ -794,6 +816,8 @@ const s = StyleSheet.create({
     marginBottom: tokens.space[3],
     fontWeight: '600'
   },
+  origin: { fontSize: tokens.font.size.xs, color: c.brand.amberText, marginTop: 4 },
+  reviewPhoto: { width: '100%', height: 160, borderRadius: tokens.radius.md, marginVertical: tokens.space[2] },
   firstMenuNote: { fontSize: tokens.font.size.sm, color: c.brand.amberText, lineHeight: 20 },
   dishLine: {
     flexDirection: 'row',
