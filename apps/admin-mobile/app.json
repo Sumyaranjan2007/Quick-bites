@@ -95,7 +95,7 @@
     "android": {
       "package": "com.quickbite.admin",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 12,
+      "versionCode": 16,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2A0710"
@@ -147,7 +147,9 @@
         {
           "savePhotosPermission": "Quick Bites Operations saves the documents you download (licences, refund photos) to your gallery.",
           "isAccessMediaLocationEnabled": false,
-          "granularPermissions": ["photo"]
+          "granularPermissions": [
+            "photo"
+          ]
         }
       ],
       "../../packages/config/expo-plugins/withReleaseSigning",
