@@ -95,6 +95,10 @@ const money = (v: unknown): number | null => {
   return Number.isFinite(n) && n > 0 && n <= 100000 ? Math.round(n * 100) / 100 : null;
 };
 
+/** "PANEER TIKKA" -> "Paneer Tikka". Printed menus shout; a menu screen should not. */
+const unshout = (s: string) =>
+  /[A-Z]{4}/.test(s) && s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s(/-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase()) : s;
+
 const NON_VEG = /\b(chicken|mutton|lamb|fish|prawn|shrimp|egg|keema|beef|pork|crab|meat|tandoori chicken|seekh)\b/i;
 
 /**
@@ -110,10 +114,10 @@ export function normaliseDraft(raw: any): MenuDraft {
   const sections: DraftSection[] = [];
 
   for (const rawSection of Array.isArray(raw?.sections) ? raw.sections : []) {
-    const name = clean(rawSection?.name, 80) || 'Menu';
+    const name = unshout(clean(rawSection?.name, 80)) || 'Menu';
     const items: DraftDish[] = [];
     for (const rawItem of Array.isArray(rawSection?.items) ? rawSection.items : []) {
-      const dishName = clean(rawItem?.name, 120);
+      const dishName = unshout(clean(rawItem?.name, 120));
       if (dishName.length < 2) continue;
       const flags: string[] = [];
 

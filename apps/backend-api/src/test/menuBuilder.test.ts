@@ -416,6 +416,15 @@ try {
     assert.equal(water.price, null);
     assert.ok(!limited.sections[0].items.some((i: any) => i.name === 'x'));
   });
+  it('Shouted headings and names are written normally; normal ones are left alone', () => {
+    const d = normaliseDraft({ sections: [{ name: 'STARTERS', items: [
+      { name: 'PANEER TIKKA (DRY)', price: 220, isVeg: true },
+      { name: 'Chicken 65', price: 240, isVeg: false },
+      { name: 'BBQ', price: 99, isVeg: false }
+    ] }] });
+    assert.equal(d.sections[0].name, 'Starters');
+    assert.deepEqual(d.sections[0].items.map((i: any) => i.name), ['Paneer Tikka (Dry)', 'Chicken 65', 'BBQ']);
+  });
   it('An empty answer tells the partner how to retake the photo', () => {
     const empty = normaliseDraft({ sections: [] });
     assert.equal(empty.sections.length, 0);
