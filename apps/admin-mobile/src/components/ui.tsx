@@ -545,18 +545,27 @@ export const Sheet: React.FC<{
 }> = ({ visible, onClose, title, subtitle, children, footer }) => {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  /*
+   * On Android 15 a modal is drawn under the navigation bar while the app
+   * reports a bottom inset of 0, so the footer — the Approve button — sat
+   * behind the bar (QA v13). The overlay's real height, less the visible
+   * window, is exactly what the bar covers.
+   */
+  const [overlayHeight, setOverlayHeight] = React.useState(0);
+  const underBar = Math.max(insets.bottom, overlayHeight > height ? overlayHeight - height : 0);
   const room = height - insets.top - tokens.space[6];
   return (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={s.sheetOverlay}
+      onLayout={e => setOverlayHeight(e.nativeEvent.layout.height)}
     >
       <TouchableOpacity style={s.sheetBackdrop} activeOpacity={1} onPress={onClose} />
       <View
         style={[
           s.sheet,
-          { maxHeight: Math.min(room, height * 0.88) + insets.bottom, paddingBottom: insets.bottom + tokens.space[4] }
+          { maxHeight: Math.min(room, height * 0.88) + underBar, paddingBottom: underBar + tokens.space[4] }
         ]}
       >
         <View style={s.sheetGrabber} />
