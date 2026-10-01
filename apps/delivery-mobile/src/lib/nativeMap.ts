@@ -32,7 +32,9 @@
  * would happen while this module was still loading and take the bundle with it.
  */
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import Constants from 'expo-constants';
+import { isPlottable, fitCamera } from './cameraFit';
 
 export interface LatLng {
   latitude: number;
@@ -141,6 +143,8 @@ export interface MapCanvasProps {
    * and would leak the provider straight back through this seam.
    */
   spanMetres?: number;
+  /** Points that must all be visible; framed exactly from the measured size. */
+  fit?: LatLng[];
   children?: React.ReactNode;
   style?: any;
   /** Fired when the user stops moving the map, with the new centre. */
@@ -167,46 +171,78 @@ function zoomForSpan(spanMetres: number): number {
   return Math.min(20, Math.max(1, zoom));
 }
 
+/* ------------------------------------------------------------------------- */
+/*            Framing two points exactly (owner, 1 Oct 2026)                 */
+/* ------------------------------------------------------------------------- */
+
+// The framing maths is pure, in its own file so the gate can check it.
+export { isPlottable, fitCamera };
+
 export const MapCanvas: React.FC<MapCanvasProps> = ({
   centre,
   spanMetres = 1200,
+  fit,
   children,
   style,
   onSettle,
   scrollEnabled = true,
   showUserLocation = false
 }) => {
+  /*
+   * The map measures itself, and the camera is set from that measurement
+   * (owner, 1 Oct 2026). With two or more real points it frames them exactly
+   * (`fitCamera`); otherwise it shows `centre` at `spanMetres`. The same values
+   * are the Camera's DEFAULT settings, so even the very first frame is the
+   * right place — never Mapbox's own zoomed-out default.
+   */
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
   if (!Mapbox) return null;
   const { MapView, Camera, UserLocation } = Mapbox;
 
+  const framed = fit && fit.filter(isPlottable).length >= 2 ? fitCamera(fit, size.width, size.height) : null;
+  const single = fit ? fit.find(isPlottable) : undefined;
+  const target = framed
+    ? { centerCoordinate: toMapbox(framed.centre), zoomLevel: framed.zoom }
+    : { centerCoordinate: toMapbox(single || centre), zoomLevel: zoomForSpan(spanMetres) };
+
   return React.createElement(
-    MapView,
+    View,
     {
       style,
-      styleURL: MAP_STYLE_URL,
-      scaleBarEnabled: false,
-      // The Mapbox wordmark and attribution must stay visible - it is a
-      // condition of the terms, not a design choice.
-      logoEnabled: true,
-      attributionEnabled: true,
-      scrollEnabled,
-      zoomEnabled: scrollEnabled,
-      rotateEnabled: false,
-      pitchEnabled: false,
-      onMapIdle: onSettle
-        ? (state: any) => {
-            const point = fromMapbox(state?.properties?.center);
-            if (point) onSettle(point);
-          }
-        : undefined
+      onLayout: (e: any) => {
+        const { width, height } = e?.nativeEvent?.layout || {};
+        if (width > 0 && height > 0 && (width !== size.width || height !== size.height)) setSize({ width, height });
+      }
     },
-    React.createElement(Camera, {
-      centerCoordinate: toMapbox(centre),
-      zoomLevel: zoomForSpan(spanMetres),
-      animationDuration: 350
-    }),
-    showUserLocation && UserLocation ? React.createElement(UserLocation, { key: 'me' }) : null,
-    children
+    React.createElement(
+      MapView,
+      {
+        style: StyleSheet.absoluteFill,
+        styleURL: MAP_STYLE_URL,
+        scaleBarEnabled: false,
+        // The Mapbox wordmark and attribution must stay visible - it is a
+        // condition of the terms, not a design choice.
+        logoEnabled: true,
+        attributionEnabled: true,
+        scrollEnabled,
+        zoomEnabled: scrollEnabled,
+        rotateEnabled: false,
+        pitchEnabled: false,
+        onMapIdle: onSettle
+          ? (state: any) => {
+              const point = fromMapbox(state?.properties?.center);
+              if (point) onSettle(point);
+            }
+          : undefined
+      },
+      React.createElement(Camera, {
+        defaultSettings: target,
+        ...target,
+        animationDuration: size.width > 0 ? 350 : 0
+      }),
+      showUserLocation && UserLocation ? React.createElement(UserLocation, { key: 'me' }) : null,
+      children
+    )
   );
 };
 

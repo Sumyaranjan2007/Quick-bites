@@ -467,17 +467,19 @@ check('A bill priced with no rates matches one priced with the defaults', () => 
   assert.deepEqual(withoutRates, withDefaults);
 });
 
-check('The platform fee still comes to exactly Rs 5.90', () => {
-  // The number a customer sees on every bill. It is now computed from Rs 5.00
-  // plus 18%, and it must still land on the same two decimal places.
+check('The platform fee is exactly what was set when there is no GSTIN (owner, 1 Oct 2026)', () => {
+  // It used to be Rs 5.00 + 18% = Rs 5.90 regardless of registration, so a
+  // Rs 10 fee reached the customer as Rs 11.80. GST is added only when the
+  // caller passes a rate, which it does only with a GSTIN.
   const bill = calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }] });
-  assert.equal(bill.platformFee, 5.9);
+  assert.equal(bill.platformFee, 5);
+  assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], platformFeeGstPercent: 18 }).platformFee, 5.9);
 });
 
-check('Delivery is still Rs 30 up to 3km and Rs 10 a km beyond', () => {
+check('Delivery is rider pay (Rs 10 a road km, Rs 30 minimum) plus the markup (owner, 1 Oct 2026)', () => {
   assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 2 }).deliveryFee, 30);
   assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 3 }).deliveryFee, 30);
-  assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 5.5 }).deliveryFee, 60);
+  assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 5.5 }).deliveryFee, 55);
 });
 
 check('GST on food is still 5%', () => {
@@ -498,9 +500,8 @@ check('The rates handed to the engine are the rates it applies', () => {
       ...DEFAULT_RATES,
       gstFoodPercent: 12,
       packagingFeeDefault: 45,
-      deliveryBaseFee: 50,
-      deliveryBaseKm: 2,
-      deliveryPerKmBeyond: 25,
+      riderPerKmFee: 25,
+      riderMinEarningPerTrip: 30,
       platformFeeBase: 9,
       platformFeeGstPercent: 18,
       defaultCommissionPercent: 22,
@@ -514,12 +515,13 @@ check('The rates handed to the engine are the rates it applies', () => {
   assert.equal(asDefault.packagingFee, 20, 'default packaging');
   assert.equal(asChanged.packagingFee, 45, 'packaging did not follow the rate it was given');
 
-  // 6km: base covers 2km, four whole km beyond at Rs 25.
+  // 6 road km: Rs 10 a km by default, Rs 25 a km as changed.
   assert.equal(asDefault.deliveryFee, 60, 'default delivery over 6km');
   assert.equal(asChanged.deliveryFee, 150, 'delivery did not follow the rates it was given');
 
-  assert.equal(asDefault.platformFee, 5.9, 'default platform fee');
-  assert.equal(asChanged.platformFee, 10.62, 'the platform fee did not follow its rate');
+  // No GSTIN: the fee as set, whatever the GST rate (owner, 1 Oct 2026).
+  assert.equal(asDefault.platformFee, 5, 'default platform fee');
+  assert.equal(asChanged.platformFee, 9, 'the platform fee did not follow its rate');
 
   assert.equal(asDefault.commissionAmount, 150, 'default commission');
   assert.equal(asChanged.commissionAmount, 220, 'commission did not follow the rate it was given');

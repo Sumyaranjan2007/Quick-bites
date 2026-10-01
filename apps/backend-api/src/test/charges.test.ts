@@ -17,6 +17,8 @@ import { resetLedgerForTesting, ledger, accountFor } from '../modules/payments/l
 import { toPaise } from '../modules/payments/money.ts';
 import { resetConfigsForTesting, getActiveRates, createVersion } from '../modules/payments/pricingConfig.ts';
 import { calculateTripPayout } from '../routes/riderRouter.ts';
+import { tripTakeHome } from '../modules/riders/tripPayout.ts';
+import { platformFeeGstFor } from '../modules/orders/orderService.ts';
 import {
   effectiveCharges,
   setCharges,
@@ -320,11 +322,17 @@ async function run() {
       extraCharge: charges.extraCharge,
       extraChargeLabel: charges.extraChargeLabel,
       commissionPercent: charges.commissionPercent,
+      platformFeeGstPercent: platformFeeGstFor(charges),
       rates: getActiveRates()
     });
 
     assert.equal(bill.gstAmount, 12, 'the restaurant GST rate was ignored');
-    assert.equal(bill.platformFee, 14.16, '12 plus 18% GST on the fee');
+    // No GSTIN on file: the customer pays exactly the fee that was set. It
+    // used to gain 18% regardless, so "10" reached the bill as 11.80 (owner,
+    // 1 Oct 2026).
+    assert.equal(bill.platformFee, 12, 'GST was added to the fee without a GSTIN');
+    assert.equal(platformFeeGstFor({ platformGstin: '29ABCDE1234F1Z5' }), getActiveRates().platformFeeGstPercent);
+    assert.equal(platformFeeGstFor({ platformGstin: '29ABCDE1234F1Z5', platformGstPercent: 5 }), 5);
     assert.equal(bill.extraCharge, 9);
     assert.equal(bill.extraChargeLabel, 'Surge');
     assert.ok(
@@ -880,59 +888,50 @@ async function run() {
    *  DELIVERY MUST NOT LOSE MONEY ON EVERY ORDER                      *
    * ---------------------------------------------------------------- */
 
-  await check('A rider is paid from the configured rates, not a hardcoded figure', () => {
+  await check('A rider is paid Rs 10 a road km, with the minimum, from the configured rates', () => {
     /*
-     * The single most expensive defect in the platform, and it was silent.
-     *
-     * The old formula was `40 + the whole delivery fee + tip`. The customer is
-     * charged Rs 30 for delivery, so the platform collected 30 and paid 70 — a
-     * Rs 40 loss on every delivery before anything else was counted. It also
-     * paid for distance twice, since the delivery fee already scales with it.
-     *
-     * Worse, the four rider rates on the Rates screen were read by nothing.
-     * They were editable, displayed, and moved no money at all.
+     * The owner's rule (1 Oct 2026): a rider earns Rs 10 for every km of road
+     * from the restaurant to the customer, never less than the minimum per
+     * trip, and the per-km amount is one global setting on the Rates screen.
+     * The delivery fee the customer pays does not enter it.
      */
     const rates = getActiveRates();
+    assert.equal(rates.riderPerKmFee, 10);
 
-    // 3.2 km: base 25, and 1.2 km beyond the 2 km floor rounds UP to 2 whole
-    // km at Rs 6 = 12. Whole kilometres, matching how the customer is charged.
-    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 37);
+    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 32);
+    assert.equal(calculateTripPayout({ distanceKm: 5.5 }), 55);
+    assert.equal(calculateTripPayout({ distanceKm: 0.5 }), rates.riderMinEarningPerTrip, 'the minimum was not applied');
 
-    // A very short trip is floored at the guaranteed minimum.
-    assert.equal(calculateTripPayout({ distanceKm: 0.5 }), rates.riderMinEarningPerTrip);
-
-    // And the delivery fee no longer enters the rider's pay at all.
     assert.equal(
       calculateTripPayout({ distanceKm: 3.2, bill: { deliveryFee: 500 } }),
-      37,
+      32,
       'the delivery fee is being paid to the rider on top of their own rate'
     );
+    // The pay frozen on the bill at checkout wins over today's rate.
+    assert.equal(calculateTripPayout({ distanceKm: 3.2, bill: { riderPay: 41 } }), 41, 'the quoted pay was not the paid pay');
   });
 
-  await check('Changing a rider rate actually changes what a rider is paid', () => {
-    // The property that was missing entirely: these numbers moved nothing.
-    createVersion({ riderBaseFeePerTrip: 40, riderPerKmFee: 10 }, { userId: ADMIN }, 'Higher rider pay');
-    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 60, '40 base + 2 whole km at 10');
-    createVersion({ riderBaseFeePerTrip: 25, riderPerKmFee: 6 }, { userId: ADMIN }, 'Back');
+  await check('Changing the per-km rate actually changes what a rider is paid', () => {
+    createVersion({ riderPerKmFee: 15 }, { userId: ADMIN }, 'Higher rider pay');
+    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 48, '3.2 km at Rs 15');
+    createVersion({ riderPerKmFee: 10 }, { userId: ADMIN }, 'Back');
   });
 
-  await check('The tip reaches the rider on top, in full', () => {
-    assert.equal(calculateTripPayout({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 87);
+  await check('The tip reaches the rider on top, in full, and only once', () => {
+    // calculateTripPayout is the trip pay; the tip is added exactly once, in
+    // tripTakeHome. Both used to add it, so a Rs 50 tip showed as Rs 100.
+    assert.equal(calculateTripPayout({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 32, 'the tip is inside the trip pay');
+    assert.equal(tripTakeHome({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 82);
+    assert.equal(tripTakeHome({ distanceKm: 3.2, riderPayout: 32, bill: { tipAmount: 50 } }), 82, 'the tip was counted twice');
   });
 
-  await check('A small order is PROFITABLE, which it was not before', () => {
+  await check('A small order is PROFITABLE: delivery is never charged below rider pay', () => {
     /*
-     * The owner's actual question: *"pricing is fixed so we can actually earn
-     * rather than just earning on small platform fee."*
-     *
-     * Modelled on the real engine rather than by hand. A Rs 200 order over
-     * 3.2 km used to lose the platform Rs 5; the commission was entirely eaten
-     * by the delivery subsidy.
+     * The owner's question: *"pricing is fixed so we can actually earn rather
+     * than just earning on small platform fee."* The customer's delivery fee
+     * is the rider's pay plus the markup, so it cannot fall below it.
      */
-    // Restored explicitly rather than relying on the previous check having
-    // cleaned up: a failed assertion skips the restore, and the next test then
-    // fails for a reason that has nothing to do with what it is testing.
-    createVersion({ riderBaseFeePerTrip: 25, riderPerKmFee: 6 }, { userId: ADMIN }, 'Defaults');
+    createVersion({ riderBaseFeePerTrip: 0, riderBaseKm: 0, riderPerKmFee: 10 }, { userId: ADMIN }, 'Defaults');
 
     const rates = getActiveRates();
     const bill = calculateOrderPricing({
@@ -942,7 +941,8 @@ async function run() {
     });
 
     const commission = 200 * (rates.defaultCommissionPercent / 100);
-    const riderPay = calculateTripPayout({ distanceKm: 3.2 });
+    const riderPay = calculateTripPayout({ distanceKm: 3.2, bill });
+    assert.equal(riderPay, bill.riderPay, 'the bill and the payout disagree on rider pay');
     // The platform fee net of the GST charged on it, which is remitted onward.
     const margin = commission + rates.platformFeeBase + (bill.deliveryFee - riderPay);
 

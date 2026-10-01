@@ -26,6 +26,7 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { setRiderOfferPoolMembership } from '../../sockets/socketServer.ts';
 import type { Order } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
+import { tripTakeHome } from '../../modules/riders/tripPayout.ts';
 import {
   connectedAccountFor,
   accountBlockReason,
@@ -342,7 +343,7 @@ peopleRoutes.get('/drivers', requirePermission('users.drivers.view'), async (req
         currentCoordinates: rider.currentCoordinates,
         codCashInHand: rider.codCashInHand || 0,
         trips: delivered.length,
-        earnings: Math.round(delivered.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100,
+        earnings: Math.round(delivered.reduce((t, o) => t + (Number(o.riderPayout) ? tripTakeHome(o) : 0), 0) * 100) / 100,
         rating: rated.length
           ? Math.round((rated.reduce((t, o) => t + (o.riderRating || 0), 0) / rated.length) * 10) / 10
           : 0,
@@ -407,7 +408,7 @@ peopleRoutes.get('/drivers/:id', requirePermission('users.drivers.view'), async 
         trips: orders.map(summariseOrder),
         stats: {
           trips: delivered.length,
-          earnings: Math.round(delivered.reduce((t, o) => t + (Number(o.riderPayout) || 0), 0) * 100) / 100,
+          earnings: Math.round(delivered.reduce((t, o) => t + (Number(o.riderPayout) ? tripTakeHome(o) : 0), 0) * 100) / 100,
           paidOut: riderPaidTotal(rider.id),
           codCashInHand: rider.codCashInHand || 0,
           cancelled: orders.filter(o => o.status === 'CANCELLED').length

@@ -68,32 +68,38 @@ export interface RateBound {
   max: number;
   /** Rates a change to which alters what customers are charged. */
   affectsCustomerBill: boolean;
+  /**
+   * No longer used to price new orders (kept so old versions still read).
+   * Not shown on the Inflation screen, where a field that changes nothing
+   * would be a trap.
+   */
+  retired?: boolean;
 }
 
 export const RATE_BOUNDS: RateBound[] = [
   { key: 'gstFoodPercent', label: 'GST on food', help: 'Statutory. 5% for restaurant service without input tax credit.', unit: 'PERCENT', min: 0, max: 28, affectsCustomerBill: true },
   { key: 'packagingFeeDefault', label: 'Packaging fee', help: 'Per order, unless the restaurant sets its own.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: true },
-  { key: 'deliveryBaseFee', label: 'Delivery base fee', help: 'Charged up to the base distance.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true },
-  { key: 'deliveryBaseKm', label: 'Delivery base distance', help: 'Distance covered by the base fee.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: true },
-  { key: 'deliveryPerKmBeyond', label: 'Delivery per extra km', help: 'Added per whole kilometre beyond the base.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: true },
+  { key: 'deliveryBaseFee', label: 'Delivery base fee', help: 'Charged up to the base distance.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true, retired: true },
+  { key: 'deliveryBaseKm', label: 'Delivery base distance', help: 'Distance covered by the base fee.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: true, retired: true },
+  { key: 'deliveryPerKmBeyond', label: 'Delivery per extra km', help: 'Added per whole kilometre beyond the base.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: true, retired: true },
   { key: 'memberFreeDeliveryMinOrder', label: 'Member free delivery above', help: 'Food total at which a member pays no delivery fee.', unit: 'RUPEES', min: 0, max: 10000, affectsCustomerBill: true },
-  { key: 'platformFeeBase', label: 'Platform fee', help: 'Before GST is added to it.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true },
-  { key: 'platformFeeGstPercent', label: 'GST on platform fee', help: 'Statutory. 18% on a service fee.', unit: 'PERCENT', min: 0, max: 28, affectsCustomerBill: true },
+  { key: 'platformFeeBase', label: 'Platform fee', help: 'What the customer pays. GST is added on top only once the platform has a GSTIN.', unit: 'RUPEES', min: 0, max: 500, affectsCustomerBill: true },
+  { key: 'platformFeeGstPercent', label: 'GST on platform fee', help: 'Charged only when a GSTIN is set in Settings. With no GSTIN the customer pays the fee exactly.', unit: 'PERCENT', min: 0, max: 28, affectsCustomerBill: true },
   { key: 'defaultCommissionPercent', label: 'Default commission', help: 'Used when a restaurant has no negotiated rate of its own.', unit: 'PERCENT', min: 0, max: 50, affectsCustomerBill: false },
   { key: 'commissionGstPercent', label: 'GST on commission', help: 'What the platform owes on its own commission.', unit: 'PERCENT', min: 0, max: 28, affectsCustomerBill: false },
   { key: 'tdsPercent', label: 'TDS (section 194-O)', help: 'Withheld from a partner payout and paid to the government.', unit: 'PERCENT', min: 0, max: 10, affectsCustomerBill: false },
   { key: 'tcsPercent', label: 'TCS (GST section 52)', help: 'Collected at source on net taxable supplies.', unit: 'PERCENT', min: 0, max: 10, affectsCustomerBill: false },
-  { key: 'riderBaseFeePerTrip', label: 'Rider base fee', help: 'Earned per trip before distance is counted.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false },
-  { key: 'riderBaseKm', label: 'Rider base distance', help: 'Distance covered by the base fee.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: false },
-  { key: 'riderPerKmFee', label: 'Rider per extra km', help: 'Earned per kilometre beyond the base.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: false },
-  { key: 'riderMinEarningPerTrip', label: 'Rider minimum per trip', help: 'No trip pays less than this, whatever the distance.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false },
+  { key: 'riderBaseFeePerTrip', label: 'Rider base fee', help: 'Earned per trip before distance is counted.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false, retired: true },
+  { key: 'riderBaseKm', label: 'Rider base distance', help: 'Distance covered by the base fee.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: false, retired: true },
+  { key: 'riderPerKmFee', label: 'Rider pay per km', help: 'Road km from restaurant to customer x this is what the rider earns. The customer delivery fee is this plus the delivery markup.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: false },
+  { key: 'riderMinEarningPerTrip', label: 'Rider minimum per trip', help: 'No trip pays the rider less than this, however short.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false },
   {
     key: 'riderDeliveryMarkupPercent',
     label: 'Delivery markup',
     // Named for what it does to the customer, not for what it does to the
     // rider, because it does nothing to the rider. An administrator reading
     // "rider percentage" would reasonably expect it to change rider pay.
-    help: 'Added to what the CUSTOMER pays for delivery. Rider earnings are unaffected — the difference is ours.',
+    help: 'Customer delivery fee = rider pay + this %. Rider pay is unaffected; the difference is ours.',
     unit: 'PERCENT',
     min: 0,
     max: 100,
@@ -327,3 +333,32 @@ export function resetConfigsForTesting(): void {
 }
 
 export { boundsByKey };
+
+/**
+ * The owner's decision of 1 Oct 2026, applied once to whatever rates are live.
+ *
+ * Rider pay became road km x a per-km rate (Rs 10) with a minimum per trip, and
+ * the old base fee / base distance stopped meaning anything. The live rates are
+ * a stored version, not these defaults, so the decision is written as a NEW
+ * version — visible in the rates history with its note, and changeable from
+ * Inflation like any other. Marked in `meta` so a later edit by the owner is
+ * never overwritten on the next boot.
+ */
+export function applyRiderPerKmDecision(): boolean {
+  const FLAG = 'rates:rider-per-km-2026-10-01';
+  if (memoryStore.meta.get(FLAG)) return false;
+  const live = getActiveRates();
+  const changes: Partial<PricingRates> = {};
+  if (live.riderPerKmFee !== 10) changes.riderPerKmFee = 10;
+  if (live.riderBaseFeePerTrip !== 0) changes.riderBaseFeePerTrip = 0;
+  if (live.riderBaseKm !== 0) changes.riderBaseKm = 0;
+  if (Object.keys(changes).length > 0) {
+    createVersion(
+      changes,
+      { userId: 'system' },
+      "Owner's decision 1 Oct 2026: riders earn Rs 10 per road km from restaurant to customer, with the per-trip minimum."
+    );
+  }
+  memoryStore.meta.set(FLAG, new Date().toISOString());
+  return true;
+}

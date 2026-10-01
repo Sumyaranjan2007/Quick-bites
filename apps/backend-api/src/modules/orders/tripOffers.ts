@@ -32,6 +32,7 @@
  */
 import type { Order, DeliveryRider } from '@quick-bites/shared-types';
 import { memoryStore, calculateDistanceKm } from '../../db/client.ts';
+import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { hasActiveTrip, cashCeilingBlocks, offerableNow } from './riderTrip.ts';
@@ -174,7 +175,12 @@ export async function offerTripToNearbyRiders(order: Order): Promise<string[]> {
        * is the same field the offer list writes — one record of "this rider has
        * seen this trip", whichever way they saw it.
        */
-      await orderRepository.markOfferedToRider(order.id, rider.id);
+      // Counted as received, like an offer seen in the list (QA v11). The push
+      // used to mark the offer and never count it, so pushed offers were missing
+      // from every rider's acceptance rate.
+      if (await orderRepository.markOfferedToRider(order.id, rider.id)) {
+        await riderRepository.recordOffer(rider.id);
+      }
     }
 
     return riders.map(r => r.id);

@@ -109,7 +109,7 @@ async function requireRiderSelf(req: any): Promise<DeliveryRider> {
  */
 // Moved to modules/riders/tripPayout.ts so checkout can estimate a trip's cost
 // without importing a router; re-exported so every existing caller is unchanged.
-import { calculateTripPayout } from '../modules/riders/tripPayout.ts';
+import { calculateTripPayout, tripTakeHome } from '../modules/riders/tripPayout.ts';
 export { calculateTripPayout };
 
 // ---------------------------------------------------------------------------
@@ -245,7 +245,8 @@ async function shapeTripForRider(order: Order) {
     distanceKm,
     itemCount: (order.items || []).reduce((t, i) => t + (i.quantity || 0), 0),
     items: (order.items || []).map(i => ({ name: i.name, quantity: i.quantity })),
-    estimatedEarnings: order.riderPayout ?? calculateTripPayout(order),
+    // Pay plus the tip: what the rider takes home from this trip.
+    estimatedEarnings: tripTakeHome(order),
     paymentMode: isCod ? 'COD' : 'PREPAID',
     cashToCollect: isCod ? Number(order.bill?.totalAmount) || 0 : 0,
     orderTotal: Number(order.bill?.totalAmount) || 0,
@@ -1127,7 +1128,7 @@ riderRouter.post('/orders/:id/verify-otp', durable, validate({ body: VerifyOtpSc
     // The payout is computed server-side from the order. It used to be taken from the
     // request body along with the destination wallet, so a rider could credit any
     // account any amount simply by asking.
-    const payout = result.order!.riderPayout ?? calculateTripPayout(result.order!);
+    const payout = tripTakeHome(result.order!);
 
     /*
      * The wallet credit that used to be here is gone.

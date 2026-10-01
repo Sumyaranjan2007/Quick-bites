@@ -238,8 +238,15 @@ try {
   const body = JSON.stringify(rates.json);
   check('The rate is served to the admin editor', rates.status === 200 &&
     body.includes('riderDeliveryMarkupPercent'), `status ${rates.status}`);
+  // The markup's own wording, not the whole response: "Rider pay per km" is
+  // now rightly a field of its own (owner, 1 Oct 2026).
+  const markupBound = (rates.json?.data?.bounds || rates.json?.bounds || [])
+    .find((b: any) => b.key === 'riderDeliveryMarkupPercent');
   check('with wording that does not claim it changes rider pay',
-    !/rider pay|rider earn(s|ings) (rise|increase)/i.test(body));
+    !!markupBound &&
+    /unaffected/i.test(markupBound.help) &&
+    !/rider (pay|earn(s|ings)) (rise|rises|increase|increases|goes up)/i.test(`${markupBound.label} ${markupBound.help}`),
+    JSON.stringify(markupBound));
 
   // ----------------------------------------------------------------
   console.log('\n-- A Gold plan saved through the admin route keeps its delivery benefit');

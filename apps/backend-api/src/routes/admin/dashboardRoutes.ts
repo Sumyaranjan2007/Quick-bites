@@ -26,6 +26,7 @@ import { AppError } from '../../utils/AppError.ts';
 import { ADMIN_PERMISSION_GROUPS } from '@quick-bites/shared-types';
 import type { Order } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
+import { tripTakeHome } from '../../modules/riders/tripPayout.ts';
 import { awaitingApply } from '../../modules/payments/payeeAccounts.ts';
 import { listRequests } from '../../modules/payments/payoutRequests.ts';
 
@@ -153,7 +154,7 @@ dashboardRoutes.get('/analytics/performance', requirePermission('analytics.perfo
     const riderRows = riders.map(rider => {
       const own = delivered.filter(o => o.riderId === rider.id);
       const rated = own.filter(o => typeof o.riderRating === 'number');
-      const earnings = own.reduce((total, o) => total + (Number(o.riderPayout) || 0), 0);
+      const earnings = own.reduce((total, o) => total + (Number(o.riderPayout) ? tripTakeHome(o) : 0), 0);
       return {
         id: rider.id,
         name: rider.fullName,

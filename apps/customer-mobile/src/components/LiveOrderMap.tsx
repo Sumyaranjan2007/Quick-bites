@@ -71,6 +71,12 @@ interface Props {
   updatedAt?: string | null;
   riderName?: string | null;
   restaurantName?: string | null;
+  /**
+   * The ROAD distance from the restaurant to the door, measured at checkout
+   * (what the delivery fee was built from). Shown before pickup instead of a
+   * straight line, so the customer reads the same kilometres they paid for.
+   */
+  roadKm?: number | null;
 }
 
 /**
@@ -83,10 +89,11 @@ interface Props {
 const MapLegend: React.FC<{
   metres: number;
   carrying: boolean;
+  roadKm?: number | null;
   updatedAt?: string | null;
   riderName?: string | null;
   restaurantName?: string | null;
-}> = ({ metres, carrying, updatedAt, riderName, restaurantName }) => (
+}> = ({ metres, carrying, updatedAt, riderName, restaurantName, roadKm }) => (
   <View style={styles.legend}>
     <View style={styles.legendLeft}>
       {carrying ? <Bike size={15} color={c.accent[600]} /> : <Store size={15} color={c.primary[600]} />}
@@ -98,7 +105,11 @@ const MapLegend: React.FC<{
         kind of kilometre this is costs three words.
       */}
       <Text style={styles.distance}>
-        {formatDistance(metres)} {carrying ? 'away' : 'from you, in a straight line'}
+        {carrying
+          ? `${formatDistance(metres)} away`
+          : roadKm && roadKm > 0
+            ? `${roadKm.toFixed(1)} km from you by road`
+            : `${formatDistance(metres)} from you, in a straight line`}
       </Text>
     </View>
     <Text style={styles.freshness}>
@@ -199,7 +210,8 @@ export const LiveOrderMap: React.FC<Props> = ({
   pickedUpAt,
   updatedAt,
   riderName,
-  restaurantName
+  restaurantName,
+  roadKm
 }) => {
   const W = 320;
   const H = 190;
@@ -244,6 +256,7 @@ export const LiveOrderMap: React.FC<Props> = ({
           updatedAt={updatedAt}
           riderName={riderName}
           restaurantName={restaurantName}
+          roadKm={roadKm}
         />
       </View>
     );
@@ -354,6 +367,7 @@ export const LiveOrderMap: React.FC<Props> = ({
         updatedAt={updatedAt}
         riderName={riderName}
         restaurantName={restaurantName}
+        roadKm={roadKm}
       />
     </View>
   );

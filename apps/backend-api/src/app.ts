@@ -23,6 +23,19 @@ export function createApp(): Express {
   // 4. CORS Whitelist
   app.use(corsMiddleware);
 
+  // 4b. A larger ceiling for the menu-building routes only (1 Oct 2026): a
+  // photo of a printed menu page, or a batch of dishes with their photos, is
+  // more than 1 MB. Parsed here, so the 1 MB parser below sees a body that is
+  // already read and leaves it alone. Every other route keeps the 1 MB limit.
+  const MENU_BUILD_PATHS = [
+    /^\/api(\/v1)?\/restaurants\/[^/]+\/menu\/(ai-read|requests\/bulk)$/,
+    /^\/api(\/v1)?\/admin\/menus\/[^/]+\/(ai-read|bulk)$/
+  ];
+  const largeJson = express.json({ limit: '8mb' });
+  app.use((req, res, next) =>
+    req.method === 'POST' && MENU_BUILD_PATHS.some(re => re.test(req.path)) ? largeJson(req, res, next) : next()
+  );
+
   // 5. JSON Body Parser with 1MB ceiling
   // The raw bytes are kept alongside the parsed body because Razorpay signs
   // exactly what it sent: re-serialising a parsed object reorders keys and

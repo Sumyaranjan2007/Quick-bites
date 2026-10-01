@@ -77,7 +77,8 @@ pricingRoutes.get(
         success: true,
         data: {
           config,
-          bounds: RATE_BOUNDS,
+          // Retired rates still validate but are not offered for editing.
+          bounds: RATE_BOUNDS.filter(b => !b.retired),
           defaults: DEFAULT_RATES,
           /** Versions are kept forever; this is how many decisions have been taken. */
           versionCount: listConfigs().length

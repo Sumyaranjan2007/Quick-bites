@@ -34,7 +34,8 @@ export interface OrderMargin {
 export function contributionPaise(order: Pick<Order, 'bill' | 'riderPayout' | 'distanceKm'> & Partial<Order>): number {
   const withRider = {
     ...order,
-    riderPayout: order.riderPayout ?? calculateTripPayout({ distanceKm: order.distanceKm, bill: order.bill as any }) - (Number((order.bill as any)?.tipAmount) || 0)
+    // Trip pay only: the tip is added once, inside splitForOrder.
+    riderPayout: order.riderPayout ?? calculateTripPayout({ distanceKm: order.distanceKm, bill: order.bill as any })
   } as Order;
   const s = splitForOrder(withRider);
   return s.grossPaise - s.partnerPaise - s.riderPaise - s.gstOnFoodPaise - s.commissionGstPaise - s.tcsPaise - s.tdsPaise;

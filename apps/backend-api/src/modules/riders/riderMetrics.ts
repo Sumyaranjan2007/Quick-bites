@@ -10,6 +10,7 @@
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { settingFor } from '../payments/incentiveConfig.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
+import { tripTakeHome } from './tripPayout.ts';
 import type { DeliveryRider, Order } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../orders/riderTrip.ts';
 import { postIncentiveAward } from '../payments/incentives.ts';
@@ -56,8 +57,10 @@ export function istWeekKey(at: Date = new Date()): string {
  * The question is about the RIDER anyway, so it is asked of the rider's track.
  */
 
+// Trip pay plus tip: what the rider took home. `riderPayout` no longer carries
+// the tip (it used to, and the tip was then paid twice).
 function payoutOf(order: Order): number {
-  return Number(order.riderPayout) || 0;
+  return tripTakeHome(order as any);
 }
 
 function codOf(order: Order): number {
@@ -255,8 +258,10 @@ export async function computeRiderMetrics(rider: DeliveryRider, now: Date = new 
       !(o.declinedByRiderIds || []).includes(rider.id) &&
       !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status)
   ).length;
-  const offersReceived = Math.max(0, (rider.offersReceived || 0) - stillOpen);
   const offersAccepted = rider.offersAccepted || 0;
+  // Never fewer offers than acceptances: stored counts from before pushed offers
+  // were counted can otherwise read "1 of 0 offers".
+  const offersReceived = Math.max(offersAccepted, (rider.offersReceived || 0) - stillOpen);
   // A rider who has not been offered anything yet is shown 100%, not 0% —
   // starting everyone at zero would read as a penalty for being new.
   const acceptanceRate = offersReceived === 0

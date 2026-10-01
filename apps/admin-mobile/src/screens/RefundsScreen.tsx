@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { DownloadButton } from '../components/DownloadButton';
+import { documentFileName } from '../lib/download';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, Alert } from 'react-native';
 import { Undo2 } from 'lucide-react-native';
 import {
@@ -196,7 +198,10 @@ const RefundCaseSheet: React.FC<{ id: string | null; onClose: () => void; onChan
               <Text style={s.cardHeading}>What they sent</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.attachments}>
                 {request.attachments.map((uri: string, index: number) => (
-                  <Image key={index} source={{ uri }} style={s.attachment} resizeMode="cover" />
+                  <View key={index} style={{ gap: tokens.space[2] }}>
+                    <Image source={{ uri }} style={s.attachment} resizeMode="cover" />
+                    <DownloadButton source={uri} name={documentFileName(['Refund', request.orderNumber, `photo-${index + 1}`])} />
+                  </View>
                 ))}
               </ScrollView>
             </Card>

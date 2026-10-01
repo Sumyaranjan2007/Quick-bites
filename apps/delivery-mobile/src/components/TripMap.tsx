@@ -114,6 +114,10 @@ export const TripMap: React.FC<Props> = ({ rider, destination, destinationLabel,
         style={StyleSheet.absoluteFill}
         centre={centre}
         spanMetres={spanMetres}
+        // Both points framed exactly from the map's measured size (owner,
+        // 1 Oct 2026): the kitchen or the door, and the rider, never a
+        // zoomed-out country view.
+        fit={rider ? [rider, destination] : [destination]}
         // The rider's own position is drawn by the OS dot rather than a marker
         // of ours: it carries the accuracy circle and the heading arrow, both
         // of which matter on a bike and neither of which a plain pin has.

@@ -336,6 +336,13 @@ export const config = {
    * back to a straight-line estimate. Neither crashes anything.
    */
   MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN || '',
+  /**
+   * Reading a menu from photos (owner, 1 Oct 2026). Server-side ONLY: the key
+   * is never sent to, or built into, any app. Empty = the feature says it is
+   * not switched on and everything else works.
+   */
+  GROQ_API_KEY: process.env.GROQ_API_KEY || '',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
 
   /**
    * Biases address search toward the country being served, so "MG Road"

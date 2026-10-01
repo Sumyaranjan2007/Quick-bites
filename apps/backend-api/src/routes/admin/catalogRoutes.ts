@@ -9,6 +9,8 @@ import {
   setItemPrice
 } from '../../modules/payments/restaurantCharges.ts';
 import { z } from 'zod';
+import { MenuBatchSchema, createMenuBatch, menuOrder } from '../../modules/menu/menuBulk.ts';
+import { readMenuPhoto, isMenuAiConfigured, consumeScan, MAX_IMAGE_CHARS as MAX_MENU_PHOTO_CHARS, checkMenuPhoto } from '../../modules/menu/menuAi.ts';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
@@ -96,6 +98,77 @@ const MenuItemSchema = z.object({
 });
 
 /** POST /api/admin/menus/:restaurantId/items — add a dish directly. */
+/**
+ * POST /api/admin/menus/:restaurantId/bulk — an administrator uploads a whole
+ * menu for a restaurant (owner, 1 Oct 2026).
+ *
+ * Same Menu Builder, same dish schema, same batches as the partner's own
+ * upload: each dish becomes a menu request marked "uploaded by <admin>", and
+ * goes through the existing review — so the margin hold, option rules and
+ * markup apply exactly as for a request the partner sent. The admin app offers
+ * "Approve all" straight after, using the existing bulk review.
+ */
+catalogRoutes.post(
+  '/menus/:restaurantId/bulk',
+  requirePermission('catalog.menus.edit'),
+  validate({ body: MenuBatchSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await restaurantRepository.findById(req.params.restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+      const result = await createMenuBatch({
+        restaurant: { id: restaurant.id, name: restaurant.name },
+        requestedByUserId: req.user!.id,
+        batch: req.body,
+        uploadedByAdminName: req.user!.fullName || req.user!.email || 'an administrator'
+      });
+      if (req.body.final) {
+        recordAudit(req, {
+          action: 'MENU_UPLOADED_FOR_RESTAURANT',
+          entityType: 'RESTAURANT',
+          entityId: restaurant.id,
+          summary: `Uploaded a menu of ${result.totalInBatch} dishes for ${restaurant.name} (waiting for approval).`,
+          after: { batchId: req.body.batchId, dishes: result.totalInBatch }
+        });
+      }
+      res.status(201).json({
+        success: true,
+        data: {
+          created: result.created.length,
+          duplicates: result.duplicates,
+          totalInBatch: result.totalInBatch,
+          requestIds: result.created.map(r => r.id)
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** POST /api/admin/menus/:restaurantId/ai-read — the same photo reader, for a restaurant. */
+const AdminAiReadSchema = z.object({ image: z.string().min(100).max(MAX_MENU_PHOTO_CHARS) });
+catalogRoutes.post(
+  '/menus/:restaurantId/ai-read',
+  requirePermission('catalog.menus.edit'),
+  validate({ body: AdminAiReadSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await restaurantRepository.findById(req.params.restaurantId);
+      if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
+      if (!isMenuAiConfigured()) {
+        throw new AppError('AI menu reading is not switched on yet. Add GROQ_API_KEY on the server.', 503, 'MENU_AI_NOT_CONFIGURED');
+      }
+      checkMenuPhoto(req.body.image);
+      const remaining = consumeScan(restaurant.id);
+      const draft = await readMenuPhoto(req.body.image);
+      res.json({ success: true, data: { draft, scansLeftToday: remaining } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 catalogRoutes.post(
   '/menus/:restaurantId/items',
   requirePermission('catalog.menus.edit'),
@@ -344,9 +417,11 @@ catalogRoutes.post(
         rejections.map((r: any) => [r.requestId, r.rejectionReason])
       );
 
-      let pending = (await menuRequestRepository.listByRestaurant(restaurantId)).filter(
-        (r: any) => r.status === 'PENDING'
-      );
+      // Oldest first, and a whole menu in the order the restaurant laid it out,
+      // so approving a menu builds it in the same order (sections and dishes).
+      let pending = (await menuRequestRepository.listByRestaurant(restaurantId))
+        .filter((r: any) => r.status === 'PENDING')
+        .sort(menuOrder);
 
       // Anything submitted after the administrator loaded the screen is left for
       // the next pass: approving a dish nobody has read is exactly the failure

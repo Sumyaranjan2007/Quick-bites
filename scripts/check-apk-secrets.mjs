@@ -98,6 +98,8 @@ function secretsFromEnv() {
  */
 const FORBIDDEN = [
   { label: 'a live Razorpay key', pattern: /rzp_live_[A-Za-z0-9]{6,}/ },
+  // Server-only by design (AI menu reading, 1 Oct 2026). Never inside an app.
+  { label: 'a Groq API key', pattern: /gsk_[A-Za-z0-9]{20,}/ },
   { label: 'a private key block', pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   { label: 'the seeded development password', pattern: /pass123/ },
   { label: 'an AWS access key id', pattern: /AKIA[0-9A-Z]{16}/ },

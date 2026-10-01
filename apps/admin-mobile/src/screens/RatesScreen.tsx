@@ -311,9 +311,19 @@ export const RatesScreen: React.FC = () => {
                     <View style={s.figures}>
                       <Figure label="Food markup" value={`+${row.foodMarkupPercent}%`} />
                       <Figure label="Commission" value={`${row.commissionPercent}%`} />
-                      <Figure label="Platform fee" value={rupees(row.platformFee)} />
-                      <Figure label="GST" value={`${row.gstFoodPercent}%`} />
-                      <Figure label="Delivery from" value={rupees(row.deliveryBaseFee)} />
+                      {/* What the customer actually sees on the bill: GST is added
+                          to our fee only once a GSTIN is set (owner, 1 Oct 2026). */}
+                      <Figure
+                        label="Platform fee (customer pays)"
+                        value={rupees(
+                          Math.round(
+                            Number(row.platformFee) *
+                              (1 + ((row as any).platformGstin ? Number((row as any).platformGstPercent ?? 0) : 0) / 100) *
+                              100
+                          ) / 100
+                        )}
+                      />
+                      <Figure label="GST on food" value={`${row.gstFoodPercent}%`} />
                     </View>
 
                     {/*
@@ -375,10 +385,17 @@ export const RatesScreen: React.FC = () => {
                 following them when you change one.
               </Text>
               <Text style={s.explainerBody}>
-                Rider pay is a base fee plus a rate for every kilometre beyond the free distance, never less
-                than the guaranteed minimum. The delivery fee you charge the customer is separate — the gap
-                between the two is yours.
+                Rider pay = road kilometres from the restaurant to the customer × "Rider pay per km", never
+                less than "Rider minimum per trip". The customer's delivery fee = rider pay + "Delivery
+                markup" %. The difference is yours, on every trip.
               </Text>
+              {platform.data?.config?.rates ? (
+                <DeliveryExamples
+                  perKm={Number(platformEdits.riderPerKmFee ?? platform.data.config.rates.riderPerKmFee) || 0}
+                  minimum={Number(platformEdits.riderMinEarningPerTrip ?? platform.data.config.rates.riderMinEarningPerTrip) || 0}
+                  markup={Number(platformEdits.riderDeliveryMarkupPercent ?? platform.data.config.rates.riderDeliveryMarkupPercent) || 0}
+                />
+              ) : null}
             </Card>
 
             {platform.loading && !platform.data ? (
@@ -801,7 +818,7 @@ export const RatesScreen: React.FC = () => {
           value={form.platformFee}
           onChange={v => setForm(f => ({ ...f, platformFee: v }))}
           suffix="Rs"
-          hint="Charged to the customer, kept in full."
+          hint="Exactly what the customer pays — GST is added only once you have a GSTIN — and kept in full."
         />
         {/*
           GST on OUR charges, which is a different thing from the GST on the
@@ -835,12 +852,8 @@ export const RatesScreen: React.FC = () => {
           onChange={v => setForm(f => ({ ...f, gstFoodPercent: v }))}
           suffix="%"
         />
-        <Field
-          label="Delivery fee starts at"
-          value={form.deliveryBaseFee}
-          onChange={v => setForm(f => ({ ...f, deliveryBaseFee: v }))}
-          suffix="Rs"
-        />
+        {/* No per-restaurant delivery fee any more: delivery is rider pay plus
+            the delivery markup, set in Rider pay & defaults (1 Oct 2026). */}
         <Field
           label="Any extra charge"
           value={form.extraCharge}
@@ -1000,3 +1013,22 @@ const s = StyleSheet.create({
 });
 
 export default RatesScreen;
+
+/**
+ * What the delivery rates mean in money, for three typical trips, from the
+ * values on screen (including unsaved edits). Same arithmetic as the bill:
+ * rider pay = km x rate, rounded, never below the minimum; fee = pay + markup.
+ */
+const DeliveryExamples: React.FC<{ perKm: number; minimum: number; markup: number }> = ({ perKm, minimum, markup }) => (
+  <View style={{ marginTop: 10, gap: 4 }}>
+    {[2, 5, 8].map(km => {
+      const pay = Math.max(minimum, Math.round(km * perKm));
+      const fee = Math.round(pay * (1 + markup / 100) * 100) / 100;
+      return (
+        <Text key={km} style={s.explainerBody}>
+          {km} km: rider earns {rupees(pay)}, customer pays {rupees(fee)}, you keep {rupees(Math.round((fee - pay) * 100) / 100)}
+        </Text>
+      );
+    })}
+  </View>
+);

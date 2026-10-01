@@ -40,6 +40,16 @@ import { isPlacesConfigured } from './placesService.ts';
 import type { Coordinates } from '@quick-bites/shared-types';
 
 const MAPBOX_MATRIX = 'https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic';
+/*
+ * ONE TRIP IS MEASURED WITH DIRECTIONS, NOT THE MATRIX (owner, 1 Oct 2026).
+ *
+ * The Matrix refuses a single origin-destination pair ("minimum number of
+ * matrix elements is 2", HTTP 422) — and a single pair is exactly what pricing
+ * one order asks for. Every order on the live server had therefore fallen back
+ * to straight line x 1.3, so the delivery fee and the rider's pay were guesses.
+ * Directions answers one pair with the real road route.
+ */
+const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
 
 /**
  * Its own breaker, separate from address lookup's.
@@ -226,7 +236,10 @@ export async function roadDistanceMatrix(
 
   for (let start = 0; start < pending.length; start += MAX_DESTINATIONS_PER_CALL) {
     const chunk = pending.slice(start, start + MAX_DESTINATIONS_PER_CALL);
-    const measured = await callDistanceMatrix(from, chunk.map(i => destinations[i]));
+    const measured =
+      chunk.length === 1
+        ? await callDirections(from, destinations[chunk[0]])
+        : await callDistanceMatrix(from, chunk.map(i => destinations[i]));
     chunk.forEach((destIndex, chunkIndex) => {
       const value = measured?.[chunkIndex];
       if (value) {
@@ -243,6 +256,55 @@ export async function roadDistanceMatrix(
 export async function roadDistance(from: Coordinates, to: Coordinates): Promise<RoadDistance> {
   const [only] = await roadDistanceMatrix(from, [to]);
   return only;
+}
+
+async function callDirections(from: Coordinates, to: Coordinates): Promise<(RoadDistance | null)[] | null> {
+  const points = `${from.longitude},${from.latitude};${to.longitude},${to.latitude}`;
+  const params = new URLSearchParams({
+    access_token: config.MAPBOX_ACCESS_TOKEN,
+    alternatives: 'false',
+    overview: 'false',
+    steps: 'false'
+  });
+  try {
+    const response = await breaker.run(
+      signal => fetch(`${MAPBOX_DIRECTIONS}/${points}?${params.toString()}`, { signal }),
+      res => res.status >= 500
+    );
+    if (!response.ok) {
+      const errorBody: any = await response.json().catch(() => null);
+      lastRefusal = {
+        status: `HTTP_${response.status}`,
+        detail: errorBody?.message ? String(errorBody.message) : undefined,
+        at: new Date().toISOString()
+      };
+      console.log(JSON.stringify({
+        level: 'ERROR',
+        timestamp: new Date().toISOString(),
+        event: 'ROUTING_API_REFUSED',
+        api: 'directions',
+        httpStatus: response.status,
+        detail: errorBody?.message
+      }));
+      return null;
+    }
+    const body: any = await response.json().catch(() => null);
+    // NoRoute is a real answer about this pair: fall back for it alone.
+    if (!body || body.code !== 'Ok') return [null];
+    const route = body.routes?.[0];
+    const metres = Number(route?.distance);
+    const seconds = Number(route?.duration);
+    if (!route || !Number.isFinite(metres) || !Number.isFinite(seconds)) return [null];
+    return [
+      {
+        distanceKm: round2(metres / 1000),
+        durationMinutes: Math.max(1, Math.ceil(seconds / 60)),
+        source: 'MAPBOX' as const
+      }
+    ];
+  } catch {
+    return null;
+  }
 }
 
 async function callDistanceMatrix(

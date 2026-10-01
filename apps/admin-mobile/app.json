@@ -135,6 +135,13 @@
           "color": "#F5A623"
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Quick Bites Operations uses your photos to add dish pictures and read a restaurant's printed menu when uploading it for them.",
+          "cameraPermission": "Quick Bites Operations uses the camera to photograph a restaurant's printed menu or a dish when uploading a menu for them."
+        }
+      ],
       "../../packages/config/expo-plugins/withReleaseSigning",
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",

@@ -47,7 +47,9 @@ const PATTERNS = [
   { name: 'Private key block', re: /-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/ },
   { name: 'Google API key', re: /AIza[0-9A-Za-z_-]{35}/ },
   { name: 'Slack token', re: /xox[baprs]-[0-9A-Za-z-]{10,}/ },
-  { name: 'Firebase service account', re: /"type"\s*:\s*"service_account"/ }
+  { name: 'Firebase service account', re: /"type"\s*:\s*"service_account"/ },
+  // The AI menu reader's key lives only in the server environment (1 Oct 2026).
+  { name: 'Groq API key', re: /gsk_[A-Za-z0-9]{20,}/ }
 ];
 
 /** Tracked files that legitimately contain example credentials. */

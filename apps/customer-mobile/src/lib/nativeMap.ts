@@ -32,8 +32,9 @@
  * would happen while this module was still loading and take the bundle with it.
  */
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import Constants from 'expo-constants';
-import { boundsFor, FIT_PADDING } from './mapFit';
+import { isPlottable, fitCamera } from './cameraFit';
 
 export interface LatLng {
   latitude: number;
@@ -183,6 +184,13 @@ function zoomForSpan(spanMetres: number): number {
   return Math.min(20, Math.max(1, zoom));
 }
 
+/* ------------------------------------------------------------------------- */
+/*            Framing two points exactly (owner, 1 Oct 2026)                 */
+/* ------------------------------------------------------------------------- */
+
+// The framing maths is pure, in its own file so the gate can check it.
+export { isPlottable, fitCamera };
+
 export const MapCanvas: React.FC<MapCanvasProps> = ({
   centre,
   spanMetres = 1200,
@@ -193,62 +201,61 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   scrollEnabled = true,
   showUserLocation = false
 }) => {
+  /*
+   * The map measures itself, and the camera is set from that measurement
+   * (owner, 1 Oct 2026). With two or more real points it frames them exactly
+   * (`fitCamera`); otherwise it shows `centre` at `spanMetres`. The same values
+   * are the Camera's DEFAULT settings, so even the very first frame is the
+   * right place — never Mapbox's own zoomed-out default.
+   */
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
   if (!Mapbox) return null;
   const { MapView, Camera, UserLocation } = Mapbox;
 
-  /*
-   * A box if there is one, a centre if there is not.
-   *
-   * `boundsFor` returns null for a single point AND for a zero-area box — two
-   * coordinates that are the same, which is what a rider standing at the
-   * customer's door looks like. Mapbox given a zero-area bounds zooms to its
-   * maximum and renders blank grey, and blank is the one thing a tracking map
-   * must never be. So that case falls through to the centre-and-span path with
-   * its floor span, which is a sensible close-up view of one place.
-   */
-  const box = fit ? boundsFor(fit) : null;
-  const cameraProps: any = box
-    ? {
-        bounds: {
-          ne: toMapbox(box.ne),
-          sw: toMapbox(box.sw),
-          paddingTop: FIT_PADDING.top,
-          paddingBottom: FIT_PADDING.bottom,
-          paddingLeft: FIT_PADDING.left,
-          paddingRight: FIT_PADDING.right
-        },
-        animationDuration: 350
-      }
-    : {
-        centerCoordinate: toMapbox(fit && fit.length === 1 ? fit[0] : centre),
-        zoomLevel: zoomForSpan(spanMetres),
-        animationDuration: 350
-      };
+  const framed = fit && fit.filter(isPlottable).length >= 2 ? fitCamera(fit, size.width, size.height) : null;
+  const single = fit ? fit.find(isPlottable) : undefined;
+  const target = framed
+    ? { centerCoordinate: toMapbox(framed.centre), zoomLevel: framed.zoom }
+    : { centerCoordinate: toMapbox(single || centre), zoomLevel: zoomForSpan(spanMetres) };
 
   return React.createElement(
-    MapView,
+    View,
     {
       style,
-      styleURL: MAP_STYLE_URL,
-      scaleBarEnabled: false,
-      // The Mapbox wordmark and attribution must stay visible - it is a
-      // condition of the terms, not a design choice.
-      logoEnabled: true,
-      attributionEnabled: true,
-      scrollEnabled,
-      zoomEnabled: scrollEnabled,
-      rotateEnabled: false,
-      pitchEnabled: false,
-      onMapIdle: onSettle
-        ? (state: any) => {
-            const point = fromMapbox(state?.properties?.center);
-            if (point) onSettle(point);
-          }
-        : undefined
+      onLayout: (e: any) => {
+        const { width, height } = e?.nativeEvent?.layout || {};
+        if (width > 0 && height > 0 && (width !== size.width || height !== size.height)) setSize({ width, height });
+      }
     },
-    React.createElement(Camera, cameraProps),
-    showUserLocation && UserLocation ? React.createElement(UserLocation, { key: 'me' }) : null,
-    children
+    React.createElement(
+      MapView,
+      {
+        style: StyleSheet.absoluteFill,
+        styleURL: MAP_STYLE_URL,
+        scaleBarEnabled: false,
+        // The Mapbox wordmark and attribution must stay visible - it is a
+        // condition of the terms, not a design choice.
+        logoEnabled: true,
+        attributionEnabled: true,
+        scrollEnabled,
+        zoomEnabled: scrollEnabled,
+        rotateEnabled: false,
+        pitchEnabled: false,
+        onMapIdle: onSettle
+          ? (state: any) => {
+              const point = fromMapbox(state?.properties?.center);
+              if (point) onSettle(point);
+            }
+          : undefined
+      },
+      React.createElement(Camera, {
+        defaultSettings: target,
+        ...target,
+        animationDuration: size.width > 0 ? 350 : 0
+      }),
+      showUserLocation && UserLocation ? React.createElement(UserLocation, { key: 'me' }) : null,
+      children
+    )
   );
 };
 

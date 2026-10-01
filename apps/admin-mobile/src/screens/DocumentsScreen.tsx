@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { DownloadButton } from '../components/DownloadButton';
+import { documentFileName } from '../lib/download';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, Alert } from 'react-native';
 import { FileCheck2 } from 'lucide-react-native';
 import { Card, Segmented, Badge, Button, Field, Divider, Loading, EmptyState, NoAccess, KeyValue, ResourceError } from '../components/ui';
@@ -113,6 +115,7 @@ export const DocumentsScreen: React.FC = () => {
             </View>
 
             {doc.fileUrl ? <Image source={{ uri: doc.fileUrl }} style={s.scan} resizeMode="contain" /> : null}
+            <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} />
 
             <KeyValue label="Document number" value={doc.documentNumber} tone="strong" />
             <KeyValue label="Contact" value={doc.entityPhone} />

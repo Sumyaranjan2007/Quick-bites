@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, Modal } from 'react-native';
+import { MenuBuilder } from '../components/MenuBuilder';
+import { pickDishPhoto, pickMenuPages } from '../lib/photo';
 import { UtensilsCrossed, Inbox, Tag } from 'lucide-react-native';
 import {
   Card,
@@ -58,6 +60,8 @@ const MenusTab: React.FC = () => {
   const [search, setSearch] = useState('');
   const [submitted, setSubmitted] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [builderFor, setBuilderFor] = useState<{ id: string; name: string } | null>(null);
+  const uploadedIds = useRef<string[]>([]);
   const list = useResource(() => api.get<any>(`/admin/menus${query({ q: submitted })}`), [submitted]);
   const menus = list.data?.menus || [];
 
@@ -96,16 +100,95 @@ const MenusTab: React.FC = () => {
         ))}
       </ScrollView>
 
-      <MenuSheet restaurantId={openId} onClose={() => setOpenId(null)} onChanged={list.silentReload} />
+      <MenuSheet
+        restaurantId={openId}
+        onClose={() => setOpenId(null)}
+        onChanged={list.silentReload}
+        onOpenBuilder={(id, name) => {
+          setOpenId(null);
+          setBuilderFor({ id, name });
+        }}
+      />
+      {/* A whole menu for a restaurant, typed or read from photos (owner, 1 Oct 2026). */}
+      <Modal visible={Boolean(builderFor)} animationType="slide" onRequestClose={() => setBuilderFor(null)}>
+        {builderFor ? (
+          <MenuBuilder
+            storageKey={`admin-menu-builder:${builderFor.id}`}
+            title={`Menu for ${builderFor.name}`}
+            subtitle="Uploaded on the restaurant's behalf. Reviewed like any menu request."
+            palette={{
+              bg: c.bg.base,
+              card: c.bg.card,
+              text: c.text.primary,
+              muted: c.text.muted,
+              border: c.border.subtle,
+              brand: c.brand.maroon,
+              onBrand: '#FFFFFF',
+              veg: c.state.success,
+              nonVeg: c.state.danger,
+              warn: c.state.warning,
+              warnBg: c.state.warningBg,
+              danger: c.state.danger
+            }}
+            pickDishPhoto={pickDishPhoto}
+            pickMenuPages={pickMenuPages}
+            readMenuPhoto={async image => {
+              const out = await api.post<any>(`/admin/menus/${builderFor.id}/ai-read`, { image });
+              return out.draft;
+            }}
+            sendBatch={async batch => {
+              const out = await api.post<any>(`/admin/menus/${builderFor.id}/bulk`, {
+                batchId: batch.batchId,
+                startIndex: batch.startIndex,
+                items: batch.items,
+                final: batch.final,
+                fromAiDraft: batch.fromAiDraft
+              });
+              uploadedIds.current.push(...(out.requestIds || []));
+            }}
+            sendLabel="Upload menu for review"
+            onSent={count => {
+              const target = builderFor;
+              const ids = [...uploadedIds.current];
+              uploadedIds.current = [];
+              setBuilderFor(null);
+              void list.silentReload();
+              Alert.alert(
+                `${count} dish${count === 1 ? '' : 'es'} uploaded`,
+                `They are waiting in Menu requests for ${target.name}. Approve them all now?`,
+                [
+                  { text: 'Review later', style: 'cancel' },
+                  {
+                    text: 'Approve all now',
+                    onPress: async () => {
+                      try {
+                        const result = await api.post<any>('/admin/menu-requests/bulk-review', {
+                          restaurantId: target.id,
+                          expectedRequestIds: ids
+                        });
+                        Alert.alert('Menu is live', `${result.approvedCount} approved${result.failed?.length ? `, ${result.failed.length} could not be applied` : ''}.`);
+                      } catch (err: any) {
+                        Alert.alert('Could not approve', err?.message || 'Approve them from Menu requests.');
+                      }
+                    }
+                  }
+                ]
+              );
+            }}
+            onClose={() => setBuilderFor(null)}
+          />
+        ) : null}
+      </Modal>
     </View>
   );
 };
 
-const MenuSheet: React.FC<{ restaurantId: string | null; onClose: () => void; onChanged: () => void }> = ({
-  restaurantId,
-  onClose,
-  onChanged
-}) => {
+const MenuSheet: React.FC<{
+  restaurantId: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+  onOpenBuilder: (restaurantId: string, name: string) => void;
+}> = ({ restaurantId, onClose, onChanged, onOpenBuilder }) => {
   const { api, can } = useSession();
   const [editing, setEditing] = useState<any | null>(null);
   const [adding, setAdding] = useState(false);
@@ -198,7 +281,15 @@ const MenuSheet: React.FC<{ restaurantId: string | null; onClose: () => void; on
       subtitle={menu ? dishCount((menu.categories || []).reduce((n: number, cat: any) => n + cat.items.length, 0)) : undefined}
       footer={
         canEdit && !editing && !adding ? (
-          <Button label="Add a dish" full onPress={() => setAdding(true)} />
+          <View style={{ gap: tokens.space[2] }}>
+            {/* The whole-menu builder: sizes, extras, photos, AI from photos. */}
+            <Button
+              label="Upload a menu (or read it from photos)"
+              full
+              onPress={() => restaurantId && onOpenBuilder(restaurantId, resource.data?.restaurant?.name || 'this restaurant')}
+            />
+            <Button label="Quick add one dish" variant="secondary" full onPress={() => setAdding(true)} />
+          </View>
         ) : undefined
       }
     >

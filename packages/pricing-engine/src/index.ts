@@ -25,6 +25,23 @@
 import { DEFAULT_PRICING_RATES } from '@quick-bites/shared-types';
 import type { PricingRates } from '@quick-bites/shared-types';
 
+/**
+ * What a rider earns for a trip, before any tip (owner, 1 Oct 2026).
+ *
+ * Road kilometres from the restaurant to the customer x the per-km rate,
+ * rounded to the rupee, never below the per-trip minimum. One function, used by
+ * the quote, checkout (which freezes it on the bill as `riderPay`), the rider's
+ * offer and the payout, so all four always agree. The customer's delivery fee
+ * is built FROM this figure plus the delivery markup, so the platform's margin
+ * on delivery is exactly that markup on every trip.
+ */
+export function riderPayFor(distanceKm: number | undefined, rates: PricingRates = DEFAULT_PRICING_RATES): number {
+  const km = Math.max(0, Number(distanceKm) || 0);
+  const perKm = Math.max(0, Number(rates.riderPerKmFee) || 0);
+  const minimum = Math.max(0, Number(rates.riderMinEarningPerTrip) || 0);
+  return Math.max(minimum, Math.round(km * perKm));
+}
+
 export interface PricingInput {
   items: Array<{
     unitPrice: number;
@@ -67,6 +84,14 @@ export interface PricingInput {
   /** This restaurant's own platform fee, before GST on the fee. */
   platformFeeBase?: number;
   /** This restaurant's own delivery floor. */
+  /**
+   * GST on the platform fee, in percent. 0 unless the platform has a GSTIN —
+   * the caller decides, from the restaurant's charges. Absent = 0: a bill must
+   * never add a tax the business is not registered to collect. (It used to add
+   * a global 18%, so a Rs 10 fee showed as Rs 11.80 to the customer.)
+   */
+  platformFeeGstPercent?: number;
+  /** No longer used for new orders: delivery is built from rider pay. Kept for callers. */
   deliveryBaseFee?: number;
   /** Anything else the platform adds. Charged to the customer, kept by us. */
   extraCharge?: number;
@@ -178,6 +203,8 @@ export interface CalculatedBill {
    * delivery for this order, and it is the only place that is recorded.
    */
   partnerDeliveryFee: number;
+  /** What the rider earns for this trip before tips. Frozen on the order. */
+  riderPay: number;
   platformFee: number;
   couponDiscount: number;
   /**
@@ -250,30 +277,11 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
   const partnerPackagingFee =
     input.partnerPackagingFee !== undefined ? input.partnerPackagingFee : packagingFee;
 
-  // 4. Delivery Fee: base up to the base distance, then per whole km beyond.
-  //    Free for a member whose food total clears the threshold.
-  let deliveryFee =
-    typeof input.deliveryBaseFee === 'number' && Number.isFinite(input.deliveryBaseFee)
-      ? Math.max(0, input.deliveryBaseFee)
-      : rates.deliveryBaseFee;
-  if (input.distanceKm && input.distanceKm > rates.deliveryBaseKm) {
-    const extraKm = Math.ceil(input.distanceKm - rates.deliveryBaseKm);
-    deliveryFee += extraKm * rates.deliveryPerKmBeyond;
-  }
-  /*
-   * The platform's markup on delivery, paid by the CUSTOMER.
-   *
-   * Applied after distance and BEFORE any membership discount, deliberately.
-   * A member's percentage should come off the real price they would otherwise
-   * have paid -- discounting first and marking up afterwards would quietly
-   * claw back part of the benefit they bought, and the order of two
-   * percentages is invisible on a bill that still adds up.
-   *
-   * It does not appear in the rider's payout because the rider's payout is not
-   * computed here. calculateTripPayout works from the trip and the rider rates;
-   * this number is not one of them, and a test asserts the payout is
-   * byte-identical across a change to it.
-   */
+  // 4. Delivery fee: what the rider earns for these road km, plus the delivery
+  //    markup, which is the platform's margin (owner, 1 Oct 2026). Gold's
+  //    percentage off is applied below.
+  const riderPay = riderPayFor(input.distanceKm, rates);
+  let deliveryFee = riderPay;
   const deliveryMarkupPercent = Math.max(0, Number(rates.riderDeliveryMarkupPercent) || 0);
   const partnerDeliveryFee = deliveryFee;
   if (deliveryMarkupPercent > 0) {
@@ -318,8 +326,11 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     typeof input.platformFeeBase === 'number' && Number.isFinite(input.platformFeeBase)
       ? Math.max(0, input.platformFeeBase)
       : rates.platformFeeBase;
-  const platformFee =
-    Math.round(platformFeeBase * (1 + rates.platformFeeGstPercent / 100) * 100) / 100;
+  const platformFeeGstPercent =
+    typeof input.platformFeeGstPercent === 'number' && Number.isFinite(input.platformFeeGstPercent)
+      ? Math.min(28, Math.max(0, input.platformFeeGstPercent))
+      : 0;
+  const platformFee = Math.round(platformFeeBase * (1 + platformFeeGstPercent / 100) * 100) / 100;
 
   // 5b. Anything else the platform adds for this restaurant. Charged in full,
   //     kept in full, and named on the bill.
@@ -432,6 +443,7 @@ export function calculateOrderPricing(input: PricingInput): CalculatedBill {
     extraChargeLabel: input.extraChargeLabel || '',
     deliveryFee,
     partnerDeliveryFee,
+    riderPay,
     platformFee,
     couponDiscount,
     membershipDiscount,

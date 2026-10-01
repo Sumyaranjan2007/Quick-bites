@@ -60,10 +60,24 @@ function stubFetch(body: unknown, status = 200) {
     return {
       ok: status >= 200 && status < 300,
       status,
-      json: async () => body
+      json: async () => (String(url).includes('/directions/v5/') ? asDirections(body) : body)
     } as any;
   }) as any;
   return calls;
+}
+
+/**
+ * One trip is measured with Mapbox DIRECTIONS (the Matrix refuses a single
+ * pair, HTTP 422 — the live bug of Sep 2026). A matrix-shaped fixture is
+ * answered the way Directions answers the same pair, so every check below
+ * keeps its meaning for the single-pair path.
+ */
+function asDirections(body: any): any {
+  const metres = body?.distances?.[0]?.[0];
+  const seconds = body?.durations?.[0]?.[0];
+  if (!body || body.code !== 'Ok') return body;
+  if (metres === null || metres === undefined) return { code: 'NoRoute', routes: [] };
+  return { code: 'Ok', routes: [{ distance: metres, duration: seconds }] };
 }
 
 /**
@@ -197,9 +211,13 @@ await (async () => {
      * that only checked a distance came back.
      */
     assert.ok(
-      calls[0].includes('/directions-matrix/v1/mapbox/driving-traffic/'),
+      calls[0].includes('/mapbox/driving-traffic/'),
       'the traffic-aware profile is what makes the ETA honest'
     );
+    // ONE trip goes to Directions, never to the Matrix: the Matrix refuses a
+    // single pair ("minimum number of matrix elements is 2"), and on the live
+    // server every order had silently fallen back to a straight-line guess.
+    assert.ok(calls[0].includes('/directions/v5/'), `a single trip must use Directions, asked: ${calls[0].split('?')[0]}`);
     // Coordinates are lon,lat on Mapbox. Reversed, an Indian address becomes a
     // point at sea and the API answers with a perfectly plausible distance.
     assert.ok(

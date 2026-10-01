@@ -53,6 +53,8 @@ import {
   validateProfileChanges
 } from '../modules/restaurants/profileEdits.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
+import { MenuBatchSchema, MenuDishSchema, createMenuBatch } from '../modules/menu/menuBulk.ts';
+import { readMenuPhoto, isMenuAiConfigured, consumeScan, MAX_IMAGE_CHARS as MAX_MENU_PHOTO_CHARS, checkMenuPhoto } from '../modules/menu/menuAi.ts';
 import { statementFor } from '../modules/payments/statements.ts';
 import { listPayouts } from '../modules/payments/payouts.ts';
 import { toRupees } from '../modules/payments/money.ts';
@@ -702,45 +704,10 @@ restaurantRouter.post('/:id/kitchen-status', authMiddleware('restaurant_owner'),
 // in adminRouter, is the only path that does.
 // ---------------------------------------------------------------------------
 
-const MenuRequestSchema = z.object({
+// One definition of a dish, shared with the whole-menu route (menuBulk.ts).
+const MenuRequestSchema = MenuDishSchema.extend({
   kind: z.enum(['ADD_ITEM', 'EDIT_ITEM']).optional().default('ADD_ITEM'),
-  dishId: z.string().min(1).optional(),
-  name: z.string().trim().min(1, 'Dish name is required').max(120),
-  description: z.string().trim().max(400).optional(),
-  price: z.number().positive('Price must be greater than zero').max(100000),
-  isVeg: z.boolean(),
-  categoryName: z.string().trim().min(1, 'Category is required').max(80),
-  /**
-   * A link, or a data URI from the partner app's own camera.
-   *
-   * Capped at the same 200,000 characters the admin catalogue routes use. They
-   * disagreed before: a partner could submit a photo larger than an
-   * administrator could ever edit, so the first attempt to correct that dish
-   * would fail validation on a field nobody had touched.
-   */
-  imageUrl: z.string().trim().max(200000).optional(),
-  /**
-   * F05. Half/full plate and the like: each size with its REAL price. Two to
-   * four, names distinct. An empty list on an edit removes the sizes.
-   */
-  sizes: z
-    .array(z.object({
-      name: z.string().trim().min(1, 'Name each size').max(40),
-      price: z.number().positive('Each size needs a price above zero').max(100000)
-    }))
-    .max(4, 'At most 4 sizes')
-    .refine(list => list.length === 0 || list.length >= 2, 'Give at least 2 sizes, or none')
-    .refine(list => new Set(list.map(s => s.name.toLowerCase())).size === list.length, 'Two sizes have the same name')
-    .optional(),
-  /** F05. Optional extras a customer can add, each with its own price. */
-  extras: z
-    .array(z.object({
-      name: z.string().trim().min(1, 'Name each extra').max(40),
-      price: z.number().positive('Each extra needs a price above zero').max(100000)
-    }))
-    .max(10, 'At most 10 extras')
-    .refine(list => new Set(list.map(s => s.name.toLowerCase())).size === list.length, 'Two extras have the same name')
-    .optional()
+  dishId: z.string().min(1).optional()
 });
 
 // POST /api/restaurants/:id/menu/requests — partner submits a menu change for review
@@ -789,6 +756,73 @@ restaurantRouter.post(
         data: { request },
         message: 'Sent for review. You will see the dish on your menu once it is approved.'
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/restaurants/:id/menu/requests/bulk — a whole menu, in batches.
+ *
+ * Each dish becomes an ordinary ADD_ITEM request (same schema as the one-dish
+ * form), sharing a batch id, so Catalogue reviews the menu as one. Retrying a
+ * batch that already arrived creates nothing twice. Owner, 1 Oct 2026.
+ */
+restaurantRouter.post(
+  '/:id/menu/requests/bulk',
+  authMiddleware('restaurant_owner'),
+  validate({ body: MenuBatchSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await assertOwnsRestaurant(req, req.params.id);
+      const result = await createMenuBatch({
+        restaurant: { id: restaurant.id, name: restaurant.name },
+        requestedByUserId: req.user!.id,
+        batch: req.body
+      });
+      for (const request of result.created) emitMenuRequestSubmitted(request);
+      if (req.body.final) {
+        void notifyAdminsMenuRequestRaised({
+          requestId: result.created[0]?.id || req.body.batchId,
+          restaurantName: restaurant.name,
+          what: `a whole menu of ${result.totalInBatch} dish${result.totalInBatch === 1 ? '' : 'es'}`
+        });
+      }
+      res.status(201).json({
+        success: true,
+        data: { created: result.created.length, duplicates: result.duplicates, totalInBatch: result.totalInBatch },
+        message: req.body.final
+          ? `Your menu of ${result.totalInBatch} dish${result.totalInBatch === 1 ? '' : 'es'} has been sent for review.`
+          : 'Batch received.'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/restaurants/:id/menu/ai-read — read ONE photo of a printed menu.
+ *
+ * Returns a draft (sections, dishes, prices, sizes, extras, veg). Saves
+ * nothing: the Menu Builder shows it for the partner to check and send.
+ */
+const AiReadSchema = z.object({ image: z.string().min(100).max(MAX_MENU_PHOTO_CHARS) });
+restaurantRouter.post(
+  '/:id/menu/ai-read',
+  authMiddleware('restaurant_owner'),
+  validate({ body: AiReadSchema }),
+  async (req, res, next) => {
+    try {
+      const restaurant = await assertOwnsRestaurant(req, req.params.id);
+      if (!isMenuAiConfigured()) {
+        throw new AppError('AI menu reading is not switched on yet. You can still type the menu in.', 503, 'MENU_AI_NOT_CONFIGURED');
+      }
+      checkMenuPhoto(req.body.image);
+      const remaining = consumeScan(restaurant.id);
+      const draft = await readMenuPhoto(req.body.image);
+      res.json({ success: true, data: { draft, scansLeftToday: remaining } });
     } catch (err) {
       next(err);
     }

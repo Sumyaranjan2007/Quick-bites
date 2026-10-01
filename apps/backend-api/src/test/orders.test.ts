@@ -72,11 +72,11 @@ async function runOrderTests() {
   if (order.bill.couponDiscount !== 100.00) {
     throw new Error(`Coupon discount mismatch: expected 100.00 cap, got ${order.bill.couponDiscount}`);
   }
-  // Total: 500 + 25 (GST) + 25 (packaging) + 27 (delivery, 10% off) + 5.90 (platform fee) - 100 = 482.90
-  if (order.bill.totalAmount !== 482.90) {
-    throw new Error(`Total amount mismatch: expected 482.90, got ${order.bill.totalAmount}`);
+  // Total: 500 + 25 (GST) + 25 (packaging) + 27 (delivery, 10% off) + 5 (platform fee, no GST without a GSTIN) - 100 = 482
+  if (order.bill.totalAmount !== 482) {
+    throw new Error(`Total amount mismatch: expected 482, got ${order.bill.totalAmount}`);
   }
-  console.log('[PASS] Step 3: Bill breakdown verified (Items: Rs 500, GST: Rs 25, Gold 10% off delivery, Coupon: -Rs 100, Total: Rs 482.90)');
+  console.log('[PASS] Step 3: Bill breakdown verified (Items: Rs 500, GST: Rs 25, Gold 10% off delivery, Coupon: -Rs 100, Total: Rs 482)');
 
   // 4. Test Idempotency Double-Click Protection (Rule 45)
   console.log('Step 4: Testing idempotency key duplicate rejection...');

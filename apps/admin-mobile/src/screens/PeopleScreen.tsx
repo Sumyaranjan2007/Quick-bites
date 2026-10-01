@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { DownloadButton } from '../components/DownloadButton';
+import { documentFileName } from '../lib/download';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Users, Bike, Store } from 'lucide-react-native';
 import {
@@ -728,6 +730,7 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
                   <Text style={s.miniTitle}>{humanise(doc.documentType)}</Text>
                   <Text style={s.miniMeta}>{doc.documentNumber || 'No number recorded'}</Text>
                 </View>
+                <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} label="Save" />
                 <Badge label={doc.status} />
               </View>
             ))}
@@ -1033,6 +1036,7 @@ const RestaurantSheet: React.FC<{
                   <Text style={s.miniTitle}>{humanise(doc.documentType)}</Text>
                   <Text style={s.miniMeta}>{doc.documentNumber || 'No number recorded'}</Text>
                 </View>
+                <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} label="Save" />
                 <Badge label={doc.status} />
               </View>
             ))}

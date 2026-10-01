@@ -538,6 +538,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
                even though the order has carried that address all along. */
             destination={tracking?.destinationCoordinates ?? order?.deliveryCoordinates ?? null}
             pickedUpAt={tracking?.pickedUpAt ?? null}
+            roadKm={typeof order?.distanceKm === 'number' ? order.distanceKm : null}
             updatedAt={tracking?.riderLocationUpdatedAt}
             riderName={tracking?.riderName ?? riderName}
             restaurantName={tracking?.restaurantName ?? order?.restaurantName ?? null}

@@ -126,6 +126,17 @@ export interface MenuChangeRequest {
   };
   status: MenuRequestStatus;
   submittedAt: string;
+  /**
+   * Set when the dish came in with a whole menu (Menu Builder, 1 Oct 2026):
+   * every dish sent together shares it, and `batchSeq` keeps the order the
+   * partner laid the menu out in, so approval adds dishes in that order.
+   */
+  batchId?: string;
+  batchSeq?: number;
+  /** An administrator who uploaded this on the restaurant's behalf. */
+  uploadedByAdminName?: string;
+  /** The menu was read from photos by AI and checked by a person before sending. */
+  fromAiDraft?: boolean;
   reviewedAt?: string;
   reviewedByUserId?: string;
   rejectionReason?: string;
@@ -1887,9 +1898,9 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   tcsPercent: 1,
 
   // Rider earnings. Defaults agreed for the payouts rebuild.
-  riderBaseFeePerTrip: 25,
-  riderBaseKm: 2,
-  riderPerKmFee: 6,
+  riderBaseFeePerTrip: 0,
+  riderBaseKm: 0,
+  riderPerKmFee: 10,
   riderMinEarningPerTrip: 30,
   // Starts at zero, so this lands changing nothing until somebody sets it.
   riderDeliveryMarkupPercent: 0,

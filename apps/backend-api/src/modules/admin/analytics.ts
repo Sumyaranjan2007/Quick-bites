@@ -13,6 +13,7 @@
  * margin on delivery, less any discount the platform funded — is the take.
  */
 import type { Order, OrderStatus, Restaurant, DeliveryRider } from '@quick-bites/shared-types';
+import { tripTakeHome } from '../riders/tripPayout.ts';
 import { memoryStore } from '../../db/client.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 
@@ -61,6 +62,8 @@ export interface OrderEconomics {
   platformFee: number;
   deliveryFee: number;
   riderPayout: number;
+  /** Trip pay plus the tip: what riders are owed for the order. */
+  riderTakeHome: number;
   restaurantPayout: number;
   tax: number;
   discount: number;
@@ -102,6 +105,7 @@ export function economicsOf(order: Order): OrderEconomics {
     platformFee,
     deliveryFee,
     riderPayout,
+    riderTakeHome: Number(order.riderPayout) ? tripTakeHome(order as any) : 0,
     restaurantPayout: Number(bill.restaurantNetPayout) || 0,
     tax: Number(bill.gstAmount) || 0,
     discount,
@@ -257,7 +261,7 @@ export function buildDashboard(): DashboardSnapshot {
       taxCollected: sum(earning, 'tax'),
       discountsGiven: sum(earning, 'discount'),
       restaurantPayable: sum(earning, 'restaurantPayout'),
-      riderPayable: sum(earning, 'riderPayout'),
+      riderPayable: sum(earning, 'riderTakeHome'),
       refundedAmount: round(
         refunded.reduce((total, o) => total + (Number(o.bill?.totalAmount) || 0), 0)
       )

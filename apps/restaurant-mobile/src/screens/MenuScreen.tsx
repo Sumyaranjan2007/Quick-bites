@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Modal, TouchableOpacity, RefreshControl, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Switch, Modal, TouchableOpacity, RefreshControl, Image, Alert } from 'react-native';
 import { Plus, Clock3, CheckCircle2, XCircle, Camera, Image as ImageIcon, X } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
-import { fetchMenu, setDishStock, submitMenuRequest, fetchMenuRequests } from '../lib/partnerApi';
-import { pickDishPhoto } from '../lib/photo';
+import { fetchMenu, setDishStock, submitMenuRequest, fetchMenuRequests, readMenuPhoto, sendMenuBatch } from '../lib/partnerApi';
+import { pickDishPhoto, pickMenuPages } from '../lib/photo';
+import { MenuBuilder } from '../components/MenuBuilder';
 
 interface Props {
   restaurantId: string;
@@ -28,6 +29,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
   const [busyDish, setBusyDish] = useState<string | null>(null);
 
   const [composerOpen, setComposerOpen] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
   // isVeg starts UNSET for a new dish (V9-9): it used to start as Vegetarian,
   // so a kitchen that did not notice the switch listed meat as veg.
   const [form, setForm] = useState<{ name: string; description: string; price: string; categoryName: string; isVeg: boolean | null }>(
@@ -236,8 +238,15 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
           </View>
         )}
 
+        {/* A whole menu at once, typed or read from photos (owner, 1 Oct 2026). */}
         <Button
-          label="Request a new dish"
+          label="Build my whole menu (or read it from photos)"
+          onPress={() => setBuilderOpen(true)}
+          style={{ marginBottom: spacing.md }}
+        />
+        <Button
+          label="Request one new dish"
+          variant="ghost"
           onPress={() => openComposer()}
           style={{ marginBottom: spacing.lg }}
         />
@@ -527,13 +536,54 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
           </View>
         </View>
       </Modal>
+      <Modal visible={builderOpen} animationType="slide" onRequestClose={() => setBuilderOpen(false)}>
+        <MenuBuilder
+          storageKey={`menu-builder:${restaurantId}`}
+          title="Build my menu"
+          subtitle="Sections, dishes, sizes, extras and photos. Sent together for approval."
+          palette={{
+            bg: c.bg,
+            card: c.surface,
+            text: c.text,
+            muted: c.textMuted,
+            border: c.border,
+            brand: c.brand,
+            onBrand: '#FFFFFF',
+            veg: c.veg,
+            nonVeg: c.nonVeg,
+            warn: '#7A4A00',
+            warnBg: '#FFF0D6',
+            danger: c.danger
+          }}
+          pickDishPhoto={pickDishPhoto}
+          pickMenuPages={pickMenuPages}
+          readMenuPhoto={async image => {
+            const res = await readMenuPhoto(restaurantId, image);
+            if (!res.ok) throw new Error(res.message || 'The photo could not be read.');
+            return res.data!.draft;
+          }}
+          sendBatch={async batch => {
+            const res = await sendMenuBatch(restaurantId, batch);
+            if (!res.ok) throw new Error(res.message || 'Your menu could not be sent.');
+          }}
+          onSent={count => {
+            setBuilderOpen(false);
+            Alert.alert(
+              'Menu sent for approval',
+              `${count} dish${count === 1 ? '' : 'es'} sent. You will see them on your menu as soon as our team approves them.`
+            );
+            void load('refresh');
+          }}
+          onClose={() => setBuilderOpen(false)}
+        />
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   photoLabel: { fontSize: 13, fontWeight: '700', color: c.text, marginTop: spacing.lg },
-  photoActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  photoActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm, marginBottom: spacing.lg },
   photoBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -623,5 +673,5 @@ const styles = StyleSheet.create({
   rowError: { fontSize: 12, color: c.danger, marginTop: 4 },
   choiceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
   choiceRemove: { padding: spacing.sm, marginBottom: spacing.md },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm, paddingVertical: 6 }
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm, marginBottom: spacing.md, paddingVertical: 6 }
 });

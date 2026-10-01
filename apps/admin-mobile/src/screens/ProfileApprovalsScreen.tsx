@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { DownloadButton } from '../components/DownloadButton';
+import { documentFileName } from '../lib/download';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Image } from 'react-native';
 import { Store } from 'lucide-react-native';
 import {
@@ -59,7 +61,12 @@ const Value: React.FC<{ field: string; value: any }> = ({ field, value }) => {
   }
 
   if (field === 'bannerUrl') {
-    return <Image source={{ uri: String(value) }} style={s.cover} resizeMode="cover" />;
+    return (
+      <View style={{ gap: 6 }}>
+        <Image source={{ uri: String(value) }} style={s.cover} resizeMode="cover" />
+        <DownloadButton source={String(value)} name={documentFileName(['Cover-photo'])} />
+      </View>
+    );
   }
 
   if (field === 'galleryUrls') {
@@ -68,7 +75,10 @@ const Value: React.FC<{ field: string; value: any }> = ({ field, value }) => {
     return (
       <View style={s.thumbRow}>
         {list.map((uri, i) => (
-          <Image key={i} source={{ uri }} style={s.thumb} resizeMode="cover" />
+          <View key={i} style={{ gap: 4 }}>
+            <Image source={{ uri }} style={s.thumb} resizeMode="cover" />
+            <DownloadButton source={uri} name={documentFileName(['Gallery', `photo-${i + 1}`])} label="Save" />
+          </View>
         ))}
       </View>
     );

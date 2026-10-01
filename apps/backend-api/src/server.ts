@@ -2,6 +2,7 @@ import { createApp } from './app.ts';
 import { config } from './config/env.ts';
 import { initSocketServer, closeSocketServer } from './sockets/socketServer.ts';
 import { syncService } from './modules/search/syncService.ts';
+import { applyRiderPerKmDecision } from './modules/payments/pricingConfig.ts';
 import { loadStoreFromFile, clearStore, memoryStore, setPersistenceBackend, flushStore } from './db/client.ts';
 import {
   isDatabaseConfigured,
@@ -108,6 +109,9 @@ await ensureBootstrapAdmin();
 // no-op unless TEST_RIDER_EMAIL and TEST_RIDER_PASSWORD are set; the account it
 // provisions is KYC-approved so it can actually be offered work.
 await ensureTestRider();
+
+// The owner's rider-pay decision of 1 Oct 2026, written once as a rates version.
+applyRiderPerKmDecision();
 
 // Boot writes whatever hydration, migrations and the bootstrap changed, in
 // full: some of it happens before change tracking can see it.

@@ -117,6 +117,29 @@ async function request<T>(
 // Account
 // ---------------------------------------------------------------------------
 
+/** Reads ONE photo of a printed menu page on the server (AI). Saves nothing. */
+export function readMenuPhoto(restaurantId: string, image: string) {
+  return request<{ draft: { sections: any[]; warnings: string[] }; scansLeftToday: number }>(
+    `/restaurants/${restaurantId}/menu/ai-read`,
+    { method: 'POST', body: JSON.stringify({ image }) },
+    'The menu photo could not be read.'
+  );
+}
+
+/** One batch of a whole menu, sent for approval (Menu Builder). */
+export function sendMenuBatch(
+  restaurantId: string,
+  batch: { batchId: string; startIndex: number; items: unknown[]; final?: boolean; fromAiDraft?: boolean }
+) {
+  // Spelled out so the body-contract check can read every key sent.
+  const { batchId, startIndex, items, final, fromAiDraft } = batch;
+  return request<{ created: number; duplicates: number; totalInBatch: number }>(
+    `/restaurants/${restaurantId}/menu/requests/bulk`,
+    { method: 'POST', body: JSON.stringify({ batchId, startIndex, items, final, fromAiDraft }) },
+    'Your menu could not be sent.'
+  );
+}
+
 /** Who the platform is and how to reach it — public, served by the server. */
 export function fetchBusinessIdentity() {
   return request<{ identity: { contactPhone?: string; contactEmail?: string } }>(

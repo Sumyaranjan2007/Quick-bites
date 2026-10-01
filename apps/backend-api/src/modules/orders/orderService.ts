@@ -315,6 +315,18 @@ async function refundPaidCancellation(
   };
 }
 
+/**
+ * GST on the platform fee: the restaurant's own rate, or the global one, ONLY
+ * when the platform holds a GSTIN. Without one it is 0, because charging GST
+ * without registration is not allowed — and it is why a Rs 10 fee used to
+ * reach the customer as Rs 11.80.
+ */
+export function platformFeeGstFor(charges: { platformGstin?: string | null; platformGstPercent?: number | null }): number {
+  if (!charges.platformGstin) return 0;
+  const own = charges.platformGstPercent;
+  return typeof own === 'number' && Number.isFinite(own) ? own : getActiveRates().platformFeeGstPercent;
+}
+
 export const orderService = {
   /**
    * Prices a basket exactly the way checkout will, without creating anything.
@@ -469,6 +481,8 @@ export const orderService = {
       partnerItemsTotal,
       gstFoodPercent: charges.gstFoodPercent,
       platformFeeBase: charges.platformFee,
+      // GST on our fee only with a GSTIN (owner, 1 Oct: Rs 10 set must be Rs 10 billed).
+      platformFeeGstPercent: platformFeeGstFor(charges),
       deliveryBaseFee: charges.deliveryBaseFee,
       extraCharge: charges.extraCharge,
       extraChargeLabel: charges.extraChargeLabel,
@@ -709,6 +723,8 @@ export const orderService = {
       partnerItemsTotal,
       gstFoodPercent: charges.gstFoodPercent,
       platformFeeBase: charges.platformFee,
+      // GST on our fee only with a GSTIN (owner, 1 Oct: Rs 10 set must be Rs 10 billed).
+      platformFeeGstPercent: platformFeeGstFor(charges),
       deliveryBaseFee: charges.deliveryBaseFee,
       extraCharge: charges.extraCharge,
       extraChargeLabel: charges.extraChargeLabel,
