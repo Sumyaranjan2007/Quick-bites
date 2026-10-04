@@ -60,8 +60,8 @@ export const EarningsScreen: React.FC<{
             on the rider's behalf inside the app: this is what the ledger says
             has been earned, and it is sent to their bank. */}
         <Text style={s.walletSub}>
-          Sent to your registered bank account. A day's earnings become payable the day after delivery, and
-          nothing is paid out while you are still holding our cash.
+          Sent to your registered bank account or UPI ID. Nothing is paid out while you are still holding our
+          cash.
         </Text>
         {metrics.codCashInHand > 0 ? (
           <View style={s.cashNote}>

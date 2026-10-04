@@ -114,8 +114,42 @@ export const twilioDriver: OtpDriver = {
   }
 };
 
+/**
+ * 2Factor.in (owner's choice, 4 Oct 2026): sends the code this server made,
+ * through 2Factor's own DLT-approved OTP template unless TWOFACTOR_TEMPLATE
+ * names one of yours. https://2factor.in/API/DOCS/SMS_OTP.html
+ *
+ *   GET https://2factor.in/API/V1/{key}/SMS/{phone}/{code}[/{template}]
+ *   -> {"Status":"Success","Details":"<session id>"} | {"Status":"Error","Details":"..."}
+ *
+ * The key is part of the URL, so the URL is never logged; only the provider's
+ * answer is.
+ */
+export const twoFactorDriver: OtpDriver = {
+  name: '2factor',
+  delivers: true,
+  async send(phone: string, code: string): Promise<OtpDeliveryResult> {
+    const key = process.env.TWOFACTOR_API_KEY || '';
+    if (!key) return { accepted: false, error: 'TWOFACTOR_API_KEY is not set.' };
+    const digits = String(phone).replace(/\D/g, '').slice(-10);
+    const template = (process.env.TWOFACTOR_TEMPLATE || '').trim();
+    const url =
+      `https://2factor.in/API/V1/${encodeURIComponent(key)}/SMS/${digits}/${encodeURIComponent(code)}` +
+      (template ? `/${encodeURIComponent(template)}` : '');
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      const body: any = await res.json().catch(() => null);
+      if (res.ok && body?.Status === 'Success') return { accepted: true, reference: String(body.Details || '') };
+      return { accepted: false, error: `2Factor refused: ${String(body?.Details || res.status)}` };
+    } catch (err: any) {
+      return { accepted: false, error: `2Factor unreachable: ${err?.name || 'error'}` };
+    }
+  }
+};
+
 const DRIVERS: Record<string, OtpDriver> = {
   fixed: fixedDriver,
+  '2factor': twoFactorDriver,
   msg91: msg91Driver,
   twilio: twilioDriver
 };

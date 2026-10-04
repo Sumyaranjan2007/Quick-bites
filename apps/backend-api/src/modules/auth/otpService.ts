@@ -70,6 +70,16 @@ function clear(phone: string): void {
  * `Math.random()` is seeded predictably and is not a secret generator; a code
  * an attacker can predict is not a second factor at all.
  */
+/** The single app-store reviewer number, when one is set with a 6-digit code. */
+function isReviewNumber(phone: string): boolean {
+  if (!config.OTP_REVIEW_PHONE || !/^\d{6}$/.test(config.OTP_REVIEW_CODE)) return false;
+  try {
+    return normalizeIndianPhone(config.OTP_REVIEW_PHONE) === phone;
+  } catch {
+    return false;
+  }
+}
+
 function generateCode(): string {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 }
@@ -129,7 +139,8 @@ export const otpService = {
     }
 
     const driver = activeDriver();
-    const code = driver.name === 'fixed' ? config.OTP_FIXED_CODE : generateCode();
+    const review = isReviewNumber(phone);
+    const code = review ? config.OTP_REVIEW_CODE : driver.name === 'fixed' ? config.OTP_FIXED_CODE : generateCode();
 
     write(phone, {
       phone,
@@ -139,14 +150,15 @@ export const otpService = {
       lastSentAt: now
     });
 
-    const delivery = await driver.send(phone, code);
+    // The store reviewers' number is answered with its known code, no SMS.
+    const delivery = review ? { accepted: true, reference: 'review-number' } : await driver.send(phone, code);
 
     console.log(JSON.stringify({
       level: delivery.accepted ? 'INFO' : 'ERROR',
       timestamp: new Date().toISOString(),
       event: 'OTP_REQUESTED',
       phone: maskPhone(phone),
-      provider: driver.name,
+      provider: review ? 'review-number' : driver.name,
       deliveryAccepted: delivery.accepted,
       // Deliberately absent: the code. Never log a credential.
       error: delivery.error

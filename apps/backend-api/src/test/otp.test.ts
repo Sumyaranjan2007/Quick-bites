@@ -208,6 +208,60 @@ async function run() {
   const reset = await api('/auth/reset-password', { method: 'POST', body: { email: 'x@y.z', code: '1', newPassword: 'aaaaaaaaaa' } });
   check('POST /auth/reset-password no longer exists', reset.status === 404, `status ${reset.status}`);
 
+  // ---------------------------------------------------------------------
+  // 2Factor and the store reviewers' number (owner, 4 Oct 2026). 2Factor
+  // is never really called: fetch to it is answered here.
+  console.log('\n--- 2Factor SMS and the reviewer number ---');
+  const realFetch = globalThis.fetch;
+  const sent: string[] = [];
+  let answer: any = { Status: 'Success', Details: 'session-1' };
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input?.url ?? input);
+    if (url.startsWith('https://2factor.in/')) {
+      sent.push(url);
+      return new Response(JSON.stringify(answer), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+  const realProvider = (config as any).OTP_PROVIDER;
+  (config as any).OTP_PROVIDER = '2factor';
+  process.env.TWOFACTOR_API_KEY = 'test-key-not-real';
+  (config as any).OTP_REVIEW_PHONE = '9000000001';
+  (config as any).OTP_REVIEW_CODE = '246810';
+  try {
+    resetAuthRateLimit();
+    await otpService.request('+91 98765 00042');
+    const pathParts = (sent[0] || '').split('/');
+    const sentCode = pathParts[8];
+    check('2Factor is asked to send to the 10-digit number', pathParts[7] === '9876500042', sent[0] ? sent[0].replace('test-key-not-real', 'KEY') : 'nothing sent');
+    check('with a fresh 6-digit code, not the fixed one', /^\d{6}$/.test(sentCode || '') && sentCode !== config.OTP_FIXED_CODE, String(sentCode));
+    check('and that code signs the number in', (await otpService.verify('9876500042', sentCode)).ok === true);
+
+    sent.length = 0;
+    await otpService.request('9000000001');
+    check('The reviewer number gets no SMS', sent.length === 0, `${sent.length} sent`);
+    check('and signs in with its own code', (await otpService.verify('9000000001', '246810')).ok === true);
+    resetAuthRateLimit();
+    await otpService.request('9000000001');
+    check('but not with the fixed code', (await otpService.verify('9000000001', config.OTP_FIXED_CODE)).ok === false);
+
+    resetAuthRateLimit();
+    await otpService.request('9876500077');
+    check('Any other number still needs the SMS code (the review code fails)', (await otpService.verify('9876500077', '246810')).ok === false);
+
+    answer = { Status: 'Error', Details: 'Invalid API Key' };
+    sent.length = 0;
+    resetAuthRateLimit();
+    const refused = await otpService.request('9876500099');
+    check('A 2Factor refusal does not crash sign-in and does not leak the reason', refused.accepted === true && sent.length === 1);
+  } finally {
+    globalThis.fetch = realFetch;
+    (config as any).OTP_PROVIDER = realProvider;
+    (config as any).OTP_REVIEW_PHONE = '';
+    (config as any).OTP_REVIEW_CODE = '';
+    delete process.env.TWOFACTOR_API_KEY;
+  }
+
   server.close();
 
   console.log('\n====================================================');

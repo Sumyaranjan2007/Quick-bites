@@ -162,7 +162,7 @@ export const config = {
    * is law rather than a vendor rule, and it is the long-pole item for going
    * live. See legal/COMPLIANCE.md.
    */
-  OTP_PROVIDER: (process.env.OTP_PROVIDER || 'fixed') as 'fixed' | 'msg91' | 'twilio',
+  OTP_PROVIDER: (process.env.OTP_PROVIDER || 'fixed') as 'fixed' | '2factor' | 'msg91' | 'twilio',
   OTP_FIXED_CODE: process.env.OTP_FIXED_CODE || '123456',
 
   /**
@@ -172,6 +172,15 @@ export const config = {
    * vendor is chosen; **removing it is the entire switch to real OTP**.
    */
   OTP_ALLOW_FIXED_IN_PRODUCTION: process.env.OTP_ALLOW_FIXED_IN_PRODUCTION === 'true',
+
+  /**
+   * One phone number for app-store reviewers (owner, 4 Oct 2026). Google signs
+   * in to review the app and cannot receive our SMS, so this single number
+   * accepts this single code and no SMS is sent to it. Every other number gets
+   * a real code. Unset both to switch it off. The code must be 6 digits.
+   */
+  OTP_REVIEW_PHONE: process.env.OTP_REVIEW_PHONE || '',
+  OTP_REVIEW_CODE: process.env.OTP_REVIEW_CODE || '',
 
   /** Minutes a code stays valid, and how many wrong guesses it survives. */
   OTP_TTL_MINUTES: parseInt(process.env.OTP_TTL_MINUTES || '5', 10),
