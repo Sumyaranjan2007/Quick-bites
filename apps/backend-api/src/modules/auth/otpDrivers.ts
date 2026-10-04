@@ -73,35 +73,54 @@ export const fixedDriver: OtpDriver = {
 };
 
 /**
- * MSG91 — the usual choice for Indian OTP traffic.
+ * MSG91 (owner's choice, 4 Oct 2026) — sends the code this server made through
+ * MSG91's SendOTP API, using the owner's DLT-approved OTP template.
+ * https://msg91.com/help/sendotp/where-to-find-the-sendotp-api-how-to-get-template-id
  *
- * Not wired to the network yet because there is no account and no approved
- * template; it refuses rather than pretending to send. To finish it: POST to
- * https://control.msg91.com/api/v5/flow/ with `authkey`, the approved
- * `template_id`, the DLT sender header, and the recipient in `mobiles` as
- * 91XXXXXXXXXX. Everything else here already fits.
+ *   POST https://control.msg91.com/api/v5/otp?template_id=..&mobile=91XXXXXXXXXX&otp=..
+ *   header authkey: MSG91_AUTH_KEY
+ *   -> {"type":"success","request_id":".."} | {"type":"error","message":".."}
+ *
+ * The template must contain the OTP variable (##OTP##) and be approved on DLT,
+ * or operators drop the message. The key travels in a header and is never logged.
  */
 export const msg91Driver: OtpDriver = {
   name: 'msg91',
   delivers: true,
-  async send(phone: string, _code: string): Promise<OtpDeliveryResult> {
-    if (!process.env.MSG91_AUTH_KEY || !process.env.MSG91_TEMPLATE_ID) {
-      return {
-        accepted: false,
-        error: 'MSG91_AUTH_KEY and MSG91_TEMPLATE_ID are not set, and the DLT template must be approved first.'
-      };
+  async send(phone: string, code: string): Promise<OtpDeliveryResult> {
+    const key = process.env.MSG91_AUTH_KEY || '';
+    const template = process.env.MSG91_TEMPLATE_ID || '';
+    if (!key || !template) {
+      return { accepted: false, error: 'MSG91_AUTH_KEY and MSG91_TEMPLATE_ID must both be set.' };
     }
-    return {
-      accepted: false,
-      error: 'MSG91 driver is not implemented. Complete the flow call described above before selecting this provider.'
-    };
+    const digits = String(phone).replace(/\D/g, '').slice(-10);
+    const query = new URLSearchParams({
+      template_id: template,
+      mobile: `91${digits}`,
+      otp: code,
+      otp_expiry: String(config.OTP_TTL_MINUTES),
+      realTimeResponse: '1'
+    });
+    try {
+      const res = await fetch(`https://control.msg91.com/api/v5/otp?${query.toString()}`, {
+        method: 'POST',
+        headers: { authkey: key, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(10_000)
+      });
+      const body: any = await res.json().catch(() => null);
+      if (res.ok && body?.type === 'success') return { accepted: true, reference: String(body.request_id || '') };
+      return { accepted: false, error: `MSG91 refused: ${String(body?.message || res.status)}` };
+    } catch (err: any) {
+      return { accepted: false, error: `MSG91 unreachable: ${err?.name || 'error'}` };
+    }
   }
 };
 
 /**
  * Twilio Verify — best documentation, highest per-message cost to India, and
- * still subject to the same DLT registration. Same state as MSG91: the shape
- * is here, the network call is not.
+ * still subject to the same DLT registration. Only the shape is here; the
+ * network call is not written.
  */
 export const twilioDriver: OtpDriver = {
   name: 'twilio',

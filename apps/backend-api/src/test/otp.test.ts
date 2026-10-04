@@ -15,6 +15,7 @@ import { otpService } from '../modules/auth/otpService.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { config } from '../config/env.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
+import { msg91Driver } from '../modules/auth/otpDrivers.ts';
 
 console.log('====================================================');
 console.log('        RUNNING PHONE / OTP SIGN-IN TESTS           ');
@@ -260,6 +261,51 @@ async function run() {
     (config as any).OTP_REVIEW_PHONE = '';
     (config as any).OTP_REVIEW_CODE = '';
     delete process.env.TWOFACTOR_API_KEY;
+  }
+
+  console.log('\n--- MSG91 SMS ---');
+  const msgCalls: { url: string; key: string; method: string }[] = [];
+  let msgAnswer: any = { type: 'success', request_id: 'req-1' };
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input?.url ?? input);
+    if (url.startsWith('https://control.msg91.com/')) {
+      msgCalls.push({ url, key: String(init?.headers?.authkey || ''), method: String(init?.method || 'GET') });
+      return new Response(JSON.stringify(msgAnswer), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+  (config as any).OTP_PROVIDER = 'msg91';
+  try {
+    resetAuthRateLimit();
+    await otpService.request('9876500051');
+    check('Without a key and template MSG91 sends nothing', msgCalls.length === 0, `${msgCalls.length} sent`);
+
+    process.env.MSG91_AUTH_KEY = 'test-authkey-not-real';
+    process.env.MSG91_TEMPLATE_ID = 'tmpl-123';
+    resetAuthRateLimit();
+    await otpService.request('+91 98765 00052');
+    const call = msgCalls[0];
+    const q = new URL(call?.url || 'https://x/').searchParams;
+    check('MSG91 gets a POST with the key in the header, not the URL', call?.method === 'POST' && call.key === 'test-authkey-not-real' && !call.url.includes('test-authkey'), call ? call.url : 'nothing sent');
+    check('to 91 + the 10-digit number, with the template', q.get('mobile') === '919876500052' && q.get('template_id') === 'tmpl-123');
+    const msgCode = q.get('otp') || '';
+    check('with a fresh 6-digit code, not the fixed one', /^\d{6}$/.test(msgCode) && msgCode !== config.OTP_FIXED_CODE, msgCode);
+    check('and that code signs the number in', (await otpService.verify('9876500052', msgCode)).ok === true);
+
+    const direct = await msg91Driver.send('9876500053', '123456');
+    check('Success gives back the MSG91 request id', direct.accepted === true && direct.reference === 'req-1');
+    msgAnswer = { type: 'error', message: 'Invalid authkey' };
+    const bad = await msg91Driver.send('9876500053', '123456');
+    check('A refusal is reported with its reason', bad.accepted === false && /Invalid authkey/.test(bad.error || ''), bad.error);
+    msgCalls.length = 0;
+    resetAuthRateLimit();
+    const refusedMsg = await otpService.request('9876500054');
+    check('and does not crash sign-in or leak the reason to the app', refusedMsg.accepted === true && msgCalls.length === 1);
+  } finally {
+    globalThis.fetch = realFetch;
+    (config as any).OTP_PROVIDER = realProvider;
+    delete process.env.MSG91_AUTH_KEY;
+    delete process.env.MSG91_TEMPLATE_ID;
   }
 
   server.close();
