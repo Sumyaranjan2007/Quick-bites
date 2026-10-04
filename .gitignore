@@ -31,6 +31,7 @@ apps/backend-api/data/store.json
 # Release assets. DOWNLOAD.md links to the release, not to these paths.
 build/apk/
 build/aab/
+build/play-store/
 # Launch-test screenshots: evidence for one run on one emulator, regenerated
 # every time. Megabytes of PNG that go stale the moment anything changes.
 build/screenshots/
