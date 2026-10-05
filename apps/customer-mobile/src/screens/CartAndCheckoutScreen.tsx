@@ -10,7 +10,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { Card, DietMark } from '../components/ui';
+import { Card, DietMark, KeyboardLift } from '../components/ui';
 
 const c = tokens.colors;
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
@@ -599,8 +599,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
+      {/* automaticallyAdjustKeyboardInsets: iPhone scrolls the note and tip fields above the keyboard (ignored on Android). */}
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity hitSlop={10} style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
           <ArrowLeft size={18} color={c.text.primary} />
           <Text style={styles.backText}>Back to menu</Text>
         </TouchableOpacity>
@@ -619,11 +620,11 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                 <Text style={styles.itemUnit}>₹{item.price.toFixed(0)} each</Text>
               </View>
               <View style={styles.stepper}>
-                <TouchableOpacity style={styles.stepBtn} onPress={() => onUpdateQuantity(item.id, -1)} activeOpacity={0.7}>
+                <TouchableOpacity hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }} style={styles.stepBtn} onPress={() => onUpdateQuantity(item.id, -1)} activeOpacity={0.7}>
                   <Minus size={13} color={c.primary[500]} />
                 </TouchableOpacity>
                 <Text style={styles.stepCount}>{item.quantity}</Text>
-                <TouchableOpacity style={styles.stepBtn} onPress={() => onUpdateQuantity(item.id, 1)} activeOpacity={0.7}>
+                <TouchableOpacity hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }} style={styles.stepBtn} onPress={() => onUpdateQuantity(item.id, 1)} activeOpacity={0.7}>
                   <Plus size={13} color={c.primary[500]} />
                 </TouchableOpacity>
               </View>
@@ -924,124 +925,126 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
 
       {/* Add address sheet */}
       <Modal visible={showAddressSheet} transparent animationType="slide" onRequestClose={() => setShowAddressSheet(false)}>
-        <View style={styles.sheetBackdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Add a delivery address</Text>
+        <KeyboardLift>
+          <View style={styles.sheetBackdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>Add a delivery address</Text>
 
-            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
-              <TouchableOpacity
-                style={[styles.locateBtn, formCoordinates && styles.locateBtnDone]}
-                onPress={useCurrentLocation}
-                disabled={detecting}
-                activeOpacity={0.85}
-              >
-                {detecting ? (
-                  <ActivityIndicator size="small" color={c.primary[500]} />
-                ) : (
-                  <Navigation size={16} color={formCoordinates ? c.dietary.veg : c.primary[500]} />
+              <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+                <TouchableOpacity
+                  style={[styles.locateBtn, formCoordinates && styles.locateBtnDone]}
+                  onPress={useCurrentLocation}
+                  disabled={detecting}
+                  activeOpacity={0.85}
+                >
+                  {detecting ? (
+                    <ActivityIndicator size="small" color={c.primary[500]} />
+                  ) : (
+                    <Navigation size={16} color={formCoordinates ? c.dietary.veg : c.primary[500]} />
+                  )}
+                  <Text style={[styles.locateText, formCoordinates && { color: c.dietary.veg }]}>
+                    {detecting
+                      ? 'Finding you…'
+                      : formCoordinates
+                        ? 'Location pinned · tap to update'
+                        : 'Use my current location'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.locateBtn, { marginTop: 8 }]}
+                  onPress={() => setMapOpen(true)}
+                  activeOpacity={0.85}
+                >
+                  <MapIcon size={16} color={c.primary[500]} />
+                  <Text style={styles.locateText}>{formCoordinates ? 'Adjust the pin on the map' : 'Choose on map'}</Text>
+                </TouchableOpacity>
+                {!!locationError && <Text style={styles.locateError}>{locationError}</Text>}
+                {!formCoordinates && !locationError && (
+                  <Text style={styles.locateHint}>
+                    A pin is required so your rider finds the exact door.
+                  </Text>
                 )}
-                <Text style={[styles.locateText, formCoordinates && { color: c.dietary.veg }]}>
-                  {detecting
-                    ? 'Finding you…'
-                    : formCoordinates
-                      ? 'Location pinned · tap to update'
-                      : 'Use my current location'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.locateBtn, { marginTop: 8 }]}
-                onPress={() => setMapOpen(true)}
-                activeOpacity={0.85}
-              >
-                <MapIcon size={16} color={c.primary[500]} />
-                <Text style={styles.locateText}>{formCoordinates ? 'Adjust the pin on the map' : 'Choose on map'}</Text>
-              </TouchableOpacity>
-              {!!locationError && <Text style={styles.locateError}>{locationError}</Text>}
-              {!formCoordinates && !locationError && (
-                <Text style={styles.locateHint}>
-                  A pin is required so your rider finds the exact door.
-                </Text>
-              )}
 
-              <Text style={styles.fieldLabel}>Label</Text>
-              <View style={styles.labelRow}>
-                {['Home', 'Work', 'Other'].map(l => (
-                  <TouchableOpacity
-                    key={l}
-                    style={[styles.addressChip, form.label === l && styles.addressChipActive]}
-                    onPress={() => setForm({ ...form, label: l })}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.addressChipText, form.label === l && styles.addressChipTextActive]}>{l}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.fieldLabel}>Flat / House, street</Text>
-              <TextInput
-                style={styles.sheetInput}
-                value={form.addressLine}
-                onChangeText={v => setForm({ ...form, addressLine: v })}
-                placeholder="No. 24, Shivanandha Layout, Harohalli"
-                placeholderTextColor={c.text.muted}
-              />
-
-              <Text style={styles.fieldLabel}>Landmark (optional)</Text>
-              <TextInput
-                style={styles.sheetInput}
-                value={form.landmark}
-                onChangeText={v => setForm({ ...form, landmark: v })}
-                placeholder="Opposite Harohalli Bus Stand"
-                placeholderTextColor={c.text.muted}
-              />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>City</Text>
-                  <TextInput
-                    style={styles.sheetInput}
-                    value={form.city}
-                    onChangeText={v => setForm({ ...form, city: v })}
-                    placeholderTextColor={c.text.muted}
-                  />
+                <Text style={styles.fieldLabel}>Label</Text>
+                <View style={styles.labelRow}>
+                  {['Home', 'Work', 'Other'].map(l => (
+                    <TouchableOpacity
+                      key={l}
+                      style={[styles.addressChip, form.label === l && styles.addressChipActive]}
+                      onPress={() => setForm({ ...form, label: l })}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.addressChipText, form.label === l && styles.addressChipTextActive]}>{l}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <View style={{ width: 130 }}>
-                  <Text style={styles.fieldLabel}>PIN code</Text>
-                  <TextInput
-                    style={styles.sheetInput}
-                    value={form.pincode}
-                    onChangeText={v => setForm({ ...form, pincode: v.replace(/[^0-9]/g, '').slice(0, 6) })}
-                    placeholder="562112"
-                    placeholderTextColor={c.text.muted}
-                    keyboardType="number-pad"
-                  />
+
+                <Text style={styles.fieldLabel}>Flat / House, street</Text>
+                <TextInput
+                  style={styles.sheetInput}
+                  value={form.addressLine}
+                  onChangeText={v => setForm({ ...form, addressLine: v })}
+                  placeholder="No. 24, Shivanandha Layout, Harohalli"
+                  placeholderTextColor={c.text.muted}
+                />
+
+                <Text style={styles.fieldLabel}>Landmark (optional)</Text>
+                <TextInput
+                  style={styles.sheetInput}
+                  value={form.landmark}
+                  onChangeText={v => setForm({ ...form, landmark: v })}
+                  placeholder="Opposite Harohalli Bus Stand"
+                  placeholderTextColor={c.text.muted}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>City</Text>
+                    <TextInput
+                      style={styles.sheetInput}
+                      value={form.city}
+                      onChangeText={v => setForm({ ...form, city: v })}
+                      placeholderTextColor={c.text.muted}
+                    />
+                  </View>
+                  <View style={{ width: 130 }}>
+                    <Text style={styles.fieldLabel}>PIN code</Text>
+                    <TextInput
+                      style={styles.sheetInput}
+                      value={form.pincode}
+                      onChangeText={v => setForm({ ...form, pincode: v.replace(/[^0-9]/g, '').slice(0, 6) })}
+                      placeholder="562112"
+                      placeholderTextColor={c.text.muted}
+                      keyboardType="number-pad"
+                    />
+                  </View>
                 </View>
+
+                {addressError ? <Text style={styles.couponError}>{addressError}</Text> : null}
+              </ScrollView>
+
+              <View style={styles.sheetActions}>
+                <TouchableOpacity
+                  style={styles.sheetCancel}
+                  onPress={() => {
+                    setShowAddressSheet(false);
+                    setAddressError(null);
+                  }}
+                >
+                  <Text style={styles.sheetCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sheetSave, isSavingAddress && { opacity: 0.6 }]}
+                  onPress={handleSaveAddress}
+                  disabled={isSavingAddress}
+                >
+                  <Text style={styles.sheetSaveText}>{isSavingAddress ? 'Saving…' : 'Save address'}</Text>
+                </TouchableOpacity>
               </View>
-
-              {addressError ? <Text style={styles.couponError}>{addressError}</Text> : null}
-            </ScrollView>
-
-            <View style={styles.sheetActions}>
-              <TouchableOpacity
-                style={styles.sheetCancel}
-                onPress={() => {
-                  setShowAddressSheet(false);
-                  setAddressError(null);
-                }}
-              >
-                <Text style={styles.sheetCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sheetSave, isSavingAddress && { opacity: 0.6 }]}
-                onPress={handleSaveAddress}
-                disabled={isSavingAddress}
-              >
-                <Text style={styles.sheetSaveText}>{isSavingAddress ? 'Saving…' : 'Save address'}</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       {/* After the address sheet: Android stacks Modals in mount order. */}

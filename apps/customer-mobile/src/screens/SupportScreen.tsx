@@ -21,8 +21,8 @@ import {
   ShieldCheck,
   X
 } from 'lucide-react-native';
-import { tokens } from '../theme/tokens';
-import { Card } from '../components/ui';
+import { tokens, iosLargeTitle } from '../theme/tokens';
+import { Card, KeyboardLift } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
 import { useTranslation } from '../lib/i18n';
@@ -231,7 +231,7 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+        <TouchableOpacity hitSlop={10} style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
           <ArrowLeft size={18} color={c.text.primary} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('support.title')}</Text>
@@ -375,65 +375,67 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
       </View>
 
       <Modal visible={composerOpen} transparent animationType="slide" onRequestClose={() => setComposerOpen(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHead}>
-              <Text style={styles.sheetTitle}>Raise a request</Text>
-              <TouchableOpacity onPress={() => setComposerOpen(false)} activeOpacity={0.8}>
-                <X size={19} color={c.text.secondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.label}>What is this about?</Text>
-              <View style={styles.categoryWrap}>
-                {CATEGORIES.map(cat => (
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={[styles.category, category === cat.key && styles.categoryActive]}
-                    onPress={() => setCategory(cat.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.categoryText, category === cat.key && styles.categoryTextActive]}>
-                      {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+        <KeyboardLift>
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHead}>
+                <Text style={styles.sheetTitle}>Raise a request</Text>
+                <TouchableOpacity hitSlop={10} onPress={() => setComposerOpen(false)} activeOpacity={0.8}>
+                  <X size={19} color={c.text.secondary} />
+                </TouchableOpacity>
               </View>
 
-              <Text style={styles.label}>Subject</Text>
-              <TextInput
-                style={styles.input}
-                value={subject}
-                onChangeText={setSubject}
-                placeholder="Order arrived cold"
-                placeholderTextColor={c.text.muted}
-              />
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={styles.label}>What is this about?</Text>
+                <View style={styles.categoryWrap}>
+                  {CATEGORIES.map(cat => (
+                    <TouchableOpacity
+                      key={cat.key}
+                      style={[styles.category, category === cat.key && styles.categoryActive]}
+                      onPress={() => setCategory(cat.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.categoryText, category === cat.key && styles.categoryTextActive]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-              <Text style={styles.label}>What happened?</Text>
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Tell us what went wrong and what you would like us to do."
-                placeholderTextColor={c.text.muted}
-                multiline
-                textAlignVertical="top"
-              />
+                <Text style={styles.label}>Subject</Text>
+                <TextInput
+                  style={styles.input}
+                  value={subject}
+                  onChangeText={setSubject}
+                  placeholder="Order arrived cold"
+                  placeholderTextColor={c.text.muted}
+                />
 
-              {!!composerError && <Text style={styles.error}>{composerError}</Text>}
+                <Text style={styles.label}>What happened?</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMultiline]}
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder="Tell us what went wrong and what you would like us to do."
+                  placeholderTextColor={c.text.muted}
+                  multiline
+                  textAlignVertical="top"
+                />
 
-              <TouchableOpacity
-                style={[styles.primaryBtn, sending && { opacity: 0.5 }]}
-                onPress={sendTicket}
-                disabled={sending}
-                activeOpacity={0.88}
-              >
-                {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Send to support</Text>}
-              </TouchableOpacity>
-            </ScrollView>
+                {!!composerError && <Text style={styles.error}>{composerError}</Text>}
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, sending && { opacity: 0.5 }]}
+                  onPress={sendTicket}
+                  disabled={sending}
+                  activeOpacity={0.88}
+                >
+                  {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Send to support</Text>}
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
     </ScrollView>
   );
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12, ...iosLargeTitle.header },
   backBtn: {
     width: 36,
     height: 36,
@@ -514,7 +516,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.subtle
   },
-  title: { fontSize: 20, fontWeight: '800', color: c.text.primary },
+  title: { fontSize: 20, fontWeight: '800', color: c.text.primary, ...iosLargeTitle.title },
   hero: { backgroundColor: c.primary[500], marginBottom: 14 },
   heroTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
   heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 },

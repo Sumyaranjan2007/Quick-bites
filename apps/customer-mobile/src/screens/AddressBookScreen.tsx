@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, MapPin, Plus, Pencil, Trash2, Navigation, Check, Map as MapIcon } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
-import { Card, EmptyState } from '../components/ui';
+import { Card, EmptyState, KeyboardLift } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { AddressSearchField, type ResolvedPlace } from '../components/AddressSearchField';
@@ -356,118 +356,120 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
       </ScrollView>
 
       <Modal visible={sheetOpen} transparent animationType="slide" onRequestClose={() => setSheetOpen(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-              <Text style={styles.sheetTitle}>{editingId ? 'Edit address' : 'Add a delivery address'}</Text>
+        <KeyboardLift>
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+                <Text style={styles.sheetTitle}>{editingId ? 'Edit address' : 'Add a delivery address'}</Text>
 
-              <AddressSearchField apiUrl={apiUrl} token={token} near={coordinates} onPick={usePickedPlace} />
+                <AddressSearchField apiUrl={apiUrl} token={token} near={coordinates} onPick={usePickedPlace} />
 
-              <TouchableOpacity
-                style={styles.mapButton}
-                onPress={() => setMapOpen(true)}
-                activeOpacity={0.85}
-              >
-                <MapIcon size={15} color={c.text.inverse} />
-                <Text style={styles.mapButtonText}>
-                  {coordinates ? 'Adjust the pin on the map' : 'Choose on map'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.locateButton, coordinates && styles.locateButtonDone]}
-                onPress={useCurrentLocation}
-                disabled={detecting}
-                activeOpacity={0.85}
-              >
-                {detecting ? (
-                  <ActivityIndicator size="small" color={c.dietary.veg} />
-                ) : (
-                  <Navigation size={15} color={coordinates ? c.dietary.veg : c.primary[500]} />
-                )}
-                <Text style={[styles.locateText, coordinates && { color: c.dietary.veg }]}>
-                  {detecting
-                    ? 'Finding you…'
-                    : coordinates
-                      ? 'Location pinned · tap to update'
-                      : 'Use my current location'}
-                </Text>
-              </TouchableOpacity>
-
-              {!!locationError && <Text style={styles.formError}>{locationError}</Text>}
-
-              <View style={styles.labelChips}>
-                {['Home', 'Work', 'Other'].map(label => (
-                  <TouchableOpacity
-                    key={label}
-                    style={[styles.labelChip, form.label === label && styles.labelChipOn]}
-                    onPress={() => setForm(f => ({ ...f, label }))}
-                  >
-                    <Text style={[styles.labelChipText, form.label === label && styles.labelChipTextOn]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TextInput
-                style={styles.input}
-                value={form.addressLine}
-                onChangeText={v => setForm(f => ({ ...f, addressLine: v }))}
-                placeholder="Flat / House, street"
-                placeholderTextColor={c.text.muted}
-              />
-              <TextInput
-                style={styles.input}
-                value={form.landmark}
-                onChangeText={v => setForm(f => ({ ...f, landmark: v }))}
-                placeholder="Landmark (optional)"
-                placeholderTextColor={c.text.muted}
-              />
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={form.city}
-                  onChangeText={v => setForm(f => ({ ...f, city: v }))}
-                  placeholder="City"
-                  placeholderTextColor={c.text.muted}
-                />
-                <TextInput
-                  style={[styles.input, { width: 128 }]}
-                  value={form.pincode}
-                  onChangeText={v => setForm(f => ({ ...f, pincode: v.replace(/[^0-9]/g, '').slice(0, 6) }))}
-                  placeholder="PIN code"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  placeholderTextColor={c.text.muted}
-                />
-              </View>
-
-              {!!formError && <Text style={styles.formError}>{formError}</Text>}
-
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
                 <TouchableOpacity
-                  style={[styles.sheetButton, styles.sheetCancel]}
-                  onPress={() => setSheetOpen(false)}
-                >
-                  <Text style={styles.sheetCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sheetButton, styles.sheetSave]}
-                  onPress={save}
-                  disabled={saving}
+                  style={styles.mapButton}
+                  onPress={() => setMapOpen(true)}
                   activeOpacity={0.85}
                 >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.sheetSaveText}>{editingId ? 'Save changes' : 'Save address'}</Text>
-                  )}
+                  <MapIcon size={15} color={c.text.inverse} />
+                  <Text style={styles.mapButtonText}>
+                    {coordinates ? 'Adjust the pin on the map' : 'Choose on map'}
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.locateButton, coordinates && styles.locateButtonDone]}
+                  onPress={useCurrentLocation}
+                  disabled={detecting}
+                  activeOpacity={0.85}
+                >
+                  {detecting ? (
+                    <ActivityIndicator size="small" color={c.dietary.veg} />
+                  ) : (
+                    <Navigation size={15} color={coordinates ? c.dietary.veg : c.primary[500]} />
+                  )}
+                  <Text style={[styles.locateText, coordinates && { color: c.dietary.veg }]}>
+                    {detecting
+                      ? 'Finding you…'
+                      : coordinates
+                        ? 'Location pinned · tap to update'
+                        : 'Use my current location'}
+                  </Text>
+                </TouchableOpacity>
+
+                {!!locationError && <Text style={styles.formError}>{locationError}</Text>}
+
+                <View style={styles.labelChips}>
+                  {['Home', 'Work', 'Other'].map(label => (
+                    <TouchableOpacity
+                      key={label}
+                      style={[styles.labelChip, form.label === label && styles.labelChipOn]}
+                      onPress={() => setForm(f => ({ ...f, label }))}
+                    >
+                      <Text style={[styles.labelChipText, form.label === label && styles.labelChipTextOn]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  value={form.addressLine}
+                  onChangeText={v => setForm(f => ({ ...f, addressLine: v }))}
+                  placeholder="Flat / House, street"
+                  placeholderTextColor={c.text.muted}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={form.landmark}
+                  onChangeText={v => setForm(f => ({ ...f, landmark: v }))}
+                  placeholder="Landmark (optional)"
+                  placeholderTextColor={c.text.muted}
+                />
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={form.city}
+                    onChangeText={v => setForm(f => ({ ...f, city: v }))}
+                    placeholder="City"
+                    placeholderTextColor={c.text.muted}
+                  />
+                  <TextInput
+                    style={[styles.input, { width: 128 }]}
+                    value={form.pincode}
+                    onChangeText={v => setForm(f => ({ ...f, pincode: v.replace(/[^0-9]/g, '').slice(0, 6) }))}
+                    placeholder="PIN code"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    placeholderTextColor={c.text.muted}
+                  />
+                </View>
+
+                {!!formError && <Text style={styles.formError}>{formError}</Text>}
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                  <TouchableOpacity
+                    style={[styles.sheetButton, styles.sheetCancel]}
+                    onPress={() => setSheetOpen(false)}
+                  >
+                    <Text style={styles.sheetCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.sheetButton, styles.sheetSave]}
+                    onPress={save}
+                    disabled={saving}
+                    activeOpacity={0.85}
+                  >
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.sheetSaveText}>{editingId ? 'Save changes' : 'Save address'}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       {/* Mounted after the form sheet, not before it. On Android every Modal is

@@ -6,6 +6,58 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-05] -- Claude Opus 5.5 -- Customer app ready for its first iPhone build
+
+> **For the owner.** The customer app can now be built for iPhone from this PC (Expo EAS)
+> or on a Mac. Nothing has been compiled for iPhone yet — that needs your Apple and Expo
+> accounts. Everything you must buy, set up and test, and every App Store Connect answer,
+> is in `docs/app-store/IOS.md`. Android behaviour is unchanged, except two new links on
+> Profile (Privacy policy, Terms of use) that Google also requires.
+
+Owner decisions (5 Oct): Gold stays on Razorpay on iPhone (guideline 3.1.3(e), real-world
+service); iPhone is light-only for launch (dark mode later, both phones); iPhone lets people
+browse restaurants and menus before signing in (guideline 5.1.1(v)); Android keeps sign-in first.
+
+**Server (deploys with this push, Android unaffected).** `notifications/apnsTransport.ts`:
+iPhone tokens go to Apple's push service (HTTP/2 + ES256 token, Node built-ins only), Android
+tokens still go to FCM. Before this an iPhone token went to FCM, was refused with 400 and
+marked dead. Production host first, sandbox on `BadDeviceToken` (Xcode test installs); only 410
+or a token both refuse is pruned. Configured by `APNS_KEY_ID`, `APNS_TEAM_ID`,
+`APNS_PRIVATE_KEY` (none set yet → iPhone pushes skipped, as before). `/health` reports
+`applePush.configured`. New suite `apnsPush` (9 checks against two fake Apple hosts; 4
+planted mutations caught). Gate 82/82.
+
+**App config.** iOS permission reasons replace Expo's generic "Allow … to access" text (camera,
+photos); the unused "always" location strings removed; UPI app schemes for Razorpay and
+`tel`/`mailto`/`whatsapp` declared; privacy manifest adds precise location, photos, support
+messages, other user content and device ID; `ios.userInterfaceStyle: light`. Resolved Android
+config verified identical before and after (`expo config --type introspect`). `eas.json`
+(production with remote build numbers, Simulator profile, latest Xcode image) and
+`scripts/eas-mapbox-netrc.mjs` (EAS pre-install hook: puts the Mapbox download token in the
+build machine's `~/.netrc`, never in the app). `expo-haptics` ~14.0.1 added.
+
+**App (iPhone-only unless noted).** Browse without an account — the sign-in screen stands in
+for checkout/profile/orders, with "Not now", and returns to the screen asked for with the
+basket intact; no favourites heart for guests. Edge-swipe back and iOS slide transitions
+(`useIosScreenMotion`; off with Reduce Motion). Large titles on Profile and Help; no back
+arrow on the Profile tab. Tab bar fits the home indicator, 44-pt tab targets. Haptics on tabs,
+add to basket, quantity, order placed, in-app order alerts. SMS code autofill on sign-in and
+delete-account. `KeyboardLift` keeps 7 text-field sheets above the iPhone keyboard (a plain
+View on Android); the cart scrolls its fields above the keyboard. Hidden "Server settings"
+unavailable in iPhone store builds (guideline 2.3.1). Both phones: `hitSlop` on 28 small
+buttons (no visual change); **Privacy policy** and **Terms of use** rows on Profile.
+
+Checked here: backend gate 82/82, typecheck, secrets/i18n/hardcoded-URL checks, the iPhone
+release JS bundle (`expo export:embed --platform ios`, 2,590 modules), and the iPhone code paths
+in a browser with the platform forced to iOS against a private QA server: guest browse → add →
+View Cart → sign in → back in the basket (₹109.25 quoted); sign-out returns to guest browsing;
+34-pt titles; Privacy/Terms/Delete rows; forward slide 393 px → 0; edge swipe follows the
+finger and goes back past a third; short drag springs back; mid-screen drag ignored (this
+found a real bug — `gestureState.x0` reads 0 before the gesture is granted — fixed). Not
+checkable here: native compile, real keyboard, Razorpay sheet, maps, push, haptics.
+
+---
+
 ## [2026-10-05] -- Claude Opus 5.5 -- Handoff docs brought up to date
 
 `CLAUDE.md` (new) is now the single starting point for any AI or developer:

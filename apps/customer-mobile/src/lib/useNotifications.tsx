@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Platform, Vibration } from 'react-native';
+import { haptic } from './haptics';
 import { Audio } from 'expo-av';
 
 /**
@@ -82,7 +83,9 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       ].slice(0, 50));
 
       playChime();
-      Vibration.vibrate(Platform.OS === 'android' ? 120 : 40);
+      // iPhone's Vibration API ignores the length and buzzes for 400 ms; a haptic is what iOS apps use.
+      if (Platform.OS === 'android') Vibration.vibrate(120);
+      else haptic.success();
     },
     [enabled, playChime]
   );

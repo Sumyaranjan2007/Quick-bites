@@ -78,7 +78,7 @@ export const OrderChat: React.FC<Props> = ({
               <Text style={styles.title}>Chat with {riderName || 'your delivery partner'}</Text>
               <Text style={styles.subtitle}>About this order only</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+            <TouchableOpacity hitSlop={10} onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
               <X size={19} color={c.text.secondary} />
             </TouchableOpacity>
           </View>

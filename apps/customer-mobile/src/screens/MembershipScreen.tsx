@@ -174,7 +174,7 @@ export const MembershipScreen: React.FC<Props> = ({ onBack, apiUrl, token, onCha
   return (
     <SafeScreen>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} accessibilityLabel="Go back">
+        <TouchableOpacity hitSlop={10} onPress={onBack} style={styles.backBtn} accessibilityLabel="Go back">
           <ArrowLeft size={22} color={c.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Quick Bites Gold</Text>

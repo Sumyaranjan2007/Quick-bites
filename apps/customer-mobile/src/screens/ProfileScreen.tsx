@@ -9,7 +9,9 @@ import {
   Switch,
   Modal,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  Linking,
+  Platform
 } from 'react-native';
 import {
   ArrowLeft,
@@ -27,10 +29,13 @@ import {
   X,
   Sparkles,
   Crown,
-  Camera
+  Camera,
+  Shield,
+  FileText
 } from 'lucide-react-native';
-import { tokens } from '../theme/tokens';
-import { Card } from '../components/ui';
+import { tokens, iosLargeTitle } from '../theme/tokens';
+import { DEFAULT_API_URL } from '../config';
+import { Card, KeyboardLift } from '../components/ui';
 import { PaymentPoliciesSheet } from '../components/PaymentPoliciesSheet';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
@@ -167,6 +172,12 @@ export const ProfileScreen: React.FC<Props> = ({
     } finally {
       setCodeBusy(false);
     }
+  };
+
+  // The public pages are served beside /api on the same server.
+  const openPage = (page: string) => {
+    const origin = (apiUrl || DEFAULT_API_URL).replace(/\/api\/?$/, '');
+    Linking.openURL(origin + page).catch(() => undefined);
   };
 
   const deleteAccount = async () => {
@@ -358,10 +369,13 @@ export const ProfileScreen: React.FC<Props> = ({
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
-          <ArrowLeft size={18} color={c.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('profile.title')}</Text>
+        {/* A tab's top screen has no back button on iPhone; the tab bar is the way out. */}
+        {Platform.OS !== 'ios' && (
+          <TouchableOpacity hitSlop={10} style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+            <ArrowLeft size={18} color={c.text.primary} />
+          </TouchableOpacity>
+        )}
+        <Text style={styles.title} accessibilityRole="header">{t('profile.title')}</Text>
       </View>
 
       {/* Identity */}
@@ -478,8 +492,9 @@ export const ProfileScreen: React.FC<Props> = ({
             <Switch
               value={notificationsEnabled}
               onValueChange={onToggleNotifications}
-              trackColor={{ false: c.border.strong, true: c.primary[300] }}
-              thumbColor={notificationsEnabled ? c.primary[500] : '#FFFFFF'}
+              // iPhone switches keep their white thumb; the brand colour fills the track.
+              trackColor={{ false: c.border.strong, true: Platform.OS === 'ios' ? c.primary[500] : c.primary[300] }}
+              thumbColor={Platform.OS === 'ios' ? undefined : notificationsEnabled ? c.primary[500] : '#FFFFFF'}
             />
           }
           last
@@ -522,6 +537,19 @@ export const ProfileScreen: React.FC<Props> = ({
           title="Payments and refunds"
           sub="What you are charged, and how a refund comes back"
           onPress={() => setPoliciesOpen(true)}
+        />
+        {/* Required inside the app by both Apple (5.1.1) and Google Play. Served by
+            the same server the app talks to, so it is always the current text. */}
+        <Row
+          icon={<Shield size={18} color={c.primary[500]} />}
+          title="Privacy policy"
+          sub="What we collect, why, and how to delete it"
+          onPress={() => openPage('/privacy')}
+        />
+        <Row
+          icon={<FileText size={18} color={c.primary[500]} />}
+          title="Terms of use"
+          onPress={() => openPage('/terms')}
           last
         />
       </Card>
@@ -551,168 +579,175 @@ export const ProfileScreen: React.FC<Props> = ({
 
       {/* Delete account (U6) */}
       <Modal visible={deleteOpen} animationType="slide" transparent onRequestClose={() => setDeleteOpen(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Delete your account?</Text>
-              <TouchableOpacity onPress={() => setDeleteOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
-                <X size={19} color={c.text.secondary} />
+        <KeyboardLift>
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Delete your account?</Text>
+                <TouchableOpacity hitSlop={10} onPress={() => setDeleteOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                  <X size={19} color={c.text.secondary} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.helper}>
+                This cannot be undone. Your profile, saved addresses and membership are removed. Past orders stay on
+                the restaurant's tax records without your name, phone or address. If an order is on its way, wait until
+                it is delivered.
+              </Text>
+              {passwordless ? (
+                <>
+                  <Text style={styles.label}>
+                    {codeSent ? 'Code sent to' : 'We will send a code to'} {user?.phone || 'your phone'}
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={deleteCode}
+                    onChangeText={setDeleteCode}
+                    textContentType="oneTimeCode"
+                    keyboardType="number-pad"
+                    maxLength={8}
+                    placeholder={codeSent ? 'Enter the code' : 'Tap "Send code" first'}
+                    placeholderTextColor={c.text.muted}
+                  />
+                  <TouchableOpacity onPress={sendDeleteCode} disabled={codeBusy} activeOpacity={0.8}>
+                    <Text style={styles.codeLink}>
+                      {codeBusy ? 'Sending…' : codeSent ? 'Send the code again' : 'Send code'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={deletePassword}
+                    onChangeText={setDeletePassword}
+                    secureTextEntry
+                    placeholder="Your password, to confirm"
+                    placeholderTextColor={c.text.muted}
+                  />
+                </>
+              )}
+              {!!deleteError && <Text style={styles.error}>{deleteError}</Text>}
+              <TouchableOpacity
+                style={[
+                  styles.primaryBtn,
+                  styles.dangerBtn,
+                  (deleteBusy || (passwordless && !codeSent)) && { opacity: 0.5 }
+                ]}
+                onPress={deleteAccount}
+                disabled={deleteBusy || (passwordless && !codeSent)}
+                activeOpacity={0.88}
+              >
+                {deleteBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Delete my account</Text>}
               </TouchableOpacity>
             </View>
-            <Text style={styles.helper}>
-              This cannot be undone. Your profile, saved addresses and membership are removed. Past orders stay on
-              the restaurant's tax records without your name, phone or address. If an order is on its way, wait until
-              it is delivered.
-            </Text>
-            {passwordless ? (
-              <>
-                <Text style={styles.label}>
-                  {codeSent ? 'Code sent to' : 'We will send a code to'} {user?.phone || 'your phone'}
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={deleteCode}
-                  onChangeText={setDeleteCode}
-                  keyboardType="number-pad"
-                  maxLength={8}
-                  placeholder={codeSent ? 'Enter the code' : 'Tap "Send code" first'}
-                  placeholderTextColor={c.text.muted}
-                />
-                <TouchableOpacity onPress={sendDeleteCode} disabled={codeBusy} activeOpacity={0.8}>
-                  <Text style={styles.codeLink}>
-                    {codeBusy ? 'Sending…' : codeSent ? 'Send the code again' : 'Send code'}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={deletePassword}
-                  onChangeText={setDeletePassword}
-                  secureTextEntry
-                  placeholder="Your password, to confirm"
-                  placeholderTextColor={c.text.muted}
-                />
-              </>
-            )}
-            {!!deleteError && <Text style={styles.error}>{deleteError}</Text>}
-            <TouchableOpacity
-              style={[
-                styles.primaryBtn,
-                styles.dangerBtn,
-                (deleteBusy || (passwordless && !codeSent)) && { opacity: 0.5 }
-              ]}
-              onPress={deleteAccount}
-              disabled={deleteBusy || (passwordless && !codeSent)}
-              activeOpacity={0.88}
-            >
-              {deleteBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Delete my account</Text>}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       {/* Edit profile */}
       <Modal visible={editOpen} animationType="slide" transparent onRequestClose={() => setEditOpen(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{t('profile.editProfile')}</Text>
-              <TouchableOpacity onPress={() => setEditOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
-                <X size={19} color={c.text.secondary} />
+        <KeyboardLift>
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>{t('profile.editProfile')}</Text>
+                <TouchableOpacity hitSlop={10} onPress={() => setEditOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                  <X size={19} color={c.text.secondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>Full name</Text>
+              <TextInput
+                style={styles.input}
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Your name"
+                placeholderTextColor={c.text.muted}
+              />
+
+              <Text style={styles.label}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="10-digit mobile"
+                placeholderTextColor={c.text.muted}
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.helper}>
+                Your email is your login, so it cannot be changed here. Customer care can move an account to a new address.
+              </Text>
+
+              {!!saveError && <Text style={styles.error}>{saveError}</Text>}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, (saving || !fullName.trim()) && { opacity: 0.5 }]}
+                onPress={saveProfile}
+                disabled={saving || !fullName.trim()}
+                activeOpacity={0.88}
+              >
+                {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.label}>Full name</Text>
-            <TextInput
-              style={styles.input}
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Your name"
-              placeholderTextColor={c.text.muted}
-            />
-
-            <Text style={styles.label}>Phone</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="10-digit mobile"
-              placeholderTextColor={c.text.muted}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.helper}>
-              Your email is your login, so it cannot be changed here. Customer care can move an account to a new address.
-            </Text>
-
-            {!!saveError && <Text style={styles.error}>{saveError}</Text>}
-
-            <TouchableOpacity
-              style={[styles.primaryBtn, (saving || !fullName.trim()) && { opacity: 0.5 }]}
-              onPress={saveProfile}
-              disabled={saving || !fullName.trim()}
-              activeOpacity={0.88}
-            >
-              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       {/* Change password */}
       <Modal visible={passwordOpen} animationType="slide" transparent onRequestClose={() => setPasswordOpen(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Change password</Text>
-              <TouchableOpacity onPress={() => setPasswordOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
-                <X size={19} color={c.text.secondary} />
+        <KeyboardLift>
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Change password</Text>
+                <TouchableOpacity hitSlop={10} onPress={() => setPasswordOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                  <X size={19} color={c.text.secondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>Current password</Text>
+              <TextInput
+                style={styles.input}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholder="Your password now"
+                placeholderTextColor={c.text.muted}
+              />
+
+              <Text style={styles.label}>New password</Text>
+              <TextInput
+                style={styles.input}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder="At least 8 characters"
+                placeholderTextColor={c.text.muted}
+              />
+
+              <Text style={styles.helper}>
+                You stay signed in on this phone. Use the new password the next time you sign in anywhere else.
+              </Text>
+
+              {!!passwordError && <Text style={styles.error}>{passwordError}</Text>}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, passwordBusy && { opacity: 0.5 }]}
+                onPress={changePassword}
+                disabled={passwordBusy}
+                activeOpacity={0.88}
+              >
+                {passwordBusy ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Change password</Text>
+                )}
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.label}>Current password</Text>
-            <TextInput
-              style={styles.input}
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              secureTextEntry
-              placeholder="Your password now"
-              placeholderTextColor={c.text.muted}
-            />
-
-            <Text style={styles.label}>New password</Text>
-            <TextInput
-              style={styles.input}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              placeholder="At least 8 characters"
-              placeholderTextColor={c.text.muted}
-            />
-
-            <Text style={styles.helper}>
-              You stay signed in on this phone. Use the new password the next time you sign in anywhere else.
-            </Text>
-
-            {!!passwordError && <Text style={styles.error}>{passwordError}</Text>}
-
-            <TouchableOpacity
-              style={[styles.primaryBtn, passwordBusy && { opacity: 0.5 }]}
-              onPress={changePassword}
-              disabled={passwordBusy}
-              activeOpacity={0.88}
-            >
-              {passwordBusy ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Change password</Text>
-              )}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       {/* Language */}
@@ -721,7 +756,7 @@ export const ProfileScreen: React.FC<Props> = ({
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{t('profile.language')}</Text>
-              <TouchableOpacity onPress={() => setLangOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+              <TouchableOpacity hitSlop={10} onPress={() => setLangOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
                 <X size={19} color={c.text.secondary} />
               </TouchableOpacity>
             </View>
@@ -759,7 +794,7 @@ const styles = StyleSheet.create({
   dangerBtn: { backgroundColor: c.semantic.error },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12, ...iosLargeTitle.header },
   backBtn: {
     width: 36,
     height: 36,
@@ -770,7 +805,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.subtle
   },
-  title: { fontSize: 20, fontWeight: '800', color: c.text.primary },
+  title: { fontSize: 20, fontWeight: '800', color: c.text.primary, ...iosLargeTitle.title },
 
   identity: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   avatar: {

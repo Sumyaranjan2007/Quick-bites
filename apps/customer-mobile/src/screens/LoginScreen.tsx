@@ -24,6 +24,8 @@ const c = tokens.colors;
 interface Props {
   initialApiUrl: string;
   onLoginSuccess: (token: string, user: any, apiUrl: string) => void;
+  /** iPhone only: back to browsing without signing in. */
+  onCancel?: () => void;
 }
 
 /**
@@ -40,7 +42,7 @@ interface Props {
  */
 type Step = 'phone' | 'code' | 'name';
 
-export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) => {
+export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, onCancel }) => {
   // Sign-in is the one screen a customer sees before the app knows anything
   // about them, so it renders in whatever language the app is currently set to
   // rather than waiting for an account preference that does not exist yet.
@@ -55,6 +57,9 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const { unlocked, registerTap } = useHiddenSettings();
+  // Not on an iPhone store build: Apple rejects hidden switches (guideline 2.3.1),
+  // and the App Store app must only ever talk to the live server.
+  const serverSettingsAllowed = Platform.OS === 'android' || __DEV__;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -196,7 +201,12 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.brand} onTouchEnd={registerTap}>
+        {!!onCancel && (
+          <TouchableOpacity style={styles.notNow} onPress={onCancel} hitSlop={10} accessibilityRole="button">
+            <Text style={styles.notNowText}>Not now</Text>
+          </TouchableOpacity>
+        )}
+        <View style={styles.brand} onTouchEnd={serverSettingsAllowed ? registerTap : undefined}>
           <View style={styles.logoFrame}>
             <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
@@ -252,7 +262,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 
           {step === 'code' && (
             <>
-              <TouchableOpacity style={styles.backLink} onPress={backToPhone} activeOpacity={0.7}>
+              <TouchableOpacity hitSlop={10} style={styles.backLink} onPress={backToPhone} activeOpacity={0.7}>
                 <ArrowLeft size={16} color={c.text.secondary} />
                 <Text style={styles.backLinkText}>+91 {phone}</Text>
               </TouchableOpacity>
@@ -275,6 +285,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
                   placeholder="------"
                   placeholderTextColor={c.text.muted}
                   keyboardType="number-pad"
+                  // iPhone offers the code from the SMS above the keyboard.
+                  textContentType="oneTimeCode"
                   autoFocus
                   returnKeyType="go"
                   onSubmitEditing={verifyCode}
@@ -391,6 +403,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess }) 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
+  notNow: { position: 'absolute', top: 8, right: 20, minHeight: 44, justifyContent: 'center' },
+  notNowText: { fontSize: 16, fontWeight: '600', color: c.primary[500] },
 
   brand: { alignItems: 'center', marginBottom: 26 },
   /**

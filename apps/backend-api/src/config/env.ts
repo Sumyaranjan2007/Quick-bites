@@ -376,6 +376,18 @@ export const config = {
   FCM_SERVICE_ACCOUNT_JSON: process.env.FCM_SERVICE_ACCOUNT_JSON || '',
 
   /*
+   * Apple's push service, for the customer app on iPhone (FCM cannot reach an
+   * iPhone token). The .p8 key from Apple Developer → Keys, its 10-character
+   * Key ID, and the Team ID. All three or nothing: missing any, iPhone pushes
+   * are skipped and everything else works. APNS_HOST (comma-separated) is for tests only.
+   */
+  APNS_KEY_ID: process.env.APNS_KEY_ID || '',
+  APNS_TEAM_ID: process.env.APNS_TEAM_ID || '',
+  APNS_PRIVATE_KEY: process.env.APNS_PRIVATE_KEY || '',
+  APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || 'com.quickbite.app',
+  APNS_HOST: process.env.APNS_HOST || '',
+
+  /*
    * Call masking, so a rider and a customer can speak without either learning
    * the other's number.
    *

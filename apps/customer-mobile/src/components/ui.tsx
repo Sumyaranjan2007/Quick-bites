@@ -1,5 +1,15 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform
+} from 'react-native';
 import { tokens } from '../theme/tokens';
 
 const c = tokens.colors;
@@ -11,6 +21,19 @@ export const Card: React.FC<{ children: React.ReactNode; style?: ViewStyle; padd
   style,
   padded = true
 }) => <View style={[s.card, padded && { padding: tokens.spacing[4] }, style]}>{children}</View>;
+
+/* ------------------------------ KeyboardLift ------------------------------ */
+
+/**
+ * Wraps a bottom sheet that has a text field, so the iPhone keyboard pushes the
+ * sheet up instead of covering the field. Android resizes the window for the
+ * keyboard itself, so there this is a plain full-size View and nothing changes.
+ */
+export const KeyboardLift: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    {children}
+  </KeyboardAvoidingView>
+);
 
 /* --------------------------------- Section -------------------------------- */
 
@@ -200,6 +223,7 @@ export const Skeleton: React.FC<{ height: number; radius?: number; style?: ViewS
 }) => <View style={[{ height, borderRadius: radius, backgroundColor: c.surface.sunken }, style]} />;
 
 const s = StyleSheet.create({
+  fill: { flex: 1 },
   card: {
     backgroundColor: c.surface.card,
     borderRadius: tokens.radii.xl,

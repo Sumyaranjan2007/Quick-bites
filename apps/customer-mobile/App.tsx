@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Alert
+  Alert,
+  Animated,
+  Platform
 } from 'react-native';
 import { SafeScreen } from './src/components/SafeScreen';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
@@ -31,22 +33,52 @@ import { NotificationsProvider, useNotifications, STATUS_NOTIFICATION } from './
 import { NotificationBell } from './src/components/NotificationBell';
 import { useOrderSocket } from './src/lib/useOrderSocket';
 import { apiFetch, setSessionEndedHandler } from './src/lib/apiFetch';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptic } from './src/lib/haptics';
+import { useIosScreenMotion } from './src/lib/useIosScreenMotion';
 import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
+
+type Screen =
+  | 'feed'
+  | 'detail'
+  | 'cart'
+  | 'tracking'
+  | 'profile'
+  | 'orders'
+  | 'support'
+  | 'membership'
+  | 'addresses';
+
+/** How deep each screen sits, so an iPhone knows which way to slide. The two tabs are 0. */
+const DEPTH: Record<Screen, number> = {
+  feed: 0,
+  profile: 0,
+  detail: 1,
+  orders: 1,
+  support: 1,
+  membership: 1,
+  addresses: 1,
+  cart: 2,
+  tracking: 2
+};
+
+/**
+ * Where an iPhone edge-swipe goes: the same place as each screen's own back
+ * arrow. (Android's hardware back keeps its own map, `goBack` below.) The cart
+ * is decided at runtime, because its arrow depends on whether a restaurant is open.
+ */
+const SWIPE_BACK_TO: Partial<Record<Screen, Screen>> = {
+  detail: 'feed',
+  tracking: 'feed',
+  orders: 'profile',
+  support: 'profile',
+  addresses: 'profile',
+  membership: 'profile'
+};
 
 function AppRoot() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentScreen, setCurrentScreen] = useState<
-    | 'feed'
-    | 'detail'
-    | 'cart'
-    | 'tracking'
-    | 'profile'
-    | 'orders'
-    | 'support'
-    | 'membership'
-    | 'addresses'
-  >('feed');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string; orderId?: string } | null>(null);
@@ -143,6 +175,7 @@ function AppRoot() {
   const handleAddToCart = (item: CartItem) => {
     const clash = cart.find(i => i.restaurantId && i.restaurantId !== item.restaurantId);
     if (clash) {
+      haptic.warning();
       Alert.alert(
         'Start a new order?',
         `Your basket has food from ${clash.restaurantName || 'another restaurant'}. ` +
@@ -159,6 +192,7 @@ function AppRoot() {
       return;
     }
 
+    haptic.tap();
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -169,6 +203,7 @@ function AppRoot() {
   };
 
   const handleUpdateQuantity = (cartItemId: string, delta: number) => {
+    haptic.select();
     setCart(prev =>
       prev
         .map(item => {
@@ -183,6 +218,7 @@ function AppRoot() {
   };
 
   const handleOrderPlaced = (orderData: { orderNumber: string; total: number; otp: string; orderId?: string }) => {
+    haptic.success();
     setActiveOrder(orderData);
     setCart([]);
     setCurrentScreen('tracking');
@@ -344,6 +380,20 @@ function AppRoot() {
 
   useHardwareBackWithExitConfirm(goBack);
 
+  const swipeBackTo: Screen | undefined =
+    currentScreen === 'cart' ? (selectedRestaurant ? 'detail' : 'feed') : SWIPE_BACK_TO[currentScreen];
+  const motion = useIosScreenMotion(
+    currentScreen,
+    DEPTH[currentScreen],
+    swipeBackTo ? () => setCurrentScreen(swipeBackTo) : null
+  );
+  const insets = useSafeAreaInsets();
+
+  const openTab = (screen: Screen) => {
+    if (screen !== currentScreen) haptic.select();
+    setCurrentScreen(screen);
+  };
+
   // Nothing is rendered until the stored session has been consulted; the splash
   // stays up for the few milliseconds it takes.
   if (restoringSession) {
@@ -354,13 +404,22 @@ function AppRoot() {
     );
   }
 
-  // If unauthenticated, present the Quick Bites Customer Login Screen
-  if (!isAuthenticated) {
+  /*
+   * iPhone lets people look before they sign in (Apple guideline 5.1.1(v)).
+   * Restaurants and menus are public; the sign-in screen stands in for anything
+   * that needs an account — checkout, profile, orders — and once signed in they
+   * land on the screen they asked for, basket intact. Android keeps sign-in first.
+   */
+  const browsingAsGuest = Platform.OS === 'ios' && (currentScreen === 'feed' || currentScreen === 'detail');
+  if (!isAuthenticated && !browsingAsGuest) {
     return (
       <SafeScreen style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
         <LoginScreen
           initialApiUrl={apiUrl}
+          onCancel={
+            Platform.OS === 'ios' ? () => setCurrentScreen(selectedRestaurant ? 'detail' : 'feed') : undefined
+          }
           onLoginSuccess={(token, user, url) => {
             setAuthToken(token);
             void registerForPush(url, token);
@@ -381,7 +440,7 @@ function AppRoot() {
       <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.surface.app} />
 
       {/* Primary Screen View */}
-      <View style={styles.mainContent}>
+      <Animated.View style={[styles.mainContent, motion.style]} {...motion.panHandlers}>
         {currentScreen === 'feed' && (
           <DiscoveryFeedScreen
             onSelectRestaurant={handleSelectRestaurant}
@@ -499,7 +558,7 @@ function AppRoot() {
             token={authToken}
           />
         )}
-      </View>
+      </Animated.View>
 
       {/* Orders in flight.
           Above the tab bar and below the screen, so it is reachable from the
@@ -512,10 +571,20 @@ function AppRoot() {
 
       {/* Bottom Navigation Bar (Visible on feed and profile) */}
       {(currentScreen === 'feed' || currentScreen === 'profile') && (
-        <View style={styles.bottomNav}>
+        <View
+          style={[
+            styles.bottomNav,
+            // iPhone: the home-indicator inset already sits below this bar, so the
+            // Android padding would double it. A phone with a Home button gets 8.
+            Platform.OS === 'ios' && { paddingTop: 8, paddingBottom: insets.bottom ? 0 : 8 }
+          ]}
+          accessibilityRole="tablist"
+        >
           <TouchableOpacity
             style={styles.navItem}
-            onPress={() => setCurrentScreen('feed')}
+            onPress={() => openTab('feed')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: currentScreen === 'feed' }}
           >
             <Utensils
               size={20}
@@ -533,7 +602,9 @@ function AppRoot() {
 
           <TouchableOpacity
             style={styles.navItem}
-            onPress={() => setCurrentScreen('cart')}
+            onPress={() => openTab('cart')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: false }}
           >
             <View>
               <ShoppingBag size={20} color={tokens.colors.text.muted} />
@@ -548,7 +619,9 @@ function AppRoot() {
 
           <TouchableOpacity
             style={styles.navItem}
-            onPress={() => setCurrentScreen('profile')}
+            onPress={() => openTab('profile')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: currentScreen === 'profile' }}
           >
             <User
               size={20}
@@ -588,7 +661,9 @@ const styles = StyleSheet.create({
   navItem: {
     flex: 1,
     alignItems: 'center',
-    gap: 4
+    gap: 4,
+    // Apple's minimum tap height; Android keeps its own spacing.
+    ...(Platform.OS === 'ios' ? { minHeight: 44, justifyContent: 'center' as const } : {})
   },
   navText: {
     fontSize: 11,

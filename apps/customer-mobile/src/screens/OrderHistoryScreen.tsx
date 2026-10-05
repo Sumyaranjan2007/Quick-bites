@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, Star, Receipt, Eye, EyeOff, X } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
-import { Card } from '../components/ui';
+import { Card, KeyboardLift } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { InvoiceSheet } from '../components/InvoiceSheet';
 import { useTranslation } from '../lib/i18n';
@@ -209,11 +209,11 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary[500]} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+        <TouchableOpacity hitSlop={10} style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
           <ArrowLeft size={18} color={c.text.primary} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('orders.title')}</Text>
-        <TouchableOpacity
+        <TouchableOpacity hitSlop={10}
           style={styles.hideBtn}
           onPress={() => setAmountsHidden(h => !h)}
           activeOpacity={0.8}
@@ -355,7 +355,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
               <Text style={styles.sheetTitle}>{t('orders.reorderTitle')}</Text>
-              <TouchableOpacity onPress={() => setReorderBasket(null)} activeOpacity={0.8}>
+              <TouchableOpacity hitSlop={10} onPress={() => setReorderBasket(null)} activeOpacity={0.8}>
                 <X size={20} color={c.text.secondary} />
               </TouchableOpacity>
             </View>
@@ -427,78 +427,80 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
       </Modal>
 
       <Modal visible={!!problemOrder} transparent animationType="slide" onRequestClose={() => setProblemOrder(null)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Report a problem</Text>
-                <Text style={styles.sheetSub}>
-                  Order #{problemOrder?.orderNumber} · {problemOrder?.restaurantName}
+        <KeyboardLift>
+          <View style={styles.backdrop}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetTitle}>Report a problem</Text>
+                  <Text style={styles.sheetSub}>
+                    Order #{problemOrder?.orderNumber} · {problemOrder?.restaurantName}
+                  </Text>
+                </View>
+                <TouchableOpacity hitSlop={10} onPress={() => setProblemOrder(null)} activeOpacity={0.8}>
+                  <X size={19} color={c.text.secondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <Text style={styles.label}>What went wrong?</Text>
+                <View style={styles.reasonWrap}>
+                  {REFUND_REASONS.map(reason => (
+                    <TouchableOpacity
+                      key={reason.key}
+                      style={[styles.reason, reasonCode === reason.key && styles.reasonActive]}
+                      onPress={() => setReasonCode(reason.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.reasonText, reasonCode === reason.key && styles.reasonTextActive]}>
+                        {reason.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Tell us what happened</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMultiline]}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="One of the two biryanis was missing from the bag."
+                  placeholderTextColor={c.text.muted}
+                  multiline
+                  textAlignVertical="top"
+                />
+
+                <Text style={styles.label}>How much should come back? (₹)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={amount}
+                  onChangeText={setAmount}
+                  keyboardType="numeric"
+                  placeholderTextColor={c.text.muted}
+                />
+                <Text style={styles.helper}>
+                  This opens a request. Our team reviews it, and if it is approved the money goes back the way
+                  you paid — to your card, your UPI app, or by a link you claim if you paid cash.
                 </Text>
-              </View>
-              <TouchableOpacity onPress={() => setProblemOrder(null)} activeOpacity={0.8}>
-                <X size={19} color={c.text.secondary} />
-              </TouchableOpacity>
+
+                {!!problemError && <Text style={styles.error}>{problemError}</Text>}
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, submitting && { opacity: 0.5 }]}
+                  onPress={submitProblem}
+                  disabled={submitting}
+                  activeOpacity={0.88}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.primaryBtnText}>Send request</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
             </View>
-
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.label}>What went wrong?</Text>
-              <View style={styles.reasonWrap}>
-                {REFUND_REASONS.map(reason => (
-                  <TouchableOpacity
-                    key={reason.key}
-                    style={[styles.reason, reasonCode === reason.key && styles.reasonActive]}
-                    onPress={() => setReasonCode(reason.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.reasonText, reasonCode === reason.key && styles.reasonTextActive]}>
-                      {reason.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.label}>Tell us what happened</Text>
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="One of the two biryanis was missing from the bag."
-                placeholderTextColor={c.text.muted}
-                multiline
-                textAlignVertical="top"
-              />
-
-              <Text style={styles.label}>How much should come back? (₹)</Text>
-              <TextInput
-                style={styles.input}
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="numeric"
-                placeholderTextColor={c.text.muted}
-              />
-              <Text style={styles.helper}>
-                This opens a request. Our team reviews it, and if it is approved the money goes back the way
-                you paid — to your card, your UPI app, or by a link you claim if you paid cash.
-              </Text>
-
-              {!!problemError && <Text style={styles.error}>{problemError}</Text>}
-
-              <TouchableOpacity
-                style={[styles.primaryBtn, submitting && { opacity: 0.5 }]}
-                onPress={submitProblem}
-                disabled={submitting}
-                activeOpacity={0.88}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.primaryBtnText}>Send request</Text>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       <InvoiceSheet

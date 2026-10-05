@@ -573,7 +573,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7} accessibilityLabel="Clear search">
+            <TouchableOpacity hitSlop={10} onPress={() => setSearchQuery('')} activeOpacity={0.7} accessibilityLabel="Clear search">
               <X size={16} color={c.text.muted} />
             </TouchableOpacity>
           )}
@@ -775,17 +775,20 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                   </View>
                 )}
 
-                <TouchableOpacity
-                  style={styles.heartButton}
-                  onPress={() => toggleFavourite(r.id)}
-                  activeOpacity={0.8}
-                >
-                  <Heart
-                    size={17}
-                    color={favourites.has(r.id) ? c.dietary.nonveg : c.text.primary}
-                    fill={favourites.has(r.id) ? c.dietary.nonveg : 'transparent'}
-                  />
-                </TouchableOpacity>
+                {/* Favourites belong to an account; an iPhone guest browsing has none. */}
+                {!!token && (
+                  <TouchableOpacity hitSlop={10}
+                    style={styles.heartButton}
+                    onPress={() => toggleFavourite(r.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Heart
+                      size={17}
+                      color={favourites.has(r.id) ? c.dietary.nonveg : c.text.primary}
+                      fill={favourites.has(r.id) ? c.dietary.nonveg : 'transparent'}
+                    />
+                  </TouchableOpacity>
+                )}
 
                 {/*
                   Omitted rather than guessed, the rule the delivery estimate

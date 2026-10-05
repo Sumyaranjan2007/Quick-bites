@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * Quick Bites design tokens (React Native).
  * Warm cream canvas, deep maroon brand, amber accent — matched to the Quickbits mark.
@@ -91,3 +93,16 @@ export const tokens = {
     }
   }
 } as const;
+
+/**
+ * Apple's large title (34pt, under the back button) for top-level screens on
+ * iPhone. Spread into a screen's `header` and `title` styles; empty on Android,
+ * so Android screens are unchanged.
+ */
+export const iosLargeTitle =
+  Platform.OS === 'ios'
+    ? {
+        header: { flexWrap: 'wrap' as const },
+        title: { width: '100%' as const, fontSize: 34, fontWeight: '800' as const, letterSpacing: 0.37, marginTop: 6 }
+      }
+    : { header: {}, title: {} };

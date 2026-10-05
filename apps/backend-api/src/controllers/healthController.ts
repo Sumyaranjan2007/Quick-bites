@@ -3,6 +3,7 @@ import { config } from '../config/env.ts';
 import { placesStatus } from '../modules/places/placesService.ts';
 import { routingStatus } from '../modules/places/routingService.ts';
 import { pushIsConfigured } from '../notifications/fcmTransport.ts';
+import { apnsIsConfigured } from '../notifications/apnsTransport.ts';
 
 export function getHealth(req: Request, res: Response): void {
   const uptimeSeconds = Math.floor(process.uptime());
@@ -81,7 +82,9 @@ export function getHealth(req: Request, res: Response): void {
        * the project id, passes through here: a credential's contents do not
        * belong on an endpoint that answers without authentication.
        */
-      pushNotifications: { configured: pushIsConfigured() }
+      pushNotifications: { configured: pushIsConfigured() },
+      // The same question for iPhone, which Apple's service carries instead of FCM.
+      applePush: { configured: apnsIsConfigured() }
     },
     system: {
       memoryRssMb: Math.round((memUsage.rss / 1024 / 1024) * 100) / 100,

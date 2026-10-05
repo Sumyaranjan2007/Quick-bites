@@ -117,7 +117,7 @@ export const VoiceSearchSheet: React.FC<Props> = ({ visible, onClose, onResult }
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <TouchableOpacity
+          <TouchableOpacity hitSlop={10}
             style={styles.closeBtn}
             onPress={() => {
               stop();

@@ -21,7 +21,7 @@ the business **QUICK BITES** (MSME Udyam `UDYAM-KR-29-0052148`, contact
 
 | App | Folder | Android package | Who uses it | Play Store |
 | --- | --- | --- | --- | --- |
-| Quick Bites | `apps/customer-mobile` | `com.quickbite.app` | customers | public |
+| Quick Bites | `apps/customer-mobile` | `com.quickbite.app` | customers | public · **also iPhone** (App Store, being prepared — §7b) |
 | Quick Bites Partner | `apps/restaurant-mobile` | `com.quickbite.partner` | restaurants | public |
 | Quick Bites Rider | `apps/delivery-mobile` | `com.quickbite.rider` | delivery riders | public |
 | Quick Bites Operations (the admin app) | `apps/admin-mobile` | `com.quickbite.admin` | the owner / operations | **private** (APK only) |
@@ -70,7 +70,8 @@ clearly first, then do the work** (they complained when an answer was buried).
 | **`.env` at the repo root** (gitignored, this PC only) | Local build/test values: Mapbox public + download tokens, Google Maps Android key, Razorpay **test** keys, etc. `.env.example` lists the names. |
 | **`C:\Users\priya\quickbites-keystores\`** (outside the repo) | The four Android signing keystores and their `*.keystore.properties` (passwords). Losing these = the app can never be updated. See `SIGNING_KEYS.md`. |
 | **`D:\my all projects\quick-bites-release-archive\`** | Archived signed APKs per release. |
-| **The owner's own accounts** | Railway, GitHub, MSG91, the DLT portal (Jio TrueConnect), Razorpay, Google Play Console, Firebase, Mapbox, Groq. Only the owner signs in to these. |
+| **Expo (expo.dev) → project → Environment variables** | `MAPBOX_PUBLIC_TOKEN`, `MAPBOX_DOWNLOAD_TOKEN` (secret) for iPhone cloud builds (EAS). Not needed for Android. |
+| **The owner's own accounts** | Railway, GitHub, MSG91, the DLT portal (Jio TrueConnect), Razorpay, Google Play Console, Firebase, Mapbox, Groq, Apple Developer / App Store Connect, Expo. Only the owner signs in to these. |
 
 ### Production variables (names; set on Railway)
 
@@ -93,7 +94,8 @@ clearly first, then do the work** (they complained when an answer was buried).
 | `PAYEE_ACCOUNT_KEY` | Encrypts full bank account numbers, stored apart from the record. |
 | `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR` | Server-side road distance (Directions for one trip, Matrix for many). |
 | `MEILISEARCH_HOST`, `MEILISEARCH_API_KEY` | Search. |
-| `FCM_SERVICE_ACCOUNT_JSON` | Push notifications. |
+| `FCM_SERVICE_ACCOUNT_JSON` | Push notifications (Android). |
+| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (+ optional `APNS_BUNDLE_ID`, default `com.quickbite.app`) | Push to iPhone through Apple (FCM rejects iPhone tokens). **Not set yet** — the owner creates the .p8 key. `/health` → `services.applePush.configured`. |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Menu-from-photo reader. **The Groq key was shared in a chat — rotate it.** |
 | `EXOTEL_*` | Masked calling (optional, not required for launch). |
 | Timing knobs | `ORDER_ACCEPT_TIMEOUT_MINUTES`, `RIDER_NOSHOW_*`, `RIDER_ASSIGN_ALERT_MINUTES`, `PAYMENT_*_AFTER_MINUTES`, `DEFAULT_PREP_MINUTES`, `DELIVERY_*`, `MAX_TIP_AMOUNT`, `DEFAULT_SERVICE_RADIUS_KM`, `PLACES_REGION`. |
@@ -142,6 +144,7 @@ npm run verify        /  npm run verify:full       # everything, stops at first 
 bash scripts/build-apks.sh                         # all four signed APKs  -> build/apk/
 bash scripts/build-apks.sh --aab                   # + Play bundles        -> build/aab/
 bash scripts/build-apks.sh --only admin-mobile     # one app (exact folder name)
+cd apps/customer-mobile && npx eas-cli build -p ios --profile production   # iPhone, in Expo's cloud (never EAS for Android)
 node scripts/reset-live.mjs                        # OWNER ONLY: wipes live data (needs ALLOW_PLATFORM_RESET)
 python scripts/play-store/make-graphics.py         # 512 icons + 1024x500 feature graphics -> build/play-store/
 python scripts/play-store/compose-screenshots.py <captures-dir>   # 1080x1920 screenshots
@@ -210,6 +213,19 @@ Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0):
 
 ---
 
+## 7b. App Store (iPhone, customer app only) — status on 5 Oct 2026
+
+Full guide for the owner: **`docs/app-store/IOS.md`** (what to buy, EAS and Xcode builds, test
+checklist, every App Store Connect field, review notes). Done in code (5 Oct): iOS permission
+reasons, UPI app schemes, privacy manifest, `eas.json` + Mapbox `.netrc` hook, Apple push on the
+server, browse-without-sign-in, edge-swipe back, large titles, haptics, keyboard-safe sheets,
+44-pt targets, Privacy/Terms links (both phones), hidden server settings off on iPhone.
+**Never compiled for iOS yet** (no Mac here); only bundled for iOS and exercised in a browser
+with the platform forced to iOS. Waiting on the owner: Apple Developer enrolment, APNs key →
+Railway, Expo account + `eas init` (commit the projectId it writes into `app.json`), first
+EAS build. Risk: Apple requires Xcode 26 and the app is on Expo SDK 52 — if the first build
+fails inside React Native/libraries, an Expo SDK upgrade (and a new Android release) is needed.
+
 ## 8. Working rules (each was learned the hard way)
 
 - **Git:** never `git add -A` / `git add .` / `git commit -a`; stage by explicit path. Never
@@ -233,13 +249,17 @@ Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0):
   designing around its absence.
 - Scope: four phone apps only, no extra features, no OTA, finish before build.
 - A worktree with junctioned `node_modules` runs main's `@quick-bites/*` packages.
+- **iPhone-only behaviour is fenced with `Platform.OS === 'ios'`** (never `Platform.select`:
+  react-native-web ignores a forced OS, so browser checks lie). The Android customer app must
+  not change unless the owner asks; check with `npx expo config --type introspect` that the
+  `android` section is identical before and after a config change.
 
 ## 9. Map of the other documents
 
 **Living (kept current):** `CLAUDE.md` (this) · `AGENTS.md` (pointer) · `README.md` ·
 `CHANGELOG.md` (newest first) · `OWNER_ACTIONS.md` · `COMMANDS.md` · `SIGNING_KEYS.md` ·
 `STORE_RELEASE.md` · `DOWNLOAD.md` · `SESSION_COORDINATION.md` · `legal/*` ·
-`docs/play-store/listings.md` · `docs/plans/FOUR-APP-FLOWS.md` · `docs/plans/CONNECTION-MAP.md` ·
+`docs/play-store/listings.md` · `docs/app-store/IOS.md` · `docs/plans/FOUR-APP-FLOWS.md` · `docs/plans/CONNECTION-MAP.md` ·
 the two newest plans `docs/plans/menu-ai-maps-money-2026-10-01.md` and
 `docs/plans/cod-menus-payouts-playstore-2026-10-02.md`.
 

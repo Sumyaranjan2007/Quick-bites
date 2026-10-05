@@ -214,7 +214,7 @@ export const MapAddressPicker: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.headerButton} accessibilityLabel="Close map">
+          <TouchableOpacity hitSlop={10} onPress={onClose} style={styles.headerButton} accessibilityLabel="Close map">
             <X size={20} color={c.text.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Set delivery location</Text>

@@ -70,6 +70,7 @@ const SUITES = [
   'ratesAndSwitches',
   'adminSections',
   'adminPush',
+  'apnsPush',
   'orderMap',
   'riderTripPush',
   'carryingWatch',

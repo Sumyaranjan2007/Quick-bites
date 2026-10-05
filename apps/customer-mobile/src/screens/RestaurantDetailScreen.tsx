@@ -286,14 +286,14 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
           <View style={styles.heroScrim} />
 
           <View style={styles.heroTop}>
-            <TouchableOpacity style={styles.circleBtn} onPress={onBack} activeOpacity={0.85}>
+            <TouchableOpacity hitSlop={10} style={styles.circleBtn} onPress={onBack} activeOpacity={0.85}>
               <ArrowLeft size={19} color={c.text.primary} />
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={styles.circleBtn} activeOpacity={0.85}>
+              <TouchableOpacity hitSlop={10} style={styles.circleBtn} activeOpacity={0.85}>
                 <Heart size={18} color={c.text.primary} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.circleBtn} activeOpacity={0.85}>
+              <TouchableOpacity hitSlop={10} style={styles.circleBtn} activeOpacity={0.85}>
                 <Share2 size={18} color={c.text.primary} />
               </TouchableOpacity>
             </View>

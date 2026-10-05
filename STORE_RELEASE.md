@@ -234,6 +234,11 @@ hides among fake ones.
 
 # Apple App Store — iOS
 
+> **Customer app, 5 October 2026: the current guide is `docs/app-store/IOS.md`** (EAS cloud
+> builds from Windows, Xcode on a Mac, test checklist, App Store Connect answers, review
+> notes). The section below dates from 13 September, covers all four apps, and its "no Mac /
+> not compiled" status still holds for the Partner, Rider and Operations apps.
+
 ## What is configured in code
 
 All four apps now carry the iOS settings that are decided in the repo:

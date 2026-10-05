@@ -1,6 +1,7 @@
 import { config } from '../config/env.ts';
 import { deviceTokenRepository } from '../db/repositories/deviceTokenRepository.ts';
-import { sendToTokens, pushIsConfigured } from './fcmTransport.ts';
+import { sendToTokens, pushIsConfigured, type PushMessage } from './fcmTransport.ts';
+import { sendToApns } from './apnsTransport.ts';
 
 export interface PushNotificationPayload {
   userId: string;
@@ -129,9 +130,7 @@ class FcmNotificationDispatcher {
       const devices = await deviceTokenRepository.listForUser(record.userId);
       if (devices.length === 0) return;
 
-      const outcome = await sendToTokens(
-        devices.map(d => d.token),
-        {
+      const message: PushMessage = {
           title: record.title,
           body: record.body,
           /*
@@ -150,10 +149,17 @@ class FcmNotificationDispatcher {
           androidChannelId: record.androidChannelId || CHANNEL.DEFAULT,
           androidTag: record.androidTag,
           dataOnly: record.dataOnly
-        }
-      );
+        };
 
-      for (const dead of outcome.invalid) await deviceTokenRepository.invalidate(dead);
+      // iPhone tokens are APNs tokens; FCM would reject them and mark them dead.
+      const tokensFor = (ios: boolean) =>
+        devices.filter(d => (d.platform === 'IOS') === ios).map(d => d.token);
+      const outcomes = await Promise.all([
+        sendToTokens(tokensFor(false), message),
+        sendToApns(tokensFor(true), message)
+      ]);
+
+      for (const dead of outcomes.flatMap(o => o.invalid)) await deviceTokenRepository.invalidate(dead);
     } catch (err: any) {
       console.error(
         JSON.stringify({ level: 'ERROR', event: 'FCM_DELIVERY_FAILED', message: err?.message })

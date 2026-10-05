@@ -96,6 +96,27 @@ one shared code) and switch back the day DLT is approved.
 The partner policy still says restaurants are paid "automatically on the weekly
 run". Since 2 October you pay whenever you choose. Tell us the wording you want.
 
+### F. iPhone (App Store) — customer app
+
+The code is ready for its first iPhone build. Step-by-step instructions, costs, the test
+checklist and every App Store Connect answer are in **`docs/app-store/IOS.md`**. In short:
+
+1. **Apple Developer Program** (US$99 a year) — Individual if your Udyam says
+   Proprietorship, Organization (with the D-U-N-S number) if Private Limited.
+2. **Apple push key (.p8)** → Railway variables `APNS_KEY_ID`, `APNS_TEAM_ID`,
+   `APNS_PRIVATE_KEY` → Deploy → `/health` shows `"applePush":{"configured":true}`.
+   Without this, iPhone customers get no notifications.
+3. **Expo account** (free) → `npx eas-cli@latest login` and `npx eas-cli@latest init` in
+   `apps/customer-mobile` → commit the change to `app.json`.
+4. On expo.dev → Environment variables: `MAPBOX_PUBLIC_TOKEN` and `MAPBOX_DOWNLOAD_TOKEN`
+   (secret), copied from the `.env` on this PC.
+5. `npx eas-cli@latest build -p ios --profile production`, then `npx eas-cli@latest submit -p ios --latest`
+   → test on your iPhone through TestFlight with the checklist in the guide.
+6. Before submitting for review: give the **reviewer number** a saved address in Harohalli and
+   make sure the demo restaurant is open and accepts cash.
+
+**Never start an EAS build for Android** — it would sign the app with a different key.
+
 ---
 
 ## Old Part 0 — the 20 September build (done; kept for reference)

@@ -34,7 +34,7 @@ export const NotificationBell: React.FC = () => {
 
   return (
     <>
-      <TouchableOpacity style={styles.bell} onPress={openPanel} activeOpacity={0.8} accessibilityLabel="Notifications">
+      <TouchableOpacity hitSlop={10} style={styles.bell} onPress={openPanel} activeOpacity={0.8} accessibilityLabel="Notifications">
         {enabled ? <Bell size={19} color={c.text.primary} /> : <BellOff size={19} color={c.text.muted} />}
         {unreadCount > 0 && (
           <View style={styles.badge}>
@@ -53,7 +53,7 @@ export const NotificationBell: React.FC = () => {
                   <Text style={styles.clear}>Clear</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity onPress={() => setOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+              <TouchableOpacity hitSlop={10} onPress={() => setOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
                 <X size={19} color={c.text.secondary} />
               </TouchableOpacity>
             </View>

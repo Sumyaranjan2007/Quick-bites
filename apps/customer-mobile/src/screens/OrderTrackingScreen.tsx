@@ -12,7 +12,7 @@ import {
 import { tokens } from '../theme/tokens';
 import { Linking, Alert } from 'react-native';
 import { Bike, Phone, ArrowLeft, Check, X, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';
-import { Card } from '../components/ui';
+import { Card, KeyboardLift } from '../components/ui';
 import { LiveOrderMap } from '../components/LiveOrderMap';
 import { OrderChat } from '../components/OrderChat';
 import { RatingSheet } from '../components/RatingSheet';
@@ -381,7 +381,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.topRow}>
-        <TouchableOpacity style={styles.backButton} onPress={onHome} activeOpacity={0.8}>
+        <TouchableOpacity hitSlop={10} style={styles.backButton} onPress={onHome} activeOpacity={0.8}>
           <ArrowLeft size={17} color={c.text.primary} />
           <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>
@@ -670,76 +670,78 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           on the list, and so a reason can be added or reworded without a
           release. A paid order refunds itself as part of the same request. */}
       <Modal visible={cancelOpen} transparent animationType="slide" onRequestClose={() => setCancelOpen(false)}>
-        <View style={styles.cancelBackdrop}>
-          <View style={styles.cancelSheet}>
-            <Text style={styles.cancelTitle}>{t('tracking.cancelTitle')}</Text>
-            <Text style={styles.cancelBody}>{t('tracking.cancelBody')}</Text>
-            {cancelQuote ? (
-              <View style={[styles.cancelQuote, cancelQuote.fee > 0 && styles.cancelQuoteFee]}>
-                <Text style={styles.cancelQuoteText}>
-                  {cancelQuote.canCancel ? cancelQuote.message : t('tracking.cancelTooLate')}
-                </Text>
-              </View>
-            ) : null}
+        <KeyboardLift>
+          <View style={styles.cancelBackdrop}>
+            <View style={styles.cancelSheet}>
+              <Text style={styles.cancelTitle}>{t('tracking.cancelTitle')}</Text>
+              <Text style={styles.cancelBody}>{t('tracking.cancelBody')}</Text>
+              {cancelQuote ? (
+                <View style={[styles.cancelQuote, cancelQuote.fee > 0 && styles.cancelQuoteFee]}>
+                  <Text style={styles.cancelQuoteText}>
+                    {cancelQuote.canCancel ? cancelQuote.message : t('tracking.cancelTooLate')}
+                  </Text>
+                </View>
+              ) : null}
 
-            <ScrollView style={{ maxHeight: 260 }}>
-              {cancelReasons.map(reason => {
-                const selected = cancelCode === reason.code;
-                return (
-                  <TouchableOpacity
-                    key={reason.code}
-                    style={[styles.cancelReason, selected && styles.cancelReasonOn]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    onPress={() => {
-                      setCancelCode(reason.code);
-                      // A note only belongs to a reason that accepts one; the
-                      // server drops it otherwise, so leaving it visible would
-                      // promise the customer it had been read.
-                      if (!reason.allowsNote) setCancelNote('');
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.cancelRadio, selected && styles.cancelRadioOn]} />
-                    <Text style={styles.cancelReasonText}>{reason.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <ScrollView style={{ maxHeight: 260 }}>
+                {cancelReasons.map(reason => {
+                  const selected = cancelCode === reason.code;
+                  return (
+                    <TouchableOpacity
+                      key={reason.code}
+                      style={[styles.cancelReason, selected && styles.cancelReasonOn]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      onPress={() => {
+                        setCancelCode(reason.code);
+                        // A note only belongs to a reason that accepts one; the
+                        // server drops it otherwise, so leaving it visible would
+                        // promise the customer it had been read.
+                        if (!reason.allowsNote) setCancelNote('');
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[styles.cancelRadio, selected && styles.cancelRadioOn]} />
+                      <Text style={styles.cancelReasonText}>{reason.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
 
-              {cancelReasons.find(r => r.code === cancelCode)?.allowsNote && (
-                <TextInput
-                  style={styles.cancelNote}
-                  placeholder={t('tracking.cancelNote')}
-                  placeholderTextColor={c.text.muted}
-                  value={cancelNote}
-                  onChangeText={setCancelNote}
-                  maxLength={300}
-                  multiline
-                />
-              )}
-            </ScrollView>
+                {cancelReasons.find(r => r.code === cancelCode)?.allowsNote && (
+                  <TextInput
+                    style={styles.cancelNote}
+                    placeholder={t('tracking.cancelNote')}
+                    placeholderTextColor={c.text.muted}
+                    value={cancelNote}
+                    onChangeText={setCancelNote}
+                    maxLength={300}
+                    multiline
+                  />
+                )}
+              </ScrollView>
 
-            <TouchableOpacity
-              style={[
-                styles.cancelConfirm,
-                (!cancelCode || cancelling || cancelQuote?.canCancel === false) && styles.cancelDisabled
-              ]}
-              disabled={!cancelCode || cancelling || cancelQuote?.canCancel === false}
-              onPress={confirmCancel}
-              activeOpacity={0.9}
-            >
-              {cancelling ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.cancelConfirmText}>{t('tracking.cancelConfirm')}</Text>
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.cancelConfirm,
+                  (!cancelCode || cancelling || cancelQuote?.canCancel === false) && styles.cancelDisabled
+                ]}
+                disabled={!cancelCode || cancelling || cancelQuote?.canCancel === false}
+                onPress={confirmCancel}
+                activeOpacity={0.9}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.cancelConfirmText}>{t('tracking.cancelConfirm')}</Text>
+                )}
+              </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cancelKeep} onPress={() => setCancelOpen(false)} activeOpacity={0.8}>
-              <Text style={styles.cancelKeepText}>{t('tracking.cancelKeep')}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelKeep} onPress={() => setCancelOpen(false)} activeOpacity={0.8}>
+                <Text style={styles.cancelKeepText}>{t('tracking.cancelKeep')}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardLift>
       </Modal>
 
       <OrderChat

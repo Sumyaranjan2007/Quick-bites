@@ -11,6 +11,7 @@ import {
 import { Star, X } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';
+import { KeyboardLift } from './ui';
 import { parseApiError } from '../lib/apiErrors';
 
 const c = tokens.colors;
@@ -77,89 +78,91 @@ export const RatingSheet: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>How was your order?</Text>
-              <Text style={styles.subtitle}>
-                {restaurantName}
-                {riderName ? ` · delivered by ${riderName}` : ''}
-              </Text>
+      <KeyboardLift>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>How was your order?</Text>
+                <Text style={styles.subtitle}>
+                  {restaurantName}
+                  {riderName ? ` · delivered by ${riderName}` : ''}
+                </Text>
+              </View>
+              <TouchableOpacity hitSlop={10} onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-              <X size={19} color={c.text.secondary} />
+
+            <View style={styles.stars}>
+              {[1, 2, 3, 4, 5].map(value => (
+                <TouchableOpacity
+                  key={value}
+                  onPress={() => setRating(value)}
+                  activeOpacity={0.7}
+                  style={styles.starTap}
+                  accessibilityLabel={`${value} star${value > 1 ? 's' : ''}`}
+                >
+                  <Star
+                    size={38}
+                    color={value <= rating ? c.accent[500] : c.border.strong}
+                    fill={value <= rating ? c.accent[500] : 'transparent'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.word}>{WORDS[rating] || 'Tap a star to rate'}</Text>
+
+            {riderName ? (
+              <View style={styles.riderBlock}>
+                <Text style={styles.riderLabel}>And {riderName}, who brought it?</Text>
+                <View style={styles.riderStars}>
+                  {[1, 2, 3, 4, 5].map(value => (
+                    <TouchableOpacity
+                      key={value}
+                      onPress={() => setRiderRating(value)}
+                      activeOpacity={0.7}
+                      style={styles.riderStarTap}
+                      accessibilityLabel={`${value} star${value > 1 ? 's' : ''} for the delivery partner`}
+                    >
+                      <Star
+                        size={26}
+                        color={value <= (riderRating || rating) ? c.accent[500] : c.border.strong}
+                        fill={value <= (riderRating || rating) ? c.accent[500] : 'transparent'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <TextInput
+              style={styles.input}
+              value={comment}
+              onChangeText={setComment}
+              placeholder="Anything you'd like to add? (optional)"
+              placeholderTextColor={c.text.muted}
+              multiline
+              maxLength={500}
+            />
+
+            {!!error && <Text style={styles.error}>{error}</Text>}
+
+            <TouchableOpacity
+              style={[styles.submit, (!rating || submitting) && { opacity: 0.5 }]}
+              onPress={submit}
+              disabled={!rating || submitting}
+              activeOpacity={0.88}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitText}>Submit rating</Text>
+              )}
             </TouchableOpacity>
           </View>
-
-          <View style={styles.stars}>
-            {[1, 2, 3, 4, 5].map(value => (
-              <TouchableOpacity
-                key={value}
-                onPress={() => setRating(value)}
-                activeOpacity={0.7}
-                style={styles.starTap}
-                accessibilityLabel={`${value} star${value > 1 ? 's' : ''}`}
-              >
-                <Star
-                  size={38}
-                  color={value <= rating ? c.accent[500] : c.border.strong}
-                  fill={value <= rating ? c.accent[500] : 'transparent'}
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.word}>{WORDS[rating] || 'Tap a star to rate'}</Text>
-
-          {riderName ? (
-            <View style={styles.riderBlock}>
-              <Text style={styles.riderLabel}>And {riderName}, who brought it?</Text>
-              <View style={styles.riderStars}>
-                {[1, 2, 3, 4, 5].map(value => (
-                  <TouchableOpacity
-                    key={value}
-                    onPress={() => setRiderRating(value)}
-                    activeOpacity={0.7}
-                    style={styles.riderStarTap}
-                    accessibilityLabel={`${value} star${value > 1 ? 's' : ''} for the delivery partner`}
-                  >
-                    <Star
-                      size={26}
-                      color={value <= (riderRating || rating) ? c.accent[500] : c.border.strong}
-                      fill={value <= (riderRating || rating) ? c.accent[500] : 'transparent'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          <TextInput
-            style={styles.input}
-            value={comment}
-            onChangeText={setComment}
-            placeholder="Anything you'd like to add? (optional)"
-            placeholderTextColor={c.text.muted}
-            multiline
-            maxLength={500}
-          />
-
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
-          <TouchableOpacity
-            style={[styles.submit, (!rating || submitting) && { opacity: 0.5 }]}
-            onPress={submit}
-            disabled={!rating || submitting}
-            activeOpacity={0.88}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.submitText}>Submit rating</Text>
-            )}
-          </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardLift>
     </Modal>
   );
 };
