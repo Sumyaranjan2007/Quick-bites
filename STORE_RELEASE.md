@@ -7,6 +7,31 @@ done by a human in Play Console / App Store Connect.
 **iOS:** configured but never compiled — this machine has no Xcode. See the iOS
 section at the end.
 
+> **Current status (5 Oct 2026) — read this before the sections below, which
+> date from 21 Sep.**
+>
+> - **Last release:** versionCode 20, version 1.4.0. `bash scripts/build-apks.sh --aab`
+>   builds bundles for Customer, Partner and Rider into `build/aab/`. **Admin is
+>   private** and never goes to Play.
+> - **Listing text:** `docs/play-store/listings.md` (names, short and full
+>   descriptions within Play's limits, categories, every Console answer, the
+>   demo-login table). **Graphics and screenshots:** `scripts/play-store/` generate
+>   them into `build/play-store/` (gitignored); a ready zip is at
+>   `build/QuickBites-PlayStore-graphics.zip`.
+> - **Public pages** served by the live backend: `/privacy`, `/terms`,
+>   `/delete-account`.
+> - **Reviewer sign-in:** `OTP_REVIEW_PHONE` + `OTP_REVIEW_CODE` on Railway (no SMS
+>   sent to that number); demo restaurant and demo rider accounts must be created
+>   on live before submitting.
+> - **Account:** an **Organization** account, which needs a D-U-N-S number (the
+>   owner is applying). **App signing:** upload the existing keys with Google's
+>   PEPK tool ("use existing app signing key") so Play updates match the
+>   sideloaded apps; waiting for the Console's encryption public key.
+> - **Blocking:** real SMS codes — MSG91 is wired, the DLT template link is
+>   pending (`OWNER_ACTIONS.md` Part 0 A).
+> - Step-by-step launch guide with the Data safety table and the good-standing
+>   checklist: https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs
+
 ---
 
 ## 1. Apps and package IDs

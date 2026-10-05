@@ -1,7 +1,7 @@
 # Quick Bites Privacy Policy
 
 **Effective Date:** September 5, 2026  
-**Last Updated:** September 5, 2026  
+**Last Updated:** October 5, 2026  
 **Governing Law:** Digital Personal Data Protection Act (DPDP Act 2023), Republic of India  
 
 ---
@@ -65,12 +65,14 @@ We process personal data solely for lawful purposes under Section 4 and Section 
 
 ## 4. Data Sharing & Third-Party Processors
 
-We do not sell personal data to data brokers. We share data only with verified cloud processors strictly necessary to deliver our services:
-- **Supabase Inc.:** User authentication, session management, and encrypted database hosting.
-- **Razorpay Software Private Limited:** Payment processing, refund issuance, and fraud tokenization.
-- **Firebase / Google Cloud:** Push notifications dispatched to mobile devices.
-- **Resend Inc.:** Transactional email delivery and OTP verification dispatches.
-- **Cloudflare Inc.:** Edge caching, DDoS protection, and secure image object storage.
+We do not sell personal data to data brokers. We share data only with the service providers strictly necessary to deliver our services:
+- **Railway Corporation:** Hosting of our servers and our database, where account, order and payment records are stored.
+- **Razorpay Software Private Limited:** Payment processing, refunds and payouts to restaurants and delivery partners.
+- **MSG91 (Walkover Web Solutions Private Limited):** Sending the one-time sign-in code to your mobile number by SMS.
+- **Firebase / Google Cloud:** Push notifications sent to your phone.
+- **Mapbox Inc.:** Maps, address lookup and road distances used to calculate delivery pay and fees.
+- **Meilisearch:** Search across restaurants and dishes (restaurant and menu data only).
+- **Groq Inc.:** Reading a restaurant's printed menu from photos the restaurant chooses to upload (menu images only, no customer data).
 
 ---
 

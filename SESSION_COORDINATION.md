@@ -22,6 +22,13 @@ here, and it is what every prior session in this repository did.
 
 ---
 
+> **5 Oct 2026: since 26 Sep one Claude session has done all the work, and
+> `CLAUDE.md` is the starting point.** The rules in §1 still apply in full if
+> a second session ever works in this folder again: stage by path, never
+> `git add -A` / `git stash` / `git reset --hard`, never build APKs while
+> another session edits app files, re-read a shared file right before writing it.
+> The ownership split in §2 and the status in §3 are historical.
+
 > **25 Sep, FINAL: Session C is retired. Its work is merged to `main`. Session A now runs the project with Session B's help.**
 > **Session A: read `docs/plans/HANDOFF-to-session-A.md` before anything else.**
 > At the owner's instruction, Session C's whole branch is merged to `main`. The owner asks A to update

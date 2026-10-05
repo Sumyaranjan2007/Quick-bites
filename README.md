@@ -1,196 +1,69 @@
-# Quick Bite Platform -- Master Architecture & Runbook (README)
+# Quick Bites
 
-**Version:** 2.0.0  
-**Date:** September 6, 2026  
-**Status:** Production Ready / Active  
-**Project:** Quick Bite (Enterprise 4-Device Native Mobile Food Delivery Ecosystem)  
-**Author:** Quick Bite Systems Architecture & Engineering Team  
+Food delivery for Harohalli and Ramanagara, Karnataka: four Android apps and one
+backend.
 
----
+**New here (person or AI)? Read [`CLAUDE.md`](CLAUDE.md) first.** It is the
+current, complete handoff: where everything runs, where every setting lives, the
+owner's decisions, the commands and the launch status. This README is the short
+front door.
 
-## 1. Executive Summary & Ecosystem Topology
-
-Quick Bite is an ultra-fast, transparent, multi-portal food delivery ecosystem engineered to benchmark against Zomato and Blinkit. Built on a modular monorepo architecture, the platform operates across **4 distinct physical mobile devices** connected to a central real-time backend over the public internet via Cloudflare Tunnel:
-
-```
-[Device 1: Customer Mobile]       [Device 2: Restaurant Mobile]
-    apps/customer-mobile               apps/restaurant-mobile
-     (React Native / APK)               (React Native / APK)
-              \                                  /
-               \                                /
-      [HTTPS / WSS via Cloudflare Public Tunnel / LAN IP]
-                               |
-                               v
-               +-------------------------------+
-               |   Quick Bite Backend API      |
-               |     (Node.js / Express)       |
-               |      Port 4000 / Sockets      |
-               +---------------+---------------+
-                               |
-              /                                 \
-             /                                   \
-[Device 3: Delivery Mobile]         [Device 4: Admin Mobile]
-    apps/delivery-mobile                apps/admin-mobile
-     (React Native / APK)              (React Native / APK)
-```
+**Status, 5 October 2026:** live on Railway; apps at versionCode 20 (1.4.0);
+preparing the Google Play launch. Real SMS sign-in codes run through MSG91 and
+start arriving once the owner links the DLT template (see `OWNER_ACTIONS.md`
+Part 0).
 
 ---
 
-## 2. The 4 Native Mobile Applications
+## The four apps
 
-Each application is a distinct native mobile client configured with its own role-based interface, Stitch UI tokens, and Lucide icons:
+| App | Folder | Package | For |
+| --- | --- | --- | --- |
+| Quick Bites | `apps/customer-mobile` | `com.quickbite.app` | customers: browse, order, pay online or cash where allowed, track live |
+| Quick Bites Partner | `apps/restaurant-mobile` | `com.quickbite.partner` | restaurants: take orders, build menus (also from photos), see money |
+| Quick Bites Rider | `apps/delivery-mobile` | `com.quickbite.rider` | riders: see pay before accepting, navigate, collect cash, earnings |
+| Quick Bites Operations (admin) | `apps/admin-mobile` | `com.quickbite.admin` | the owner: approvals, rates, payouts, COD switch, menus, support |
 
-| Application Directory | Target Device & Persona | Key Functionality & Hardware Integrations | Release Status |
-|-----------------------|-------------------------|-------------------------------------------|----------------|
-| `apps/customer-mobile` | **Device 1: Customer** | Geofenced restaurant feed (<10km), live dish customizations, dynamic pricing engine, real-time order tracking, secret 4-digit doorstep delivery OTP display, Quick Bite Cash Wallet (Rs 500 preloaded). | Release APK Compiled (`build/apk/QuickBite-Customer.apk`) |
-| `apps/restaurant-mobile` | **Device 2: Restaurant Partner** | Live kitchen order terminal with audio chime, 120s countdown accept/reject timer, Kitchen Order Ticket (KOT) itemized display, menu stock availability toggle, 4-digit pickup code handshake. | Production Ready (`apps/restaurant-mobile`) |
-| `apps/delivery-mobile` | **Device 3: Delivery Partner** | Shift check-in/out toggle, 15s incoming broadcast card, turn-by-turn routing simulator, background 3s GPS telemetry streamer, doorstep 4-digit customer OTP validator, COD cash collection ledger. | Production Ready (`apps/delivery-mobile`) |
-| `apps/admin-mobile` | **Device 4: Operations & Admin** | Platform pulse tower (GMV, active orders, fleet count), real-time order map, partner & rider KYC verification queues with 1-tap Approve/Reject, dispute resolver with instant wallet refund crediting. | Production Ready (`apps/admin-mobile`) |
+Backend: `apps/backend-api` (Express + Socket.IO, TypeScript, PostgreSQL in
+production). Live at `https://quick-bites-production.up.railway.app`.
 
----
+## How people sign in
 
-## 3. How People Get Onto The Platform
+- **Customers:** phone number + a one-time SMS code. Verifying a code for a new
+  number creates the account. There are no customer passwords.
+  Google's reviewers use one reviewer number set on the server
+  (`OTP_REVIEW_PHONE` / `OTP_REVIEW_CODE`); no SMS goes to it.
+- **Restaurants and riders:** register in their app, upload documents, and wait
+  for an admin to approve them. Until then a restaurant is hidden and a rider
+  cannot go online.
+- **Admin:** exactly one super admin, created at every boot from `ADMIN_EMAIL`
+  and `ADMIN_PASSWORD` on the server. Production refuses to start without them.
+- **Production seeds nothing.** A fresh live platform is empty. Locally,
+  `SEED_DEMO_DATA=true` seeds demo restaurants and `customer@quickbite.app`.
 
-The four seeded accounts sharing one password are gone. They were the reason the
-staff apps could not be handed to a tester: the password lived in one
-deployment's environment and nowhere else, and was not readable from the machine
-the builds were made on.
-
-### Customers — a phone number, no password
-
-A customer signs in with their mobile number and a one-time code. Verifying a
-code for a number nobody holds **creates the account**, so there is no separate
-sign-up and nothing to forget.
-
-There is no customer password anywhere in the system. An account without a
-password hash cannot be signed into with a password at all — which matters,
-because a passwordless account's derived address would otherwise have been a way
-straight past the code.
-
-### Restaurants and riders — register, then wait for approval
-
-Both sign themselves up in their own app and land in `PENDING_APPROVAL`. They
-can sign in immediately to upload documents, and they cannot trade until an
-administrator approves them:
-
-- a pending restaurant is invisible to discovery and orders against it are refused;
-- a pending rider cannot start a shift.
-
-Approving their KYC document is what opens those gates. Every approval and
-rejection is recorded in the audit log against the administrator who made it.
-
-### Administrators — one, from the environment
-
-Exactly one administrator is created at boot from `ADMIN_EMAIL` and
-`ADMIN_PASSWORD`. **Production refuses to start without them**, and refuses a
-password shorter than ten characters. There is no default and no self-service
-reset for the account that can approve every partner and rider on the platform;
-recovery is changing the variable and redeploying, which re-applies it.
-
-Staff who lose a password telephone operations, and an administrator sets a
-temporary one — audit-logged, and refused for customers, who have no password to
-reset.
-
-### Local development
-
-With `SEED_DEMO_DATA=true` (the default outside production) the demo restaurants,
-menus and accounts are seeded as before, and `customer@quickbite.app` /
-`pass123` still works locally. **Production seeds nothing.** A hosted platform
-starts empty and fills up with real registrations.
-
-### Verification codes before an SMS provider exists
-
-`OTP_PROVIDER=fixed` accepts one code from `OTP_FIXED_CODE` and sends no SMS.
-It is **refused in production** unless `OTP_ALLOW_FIXED_IN_PRODUCTION=true` is
-set deliberately — anyone who knows six digits could otherwise sign in as any
-number. Removing that variable is the entire switch to real OTP, once TRAI DLT
-registration is complete. See `legal/COMPLIANCE.md` §1.
-
-## 4. Master Project File Map
-
-| File Path | Version | Purpose & Contents |
-|-----------|---------|---------------------|
-| `README.md` | **2.0.0** | Master context map, 4-device architecture, and execution runbook. |
-| `PRD.md` | **2.0.0** | Product Requirements Document: 4 personas, 44 features, and non-functional requirements. |
-| `TAD.md` | **2.0.0** | Technical Architecture Document: client topology, WebSocket protocol, and scaling. |
-| `DATABASE_SPEC.md` | **2.0.0** | PostgreSQL schema, PostGIS spatial indexes, RLS policies, and wallet ledgers. |
-| `APP_FLOW.md` | **2.0.0** | 4-device screen state machine, OTP handshake sequence, and error recovery trees. |
-| `MENTAL_MODEL.md` | **2.0.0** | Plain-English code mechanics ("When X happens, system does Y because Z"). |
-| `IMPLEMENTATION_PLAN.md`| **2.0.0** | Phased engineering blueprint, database migrations, and release milestones. |
-| `CHANGELOG.md` | **2.0.0** | Chronological record of architectural updates, bug fixes, and verification results. |
-| `COMMANDS.md` | **2.0.0** | Human copy-paste shortcuts for running, tunneling, and building mobile packages. |
-| `SECURITY_ACCESS.md` | **2.0.0** | 4-role RBAC matrix, RS256 JWT tokens, OTP verification security, and telemetry guards. |
-| `TESTING_STRATEGY.md` | **2.0.0** | Test automation strategy covering all 5 backend suites and multi-device E2E tests. |
-| `scripts/start-tunnel.ps1` | **1.0.0** | Public Cloudflare / localtunnel launcher exposing port 4000 to the global internet. |
-
----
-
-## 5. Quick Start & Multi-Device Execution Runbook
-
-### Step 1: Start Backend API & Sockets
-```powershell
-# From the repository root:
-npm run dev --workspace=@quick-bites/backend-api
-```
-The backend initializes the PostgreSQL client, seeds all 4 accounts, 8 authentic restaurants, full menus, and starts the Socket.IO server on `http://127.0.0.1:4000`.
-
-### Step 2: Establish Public Cloudflare Tunnel
-```powershell
-# In a second PowerShell terminal:
-powershell -ExecutionPolicy Bypass -File scripts/start-tunnel.ps1
-```
-This generates a secure public HTTPS/WSS URL (e.g. `https://quick-bites-api.trycloudflare.com`).
-
-### Step 3: Connect the 4 Mobile Devices
-Each mobile app includes a **Server / Cloud Tunnel URL** field on the login screen. Enter the public tunnel URL or your local network IP (e.g., `http://192.168.1.5:4000/api`), and log in using the pre-configured credentials:
-1. **Device 1 (Customer):** Log in as `customer@quickbite.app` / `pass123`.
-2. **Device 2 (Restaurant):** Log in as `partner@quickbite.app` / `pass123`.
-3. **Device 3 (Rider):** Log in as `rider@quickbite.app` / `pass123`.
-4. **Device 4 (Admin):** Log in as `admin@quickbite.app` / `pass123`.
-
-### Step 4: Compiling Android APKs
-To produce a standalone release APK for any of the apps:
-```powershell
-# Customer App Release APK
-cd apps/customer-mobile/android
-./gradlew assembleRelease
-# Output: build/apk/QuickBite-Customer.apk (55.1 MB)
-```
-
----
-
-## 6. Verification & Automated Test Status
+## Run, check, build
 
 ```bash
-npm run verify
+npm install
+npm run dev --workspace=@quick-bites/backend-api     # local backend (data in apps/backend-api/data/)
+node scripts/run-backend-tests.mjs                   # the gate: 81 suites
+npm run verify                                       # secrets, i18n, typecheck, tests
+bash scripts/build-apks.sh --aab                     # four signed APKs + Play bundles
 ```
 
-Secrets → hardcoded URLs → translations → diagnostics → typecheck (all ten
-workspaces) → 17 backend suites. Stops at the first failure.
+Details, pitfalls and the private QA-server recipe: `COMMANDS.md` and
+`CLAUDE.md` §5. Signing keys: `SIGNING_KEYS.md`. Play Store: `STORE_RELEASE.md`
+and `docs/play-store/listings.md`. Installing on phones: `DOWNLOAD.md`.
 
-```bash
-npm run verify:full
-```
+## Rules that matter most
 
-The same, plus production-configuration checks that boot real servers in real
-child processes — the only way to observe a refusal to start.
+- The repository is **public**: no secret ever goes into a tracked file.
+- Every APK must install **over** the existing app (same key, higher versionCode);
+  the build script enforces this.
+- Stage by path; never `git add -A` or `git stash`. Pushing `main` deploys live.
 
-**728 checks, 0 failures** as of 19 September 2026.
+## Documents
 
-`TEST_PLAN.md` lays out eleven layers across six environments, with the mutation
-that must turn each one red. Three are worth knowing about from here:
-
-- **`contract`** reads all four apps' source, extracts the 97 URLs they build,
-  and asks a running server whether a handler exists behind each. Every other
-  suite tests one side against itself; this is the only one that checks the two
-  agree. It exists because four signed, launch-verified APKs once pointed at a
-  deployment that answered `404` to the sign-in endpoint, with every check green.
-- **`resilience`** checks that bills balance to the paisa, that six simultaneous
-  taps of Place Order produce one order, that two riders claiming one trip
-  produce one winner, and that an order survives the store being rehydrated —
-  which on Railway happens on every deploy.
-- **`check-production-boot.mjs`** verifies the four refusals: no `ADMIN_EMAIL`,
-  no `ADMIN_PASSWORD`, no `JWT_SECRET`, no `DATABASE_URL`. Each refuses rather
-  than starting in a state the service cannot honestly serve from.
-
-What automation still cannot tell you is in `TESTING_STRATEGY.md` §4–6.
+Living documents are listed in `CLAUDE.md` §9. Many older files in the root
+(`PRD.md`, `TAD.md`, `APP_FLOW.md`, `DATABASE_SPEC.md`, the various `*_PLAN.md`)
+are historical: correct when written, superseded since.

@@ -6,6 +6,104 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-05] -- Claude Opus 5.5 -- Handoff docs brought up to date
+
+`CLAUDE.md` (new) is now the single starting point for any AI or developer:
+stack, live system, every setting and where it lives (names only, never values),
+money rules, commands, release and signing, Play Store status, working rules and
+a map of living vs historical documents. `AGENTS.md` (new) points other AI tools
+to it. `README.md` rewritten to current reality (the old one described a
+Cloudflare tunnel and shared `pass123` accounts). `OWNER_ACTIONS.md`,
+`AI_RECOVERY.md`, `COMMANDS.md`, `STORE_RELEASE.md`, `SIGNING_KEYS.md`,
+`DOWNLOAD.md`, `SESSION_COORDINATION.md`, `legal/COMPLIANCE.md` §1 and
+`.env.example` updated. Owner-side (not in git): DLT Letter of Authority and
+Board Resolution drafts in `build/play-store/DLT/`; four Claude skills installed
+at user level (`seniordev`, `ui-ux-designer`, `less-token`, `cleancode`).
+
+---
+
+## [2026-10-04] -- Claude Opus 5.5 -- Real SMS sign-in (2Factor, then MSG91), Play Store assets, v20
+
+> **For the owner.** Customers can now get a real SMS code instead of the one
+> shared test code. Live runs on MSG91. On 4 Oct MSG91 accepted every request
+> but delivered nothing: its log says **"DLT Template id not found"** — the
+> QUICK_BITES template in MSG91 is not linked to an approved DLT template. That
+> link is yours to make (see `OWNER_ACTIONS.md` Part 0). Nothing in the code
+> needs to change.
+
+| Commit | What |
+| --- | --- |
+| `9a5374b` | `OTP_PROVIDER=2factor`: the server's own code sent through 2Factor.in (`TWOFACTOR_API_KEY`, optional `TWOFACTOR_TEMPLATE`); the key is in the URL, so the URL is never logged. **Reviewer number:** `OTP_REVIEW_PHONE` + `OTP_REVIEW_CODE` let Google's reviewers sign in with no SMS; every other number still needs a real code. Rider earnings no longer promise "the day after delivery" (no hold since 2 Oct). `docs/play-store/listings.md` (names, short and full descriptions within Play's limits, Console answers, demo logins) and `scripts/play-store/` (512 icons, 1024×500 feature graphics, 1080×1920 screenshots from real captures). 8 new sign-in checks. |
+| `1a6a304` | `build/play-store/` kept out of git. |
+| `b3242a6` | **Release v20 (1.4.0):** four APKs and three Play bundles (Customer, Partner, Rider) built from `1a6a304`; signing and versionCode verified. versionCode 19 was consumed by an admin build that failed on a locked `classes.dex` (`gradlew --stop` fixed it). |
+| `9d09323` | **MSG91 driver** (the owner's chosen provider): `POST https://control.msg91.com/api/v5/otp?template_id=…&mobile=91XXXXXXXXXX&otp=…&otp_expiry=…`, `authkey` in a header (never in the URL or a log), 10-second timeout; `type: success` accepted, anything else logged as `MSG91 refused: <reason>`. 8 checks (39 in the OTP suite); a planted "accept any 200" mutation is caught. Gate 81/81. |
+
+Live configuration after this (Railway): `OTP_PROVIDER=msg91`, `MSG91_AUTH_KEY`
+(the account **Authkey** — the OTP-widget `tokenAuth` the owner first pasted is a
+different key and is refused), `MSG91_TEMPLATE_ID=6ac278e24b79348aee059012`,
+`OTP_ALLOW_FIXED_IN_PRODUCTION` and `OTP_FIXED_CODE` removed. Railway's log shows
+`OTP_REQUESTED … provider: msg91 deliveryAccepted: true` for every request; the
+non-delivery is on MSG91/DLT's side. Also needed: `OTP_TTL_MINUTES=10` (the
+template says "valid for 10 minutes").
+
+Play Store preparation (owner-side, outside git): the launch guide
+(https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs), the staff guide
+(https://claude.ai/artifact/7WMWotXGyeB3RquM9kU5zR), the graphics zip, D-U-N-S
+purpose text (`build/play-store/DUNS-application-text.txt`). Decisions: SMS
+provider MSG91; an **Organization** Play account (needs a D-U-N-S number).
+
+---
+
+## [2026-10-02] -- Claude Opus 5.5 -- COD per restaurant, admin menu editing, ₹12/km + city rates, pay-now, deletion requests, Play pages (v17, v18)
+
+Plan: `docs/plans/cod-menus-payouts-playstore-2026-10-02.md`. The owner's rules
+from this round are in `CLAUDE.md` §4.
+
+| Commit | What |
+| --- | --- |
+| `ac4de23` | **Cash on delivery per restaurant**, admins only (People → restaurant → Payments); checkout hides it and the server refuses `COD_NOT_ACCEPTED`. **Admins edit live menus** from the restaurant's profile with the partner's own editor, add dishes, upload a whole menu; the partner is notified. **Rider pay ₹12/km** (one-time guarded switch), editable globally and per city. **No hold period**, ₹100 minimum kept; Settlements rows say what they are (Ready to pay / Settled / No bank account / Cash to deposit) and pay in one step (UPI/bank + UTR, or RazorpayX); full bank numbers encrypted apart from the record, shown only on Pay now, every view audited. **Finance → Rider settlements.** Partner/rider **Delete account** = request; an admin completes it after dues. `/privacy`, `/terms`, `/delete-account` served as web pages; `build-apks.sh --aab`; version 1.4.0; apps report their real version. `launchRound` suite (29 checks, 14 mutations caught). 81/81. |
+| `fc22798` | Proper titles on the public privacy and terms pages. |
+| `e76b198` | **Release v17.** |
+| `5a448ab` | QA v17: a payee's statement counted a payout twice (a rider owed ₹80 read ₹50) — found by paying the same restaurant twice; Settlements show paise (₹587.60, not ₹588); checkout no longer says "Cash on delivery" for an online-only kitchen; partners see when the Quick Bites team changed a dish. |
+| `fc510b6`, `94808e6` | `build/aab/` out of git; **release v18**. |
+| `03fbe7d` | Admin → Rates: a save bar fixed to the bottom appears with the first change, lists old → new, and saves; the reason is optional ("Changed on the Rates screen"). The owner could not find how to save the per-km rate. |
+
+Also on 2 Oct: live was missing five commits, which is why the owner saw "COD
+off not working" and empty rider settlements — fixed by pushing. On the QA
+server the rider minimum had been set to ₹0 by a test edit (not a code bug).
+
+---
+
+## [2026-10-01] -- Claude Opus 5.5 -- Whole-menu upload, menus read from photos, per-km rider pay, trip maps (v12, admin v16)
+
+Plan: `docs/plans/menu-ai-maps-money-2026-10-01.md`.
+
+| Commit | What |
+| --- | --- |
+| `08bb41c` | **Partner Menu Builder**: sections, dishes, prices, sizes, extras, photos, sent for approval in small retry-safe batches (each dish is an ordinary `ADD_ITEM` request). **Menu read from photos** (Groq vision, server-side key only), as a draft the partner checks; daily scan limit per restaurant. The same builder in Admin. **Rider pay ₹10/km** of road distance (raised to ₹12 on 2 Oct), never below the minimum; delivery fee = rider pay + markup %. Platform fee GST only with a GSTIN ("I set 10 and the bill shows 11"). The tip was credited twice; now once. Single trips use Mapbox Directions (Matrix refused one pair, so every order fell back to a straight line). Maps frame the trip instead of all-India. Admin saves KYC/refund documents to the phone. 80/80. |
+| `5ea0651` | Shouted menu headings normalised (STARTERS → Starters). |
+| `91e45df` | **Release v12.** |
+| `487285c`, `54bf324`, `b88c69c`, `c6472ea` | Admin QA v12–v15: long menu reviews reachable and approvable (sheet sized from the visible window; Approve in the footer, clear of the Android 15 navigation bar, not collapsed to zero height); dish photos in the review; documents save to the gallery (Quick Bites album); rider pay leads the Rates list. |
+| `775093e` | `scripts/reset-live.mjs`: **owner-run** fresh start through the guarded platform reset; asks for the super admin's own email, password and a typed phrase; keeps admins, rates and the audit log. |
+| `5fae597` | **Release admin v16.** |
+
+---
+
+## [2026-09-26] -- Claude Opus 5.5 -- v9, QA rounds 1 and 2, v11
+
+| Commit | What |
+| --- | --- |
+| `831a4e2` | **Release v9** from `f28d1a6` (the Session 37 fixes below). |
+| `94f0f19` | QA round 1 on v9 (V9-1..18). Server: a rider paid from Pay was shown "Pending ₹30 · paid ₹0" (settlements now read the ledger); restaurant payment rows carry sales, commission and TDS; dish suggestions match the dish; offers still on screen don't lower acceptance. Apps (v10): a cancelled order says so and "Nothing to pay"; rider screens reload on return; admin badges refresh; a new dish must be marked veg or non-veg; paise kept. |
+| `cbfdc15` | QA round 2: Help screens in all apps showed made-up phone numbers and emails; they now read the real contacts from `GET /policies/business` (admin Settings). |
+| `f203c66` | **Release v11.** |
+
+Device check still open from Session 37: the admin top menu freezing (#9) and
+the partner app redrawing (#10) were fixed on an unproven cause (a stuck
+horizontal ScrollView). If either returns, that theory was wrong.
+
+---
+
 ## [2026-09-26] -- Claude Opus 5.5 -- Session 37: the owner's four-app QA pass on v8, fixed
 
 **Source:** the "Quick Bites Fix Plan" (16 problems, found by using every screen of

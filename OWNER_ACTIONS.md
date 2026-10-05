@@ -1,7 +1,8 @@
 # What only you can do
 
-**Version:** 1.2.0
-**Date:** 20 September 2026
+**Version:** 1.3.0
+**Date:** 5 October 2026 (Part 0 is current; Parts 1–2 are from 20 September and
+partly superseded — where they disagree, Part 0 wins)
 
 Everything in this file needs a human with an account, a legal identity, or a
 credit card. Nothing here can be done from a code editor. It is ordered so that
@@ -9,7 +10,95 @@ each step unblocks the next.
 
 ---
 
-## Part 0 — What to do for THIS build, in this order
+## Part 0 — Your list for the Play Store launch (5 October 2026)
+
+### A. Make SMS sign-in codes arrive (blocks every customer)
+
+Right now customers ask for a code, MSG91 accepts it, and **no SMS arrives**.
+MSG91's own log says **"DLT Template id not found"**: your QUICK_BITES template
+in MSG91 is not linked to a government-approved DLT template. The app and the
+server are working; this is paperwork.
+
+1. On the **Jio TrueConnect DLT portal**, finish your business (Principal Entity)
+   registration. It asks for a **Letter of Authority** and **proof of authority**.
+   Drafts are on this PC in `build/play-store/DLT/`:
+   - If your Udyam certificate says **Proprietary**: `Letter-of-Authority-PROPRIETOR`
+     + upload the Udyam certificate as proof.
+   - If it says **Private Limited Company**: `Letter-of-Authority-DIRECTOR` +
+     `Board-Resolution-DLT` (fill in CIN, DIN, meeting date, second director).
+   - Print, sign, stamp, scan. Add a masked Aadhaar (myaadhaar.uidai.gov.in →
+     Download → "Masked Aadhaar").
+2. Register the sender name **QKBTES** and a **Service Implicit** content template,
+   exactly:
+   `Your OTP for signing in to [QUICK BITES] is {#var#}. It is valid for 10 minutes. Do not share this OTP with anyone.`
+3. When approved, copy the template's **19-digit DLT Template ID** (starts `1707…`
+   or `1007…`).
+4. **MSG91 → OTP → Templates → QUICK_BITES → DLT Template ID** → paste → Save.
+   Check your DLT Entity ID is saved in MSG91's DLT settings and that you have
+   SMS credit.
+5. **Railway → backend → Variables:** add `OTP_TTL_MINUTES` = `10`, then Deploy.
+   (`OTP_PROVIDER=msg91`, `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID` are already
+   set and correct.)
+6. Test with your own number. In MSG91's log the **DLT Te ID** column should show
+   the number and the status should become **Delivered**.
+
+Until this is done nobody can sign in by phone except the reviewer number. If
+real people need to sign in before approval, temporarily set
+`OTP_PROVIDER=fixed` and `OTP_ALLOW_FIXED_IN_PRODUCTION=true` (everyone then uses
+one shared code) and switch back the day DLT is approved.
+
+### B. Google Play account
+
+1. Get a free **D-U-N-S number** from Dun & Bradstreet using your Udyam details.
+   The "purpose" text is in `build/play-store/DUNS-application-text.txt`. Choose
+   the free request, never "expedited".
+2. Create the **Organization** Google Play Console account with it.
+3. Create the three public apps (Customer, Partner, Rider) and fill in the store
+   listing from `docs/play-store/listings.md`; upload the graphics from
+   `build/QuickBites-PlayStore-graphics.zip` and the bundles from `build/aab/`.
+   The Admin app stays **private** (APK only).
+4. **App signing:** when Play Console shows its encryption public key for "use
+   an existing key", send it to the developer so the existing keys can be
+   uploaded with Google's PEPK tool. This keeps Play updates compatible with
+   the apps already on phones.
+5. **App access:** give Google's reviewers the reviewer phone number and code
+   (`OTP_REVIEW_PHONE` / `OTP_REVIEW_CODE` on Railway), plus the demo restaurant
+   and demo rider logins from step C3.
+6. Follow the launch guide for Data safety, content rating (18+ only), and the
+   rider app's location foreground-service declaration:
+   https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs
+
+### C. Live server settings (Railway → backend → Variables)
+
+1. **Change `ADMIN_PASSWORD`** — the current one was typed into a chat.
+2. **Rotate the Groq key** (`GROQ_API_KEY`) — it was typed into a chat. Create a
+   new one at console.groq.com, paste it on Railway, delete the old one.
+3. Before inviting the public: run `node scripts/reset-live.mjs` yourself if you
+   want an empty start, create a **demo restaurant** and an approved **demo
+   rider** for Google's reviewers, then set **`ALLOW_PLATFORM_RESET=false`** (or
+   delete it).
+4. **Razorpay live keys:** replace the `rzp_test_` values of `RAZORPAY_KEY_ID`,
+   `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` with live ones once
+   Razorpay activates your account.
+5. Delete variables that do nothing now: `TWOFACTOR_API_KEY`,
+   `TWOFACTOR_TEMPLATE`, `OTP_FIXED_CODE`, `OTP_ALLOW_FIXED_IN_PRODUCTION`,
+   `SEED_DEFAULT_PASSWORD`.
+
+### D. Keep these safe
+
+- Copy `C:\Users\priya\quickbites-keystores\` to a USB drive or encrypted cloud
+  folder. Without it the apps can never be updated again (`SIGNING_KEYS.md`).
+- Never paste a key or password into a chat with an AI. Paste it straight into
+  Railway.
+
+### E. One decision we need from you
+
+The partner policy still says restaurants are paid "automatically on the weekly
+run". Since 2 October you pay whenever you choose. Tell us the wording you want.
+
+---
+
+## Old Part 0 — the 20 September build (done; kept for reference)
 
 The variables from the last session are already set and the API is live. This
 build adds no variable that the service refuses to start without, so the order

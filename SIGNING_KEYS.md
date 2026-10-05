@@ -11,6 +11,14 @@ base.
 So these keys are not a build detail. They are the identity of four
 applications, and there is exactly one copy of each.
 
+> **Google Play (October 2026).** When the Customer, Partner and Rider apps are
+> created in Play Console, choose **"use an existing app signing key"** and
+> upload these same keys with Google's **PEPK** tool (Play Console provides the
+> encryption public key to use). That makes Play's updates install over the
+> sideloaded copies already on phones. Do **not** let Play generate a new key
+> for an app that is already installed anywhere. The Admin app is never
+> published. Last build with these keys: versionCode 20 (4 Oct 2026).
+
 ---
 
 ## Where they are

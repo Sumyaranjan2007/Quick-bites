@@ -34,16 +34,27 @@ A compliant OTP template for this platform:
 Do not share it with anyone.
 ```
 
-**Current state in code:** `modules/auth/otpDrivers.ts` holds a provider-agnostic
-interface with a `fixed` driver that delivers nothing and accepts one configured
-code. MSG91 and Twilio drivers exist as documented stubs. Selecting a real
-provider is one file and the `OTP_PROVIDER` variable.
+**Current state (5 Oct 2026):** `modules/auth/otpDrivers.ts` has working
+**MSG91** and **2Factor** drivers, the `fixed` test driver, and a Twilio stub.
+Live runs `OTP_PROVIDER=msg91` with the fixed code removed. MSG91 template
+"QUICK_BITES" (template id `6ac278e24b79348aee059012`, sender **QKBTES**) reads:
 
-**Until DLT is complete**, the platform runs with `OTP_PROVIDER=fixed`. On a
-public deployment that is only acceptable with
-`OTP_ALLOW_FIXED_IN_PRODUCTION=true` set deliberately, for a closed tester
-group, because anyone who knows the code can then sign in as any phone number.
-**Removing that variable is the switch to real OTP.**
+```
+Your OTP for signing in to [QUICK BITES] is ##OTP##. It is valid for 10 minutes. Do not share this OTP with anyone.
+```
+
+The DLT version must be identical with `{#var#}` in place of `##OTP##`,
+registered as **Service Implicit**. On 4 Oct every request was accepted by MSG91
+and none delivered: MSG91's log reads **"DLT Template id not found"** — the MSG91
+template has no DLT Template ID linked. The Jio TrueConnect entity registration
+asked for a Letter of Authority and proof of authority; drafts are kept outside
+git in `build/play-store/DLT/`. Steps for the owner: `OWNER_ACTIONS.md` Part 0 A.
+
+If SMS must be bypassed in an emergency, `OTP_PROVIDER=fixed` with
+`OTP_ALLOW_FIXED_IN_PRODUCTION=true` restores the shared code — acceptable only
+for a closed group, because anyone who knows the code can sign in as any number.
+Google Play reviewers sign in with `OTP_REVIEW_PHONE` / `OTP_REVIEW_CODE`, which
+never sends an SMS and works for that one number only.
 
 ---
 

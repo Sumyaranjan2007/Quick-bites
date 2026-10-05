@@ -1,65 +1,51 @@
-# Quick Bite Platform -- AI Recovery Protocols (AI_RECOVERY)
+# Quick Bites — getting an AI back on track
 
-**Version:** 2.0.0  
-**Date:** September 6, 2026  
-**Status:** Approved / Active  
-**Project:** Quick Bite (Multi-Portal Native Mobile Food Delivery Ecosystem)  
-**Target Audience:** Human Supervisors & AI Agents  
+**Updated:** 5 October 2026 (replaces the 6 September version, whose protocol
+pointed at the old chunk plan, `MANIFEST.md` and a stack that no longer exists)
 
-Use these standardized prompt interventions whenever an AI assistant exhibits hallucination, context drift, unauthorized tech stack deviations, or build loops.
+Copy-paste these to an AI assistant when it loses context, drifts, or invents
+things.
 
 ---
 
-## 1. Hallucination Recovery
+## 1. Starting, or after it lost context
 
-### Intervention 1: Unauthorized Technology Usage
-> **Copy-Paste Prompt:**  
-> "Stop. Read `IMPLEMENTATION_PLAN.md` and list every technology in the approved Tech Stack. Only use those approved technologies. Do NOT invent new libraries or frameworks. Discard any unauthorized files."
+> "Read `CLAUDE.md` in full, then `OWNER_ACTIONS.md` Part 0 and the top three
+> entries of `CHANGELOG.md`. Tell me in five lines: what the platform is, the
+> last release, what is live, and what is waiting on me. Don't change anything
+> yet."
 
-### Intervention 2: Fabricated File Paths
-> **Copy-Paste Prompt:**  
-> "You are hallucinating non-existent files. Run directory listings on the actual project workspace. List the files that ACTUALLY exist. Re-read `README.md` and continue from reality."
+## 2. It invents files, routes or features
 
-### Intervention 3: Architecture Deviation
-> **Copy-Paste Prompt:**  
-> "Check your latest code against `TAD.md`. Is it consistent with the modular monolith architecture? If not, revert your changes and follow `TAD.md` strictly."
+> "Stop. Show me the file or route you are relying on with a directory listing
+> or grep. If it does not exist, say so and continue from what actually exists.
+> `CLAUDE.md` §9 lists which documents are current and which are historical."
 
----
+## 3. It is about to do something risky
 
-## 2. Context Loss Recovery
+> "Before you continue: are you staging by explicit path? No `git add -A`,
+> `git stash`, `git reset --hard` or `git clean`. Is any key, password or phone
+> code going into a tracked file? The repository is public. Pushing `main`
+> deploys the live server — has the gate (`node scripts/run-backend-tests.mjs`)
+> passed?"
 
-### Intervention 1: General Amnesia / Compaction Recovery
-> **Copy-Paste Prompt:**  
-> "You have lost context. Execute the MANDATORY SESSION START protocol: Read `README.md`, `CHANGELOG.md` (last 3 entries), `build/MANIFEST.md`, and `MENTAL_MODEL.md`. Tell me what you understand and which chunk is active."
+## 4. It says something is fixed
 
-### Intervention 2: Build Status Verification
-> **Copy-Paste Prompt:**  
-> "What is the current build status? Read `build/MANIFEST.md` and show me the chunk status table. State what has been verified and what remains."
+> "Fixed where — in the code, on the live server, or on a phone? Show the check
+> that would fail if the fix were removed, and whether it is deployed. Deployed
+> and observed working are different claims."
 
----
+## 5. It asks me for a password or wants to sign in to live
 
-## 3. Multi-AI Conflict Resolution
+> "No. Never sign in to the live system with my password. Tell me what to type
+> or click and I will do it. Keys go straight into Railway, never into chat."
 
-### Intervention 1: Conflicting Code Changes
-> **Copy-Paste Prompt:**  
-> "There is a conflict in [filename]. Read `CHANGELOG.md` to identify who changed it last and why. Read `TAD.md` for the authoritative design. Keep the correct version, discard the other, and log your resolution in `CHANGELOG.md`."
+## 6. It adds things nobody asked for
 
-### Intervention 2: Incomplete Chunk Handover
-> **Copy-Paste Prompt:**  
-> "Chunk [X] was marked IN-PROGRESS by a previous session but is incomplete. Run the verification commands from `build/chunk-[X].md`. Report the failures, fix them, complete the chunk, and mark it DONE in `build/MANIFEST.md`."
+> "Stop. The scope is the four phone apps and what I asked for, nothing extra,
+> no over-the-air updates. List what you added beyond my request and remove it."
 
----
+## 7. It explains in code terms
 
-## 4. Behavior & Quality Enforcement
-
-### Intervention 1: Scope Creep & Feature Inflation
-> **Copy-Paste Prompt:**  
-> "Stop adding new features. Read `FEATURE_TICKETS.md`. Only build the exact tickets assigned to this chunk. Do not invent unapproved capabilities."
-
-### Intervention 2: Violating the 4-State UI Rule
-> **Copy-Paste Prompt:**  
-> "Audit [Component Name] against the 4-State UI Rule. Show me the code for: Loading (skeleton), Success, Error (with retry button), and Empty (with CTA). Implement any missing states now."
-
-### Intervention 3: Unparameterized SQL or Missing Validation
-> **Copy-Paste Prompt:**  
-> "Audit all endpoints in [module]. Verify that every query uses Prisma parameterized inputs, every request is validated via Zod schemas, and every route has rate limiting. Fix any vulnerabilities immediately."
+> "I'm not a developer. Tell me what it costs, earns or risks, then what I need
+> to do, in plain words."

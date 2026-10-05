@@ -44,9 +44,10 @@ the old apps removed first, because those builds used a different key.
 
 1. Open **Quick Bites**.
 2. Enter any 10-digit Indian mobile number.
-3. Enter the verification code. **While the platform is in testing it does not
-   send SMS**, and the screen says so — use the code the platform owner gives
-   you. It is set on the server as `OTP_FIXED_CODE`.
+3. Enter the 6-digit code sent to you by SMS. (Since 4 Oct 2026 the live
+   platform sends real codes through MSG91. Until the owner's DLT template is
+   linked the SMS may not arrive; if the owner has switched the server back to
+   test mode, use the code they give you instead.)
 4. If the number is new, you will be asked for a name. That is the whole sign-up.
 
 ### Partner and rider apps — register, then wait for approval

@@ -1,10 +1,71 @@
 # Quick Bites — Commands
 
-**Version:** 4.0.0
-**Date:** 19 September 2026
+**Version:** 4.1.0
+**Date:** 5 October 2026
 
 Copy-paste commands for humans. Everything here is run from the repository root
-unless stated otherwise.
+unless stated otherwise. The full handoff is `CLAUDE.md`.
+
+## The ones used every day (October 2026)
+
+```bash
+node scripts/run-backend-tests.mjs
+```
+
+The gate: **81 backend suites**, about 100 seconds. It takes a machine-wide lock,
+so a second run waits instead of colliding. On Windows the `onboarding` suite can
+fail inside the full run with `EACCES` on port 5040 (a port Windows reserves); it
+passes on its own.
+
+```bash
+QB_DATA_DIR=$(mktemp -d) npx tsx apps/backend-api/src/test/otp.test.ts
+```
+
+One suite on its own. Without a throwaway `QB_DATA_DIR` a suite refuses to run,
+because it would write into the developer store.
+
+```bash
+bash scripts/build-apks.sh --aab
+```
+
+All four signed APKs (`build/apk/`) plus Play bundles for Customer, Partner and
+Rider (`build/aab/`). Then commit `release/version.json` and the four
+`apps/*/app.json`.
+
+```bash
+node scripts/reset-live.mjs
+```
+
+**Owner only.** Wipes the live platform's data through the guarded reset (keeps
+admins, rates and the audit log). Needs `ALLOW_PLATFORM_RESET=true` on Railway and
+the super admin's own email and password, typed by the owner. An AI never runs
+this with the owner's password.
+
+```bash
+python scripts/play-store/make-graphics.py
+python scripts/play-store/compose-screenshots.py <folder-of-phone-captures>
+```
+
+Play Store icons (512×512), feature graphics (1024×500) and 1080×1920
+screenshots, into `build/play-store/<app>/` (gitignored).
+
+### The private QA server
+
+Every QA round runs the apps on an emulator against a private copy of the
+backend, never against live. From `apps/backend-api`:
+
+```bash
+NODE_ENV=development PORT=7071 DEMO_MODE=true SEED_DEMO_DATA=true \
+QB_DATA_DIR=<an empty temp folder> JWT_SECRET=<any local string> \
+ADMIN_EMAIL=<local email> ADMIN_PASSWORD=<local 10+ chars> \
+OTP_PROVIDER=fixed OTP_FIXED_CODE=123456 \
+node --experimental-strip-types src/server.ts
+```
+
+Blank every live-service variable (Supabase, Upstash, MongoDB, Meilisearch, R2,
+Firebase) and unset `DATABASE_URL` in that shell; take only the Razorpay **test**
+keys and the Mapbox public token from `.env`. Emulator: AVD `qb34` (Android 15);
+the apps reach the server at `http://10.0.2.2:7071/api`.
 
 ---
 
@@ -112,6 +173,18 @@ bash scripts/build-apks.sh --only customer-mobile
 
 One app only. The names are the directory names: `customer-mobile`,
 `restaurant-mobile`, `delivery-mobile`, `admin-mobile`.
+
+```bash
+bash scripts/build-apks.sh --aab
+```
+
+Also builds the Play Store bundles (`.aab`) for Customer, Partner and Rider into
+`build/aab/`. The Admin app is never published, so it has no bundle.
+
+Every build takes the next versionCode (recorded in `release/version.json`),
+restores each `keystore.properties` from `C:\Users\priya\quickbites-keystores`,
+and refuses to finish with the wrong key, the debug key or a lower version. See
+`SIGNING_KEYS.md`.
 
 ### Things that will bite you
 
