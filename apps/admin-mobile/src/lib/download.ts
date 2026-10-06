@@ -15,11 +15,26 @@
  * first. The name says what the file is and whose, e.g.
  * `Bangalore-Biryani-House_FSSAI_2026-10-01.jpg`.
  */
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { documentFileName } from './fileName';
+
+/**
+ * Said once, before Android's folder picker: on Android 11+ the picker opens on
+ * the Download folder and refuses it ("Can't use this folder"), which reads as
+ * an error. Creating a folder inside it is the step people miss.
+ */
+const explainFolder = () =>
+  new Promise<void>(resolve =>
+    Alert.alert(
+      'Choose where to save',
+      'Next, pick a folder. Android does not allow the Download folder itself: tap "Create new folder", name it Quick Bites, then "Use this folder" and "Allow". You only do this once.',
+      [{ text: 'OK', onPress: () => resolve() }],
+      { cancelable: false }
+    )
+  );
 
 export { documentFileName };
 
@@ -67,6 +82,7 @@ async function folderUri(forceAsk = false): Promise<string> {
     const saved = await AsyncStorage.getItem(FOLDER_KEY).catch(() => null);
     if (saved) return saved;
   }
+  await explainFolder();
   const initial = SAF.getUriForDirectoryInRoot('Download');
   const permission = await SAF.requestDirectoryPermissionsAsync(initial);
   if (!permission.granted) throw new Error('No folder was chosen, so nothing was saved.');
