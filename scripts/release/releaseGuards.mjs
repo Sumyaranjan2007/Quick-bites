@@ -309,6 +309,10 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Real paths on both sides. Run through a link (D:\qb -> the project folder),
+// argv[1] is the link path while import.meta.url is the real one; comparing
+// them as written made every command a silent no-op, so a build took no
+// versionCode and skipped its signing and APK checks (6 Oct 2026).
+if (process.argv[1] && fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2));
 }

@@ -182,6 +182,12 @@ fi
 # One code for every app in this build, taken once, and recorded both in the
 # committed counter and on this machine so it can never be handed out twice.
 VERSION_CODE="$(node "$GUARDS" claim-version-code)"
+# A guard that prints nothing has not run. Stop rather than build an APK with
+# the old versionCode and unchecked signing.
+if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+  echo "FATAL: the release guards returned no versionCode ('$VERSION_CODE'). Nothing was built." >&2
+  exit 1
+fi
 echo "versionCode for this build: $VERSION_CODE"
 
 mkdir -p "$OUT_DIR"
@@ -307,6 +313,10 @@ for entry in "${APPS[@]}"; do
   # the real one. This used to be a warning; it is now fatal, unless
   # --allow-debug-signing says the build will never be handed out.
   signing="$(node "$GUARDS" check-signing "$ROOT/apps/$app" $SIGNING_FLAG)"
+  if [[ -z "$signing" ]]; then
+    echo "FATAL: the signing check for $app returned nothing, so it did not run." >&2
+    exit 1
+  fi
   if [[ "$signing" == "DEBUG" ]]; then
     echo "  --allow-debug-signing: $app will be DEBUG-SIGNED and cannot update any phone." >&2
     DEBUG_SIGNED+=("$app")
