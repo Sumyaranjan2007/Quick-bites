@@ -16,6 +16,7 @@
  */
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env.ts';
 import { createApp } from '../app.ts';
@@ -343,6 +344,59 @@ try {
     assert.equal(fromAdmin.status, 200, fromAdmin.text.slice(0, 200));
     assert.ok(fromAdmin.text.includes(money(statement.summary.outstanding)));
     assert.ok(fromAdmin.text.includes(`#${stored.orderNumber}`));
+  });
+
+  // -- Every order as its own invoice, in a ZIP
+  const bytes = async (path: string, token?: string) => {
+    const res = await fetch(`${API}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(15000) });
+    return { status: res.status, type: res.headers.get('content-type') || '', name: res.headers.get('content-disposition') || '', data: Buffer.from(await res.arrayBuffer()) };
+  };
+  /** An independent reader: the central directory, then each file inflated and its CRC checked. */
+  const unzip = (data: Buffer) => {
+    const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+    const count = data.readUInt16LE(end + 10);
+    let at = data.readUInt32LE(end + 16);
+    const files: Array<{ name: string; text: string; crcOk: boolean }> = [];
+    for (let i = 0; i < count; i++) {
+      const crc = data.readUInt32LE(at + 16);
+      const size = data.readUInt32LE(at + 20);
+      const nameLen = data.readUInt16LE(at + 28);
+      const local = data.readUInt32LE(at + 42);
+      const name = data.subarray(at + 46, at + 46 + nameLen).toString('utf8');
+      const start = local + 30 + data.readUInt16LE(local + 26) + data.readUInt16LE(local + 28);
+      const raw = zlib.inflateRawSync(data.subarray(start, start + size));
+      files.push({ name, text: raw.toString('latin1'), crcOk: zlib.crc32(raw) === crc });
+      at += 46 + nameLen + data.readUInt16LE(at + 30) + data.readUInt16LE(at + 32);
+    }
+    return files;
+  };
+  const all = await bytes('/earnings/invoices.zip', partner.token);
+  const files = all.status === 200 ? unzip(all.data) : [];
+  const gstOf = (o: any) => money(Number(o.bill?.gstAmount) || 0);
+  it('Every order downloads as its own invoice, together in one ZIP with the summary', () => {
+    assert.equal(all.status, 200, all.data.toString('latin1').slice(0, 200));
+    assert.match(all.type, /application\/zip/);
+    assert.match(all.name, /QuickBites-invoices-\d{8}-to-\d{8}\.zip/);
+    assert.equal(files.length, statement.orders.length + 1);
+    assert.ok(files.every(f => f.crcOk && f.text.startsWith('%PDF-1.4')), 'a file is damaged');
+    assert.ok(files.some(f => f.name.startsWith('QuickBites-summary-')), 'no summary');
+  });
+  it('...each order file holds that order only, with the GST line for the records', () => {
+    for (const o of [stored, secondOrder]) {
+      const f = files.find(x => x.name === `QuickBites-invoice-${o.orderNumber}.pdf`);
+      assert.ok(f, `no file for ${o.orderNumber}`);
+      assert.ok(f.text.includes(`#${o.orderNumber}`));
+      const other = o === stored ? secondOrder : stored;
+      assert.equal(f.text.includes(`#${other.orderNumber}`), false, 'another order leaked in');
+      assert.ok(f.text.includes(`GST on this food, ${gstOf(o)}`), `GST ${gstOf(o)} line missing`);
+    }
+  });
+  const zipAsCustomer = await bytes('/earnings/invoices.zip', customer.token);
+  const zipFromAdmin = await bytes(`/admin/payouts/statement/RESTAURANT/${RESTAURANT_ID}/pdf/each`, admin.token);
+  it('A customer gets no ZIP; an admin gets the same files for the restaurant', () => {
+    assert.notEqual(zipAsCustomer.status, 200);
+    assert.equal(zipFromAdmin.status, 200);
+    assert.deepEqual(unzip(zipFromAdmin.data).map(f => f.name).sort(), files.map(f => f.name).sort());
   });
 
   const dashboard = (await api(`/restaurants/${RESTAURANT_ID}/dashboard`, {}, partner.token)).json?.data?.dashboard;

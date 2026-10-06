@@ -8,8 +8,9 @@
  * into a wall of refusals for work that is not theirs.
  */
 import { saveStoredSession } from './storedSession';
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { createClient, type ApiClient } from './api';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
+import { createClient, setSessionEndedHandler, type ApiClient } from './api';
 
 export { DEFAULT_API_URL } from '../config';
 import { DEFAULT_API_URL } from '../config';
@@ -83,6 +84,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode; onSignOut?: 
     setState(current => ({ ...EMPTY, apiUrl: current.apiUrl }));
     onSignOut?.();
   }, [onSignOut]);
+
+  useEffect(() => {
+    setSessionEndedHandler(message => {
+      Alert.alert('You have been signed out', message);
+      signOut();
+    });
+    return () => setSessionEndedHandler(null);
+  }, [signOut]);
 
   /**
    * Re-reads the caller's access.

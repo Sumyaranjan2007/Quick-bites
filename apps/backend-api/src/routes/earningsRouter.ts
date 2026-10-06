@@ -30,7 +30,7 @@ import { resolvePayee, parsePreference } from '../modules/payments/payeeIdentity
 import { effectiveCharges } from '../modules/payments/restaurantCharges.ts';
 import { AppError } from '../utils/AppError.ts';
 import { statementFor, statementView } from '../modules/payments/statements.ts';
-import { sendStatementPdf } from '../modules/payments/statementPdf.ts';
+import { sendStatementPdf, sendInvoiceZip } from '../modules/payments/statementPdf.ts';
 import {
   raiseRequest,
   withdrawRequest,
@@ -110,6 +110,22 @@ earningsRouter.get(
     }
   }
 );
+
+/**
+ * GET /api/earnings/invoices.zip — every order in the period as its own PDF
+ * invoice, plus the summary, for the restaurant's accounts and tax records.
+ */
+earningsRouter.get('/invoices.zip', authMiddleware(), validate({ query: StatementQuery }), async (req, res, next) => {
+  try {
+    const payee = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as));
+    await sendInvoiceZip(res, payee.ownerType, payee.ownerId, payee.ownerName, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 const RaiseSchema = z.object({
   /**

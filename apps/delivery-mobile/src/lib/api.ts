@@ -31,7 +31,16 @@ export interface ApiContext {
  * Registered by the shell rather than imported from it, so this module goes on
  * knowing nothing about the screens.
  */
-type SessionEndedReason = { code: 'ACCOUNT_BLOCKED' | 'ACCOUNT_NOT_FOUND'; message: string };
+type SessionEndedReason = { code: string; message: string };
+const SESSION_ENDING = ['ACCOUNT_BLOCKED', 'ACCOUNT_NOT_FOUND', 'INVALID_TOKEN', 'SESSION_REVOKED'];
+// Once per burst: a screen with several requests in flight would otherwise say "signed out" for each.
+let lastSessionEnd = 0;
+const sessionEnding = (code: unknown): code is string => {
+  if (!SESSION_ENDING.includes(String(code)) || Date.now() - lastSessionEnd < 5000) return false;
+  lastSessionEnd = Date.now();
+  return true;
+};
+const EXPIRED = 'Your sign-in has expired. Please sign in again.';
 let onSessionEnded: ((reason: SessionEndedReason) => void) | null = null;
 
 export function setSessionEndedHandler(handler: ((reason: SessionEndedReason) => void) | null): void {
@@ -99,8 +108,10 @@ async function request<T>(
      * telemetry ping, an offer. Left alone, the rider stays on a dashboard
      * that refuses everything with no explanation of why.
      */
-    if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_NOT_FOUND') {
-      onSessionEnded?.({ code, message });
+    // Also an expired sign-in (tokens last 7 days) or one revoked by a password
+    // change: back to the sign-in screen, not a screen that fails on every call.
+    if (sessionEnding(code)) {
+      onSessionEnded?.({ code, message: code === 'INVALID_TOKEN' ? EXPIRED : message });
     }
     throw new ApiError(message, code, res.status);
   }

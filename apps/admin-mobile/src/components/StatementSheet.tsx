@@ -55,6 +55,14 @@ export const StatementSheet: React.FC<{ owner: StatementOwner | null; onClose: (
               label="Download invoice (PDF)"
               full
             />
+            {/* Every order as its own PDF, in a ZIP: what the restaurant keeps for its accounts. */}
+            <DownloadButton
+              source={`${api.baseUrl}/admin/payouts/statement/${owner?.ownerType}/${owner?.ownerId}/pdf/each`}
+              headers={{ Authorization: `Bearer ${api.token}` }}
+              name={`QuickBites-invoices-${owner?.ownerName || owner?.ownerId}`.replace(/[^\w.-]+/g, '-')}
+              label="Each order as its own PDF (ZIP)"
+              full
+            />
           </Card>
 
           {(st.payouts || []).length > 0 ? (

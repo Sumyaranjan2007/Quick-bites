@@ -74,7 +74,7 @@ import {
   requestView
 } from '../../modules/payments/payoutRequests.ts';
 import { statementFor, statementView } from '../../modules/payments/statements.ts';
-import { sendStatementPdf } from '../../modules/payments/statementPdf.ts';
+import { sendStatementPdf, sendInvoiceZip } from '../../modules/payments/statementPdf.ts';
 import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
 import type { PayeeOwnerType, PayoutRailId } from '@quick-bites/shared-types';
 import { revealAccountNumber } from '../../modules/payments/payeeAccountNumbers.ts';
@@ -461,7 +461,7 @@ payoutRoutes.post(
  * holding the same PDF are holding the same numbers.
  */
 payoutRoutes.get(
-  '/payouts/statement/:ownerType/:ownerId/pdf',
+  '/payouts/statement/:ownerType/:ownerId/pdf/:each?',
   requirePermission('finance.payouts.view', 'finance.settlements.view'),
   async (req, res, next) => {
     try {
@@ -474,6 +474,15 @@ payoutRoutes.get(
           ? (await riderRepository.findById(req.params.ownerId))?.fullName || req.params.ownerId
           : (await restaurantRepository.findById(req.params.ownerId))?.name || req.params.ownerId;
       const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 80) : undefined);
+      // `.../pdf/each` is every order as its own PDF, in a ZIP.
+      if (req.params.each === 'each') {
+        await sendInvoiceZip(res, ownerType, req.params.ownerId, ownerName, {
+          from: text(req.query.from),
+          to: text(req.query.to)
+        });
+        return;
+      }
+      if (req.params.each) throw new AppError('Not found.', 404, 'NOT_FOUND');
       await sendStatementPdf(res, ownerType, req.params.ownerId, ownerName, {
         from: text(req.query.from),
         to: text(req.query.to),

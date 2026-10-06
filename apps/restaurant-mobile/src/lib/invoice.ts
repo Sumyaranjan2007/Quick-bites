@@ -21,9 +21,12 @@ async function folder(forceAsk = false): Promise<string> {
   return permission.directoryUri;
 }
 
-export async function downloadInvoice(range: { from?: string; to?: string; orderId?: string }): Promise<string> {
-  const { url, headers } = invoiceRequest(range);
-  const temp = `${FileSystem.cacheDirectory}invoice-${Date.now()}.pdf`;
+export async function downloadInvoice(
+  range: { from?: string; to?: string; orderId?: string },
+  each = false
+): Promise<string> {
+  const { url, headers } = invoiceRequest(range, each);
+  const temp = `${FileSystem.cacheDirectory}invoice-${Date.now()}`;
   let result: FileSystem.FileSystemDownloadResult;
   try {
     result = await FileSystem.downloadAsync(url, temp, { headers });
@@ -44,7 +47,9 @@ export async function downloadInvoice(range: { from?: string; to?: string; order
   }
 
   const disposition = result.headers?.['Content-Disposition'] || result.headers?.['content-disposition'] || '';
-  const name = (/filename="([^"]+)\.pdf"/.exec(disposition)?.[1] || 'QuickBites-invoice').replace(/[^\w.-]/g, '_');
+  const [, base = 'QuickBites-invoice', ext = each ? 'zip' : 'pdf'] = /filename="([^"]+)\.(pdf|zip)"/.exec(disposition) || [];
+  const name = base.replace(/[^\w.-]/g, '_');
+  const mime = ext === 'zip' ? 'application/zip' : 'application/pdf';
   const base64 = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
   await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
 
@@ -52,12 +57,12 @@ export async function downloadInvoice(range: { from?: string; to?: string; order
   let dir = await folder();
   let file: string;
   try {
-    file = await SAF.createFileAsync(dir, name, 'application/pdf');
+    file = await SAF.createFileAsync(dir, name, mime);
   } catch {
     // The remembered folder was removed or its permission revoked: ask again.
     dir = await folder(true);
-    file = await SAF.createFileAsync(dir, name, 'application/pdf');
+    file = await SAF.createFileAsync(dir, name, mime);
   }
   await FileSystem.writeAsStringAsync(file, base64, { encoding: FileSystem.EncodingType.Base64 });
-  return `${name}.pdf is in the folder you chose.`;
+  return `${name}.${ext} is in the folder you chose.`;
 }

@@ -28,7 +28,16 @@ export class TimeoutError extends Error {
  * Registered by the shell rather than imported from it, so this module keeps
  * knowing nothing about the screens.
  */
-type SessionEndedReason = { code: 'ACCOUNT_BLOCKED' | 'ACCOUNT_NOT_FOUND'; message: string };
+type SessionEndedReason = { code: string; message: string };
+const SESSION_ENDING = ['ACCOUNT_BLOCKED', 'ACCOUNT_NOT_FOUND', 'INVALID_TOKEN', 'SESSION_REVOKED'];
+// Once per burst: a screen with several requests in flight would otherwise say "signed out" for each.
+let lastSessionEnd = 0;
+const sessionEnding = (code: unknown): code is string => {
+  if (!SESSION_ENDING.includes(String(code)) || Date.now() - lastSessionEnd < 5000) return false;
+  lastSessionEnd = Date.now();
+  return true;
+};
+const EXPIRED = 'Your sign-in has expired. Please sign in again.';
 let onSessionEnded: ((reason: SessionEndedReason) => void) | null = null;
 
 export function setSessionEndedHandler(handler: ((reason: SessionEndedReason) => void) | null): void {
@@ -51,10 +60,16 @@ function notifyIfSessionEnded(res: Response): void {
     .json()
     .then((body: any) => {
       const code = body?.error?.code;
-      if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_NOT_FOUND') {
+      // Also an expired sign-in (tokens last 7 days) or one revoked by a password
+      // change: back to the sign-in screen. A guest browsing without signing in
+      // gets UNAUTHORIZED, which is not on this list.
+      if (sessionEnding(code)) {
         onSessionEnded?.({
           code,
-          message: body?.error?.message || 'This account is no longer active. Contact Quick Bites support.'
+          message:
+            code === 'INVALID_TOKEN'
+              ? EXPIRED
+              : body?.error?.message || 'This account is no longer active. Contact Quick Bites support.'
         });
       }
     })

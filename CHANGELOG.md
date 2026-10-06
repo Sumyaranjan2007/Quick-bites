@@ -6,6 +6,38 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-06] -- Claude Opus 5.5 -- Each order as its own invoice; old web apps removed; expired sign-ins
+
+> **For the owner.** Restaurants (and admins, for any restaurant) can download every order as
+> its own PDF in one ZIP, for their accounts and GST records. The old web consoles are deleted.
+> When a sign-in expires, every app now goes back to the sign-in screen with one clear message
+> instead of a screen full of errors. Two things for you in `OWNER_ACTIONS.md` Part 0: H (GST
+> is being collected with no GSTIN — see a CA) and I (how long a sign-in should last).
+
+- **Per-order invoices.** `GET /api/earnings/invoices.zip` and `GET
+  /api/admin/payouts/statement/:type/:id/pdf/each`: a ZIP of one PDF per order plus the period
+  summary, from the same renderer as the single downloads. `utils/simpleZip.ts` (Node deflate +
+  CRC-32, no dependency). Each order PDF now notes the food GST the customer paid, collected by
+  Quick Bites and not in the payout. Partner: "Each order as its own PDF (ZIP)" under the PDF
+  button; Admin: the same on the statement sheet. 3 checks with an independent unzip (CRC, one
+  file per order, no other order inside, GST line, admin parity); CRC and GST mutations caught;
+  the ZIP opens in Python's `zipfile` with no errors.
+- **Old web apps deleted** (`apps/admin-web`, `apps/restaurant-web`, 57 packages left the
+  lockfile, nothing else changed); `docker-compose.yml` and `nginx` now send `/partner`,
+  `/admin` to the backend; `check-apk-secrets.mjs` scans the new web builds instead.
+- **Expired or revoked sign-ins.** Tokens last 7 days with no refresh, and the apps only ended
+  the session for a blocked or deleted account — an expired one left the partner app on
+  "Kitchen not linked yet" and every other screen failing. Customer, Partner and Rider now also
+  end it on `INVALID_TOKEN` and `SESSION_REVOKED` (once per burst); Admin had no handler at all
+  and now has one. Checked in the browser: a corrupted token returns Partner to sign-in with
+  one message; a password changed elsewhere signs the open Admin console out with one message.
+- Observed on the served Partner site: a new order reaches the Live orders screen in under 4 s
+  with no reload (live updates work through the server's own address).
+
+Gate 83/83, `npm run verify` green.
+
+---
+
 ## [2026-10-06] -- Claude Opus 5.5 -- Partner and Admin websites, restaurant invoices, fixes
 
 > **For the owner.** Restaurants can now use the Partner app in a web browser at

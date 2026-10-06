@@ -31,8 +31,8 @@ the business **QUICK BITES** (MSME Udyam `UDYAM-KR-29-0052148`, contact
 (`scripts/build-web.mjs`, run by the Dockerfile on every deploy; served by
 `apps/backend-api/src/routes/webApps.ts`), with the "Glass Kitchen" web look
 (`packages/design-system/src/web/glassShell.ts`). Every app feature is on the web
-automatically. The old separate Vite consoles `apps/admin-web` and `apps/restaurant-web`
-are **retired** (not deployed, out of date) and await the owner's OK to delete.
+automatically. The old separate Vite consoles (`apps/admin-web`, `apps/restaurant-web`)
+were deleted on 6 Oct at the owner's request.
 
 ### The owner
 
@@ -135,9 +135,17 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
   (People → Deletion requests).
 - **Restaurant invoices (6 Oct):** Partner → Money → Statement → *Download invoice (PDF)*
   for the last 30 days / this month / last month / all orders, and *Download this order's
-  invoice* per order; Admin → Money → Pay → Owed → Statement → *Download invoice (PDF)*.
+  invoice* per order, and *Each order as its own PDF (ZIP)* (one file per order + the summary,
+  for their accounts/GST); Admin → Money → Pay → Owed → Statement → the same two downloads.
   One PDF builder (`modules/payments/statementPdf.ts`) on top of `statementFor`, dishes at
-  the kitchen's prices, labelled "Not a GST tax invoice" (no GSTIN yet).
+  the kitchen's prices, labelled "Not a GST tax invoice" (no GSTIN yet). Each order notes
+  the 5% food GST the customer paid, which Quick Bites collects and keeps to pay (it is booked
+  to `TAX_GST_PAYABLE`, never the kitchen's payout — the section 9(5) model). **The business
+  collects this GST with no GSTIN yet: flagged to the owner to take to a CA.**
+- **Sign-ins last 7 days** (`authRouter.ts` `expiresIn: '7d'`, no refresh). Since 6 Oct all four
+  apps return to the sign-in screen with one message on `INVALID_TOKEN` / `SESSION_REVOKED`
+  (before, they sat on screens that failed every call). How long a sign-in should last is an
+  open owner question.
 - **Open owner question:** the partner policy text still promises payment "automatically
   on the weekly run", which contradicts paying whenever. Waiting for the owner's wording.
 

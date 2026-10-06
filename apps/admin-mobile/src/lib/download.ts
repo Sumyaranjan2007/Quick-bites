@@ -30,7 +30,8 @@ const EXT: Record<string, string> = {
   'image/jpg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
-  'application/pdf': 'pdf'
+  'application/pdf': 'pdf',
+  'application/zip': 'zip'
 };
 
 async function asBase64(source: string, headers?: Record<string, string>): Promise<{ base64: string; mime: string }> {

@@ -4,8 +4,11 @@
  */
 import { invoiceRequest } from './partnerApi';
 
-export async function downloadInvoice(range: { from?: string; to?: string; orderId?: string }): Promise<string> {
-  const { url, headers } = invoiceRequest(range);
+export async function downloadInvoice(
+  range: { from?: string; to?: string; orderId?: string },
+  each = false
+): Promise<string> {
+  const { url, headers } = invoiceRequest(range, each);
   let res: Response;
   try {
     res = await fetch(url, { headers });
@@ -16,7 +19,7 @@ export async function downloadInvoice(range: { from?: string; to?: string; order
     const body = await res.json().catch(() => null);
     throw new Error(body?.error?.message || 'The invoice could not be made. Try again in a moment.');
   }
-  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'QuickBites-invoice.pdf';
+  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || (each ? 'QuickBites-invoices.zip' : 'QuickBites-invoice.pdf');
   const href = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
   a.href = href;

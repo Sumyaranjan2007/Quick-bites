@@ -4,14 +4,12 @@
     {
       "name": "backend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=@quick-bites/backend-api"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--workspace=@quick-bites/backend-api"
+      ],
       "port": 5000
-    },
-    {
-      "name": "admin-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=@quick-bites/admin-web"],
-      "port": 5174
     }
   ]
 }

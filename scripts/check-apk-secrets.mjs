@@ -273,13 +273,13 @@ for (const apk of apks) {
 }
 
 // ---------------------------------------------------------------------------
-// The web portals, for the same reason.
+// The /admin and /partner websites, for the same reason.
 //
-// Vite inlines every `VITE_*` variable into the bundle it emits, so a secret
-// added to `.env` with that prefix is published to every visitor the moment the
-// portal is deployed — with no warning, and nothing in the source to see.
+// Expo inlines every `EXPO_PUBLIC_*` variable into the web bundle it emits, so a
+// secret added with that prefix is published to every visitor the moment the
+// site is deployed. Built by scripts/build-web.mjs.
 // ---------------------------------------------------------------------------
-const WEB_APPS = ['apps/admin-web/dist', 'apps/restaurant-web/dist'];
+const WEB_APPS = ['apps/backend-api/web/admin', 'apps/backend-api/web/partner'];
 
 function filesUnder(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

@@ -77,34 +77,6 @@ services:
     networks:
       - quickbites-network
 
-  # 5. Restaurant Partner Web Portal
-  restaurant-web:
-    build:
-      context: .
-      dockerfile: apps/restaurant-web/Dockerfile
-    container_name: quickbites-restaurant-web
-    restart: unless-stopped
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend-api
-    networks:
-      - quickbites-network
-
-  # 6. Admin Operations Control Tower
-  admin-web:
-    build:
-      context: .
-      dockerfile: apps/admin-web/Dockerfile
-    container_name: quickbites-admin-web
-    restart: unless-stopped
-    ports:
-      - "5174:80"
-    depends_on:
-      - backend-api
-    networks:
-      - quickbites-network
-
   # 7. Edge Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
@@ -117,8 +89,6 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       - backend-api
-      - restaurant-web
-      - admin-web
     networks:
       - quickbites-network
 

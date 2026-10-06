@@ -76,6 +76,18 @@ export function onMutation(listener: () => void): () => void {
   };
 }
 
+/*
+ * The sign-in has ended — expired (tokens last 7 days), revoked by a password
+ * change, or the account blocked or deleted. The session provider signs out,
+ * once per burst, instead of leaving every screen failing with the same error.
+ */
+const SESSION_ENDING = ['ACCOUNT_BLOCKED', 'ACCOUNT_NOT_FOUND', 'INVALID_TOKEN', 'SESSION_REVOKED'];
+let onSessionEnded: ((message: string) => void) | null = null;
+let lastSessionEnd = 0;
+export function setSessionEndedHandler(handler: ((message: string) => void) | null): void {
+  onSessionEnded = handler;
+}
+
 export function createClient(baseUrl: string, token: string): ApiClient {
   async function request<T>(method: string, path: string, body?: any): Promise<T> {
     const response = await apiFetch(`${baseUrl}${path}`, {
@@ -90,6 +102,10 @@ export function createClient(baseUrl: string, token: string): ApiClient {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload?.success === false) {
       const { message, code } = messageFrom(payload, response.status);
+      if (token && SESSION_ENDING.includes(code) && Date.now() - lastSessionEnd > 5000) {
+        lastSessionEnd = Date.now();
+        onSessionEnded?.(code === 'INVALID_TOKEN' ? 'Your sign-in has expired. Please sign in again.' : message);
+      }
       throw new ApiError(message, response.status, code);
     }
     if (method !== 'GET') {

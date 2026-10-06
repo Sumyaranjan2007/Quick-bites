@@ -63,10 +63,14 @@ const when = (iso: string) => {
 };
 
 /** Runs a download and says how it went, in the same words on the phone and the web. */
-async function saveInvoice(range: { from?: string; to?: string; orderId?: string }, setBusy: (b: boolean) => void) {
+async function saveInvoice(
+  range: { from?: string; to?: string; orderId?: string },
+  setBusy: (b: boolean) => void,
+  each = false
+) {
   setBusy(true);
   try {
-    Alert.alert('Invoice saved', await downloadInvoice(range));
+    Alert.alert(each ? 'Invoices saved' : 'Invoice saved', await downloadInvoice(range, each));
   } catch (err: any) {
     Alert.alert('Invoice not saved', err?.message || 'Try again in a moment.');
   } finally {
@@ -102,6 +106,8 @@ const PERIODS: Array<{ key: string; label: string; range: () => { from: string; 
 const InvoiceCard: React.FC = () => {
   const [period, setPeriod] = useState('30d');
   const [busy, setBusy] = useState(false);
+  const [eachBusy, setEachBusy] = useState(false);
+  const range = () => PERIODS.find(p => p.key === period)!.range();
   return (
     <Card style={s.topCard}>
       <Text style={s.invoiceTitle}>Download your invoice</Text>
@@ -123,12 +129,19 @@ const InvoiceCard: React.FC = () => {
           </TouchableOpacity>
         ))}
       </View>
+      <Button label="Download invoice (PDF)" busy={busy} disabled={busy || eachBusy} onPress={() => void saveInvoice(range(), setBusy)} />
       <Button
-        label="Download invoice (PDF)"
-        busy={busy}
-        disabled={busy}
-        onPress={() => void saveInvoice(PERIODS.find(p => p.key === period)!.range(), setBusy)}
+        label="Each order as its own PDF (ZIP)"
+        variant="ghost"
+        busy={eachBusy}
+        disabled={busy || eachBusy}
+        onPress={() => void saveInvoice(range(), setEachBusy, true)}
+        style={s.eachButton}
       />
+      <Text style={s.eachHint}>
+        One file per order, plus the summary — to keep with your accounts and give your accountant for GST and
+        income tax.
+      </Text>
     </Card>
   );
 };
@@ -459,6 +472,8 @@ const s = StyleSheet.create({
   periodText: { fontSize: 13, fontWeight: '700', color: c.textSoft },
   periodTextOn: { color: '#FFFFFF' },
   orderInvoice: { marginTop: 12 },
+  eachButton: { marginTop: 10 },
+  eachHint: { fontSize: 12, color: c.textMuted, lineHeight: 17, marginTop: 8, textAlign: 'center' },
   topLabel: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
   topValue: { color: c.text, fontSize: 34, fontWeight: '800', marginTop: 4 },
   topSub: { color: c.textMuted, fontSize: 12, lineHeight: 17, marginTop: 8 },

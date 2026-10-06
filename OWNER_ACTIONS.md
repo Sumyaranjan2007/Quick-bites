@@ -128,8 +128,26 @@ Nothing to buy or set up. After this is deployed:
   period) or open any order there and tap **Download this order's invoice**. You can download
   any restaurant's from **Money → Pay → Owed → Statement**. Phones need the next APK build
   (ask for "make APK" when ready); the websites have it as soon as it is deployed.
-- **One decision:** the old separate web consoles (`apps/admin-web`, `apps/restaurant-web`) are
-  no longer used and are out of date. Say "delete the old web apps" and they will be removed.
+- **Each order as its own PDF:** Money → Statement → **Each order as its own PDF (ZIP)** gives
+  one invoice file per order plus the summary, for the restaurant's accounts and their
+  accountant. Admins have the same button on a restaurant's statement.
+- The old separate web consoles were deleted on 6 October, as you asked.
+
+### H. Talk to a CA about GST — important
+
+Every order charges the customer **5% GST on the food**, and the server keeps it as Quick Bites'
+tax to pay (this is how food apps work: the app pays GST on restaurant orders under GST
+section 9(5)). **Your business has no GSTIN yet.** Collecting GST without being registered is
+not allowed. Ask a CA (Chartered Accountant) this week: whether to register now, and until then
+whether the app should stop adding GST. Changing what customers are charged is your decision;
+nothing in the app was changed.
+
+### I. One decision: how long people stay signed in
+
+A sign-in lasts **7 days**, then the app asks people to sign in again. For kitchens that means
+signing in every week (and missing orders until they do); for customers it means a new SMS code
+every week, which you pay for. Tell us if you want longer (for example 30 or 90 days, or "as long
+as they keep using the app").
 
 ---
 

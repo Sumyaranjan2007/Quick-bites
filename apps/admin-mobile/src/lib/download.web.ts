@@ -12,7 +12,8 @@ const EXT: Record<string, string> = {
   'image/jpg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
-  'application/pdf': 'pdf'
+  'application/pdf': 'pdf',
+  'application/zip': 'zip'
 };
 
 export async function saveDocument(source: string, name: string, headers?: Record<string, string>): Promise<string> {

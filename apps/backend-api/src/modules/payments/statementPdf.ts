@@ -17,6 +17,7 @@ import { memoryStore } from '../../db/client.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { SimplePdf, type Rgb } from '../../utils/simplePdf.ts';
+import { zip } from '../../utils/simpleZip.ts';
 import { shapeOrderForViewer } from '../orders/contactVisibility.ts';
 import { businessIdentity, formattedAddress } from '../platform/businessIdentity.ts';
 import { statementFor, type Statement, type OrderStatement } from './statements.ts';
@@ -148,6 +149,13 @@ export function renderStatementPdf(
   const totals = new Map<string, number>();
   let unexplained = 0;
   let net = 0;
+  // GST the customer paid on the food. Quick Bites collected it and keeps it to
+  // pay; it is never in the kitchen's payout, but their accountant needs it.
+  const gstOnFood = (o: OrderStatement) =>
+    payee.ownerType === 'RESTAURANT'
+      ? Math.round((Number((memoryStore.orders.get(o.orderId) as any)?.bill?.gstAmount) || 0) * 100)
+      : 0;
+  const gstTotal = orders.reduce((t, o) => t + gstOnFood(o), 0);
   for (const o of orders) {
     for (const l of o.lines) totals.set(l.label, (totals.get(l.label) || 0) + l.amountPaise);
     unexplained += o.unexplainedPaise;
@@ -190,6 +198,15 @@ export function renderStatementPdf(
     pdf.text(money(statement.summary.outstandingPaise), RIGHT - 14, y, { size: 10, bold: true, align: 'right' });
   }
   y = boxTop + boxHeight + 28;
+  if (gstTotal > 0 && !single) {
+    pdf.text(
+      `For your records: ${money(gstTotal)} GST on the food was collected from customers by Quick Bites. It is not part of your earnings.`,
+      LEFT,
+      y - 12,
+      { size: 8, color: MUTED }
+    );
+    y += 6;
+  }
 
   // ---- Orders -------------------------------------------------------------
   if (!single) {
@@ -209,7 +226,7 @@ export function renderStatementPdf(
         ? ((shapeOrderForViewer(order, 'restaurant') as any).items || [])
         : [];
     const linesHeight = o.lines.reduce((t, l) => t + (l.detail ? 26 : 15), 0);
-    ensure(56 + items.length * 14 + linesHeight);
+    ensure(70 + items.length * 14 + linesHeight);
 
     y += 18;
     pdf.rect(LEFT, y - 12, RIGHT - LEFT, 20, AMBER_BG);
@@ -247,6 +264,16 @@ export function renderStatementPdf(
     }
     pdf.text('You receive', LEFT + 8, y, { size: 10, bold: true });
     pdf.text(money(o.netPaise), RIGHT - 8, y, { size: 10.5, bold: true, color: MAROON, align: 'right' });
+    const gst = gstOnFood(o);
+    if (gst > 0) {
+      y += 13;
+      pdf.text(
+        `For your records: GST on this food, ${money(gst)}, was collected from the customer by Quick Bites and is not part of your payout.`,
+        LEFT + 8,
+        y,
+        { size: 7.5, color: MUTED }
+      );
+    }
     y += 8;
   }
 
@@ -302,6 +329,21 @@ export function renderStatementPdf(
   return pdf.toBuffer();
 }
 
+async function payeeFor(ownerType: PayeeOwnerType, ownerId: string, ownerName: string): Promise<InvoicePayee> {
+  const restaurant = ownerType === 'RESTAURANT' ? await restaurantRepository.findById(ownerId) : null;
+  return {
+    name: ownerName,
+    ownerType: ownerType === 'RESTAURANT' ? 'RESTAURANT' : 'RIDER',
+    ...(restaurant
+      ? {
+          address: [restaurant.addressLine, restaurant.city, restaurant.pincode].filter(Boolean).join(', '),
+          fssai: restaurant.fssaiLicenseNumber,
+          gstin: restaurant.gstin
+        }
+      : {})
+  };
+}
+
 /**
  * Builds and sends the PDF for one payee: a period (default the last 30 days),
  * or one order. Used by the partner's own download and by the admin's.
@@ -328,22 +370,42 @@ export async function sendStatementPdf(
     throw new AppError('There are no earnings for that order on this account yet.', 404, 'NO_EARNINGS_FOR_ORDER');
   }
 
-  const restaurant = ownerType === 'RESTAURANT' ? await restaurantRepository.findById(ownerId) : null;
-  const payee: InvoicePayee = {
-    name: ownerName,
-    ownerType: ownerType === 'RESTAURANT' ? 'RESTAURANT' : 'RIDER',
-    ...(restaurant
-      ? {
-          address: [restaurant.addressLine, restaurant.city, restaurant.pincode].filter(Boolean).join(', '),
-          fssai: restaurant.fssaiLicenseNumber,
-          gstin: restaurant.gstin
-        }
-      : {})
-  };
-
-  const body = renderStatementPdf(statement, payee, { orderId: range.orderId });
+  const body = renderStatementPdf(statement, await payeeFor(ownerType, ownerId, ownerName), { orderId: range.orderId });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${invoiceFileName(statement, order?.orderNumber)}"`);
   res.setHeader('Cache-Control', 'no-store');
   res.send(body);
+}
+
+/**
+ * Every order in the period as its OWN invoice PDF, plus the period summary,
+ * in one ZIP — so a restaurant can file each order separately for its accounts
+ * and tax records. The same statement, the same renderer, so each file matches
+ * the single-order download exactly.
+ */
+export async function sendInvoiceZip(
+  res: Response,
+  ownerType: PayeeOwnerType,
+  ownerId: string,
+  ownerName: string,
+  range: { from?: string; to?: string }
+): Promise<void> {
+  const statement = statementFor(ownerType, ownerId, ownerName, range);
+  const payee = await payeeFor(ownerType, ownerId, ownerName);
+  const issuedAt = new Date().toISOString();
+  const summaryName = invoiceFileName(statement).replace('QuickBites-earnings-', 'QuickBites-summary-');
+  const archive = zip([
+    { name: summaryName, data: renderStatementPdf(statement, payee, { issuedAt }) },
+    ...statement.orders.map(o => ({
+      name: invoiceFileName(statement, o.orderNumber),
+      data: renderStatementPdf(statement, payee, { orderId: o.orderId, issuedAt })
+    }))
+  ]);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${invoiceFileName(statement).replace('QuickBites-earnings-', 'QuickBites-invoices-').replace(/\.pdf$/, '.zip')}"`
+  );
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(archive);
 }

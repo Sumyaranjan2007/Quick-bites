@@ -41,7 +41,16 @@ export function currentApiUrl(): string {
  * Registered by the shell rather than imported from it, so this module keeps
  * knowing nothing about the screens.
  */
-type SessionEndedReason = { code: 'ACCOUNT_BLOCKED' | 'ACCOUNT_NOT_FOUND'; message: string };
+type SessionEndedReason = { code: string; message: string };
+const SESSION_ENDING = ['ACCOUNT_BLOCKED', 'ACCOUNT_NOT_FOUND', 'INVALID_TOKEN', 'SESSION_REVOKED'];
+// Once per burst: a screen with several requests in flight would otherwise say "signed out" for each.
+let lastSessionEnd = 0;
+const sessionEnding = (code: unknown): code is string => {
+  if (!SESSION_ENDING.includes(String(code)) || Date.now() - lastSessionEnd < 5000) return false;
+  lastSessionEnd = Date.now();
+  return true;
+};
+const EXPIRED = 'Your sign-in has expired. Please sign in again.';
 let onSessionEnded: ((reason: SessionEndedReason) => void) | null = null;
 
 export function setSessionEndedHandler(handler: ((reason: SessionEndedReason) => void) | null): void {
@@ -96,8 +105,10 @@ async function request<T>(
       // Told once, and the session ends. The message is the server's own —
       // it carries the reason an administrator recorded, which is the only
       // part a partner can actually do something about.
-      if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_NOT_FOUND') {
-        onSessionEnded?.({ code, message });
+      // Also an expired sign-in (tokens last 7 days) or one revoked by a password
+      // change: back to the sign-in screen, not a screen that fails on every call.
+      if (sessionEnding(code)) {
+        onSessionEnded?.({ code, message: code === 'INVALID_TOKEN' ? EXPIRED : message });
       }
       return { ok: false, message };
     }
@@ -679,15 +690,16 @@ export interface StatementView {
 }
 
 /**
- * The invoice PDF (a period, or one order with `orderId`): where it is and the
- * sign-in it needs. Downloaded by lib/invoice.ts (phone) or invoice.web.ts.
+ * The invoice download: one PDF (a period, or one order with `orderId`), or with
+ * `each` every order as its own PDF in a ZIP. Where it is and the sign-in it
+ * needs; downloaded by lib/invoice.ts (phone) or invoice.web.ts.
  */
-export function invoiceRequest(range: { from?: string; to?: string; orderId?: string }) {
+export function invoiceRequest(range: { from?: string; to?: string; orderId?: string }, each = false) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(range)) if (value) params.set(key, value);
   const query = params.toString();
   return {
-    url: `${apiUrl}/earnings/statement.pdf${query ? `?${query}` : ''}`,
+    url: `${apiUrl}/earnings/${each ? 'invoices.zip' : 'statement.pdf'}${query ? `?${query}` : ''}`,
     headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
   };
 }
