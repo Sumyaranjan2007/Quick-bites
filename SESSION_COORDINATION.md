@@ -1,5 +1,12 @@
 # Session coordination — two Claude sessions, one repository
 
+> **6 Oct 2026:** the coordination *rules* below still apply whenever two
+> sessions share this folder (claim files here, stage by path, never stash).
+> The session table and the claimed-file lists are from September: the
+> `apps/admin-web` and `apps/restaurant-web` folders they mention were deleted on
+> 6 Oct (the websites are now the Partner and Admin apps built for the browser).
+> Current state: `CLAUDE.md`.
+
 **Read this before you touch a file. Update it when you claim or release one.**
 
 Two sessions are working on Quick Bites at the same time, in the **same working

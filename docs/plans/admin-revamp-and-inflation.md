@@ -1,5 +1,7 @@
 # Admin revamp, per-item inflation, and the three apps
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 Written 23 Sep 2026 against commit `c953bd0`, from the owner's list of 23 Sep.
 
 **Session B writes and maintains this plan, and reviews the work against it.

@@ -1,5 +1,7 @@
 # Chunk 00: Diagnostics System & Self-Test Suite
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Establish the baseline self-test diagnostics script that validates environment readiness, directory structures, dependency installations, and connectivity.  
 **Estimated Time:** 30 minutes  
 **Dependencies:** None  

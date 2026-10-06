@@ -1,5 +1,7 @@
 # What only you can do
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 Everything in this list is **built and waiting**. None of it needs a code
 change, a new APK, or another session. Each one switches on the moment you
 supply the thing it is waiting for.

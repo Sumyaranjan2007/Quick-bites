@@ -1,6 +1,6 @@
 # Quick Bites — getting an AI back on track
 
-**Updated:** 5 October 2026 (replaces the 6 September version, whose protocol
+**Updated:** 6 October 2026 (replaces the 6 September version, whose protocol
 pointed at the old chunk plan, `MANIFEST.md` and a stack that no longer exists)
 
 Copy-paste these to an AI assistant when it loses context, drifts, or invents
@@ -42,7 +42,8 @@ things.
 
 ## 6. It adds things nobody asked for
 
-> "Stop. The scope is the four phone apps and what I asked for, nothing extra,
+> "Stop. The scope is the four apps (and the Partner and Admin websites, which
+> are the same apps built for the browser) and what I asked for, nothing extra,
 > no over-the-air updates. List what you added beyond my request and remove it."
 
 ## 7. It explains in code terms

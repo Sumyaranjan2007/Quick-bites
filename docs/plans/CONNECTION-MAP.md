@@ -1,5 +1,13 @@
 # Connection map: every action in the four apps, and what the server does with it
 
+> **Updated 6 Oct 2026:** routes added since this map was generated (25 Sep) —
+> `GET /api/earnings/statement.pdf` and `GET /api/earnings/invoices.zip` (Partner
+> invoices), `GET /api/admin/payouts/statement/:ownerType/:ownerId/pdf/:each?`
+> (Admin invoices), the websites at `/partner` and `/admin`
+> (`src/routes/webApps.ts`), and Apple push for iPhones
+> (`src/notifications/apnsTransport.ts`). The gate now has 83 suites. The rest of
+> the map is unchanged; `routeContract` and `bodyContract` still prove it on every run.
+
 _Generated 25 Sep 2026 by Session C by calling every route each app uses, **signed in as that app's real user**, against a seeded server (`apps/backend-api/src/test/connectionProbe.ts`)._
 
 **Result: all 220 calls reach a working route as the right person. 0 server errors (500), 0 missing routes, 0 wrong-role refusals.** Body shapes are proven separately by the `bodyContract` suite, route existence by `routeContract`, and the business flows by the 69 backend suites.

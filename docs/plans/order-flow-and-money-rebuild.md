@@ -1,5 +1,7 @@
 # Quick Bites — order flow, banks, payouts and inflation
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 Owner decisions captured 2026-09-22. Two sessions, one tree.
 **Session A = money.  Session B = experience.**
 Neither session edits the other's files. Shared files are additive-only and named in §6.

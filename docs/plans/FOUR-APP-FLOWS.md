@@ -1,5 +1,27 @@
 # Four-app flows: every case, for the four people behind the apps
 
+> **Updated 6 Oct 2026 — what changed since this was written (25 Sep):**
+> - **Sign-in:** live sends real SMS codes through MSG91 (waiting on the DLT
+>   template). The shared test code still exists as a fallback but on live it must
+>   be a private six-digit code (`OWNER_ACTIONS.md` Part 0 J). Customers can browse
+>   without signing in and sign in at checkout. Sign-ins last 7 days; an expired or
+>   revoked sign-in returns every app to its sign-in screen with one message.
+> - **Cash on delivery** is per restaurant, switched by admins only (People →
+>   restaurant → Payments); checkout hides it otherwise.
+> - **Rider pay** is road km × ₹12 (editable per city), minimum ₹30. Payouts: no
+>   hold, ₹100 minimum, paid whenever by an admin (by hand with a UTR, or RazorpayX).
+> - **Menus:** admins can also edit live dishes and upload whole menus; menus can be
+>   read from photos (Groq) as a draft.
+> - **Invoices:** Partner → Money → Statement downloads a PDF for a period, one
+>   order's invoice, or every order as its own PDF in a ZIP; Admin → Money → Pay →
+>   Owed → Statement has the same.
+> - **Websites:** the Partner and Admin apps also run in a browser at `/partner` and
+>   `/admin` on the live server. Every feature below works there too.
+> - **iPhone:** the customer app is being prepared for the App Store
+>   (`docs/app-store/IOS.md`); push to iPhones goes through Apple (APNs).
+>
+> The admin menus named below still match. For anything else, `CLAUDE.md` wins.
+
 **Written 25 Sep 2026 by the review session ("Session A" in the owner's naming).**
 Built from `docs/plans/CONNECTION-MAP.md` (every route called as the app's real
 user), the HANDOFF, and the code on `main`. Menu names are the ones the apps show.

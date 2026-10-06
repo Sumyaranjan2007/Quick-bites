@@ -17,7 +17,8 @@ applications, and there is exactly one copy of each.
 > encryption public key to use). That makes Play's updates install over the
 > sideloaded copies already on phones. Do **not** let Play generate a new key
 > for an app that is already installed anywhere. The Admin app is never
-> published. Last build with these keys: versionCode 20 (4 Oct 2026).
+> published. Last build with these keys: 6 Oct 2026 — Customer and Rider
+> versionCode 21, Partner 22, Admin 23 (all 1.4.0).
 
 ---
 
@@ -91,16 +92,16 @@ The `.jks` file survived. The password did not, and the apps do not share one,
 so it could not be recovered from the other three. A search of the machine
 found no other copy.
 
-**The consequence, stated plainly:** the customer app cannot currently be built
-as an update to the version already installed. Three of four can. Until the
-password is found, the customer app needs a new key, and anyone holding the old
-build must uninstall before installing the new one. Nothing is on Play Store
-yet, so that is a one-time inconvenience rather than a lost install base — but
-it is exactly the harm this document exists to prevent happening twice.
+**What was done (22 Sep 2026):** the owner generated a replacement key,
+`quickbites-customer-v2.jks`, and the customer app moved to it. Anyone holding
+the old build uninstalled once. Every customer build since then is signed with
+`-v2` and installs as an update; the old `quickbites-customer.jks` is no longer
+used. Nothing was on Play Store yet, so no install base was lost — but it is
+exactly the harm this document exists to prevent happening twice.
 
-### Restoring it
+### For the record: how it was restored
 
-If the password is found, put it back and nothing else changes:
+If a password is ever found again, it goes back like this and nothing else changes:
 
 ```bash
 mkdir -p "apps/customer-mobile/android"
@@ -178,6 +179,12 @@ the one on the phones, or refuses to hand it out:
   `app.json` and `build.gradle`. **Commit `release/version.json` after a build.**
 - **Check without building:** `bash scripts/build-apks.sh --dry-run`, and the
   guards' own checks: `node scripts/test-release-guards.mjs`.
+- **Run from the real folder (fixed 6 Oct 2026).** Builds run through the
+  `D:\qb` shortcut used to skip the release guards silently — the guard script
+  compared its own path against a different spelling and did nothing, so APKs
+  came out with the old versionCode 20. The guards now resolve the real path,
+  and the build script stops if the versionCode or the signing check comes back
+  empty (`c05d582`).
 
 **These APKs are signed with APK Signature Scheme v2 only.** `keytool
 -printcert -jarfile` prints NOTHING for them, which reads like "no problem".

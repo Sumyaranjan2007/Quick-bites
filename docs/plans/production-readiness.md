@@ -1,5 +1,7 @@
 # Production readiness: one table per app (joint plan, B + C)
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Status: DRAFT by C, for B to challenge.** Nothing here is built until B and
 C have both written "agree" on the row (brain-sync §4B). Owner rule (§4A):
 **big → C, small → A**, and B reviews every commit.

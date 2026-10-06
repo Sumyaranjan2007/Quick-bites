@@ -1,5 +1,7 @@
 # Quick Bites — the road to real customers
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 Written 23 Sep 2026, against commit `d3a2e64`, after the owner asked for a
 plan that finishes the work without breaking what already works.
 

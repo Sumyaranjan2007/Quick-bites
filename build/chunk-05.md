@@ -1,5 +1,7 @@
 # Chunk 05: Search & Catalog Indexing Engine (Meilisearch)
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Configure Meilisearch Cloud client, build automated catalog synchronization scripts, and implement typo-tolerant search APIs with sub-50ms response times.  
 **Estimated Time:** 45 minutes  
 **Dependencies:** Chunk 03  

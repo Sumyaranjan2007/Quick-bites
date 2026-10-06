@@ -1,5 +1,7 @@
 # Full audit — 24 Sep 2026
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 Written by Session B (plan and review) after the owner asked for the whole
 project to be audited: every bug, all dead code, every flow and case, the
 payment system end to end, cash, every notification, admin receiving all

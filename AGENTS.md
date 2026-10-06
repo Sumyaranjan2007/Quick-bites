@@ -12,7 +12,7 @@ The short version of the rules:
 - Stage files by explicit path. Never `git add -A`, `git stash`, `git reset --hard`
   or `git clean`. Pushing `main` deploys the live server.
 - Run the gate before every commit that touches the backend:
-  `node scripts/run-backend-tests.mjs` (81 suites).
+  `node scripts/run-backend-tests.mjs` (83 suites).
 - Never sign in to the live system with the owner's password.
 - The owner is not a developer: answer their question plainly first, lead with
   cost and consequence, then do the work.

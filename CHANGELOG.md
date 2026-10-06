@@ -6,6 +6,26 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-06] -- Claude Opus 5.5 -- Every Markdown file brought up to date
+
+> **For the owner.** A new AI (or person) now reads `CLAUDE.md` and finds every other
+> document either current or clearly marked as old. Nothing in the apps changed. One
+> line was added to the public privacy policy: Apple delivers push notifications to
+> iPhones (needed for the App Store; please read it once).
+
+- Updated to 6 Oct: `README.md` (websites, invoices, iPhone, versionCodes 21–23, 83 suites),
+  `AGENTS.md`, `AI_RECOVERY.md`, `SIGNING_KEYS.md` (last build; the customer key story now says
+  what was done; the `D:\qb` release-guard fix), `STORE_RELEASE.md` (AABs are still v20 — rebuild
+  before upload; test-code fallback; iPhone pointer), `DOWNLOAD.md` (websites, invoices, COD per
+  restaurant, People → KYC), `CLAUDE.md` (§7, §9, live line), `legal/COMPLIANCE.md` (MSG91 header).
+- "What changed since" notes on `SESSION_COORDINATION.md`, `docs/plans/FOUR-APP-FLOWS.md`,
+  `docs/plans/CONNECTION-MAP.md` (new invoice routes, websites, Apple push).
+- A "HISTORICAL — read CLAUDE.md" banner on the 48 old documents (PRD, TAD, specs, plans,
+  `build/chunk-*`, `design/*`, older `docs/plans/*`, `legal/DATA_HANDLING.md`, security checklist).
+- `legal/PRIVACY_POLICY.md`: Apple Inc. added to the processors (push to iPhones).
+
+---
+
 ## [2026-10-06] -- Claude Opus 5.5 -- Test sign-in code made safe for live; review clean-up
 
 > **For the owner.** You can use one shared test code for sign-in until MSG91 delivers, and

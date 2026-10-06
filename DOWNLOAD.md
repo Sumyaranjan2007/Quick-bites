@@ -23,8 +23,9 @@ Each app installs under its own name, so you can tell them apart on the phone:
 
 **Do not uninstall first.** Since v1.3.0 every build is signed with the same key
 as the app already on your phone, and each build has a higher version number
-(v8 = `1.3.0-20260925.8`). So Android installs it as an **update**: you stay
-signed in, and nothing on the phone is lost.
+(v8 = `1.3.0-20260925.8`; the newest, from 6 Oct 2026, are Customer and Rider
+versionCode 21, Partner 22, Admin 23, all version 1.4.0). So Android installs it
+as an **update**: you stay signed in, and nothing on the phone is lost.
 
 1. Download the new APK and open it.
 2. Android should say **"Do you want to update this app?"**. Tap Update.
@@ -59,7 +60,7 @@ the old apps removed first, because those builds used a different key.
    approves you**. A pending restaurant is invisible to customers; a pending
    rider cannot start a shift. That is deliberate.
 4. Upload your documents from inside the app, then ask the administrator to
-   approve them in **Quick Bites Operations** → Documents.
+   approve them in **Quick Bites Operations** → People → KYC.
 
 ### Operations app — the administrator
 
@@ -89,8 +90,10 @@ To get from empty to a working order:
 
 Best done on four phones, or three phones and an emulator.
 
-1. **Customer** signs in by phone, picks the restaurant, orders, pays cash on
-   delivery.
+1. **Customer** signs in by phone (or browses first and signs in at checkout),
+   picks the restaurant, orders, and pays online — or cash on delivery, if an
+   administrator has switched cash on for that restaurant (People → restaurant →
+   Payments).
 2. **Partner** hears the chime, sees the ticket, accepts with a prep time.
 3. **Partner** marks it ready. **Rider** (on shift) receives the offer and
    claims it.
@@ -100,6 +103,26 @@ Best done on four phones, or three phones and an emulator.
    customer's business.
 6. **Rider** delivers, entering the **4-digit doorstep OTP** the customer shows.
 7. **Operations** sees all of it live, and the settlement ledger updates.
+
+---
+
+## Websites: the Partner and Operations apps in a browser
+
+Restaurants and the administrator can also use their app on a computer, with no
+install. Same sign-in, same features — it is the same app built for the browser:
+
+- Partner: `https://quick-bites-production.up.railway.app/partner`
+- Operations (admin): `https://quick-bites-production.up.railway.app/admin`
+
+## Restaurant invoices
+
+**Partner app → Money → Statement:** *Download invoice (PDF)* for the last 30
+days, this month, last month or all orders; *Each order as its own PDF (ZIP)*
+for the restaurant's accounts; and, on any order, *Download this order's
+invoice*. The administrator gets the same downloads from **Operations → Money →
+Pay → Owed → Statement**. On a phone, Android asks for a folder first (it
+cannot save into the Download folder itself — pick or create a folder inside
+it); on the website the file goes to the browser's Downloads.
 
 ---
 

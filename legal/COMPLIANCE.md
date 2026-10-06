@@ -4,6 +4,11 @@
 **Date:** 18 September 2026
 **Status:** Current against the platform as built
 
+> **6 Oct 2026:** the SMS provider is MSG91; the approved header is `QKBTES` and the
+> template "QUICK_BITES" (the `QCKBTE` below was an example). Delivery is waiting on the
+> template's DLT id being linked in MSG91 — `OWNER_ACTIONS.md` Part 0 A. Live status of
+> everything else: `CLAUDE.md`.
+
 This document records what the law and the distribution platforms actually
 require of Quick Bites, what is already satisfied in code, and what only a human
 can do. It is deliberately specific about the second category: most of what

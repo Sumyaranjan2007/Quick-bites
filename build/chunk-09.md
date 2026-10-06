@@ -1,5 +1,7 @@
 # Chunk 09: Security Hardening, Production Build & Deployment
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Configure Docker multi-stage builds, GitHub Actions CI/CD pipelines, Nginx reverse proxy configurations, and execute the final 85-point security audit before production launch.  
 **Estimated Time:** 60 minutes  
 **Dependencies:** Chunk 07, Chunk 08  

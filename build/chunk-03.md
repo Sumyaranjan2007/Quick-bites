@@ -1,5 +1,7 @@
 # Chunk 03: Data Access Layer, PostgreSQL DDL & Mongoose Schemas
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Implement database client connections, Prisma schema for PostgreSQL with PostGIS geometry types, Mongoose models for MongoDB menu catalogs, and idempotent seed fixtures.  
 **Estimated Time:** 60 minutes  
 **Dependencies:** Chunk 02  

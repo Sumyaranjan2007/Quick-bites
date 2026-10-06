@@ -1,5 +1,7 @@
 # Chunk 01: Project Scaffolding & Monorepo Configuration
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Initialize the root Turborepo monorepo structure, pin dependencies, configure shared TypeScript configs, linting rules, `.env.example`, and Docker Compose.  
 **Estimated Time:** 45 minutes  
 **Dependencies:** Chunk 00  

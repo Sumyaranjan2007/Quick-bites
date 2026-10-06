@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 6 October 2026 · **Last release:** versionCode 21–23 (1.4.0), built 6 Oct · **Live:** `9d09323` and later on `main`
+**Last updated:** 6 October 2026 · **Last release:** versionCode 21–23 (1.4.0), built 6 Oct · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -207,10 +207,12 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
 
 ---
 
-## 7. Play Store launch — status on 5 Oct 2026
+## 7. Play Store launch — status on 6 Oct 2026
 
 Ready in the repo / on this PC:
-- AABs for Customer, Partner, Rider (`build/aab/`, copied to `build/play-store/`).
+- AABs for Customer, Partner, Rider (`build/aab/`, copied to `build/play-store/`) — these are
+  the **versionCode 20** bundles from 4 Oct; run `bash scripts/build-apks.sh --aab` for fresh ones
+  before uploading.
 - Listings: `docs/play-store/listings.md` (names, short + full descriptions within limits,
   categories, Console answers, demo-login table). Graphics + screenshots in
   `build/play-store/<app>/` and `build/QuickBites-PlayStore-graphics.zip` (gitignored).
@@ -294,7 +296,11 @@ fails inside React Native/libraries, an Expo SDK upgrade (and a new Android rele
 the two newest plans `docs/plans/menu-ai-maps-money-2026-10-01.md` and
 `docs/plans/cod-menus-payouts-playstore-2026-10-02.md`.
 
-**Historical (true when written, not updated since — do not treat as current):** `PRD.md`,
+`SESSION_COORDINATION.md`, `FOUR-APP-FLOWS.md` and `CONNECTION-MAP.md` carry a dated
+"what changed since" note at the top; the body below it is from late September.
+
+**Historical (true when written, not updated since — do not treat as current; each one carries a
+"HISTORICAL" banner at the top since 6 Oct):** `PRD.md`,
 `TAD.md`, `APP_FLOW.md`, `DATABASE_SPEC.md`, `FRONTEND_SPEC.md`, `IMPLEMENTATION_PLAN.md`,
 `MENTAL_MODEL.md`, `FEATURE_TICKETS.md`, `FEATURES_PLAN.md`, `MASTER_FIX_PLAN.md`,
 `REBUILD_PLAN.md`, `SCALE_PLAN.md`, `PAYMENTS_PLAN.md`, `OWNER_SETUP.md`,

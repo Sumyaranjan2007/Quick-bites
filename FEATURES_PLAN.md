@@ -1,5 +1,7 @@
 # Quick Bites — Restaurant identity, notifications and the experience gaps: the complete plan
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Version:** 1.0.0
 **Date:** 22 September 2026
 **Status:** AWAITING OWNER APPROVAL — no code written against this yet

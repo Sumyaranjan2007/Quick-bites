@@ -1,5 +1,7 @@
 # Platform inventory: every planned feature, one verdict each (brain-sync §4C)
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Draft by C, 25 Sep, for B to challenge.** Four phone apps plus the server;
 admin-web and restaurant-web are out of scope (owner). Base:
 `claude/nice-lamport-vxf4yf` with `main` merged in.

@@ -138,6 +138,9 @@ spacing:
   gutter-desktop: 1.5rem
 ---
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
+
 ## Brand & Style
 
 This design system delivers an energetic, culinary-driven, high-conversion hyperlocal food ordering experience. The aesthetic balances intense visual appetite stimulation with editorial clarity, avoiding clutter while accommodating dense transactional flows.

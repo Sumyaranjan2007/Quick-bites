@@ -1,5 +1,7 @@
 # Chunk 02: Core Backend API & Middleware Stack
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Build the foundational Express server, global middleware pipeline (security headers, CORS, rate limiting, correlation IDs, Zod validation buffer, global error handling), and `/health` probe.  
 **Estimated Time:** 60 minutes  
 **Dependencies:** Chunk 01  

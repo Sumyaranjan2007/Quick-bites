@@ -7,11 +7,14 @@ done by a human in Play Console / App Store Connect.
 **iOS:** configured but never compiled — this machine has no Xcode. See the iOS
 section at the end.
 
-> **Current status (5 Oct 2026) — read this before the sections below, which
+> **Current status (6 Oct 2026) — read this before the sections below, which
 > date from 21 Sep.**
 >
-> - **Last release:** versionCode 20, version 1.4.0. `bash scripts/build-apks.sh --aab`
->   builds bundles for Customer, Partner and Rider into `build/aab/`. **Admin is
+> - **Last release:** 6 Oct, version 1.4.0 — Customer and Rider versionCode 21,
+>   Partner 22, Admin 23 (APKs only). The newest Play bundles (AABs) are still the
+>   versionCode 20 ones from 4 Oct; build fresh ones before uploading.
+>   `bash scripts/build-apks.sh --aab` builds bundles for Customer, Partner and
+>   Rider into `build/aab/`. **Admin is
 >   private** and never goes to Play.
 > - **Listing text:** `docs/play-store/listings.md` (names, short and full
 >   descriptions within Play's limits, categories, every Console answer, the
@@ -28,7 +31,10 @@ section at the end.
 >   PEPK tool ("use existing app signing key") so Play updates match the
 >   sideloaded apps; waiting for the Console's encryption public key.
 > - **Blocking:** real SMS codes — MSG91 is wired, the DLT template link is
->   pending (`OWNER_ACTIONS.md` Part 0 A).
+>   pending (`OWNER_ACTIONS.md` Part 0 A). Until then a private shared test code
+>   can be switched on (`OWNER_ACTIONS.md` Part 0 J).
+> - **iPhone (customer app only):** full guide in `docs/app-store/IOS.md`; the
+>   build must run on a Mac or in Expo's cloud (EAS).
 > - Step-by-step launch guide with the Data safety table and the good-standing
 >   checklist: https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs
 

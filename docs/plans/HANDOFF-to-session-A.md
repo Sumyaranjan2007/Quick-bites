@@ -1,5 +1,7 @@
 # Handoff to Session A (session1): everything Session C built, and what the owner asks next
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 > **FINAL, 25 Sep, from the owner via Session C:**
 > - **Everything is merged to `main`:** Session C's whole branch, including the work that was
 >   already on `main` from you and the builder.

@@ -1,5 +1,7 @@
 # Deep audit (25 Sep 2026): money leaks, loopholes and unconnected features
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 Written by **Session C** (the "Quick Bite" cloud session, watcher and helper) at
 the owner's request. **Plan only, nothing is built here.** It is a companion to
 `full-audit-2026-09-24.md` (Session B's plan, W1–W8), not a replacement for it.

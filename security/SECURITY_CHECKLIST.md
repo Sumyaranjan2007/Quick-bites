@@ -1,5 +1,7 @@
 # Quick Bite Platform -- Security Audit Verification Checklist (SECURITY_CHECKLIST)
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Version:** 1.0.0  
 **Audit Date:** September 6, 2026  
 **Status:** COMPLETED & VERIFIED (85/85 Controls Passed)  

@@ -1,5 +1,7 @@
 # Chunk 07: Core Application Portals (Customer, Partner, Admin)
 
+> **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
+
 **Goal:** Build the primary screens and components across all three portals, enforcing the 4-state UI rule (Loading skeleton, Success, Error with retry, Empty with CTA) and form persistence.  
 **Estimated Time:** 120 minutes  
 **Dependencies:** Chunk 04, Chunk 06  
