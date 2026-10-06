@@ -6,6 +6,28 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-06] -- Claude Opus 5.5 -- Test sign-in code made safe for live; review clean-up
+
+> **For the owner.** You can use one shared test code for sign-in until MSG91 delivers, and
+> switch back afterwards — every step is in `OWNER_ACTIONS.md` Part 0 J. The server now
+> refuses an obvious code, so test mode on live cannot fall back to 123456.
+
+- **`059cfb5`** With `OTP_PROVIDER=fixed` allowed in production, one code signs in to every
+  number; an unset `OTP_FIXED_CODE` silently defaulted to `123456`. Production now refuses the
+  tester phase unless the code is set on purpose, six digits, not a repeat or a run
+  (`isPrivateCode`). 4 checks; while writing them, the "obvious codes" check first ran its
+  four cases in parallel against one shared setting — it would have passed with `000000`
+  accepted. Serialised; it then caught exactly that.
+- **Review.** All 83 suites, `npm run verify`, the clean-install rehearsal of the Docker web
+  stage, and the secret and control-character scans pass. `packages/design-system` reduced
+  to the web shell: its components, tokens, CSS, locales and their test only served the
+  deleted web apps (`lucide-react`, `@types/react-dom` left the lockfile; the i18n check's
+  section for those locales removed). `npm audit` across all workspaces: 60 findings, all in
+  Expo/Metro/Jest build tooling (not in the APKs' runtime or the server, which audits clean);
+  clearing them needs an Expo SDK upgrade — recommended as its own project.
+
+---
+
 ## [2026-10-06] -- Claude Opus 5.5 -- Each order as its own invoice; old web apps removed; expired sign-ins
 
 > **For the owner.** Restaurants (and admins, for any restaurant) can download every order as

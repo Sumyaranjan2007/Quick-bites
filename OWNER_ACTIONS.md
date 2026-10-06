@@ -43,9 +43,8 @@ server are working; this is paperwork.
    the number and the status should become **Delivered**.
 
 Until this is done nobody can sign in by phone except the reviewer number. If
-real people need to sign in before approval, temporarily set
-`OTP_PROVIDER=fixed` and `OTP_ALLOW_FIXED_IN_PRODUCTION=true` (everyone then uses
-one shared code) and switch back the day DLT is approved.
+real people need to sign in before approval, switch to a private shared test code
+and back again the day DLT is approved — step by step in **J** below.
 
 ### B. Google Play account
 
@@ -141,6 +140,34 @@ section 9(5)). **Your business has no GSTIN yet.** Collecting GST without being 
 not allowed. Ask a CA (Chartered Accountant) this week: whether to register now, and until then
 whether the app should stop adding GST. Changing what customers are charged is your decision;
 nothing in the app was changed.
+
+### J. Sign-in codes: use a test code until MSG91 delivers, then switch back
+
+**Turn the test code ON** (everyone signs in with one code you choose; no SMS is sent):
+
+1. Railway → project **endearing-ambition** → backend → **Variables**.
+2. Change `OTP_PROVIDER` from `msg91` to `fixed`. Leave `MSG91_AUTH_KEY` and
+   `MSG91_TEMPLATE_ID` exactly as they are — you need them again later.
+3. Add `OTP_ALLOW_FIXED_IN_PRODUCTION` = `true`.
+4. Add `OTP_FIXED_CODE` = **six digits of your own**. The server refuses 123456, 000000,
+   111111, 987654 and any other repeat or run, and refuses to start test mode if this is
+   missing. Never put the code in a chat, a document or the repository; tell testers in person.
+5. Click **Deploy**. Check on a phone: enter a number, tap **Send Code** — the app says
+   *"This test build does not send SMS. Enter the verification code you were given."*, and
+   your code signs in. If it says *"Sign-in is unavailable: set OTP_FIXED_CODE…"*, pick a
+   less obvious code.
+
+While this is on, **anyone who knows the code can sign in as any customer** (partners, riders
+and admins are not affected — they use email and password). Keep the code private and the
+period short. The Google/Apple reviewer number keeps working with its own code.
+
+**Switch back to MSG91** (once the DLT template is approved — see A above):
+
+1. In MSG91 → OTP → Templates → QUICK_BITES, the **DLT Template ID** is filled in.
+2. Railway → Variables: set `OTP_PROVIDER` back to `msg91`; **delete** `OTP_FIXED_CODE` and
+   `OTP_ALLOW_FIXED_IN_PRODUCTION`; make sure `OTP_TTL_MINUTES` = `10`. Click **Deploy**.
+3. Test with your own number: a real SMS arrives, and MSG91's log shows **Delivered**.
+4. If no SMS arrives, nothing is lost: repeat "Turn the test code ON" while you fix it.
 
 ### I. One decision: how long people stay signed in
 
