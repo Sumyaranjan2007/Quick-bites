@@ -95,6 +95,13 @@ export interface RequestOutcome {
   configurationError?: string;
 }
 
+/** Six digits, set on purpose, and not a repeat or a run like 111111, 123456 or 987654. */
+export function isPrivateCode(code: string, setOnPurpose: boolean): boolean {
+  if (!setOnPurpose || !/^\d{6}$/.test(code)) return false;
+  if (/^(\d)\1{5}$/.test(code)) return false;
+  return !'01234567890'.includes(code) && !'09876543210'.includes(code);
+}
+
 export const otpService = {
   /**
    * Is this deployment allowed to issue codes at all?
@@ -110,6 +117,12 @@ export const otpService = {
     }
     if (config.OTP_FIXED_CODE.length < 4 && driver.name === 'fixed') {
       return 'Sign-in is unavailable: the configured verification code is too short.';
+    }
+    // In production one shared code signs in to EVERY phone number, so it must
+    // be one only testers know: set on purpose, six digits, and not an obvious
+    // sequence. The 123456 default would hand any customer's account to anyone.
+    if (driver.name === 'fixed' && config.IS_PRODUCTION && !isPrivateCode(config.OTP_FIXED_CODE, config.OTP_FIXED_CODE_SET)) {
+      return 'Sign-in is unavailable: set OTP_FIXED_CODE to six digits of your own (not 123456 or similar).';
     }
     return null;
   },

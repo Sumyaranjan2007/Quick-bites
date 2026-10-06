@@ -189,14 +189,34 @@ async function run() {
     `status ${inProduction.status}`
   );
 
+  // The tester phase on live: one shared code signs in to every number, so it
+  // must be a private one — never the 123456 default or an obvious sequence.
+  const realCode = (config as any).OTP_FIXED_CODE;
+  const realCodeSet = (config as any).OTP_FIXED_CODE_SET;
   (config as any).OTP_ALLOW_FIXED_IN_PRODUCTION = true;
-  const allowed = await api('/auth/otp/request', { method: 'POST', body: { phone: '9876500001' } });
+  const attempt = async (code: string, setOnPurpose: boolean) => {
+    resetAuthRateLimit();
+    (config as any).OTP_FIXED_CODE = code;
+    (config as any).OTP_FIXED_CODE_SET = setOnPurpose;
+    return (await api('/auth/otp/request', { method: 'POST', body: { phone: '9876500001' } })).status;
+  };
+  const unset = await attempt('123456', false);
+  // One at a time: each attempt sets the shared config, so in parallel they would all test the last one.
+  const obvious: number[] = [];
+  for (const c of ['123456', '000000', '987654', '345678']) obvious.push(await attempt(c, true));
+  const tooShort = await attempt('4821', true);
+  const privateCode = await attempt('406281', true);
+  check('Production refuses the tester phase when OTP_FIXED_CODE was never set (the 123456 default)', unset === 503, `status ${unset}`);
+  check('...and an obvious code (123456, 000000, 987654, 345678)', obvious.every(s => s === 503), `statuses ${obvious}`);
+  check('...and one that is not six digits', tooShort === 503, `status ${tooShort}`);
   check(
-    'and permits them only when the tester-phase variable is set deliberately',
-    allowed.status === 200,
-    `status ${allowed.status}`
+    'and permits it only with the tester-phase variable AND a private six-digit code',
+    privateCode === 200,
+    `status ${privateCode}`
   );
 
+  (config as any).OTP_FIXED_CODE = realCode;
+  (config as any).OTP_FIXED_CODE_SET = realCodeSet;
   (config as any).IS_PRODUCTION = realIsProduction;
   (config as any).OTP_ALLOW_FIXED_IN_PRODUCTION = realAllow;
 
