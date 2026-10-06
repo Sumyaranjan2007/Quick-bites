@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 5 October 2026 · **Last release:** versionCode 20 (1.4.0), built 4 Oct from `1a6a304` · **Live:** `9d09323` and later on `main`
+**Last updated:** 6 October 2026 · **Last release:** versionCode 21–23 (1.4.0), built 6 Oct · **Live:** `9d09323` and later on `main`
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -196,8 +196,11 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
 - "Make APK" from the owner triggers **only** the build; all agreed work is finished first.
 - Release history: v8 (25 Sep) → v9, v11 (26 Sep, QA rounds) → v12 (1 Oct, menu builder /
   AI menu / per-km) → admin v16 → v17, v18 (2 Oct, COD per restaurant, Play pages, QA v17)
-  → **v20 (4 Oct, 1.4.0; 4 APKs + 3 AABs)**. versionCode 19 was consumed by a failed admin
-  build and skipped.
+  → v20 (4 Oct, 1.4.0; 4 APKs + 3 AABs) → **6 Oct: Customer and Rider v21, Partner v22,
+  Admin v23** (invoices, websites' shared fixes, expired-sign-in handling; archived in
+  `quick-bites-release-archive/v21-22-23-2026-10-06`; no new AABs). versionCode 19 was consumed
+  by a failed admin build and skipped. Builds before 6 Oct run through `D:\qb` skipped the
+  release guards silently (fixed in `c05d582`).
 - **Play App Signing:** upload the existing keys via Google's **PEPK** tool so store
   updates match the sideloaded copies. Waiting for the Play Console encryption public key.
 

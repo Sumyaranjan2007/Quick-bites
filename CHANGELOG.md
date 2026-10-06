@@ -36,6 +36,17 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 Gate 83/83, `npm run verify` green.
 
+**Release (same day).** First build took no versionCode: `releaseGuards.mjs` compared the
+`D:\qb` link path with its real path, so through the link every guard command was a silent
+no-op — no versionCode, and the signing and APK checks "passed" without running. Fixed
+(`c05d582`, real paths; the script now stops on an empty answer). Customer and Rider **v21**,
+Partner **v22** and Admin **v23** (the last two add a one-time hint before Android's folder
+picker, which refuses the Download folder itself). All verified: one signer, the certificate
+on the phones, package and versionCode; no secrets in any bundle. **Tested on the emulator
+(Android 15):** Partner v21 signed in to the QA server, downloaded the all-orders PDF and the
+per-order ZIP into `Download/QuickBites`; both files pulled back and validated (the ZIP opens
+cleanly: summary + one invoice per order). v22 shows the hint before the picker.
+
 ---
 
 ## [2026-10-06] -- Claude Opus 5.5 -- Partner and Admin websites, restaurant invoices, fixes
