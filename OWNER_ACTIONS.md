@@ -117,6 +117,20 @@ checklist and every App Store Connect answer are in **`docs/app-store/IOS.md`**.
 
 **Never start an EAS build for Android** — it would sign the app with a different key.
 
+### G. Partner and Admin websites, and restaurant invoices (6 October 2026)
+
+Nothing to buy or set up. After this is deployed:
+
+- Restaurants can use **https://quick-bites-production.up.railway.app/partner** on a computer
+  or tablet, and you can use **…/admin**. They are the same apps as on the phones, signed in
+  with the same email and password, in the new "Glass Kitchen" look.
+- Restaurants download invoices from **Money → Statement → Download invoice (PDF)** (choose a
+  period) or open any order there and tap **Download this order's invoice**. You can download
+  any restaurant's from **Money → Pay → Owed → Statement**. Phones need the next APK build
+  (ask for "make APK" when ready); the websites have it as soon as it is deployed.
+- **One decision:** the old separate web consoles (`apps/admin-web`, `apps/restaurant-web`) are
+  no longer used and are out of date. Say "delete the old web apps" and they will be removed.
+
 ---
 
 ## Old Part 0 — the 20 September build (done; kept for reference)

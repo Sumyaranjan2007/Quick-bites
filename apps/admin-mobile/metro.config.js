@@ -30,7 +30,9 @@ config.resolver.nodeModulesPaths = [
 // `expo start --web`, which serves its bundle from a path the dev server does
 // not expose. Pinning only while bundling satisfies both — the dev server keeps
 // the monorepo-wide root, and the release build gets an entry it can find.
-if (process.argv.some(arg => arg === 'export:embed' || arg === 'export')) {
+// Only for the native release bundle: the web export (`expo export --platform web`)
+// resolves its entry from the monorepo root and breaks if this is pinned.
+if (process.argv.includes('export:embed')) {
   config.server = { ...config.server, unstable_serverRoot: projectRoot };
 }
 

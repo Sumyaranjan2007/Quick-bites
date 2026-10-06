@@ -157,6 +157,13 @@
       "../../packages/config/expo-plugins/withLocalDevCleartext",
       "../../packages/config/expo-plugins/withLegacyBackGesture",
       "../../packages/config/expo-plugins/withExternalAppQueries"
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/admin"
+    },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "bundler": "metro"
+    }
   }
 }

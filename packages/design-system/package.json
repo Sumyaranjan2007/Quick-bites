@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens.css": "./src/styles/tokens.css",
-    "./components.css": "./src/styles/components.css"
+    "./components.css": "./src/styles/components.css",
+    "./src/web/glassShell": "./src/web/glassShell.ts"
   },
   "scripts": {
     "build": "tsc",

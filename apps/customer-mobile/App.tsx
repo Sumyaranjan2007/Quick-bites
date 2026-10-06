@@ -371,6 +371,7 @@ function AppRoot() {
       case 'orders':
       case 'support':
       case 'addresses':
+      case 'membership':
         setCurrentScreen('profile');
         return true;
       default:

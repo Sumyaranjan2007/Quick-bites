@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -653,7 +653,12 @@ export const Sparkline: React.FC<{
   height?: number;
   width: number;
   color?: string;
-}> = ({ points, labels, height = 120, width, color = tokens.colors.chart.line }) => {
+}> = ({ points, labels, height = 120, width: estimate, color = tokens.colors.chart.line }) => {
+  // Its own width, measured once laid out. The caller's estimate comes from the
+  // window, which is wider than the content on a tablet and in the /admin web
+  // console, where the chart then ran off the edge of its card.
+  const [measured, setMeasured] = useState<number | null>(null);
+  const width = measured ?? estimate;
   if (!points.length) return null;
 
   const padding = { top: 12, bottom: 18, left: 4, right: 4 };
@@ -675,6 +680,7 @@ export const Sparkline: React.FC<{
   )} L${coords[0].x.toFixed(1)},${(padding.top + chartHeight).toFixed(1)} Z`;
 
   return (
+    <View onLayout={e => setMeasured(Math.round(e.nativeEvent.layout.width))}>
     <Svg width={width} height={height}>
       <Defs>
         <LinearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
@@ -703,6 +709,7 @@ export const Sparkline: React.FC<{
       <Path d={line} stroke={color} strokeWidth={2.2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
       <Circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r={3.5} fill={color} />
     </Svg>
+    </View>
   );
 };
 

@@ -11,11 +11,13 @@
     "ios": "expo run:ios"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~4.0.1",
     "@quick-bites/design-system": "*",
     "@quick-bites/pricing-engine": "*",
     "@quick-bites/shared-types": "*",
     "@react-native-async-storage/async-storage": "^1.23.1",
     "expo": "~52.0.0",
+    "expo-build-properties": "~0.13.3",
     "expo-constants": "~17.0.8",
     "expo-file-system": "~18.0.12",
     "expo-image-manipulator": "~13.0.6",
@@ -24,9 +26,11 @@
     "expo-notifications": "~0.29.14",
     "lucide-react-native": "^0.441.0",
     "react": "18.3.1",
+    "react-dom": "18.3.1",
     "react-native": "0.76.9",
     "react-native-safe-area-context": "^4.12.0",
     "react-native-svg": "15.8.0",
+    "react-native-web": "~0.19.13",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ import { Sheet, Card, KeyValue, Divider, Loading, EmptyState } from './ui';
 import { tokens, formatMoney, formatDateTime, humanise } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { DownloadButton } from './DownloadButton';
 
 const c = tokens.colors;
 
@@ -45,6 +46,15 @@ export const StatementSheet: React.FC<{ owner: StatementOwner | null; onClose: (
             <KeyValue label="Payable now" value={formatMoney(st.summary.payable, true)} tone="strong" />
             <KeyValue label={`Held (${st.holdDays} day hold)`} value={formatMoney(st.summary.held, true)} />
             <KeyValue label="Outstanding in total" value={formatMoney(st.summary.outstanding, true)} tone="money" />
+            {/* The same PDF the partner downloads from their own app: every order in
+                the last 30 days with dishes, deductions and a summary. */}
+            <DownloadButton
+              source={`${api.baseUrl}/admin/payouts/statement/${owner?.ownerType}/${owner?.ownerId}/pdf`}
+              headers={{ Authorization: `Bearer ${api.token}` }}
+              name={`QuickBites-earnings-${owner?.ownerName || owner?.ownerId}`.replace(/[^\w.-]+/g, '-')}
+              label="Download invoice (PDF)"
+              full
+            />
           </Card>
 
           {(st.payouts || []).length > 0 ? (

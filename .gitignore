@@ -40,3 +40,6 @@ build/screenshots/
 # strict sense - but this repository is public and keys do not belong in it.
 # Recreate from the Firebase console: Project settings > your Android apps.
 apps/*/google-services.json
+
+# Partner and Admin websites, built by scripts/build-web.mjs (the Dockerfile builds them on deploy)
+apps/backend-api/web/

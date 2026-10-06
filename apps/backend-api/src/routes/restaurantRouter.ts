@@ -63,6 +63,30 @@ import { notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
 export const restaurantRouter = Router();
 
 /**
+ * What anyone may see of a restaurant, signed in or not.
+ *
+ * GET / and GET /:id need no account (iPhone customers browse before signing
+ * in), and they used to return the whole record: the owner's phone number and
+ * user id, the commission the platform charges, the partner's own packaging
+ * declaration and verification status. An ALLOW-list, so a private field added
+ * to the record later stays private by default. Partners and admins read their
+ * full record from their own authenticated routes.
+ */
+const PUBLIC_RESTAURANT_FIELDS = [
+  'id', 'name', 'slug', 'description', 'addressLine', 'city', 'pincode', 'coordinates',
+  'fssaiLicenseNumber', 'isPureVeg', 'acceptsCash', 'packagingFee', 'ratingAverage',
+  'ratingCount', 'cuisineTags', 'bannerUrl', 'galleryUrls', 'costForTwo', 'highlightTag',
+  'serviceRadiusKm', 'isOpen', 'openingHours', 'forceOpenUntil', 'kitchenStatusChangedAt',
+  // Worked out per request for the feed.
+  'distanceKm', 'isWithinServiceArea', 'locationPending', 'estimatedDeliveryMinutes',
+  'offer', 'photos', 'photoSource', 'placeholder', 'isServing', 'opensAt'
+] as const;
+
+export function publicRestaurant(r: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(PUBLIC_RESTAURANT_FIELDS.filter(k => k in r).map(k => [k, r[k]]));
+}
+
+/**
  * GET /api/restaurants — the discovery feed, filtered and sorted.
  *
  * Every filter is applied here rather than in the app. The feed can run to
@@ -314,7 +338,7 @@ restaurantRouter.get('/', async (req, res) => {
     return res.json({
       success: true,
       data: {
-        restaurants: annotated,
+        restaurants: annotated.map(publicRestaurant),
         /*
          * The home screen's hero banner, or null.
          *
@@ -389,7 +413,7 @@ restaurantRouter.get('/:id', async (req, res) => {
       await menuRepository.findByRestaurantId(restaurant.id),
       restaurant.id
     );
-    return res.json({ success: true, data: { restaurant, menu } });
+    return res.json({ success: true, data: { restaurant: publicRestaurant(restaurant), menu } });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }

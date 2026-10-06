@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, Alert } from 'react-native';
 import { c } from '../theme';
 import { Card, SectionHeading, Pill, Button, EmptyState, ErrorNote } from '../components/ui';
 import {
@@ -11,6 +11,7 @@ import {
   type PolicySummaryView,
   type PolicyView
 } from '../lib/partnerApi';
+import { downloadInvoice } from '../lib/invoice';
 
 /**
  * What this kitchen earned, order by order, and when it arrives.
@@ -61,8 +62,80 @@ const when = (iso: string) => {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
+/** Runs a download and says how it went, in the same words on the phone and the web. */
+async function saveInvoice(range: { from?: string; to?: string; orderId?: string }, setBusy: (b: boolean) => void) {
+  setBusy(true);
+  try {
+    Alert.alert('Invoice saved', await downloadInvoice(range));
+  } catch (err: any) {
+    Alert.alert('Invoice not saved', err?.message || 'Try again in a moment.');
+  } finally {
+    setBusy(false);
+  }
+}
+
+/** The periods a whole-statement invoice can cover, worked out in the phone's own time. */
+const PERIODS: Array<{ key: string; label: string; range: () => { from: string; to?: string } }> = [
+  { key: '30d', label: 'Last 30 days', range: () => ({ from: new Date(Date.now() - 30 * 86_400_000).toISOString() }) },
+  {
+    key: 'month',
+    label: 'This month',
+    range: () => {
+      const now = new Date();
+      return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString() };
+    }
+  },
+  {
+    key: 'last',
+    label: 'Last month',
+    range: () => {
+      const now = new Date();
+      return {
+        from: new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString(),
+        to: new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      };
+    }
+  },
+  { key: 'all', label: 'All orders', range: () => ({ from: new Date(0).toISOString() }) }
+];
+
+const InvoiceCard: React.FC = () => {
+  const [period, setPeriod] = useState('30d');
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card style={s.topCard}>
+      <Text style={s.invoiceTitle}>Download your invoice</Text>
+      <Text style={s.invoiceBody}>
+        A PDF of every delivered order in the period, each with its dishes at your prices, our commission and
+        tax withheld, and a summary of what you earned and were paid.
+      </Text>
+      <View style={s.periodRow}>
+        {PERIODS.map(p => (
+          <TouchableOpacity
+            key={p.key}
+            style={[s.periodChip, period === p.key && s.periodChipOn]}
+            onPress={() => setPeriod(p.key)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: period === p.key }}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.periodText, period === p.key && s.periodTextOn]}>{p.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Button
+        label="Download invoice (PDF)"
+        busy={busy}
+        disabled={busy}
+        onPress={() => void saveInvoice(PERIODS.find(p => p.key === period)!.range(), setBusy)}
+      />
+    </Card>
+  );
+};
+
 const OrderRow: React.FC<{ order: OrderStatementView }> = ({ order }) => {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   return (
     <Card style={s.orderCard}>
@@ -104,6 +177,15 @@ const OrderRow: React.FC<{ order: OrderStatementView }> = ({ order }) => {
             <Text style={s.lineTotalLabel}>You earned</Text>
             <Text style={s.lineTotalValue}>{signedRupees(order.net)}</Text>
           </View>
+
+          <Button
+            label="Download this order's invoice"
+            variant="ghost"
+            busy={busy}
+            disabled={busy}
+            onPress={() => void saveInvoice({ orderId: order.orderId }, setBusy)}
+            style={s.orderInvoice}
+          />
 
           {order.unexplainedPaise !== 0 && (
             /*
@@ -219,6 +301,8 @@ export const EarningsStatementScreen: React.FC = () => {
             <Text style={s.promise}>{data.payoutPromise.arrival}</Text>
             <Text style={s.reassure}>{data.payoutPromise.noRequestNeeded}</Text>
           </Card>
+
+          <InvoiceCard />
 
           <SectionHeading
             title="Order by order"
@@ -359,6 +443,22 @@ const s = StyleSheet.create({
   centreText: { color: c.textMuted, fontSize: 14 },
 
   topCard: { marginBottom: 16 },
+  invoiceTitle: { fontSize: 16, fontWeight: '800', color: c.text },
+  invoiceBody: { fontSize: 13, color: c.textSoft, lineHeight: 19, marginTop: 4 },
+  periodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 14 },
+  periodChip: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface
+  },
+  periodChipOn: { backgroundColor: c.brand, borderColor: c.brand },
+  periodText: { fontSize: 13, fontWeight: '700', color: c.textSoft },
+  periodTextOn: { color: '#FFFFFF' },
+  orderInvoice: { marginTop: 12 },
   topLabel: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
   topValue: { color: c.text, fontSize: 34, fontWeight: '800', marginTop: 4 },
   topSub: { color: c.textMuted, fontSize: 12, lineHeight: 17, marginTop: 8 },

@@ -10,12 +10,14 @@ import { saveDocument } from '../lib/download';
  * Photos go straight to the gallery (a "Quick Bites" album); anything else
  * asks for a folder once.
  */
-export const DownloadButton: React.FC<{ source?: string | null; name: string; label?: string; full?: boolean }> = ({
-  source,
-  name,
-  label = 'Download',
-  full
-}) => {
+export const DownloadButton: React.FC<{
+  source?: string | null;
+  name: string;
+  label?: string;
+  full?: boolean;
+  /** For a file that needs the admin's sign-in, such as a statement PDF. */
+  headers?: Record<string, string>;
+}> = ({ source, name, label = 'Download', full, headers }) => {
   const [busy, setBusy] = useState(false);
   if (!source) return null;
   return (
@@ -29,7 +31,7 @@ export const DownloadButton: React.FC<{ source?: string | null; name: string; la
       onPress={async () => {
         setBusy(true);
         try {
-          const saved = await saveDocument(source, name);
+          const saved = await saveDocument(source, name, headers);
           Alert.alert('Saved', saved);
         } catch (err: any) {
           Alert.alert('Not saved', err?.message || 'The file could not be saved.');

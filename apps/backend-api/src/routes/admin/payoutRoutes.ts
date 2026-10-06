@@ -74,6 +74,7 @@ import {
   requestView
 } from '../../modules/payments/payoutRequests.ts';
 import { statementFor, statementView } from '../../modules/payments/statements.ts';
+import { sendStatementPdf } from '../../modules/payments/statementPdf.ts';
 import { toPaise, toRupees, formatPaise } from '../../modules/payments/money.ts';
 import type { PayeeOwnerType, PayoutRailId } from '@quick-bites/shared-types';
 import { revealAccountNumber } from '../../modules/payments/payeeAccountNumbers.ts';
@@ -452,6 +453,38 @@ payoutRoutes.post(
  * partner has to take on trust, and a partner who cannot check their own
  * settlement eventually stops believing any of them.
  */
+/**
+ * GET /api/admin/payouts/statement/:ownerType/:ownerId/pdf
+ *
+ * The payee's own downloadable statement (or one order's invoice with
+ * ?orderId=), built by the same function as theirs, so an admin and a partner
+ * holding the same PDF are holding the same numbers.
+ */
+payoutRoutes.get(
+  '/payouts/statement/:ownerType/:ownerId/pdf',
+  requirePermission('finance.payouts.view', 'finance.settlements.view'),
+  async (req, res, next) => {
+    try {
+      const ownerType = req.params.ownerType.toUpperCase() as PayeeOwnerType;
+      if (ownerType !== 'RESTAURANT' && ownerType !== 'RIDER') {
+        throw new AppError('A payee is a restaurant or a rider.', 400, 'BAD_OWNER_TYPE');
+      }
+      const ownerName =
+        ownerType === 'RIDER'
+          ? (await riderRepository.findById(req.params.ownerId))?.fullName || req.params.ownerId
+          : (await restaurantRepository.findById(req.params.ownerId))?.name || req.params.ownerId;
+      const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 80) : undefined);
+      await sendStatementPdf(res, ownerType, req.params.ownerId, ownerName, {
+        from: text(req.query.from),
+        to: text(req.query.to),
+        orderId: text(req.query.orderId)
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 payoutRoutes.get(
   '/payouts/statement/:ownerType/:ownerId',
   requirePermission('finance.payouts.view', 'finance.settlements.view'),

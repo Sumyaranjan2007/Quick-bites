@@ -15,9 +15,10 @@ const bill1 = calculateOrderPricing({
 
 if (bill1.itemsTotal !== 450.00) throw new Error('Items total mismatch: ' + bill1.itemsTotal);
 if (bill1.gstAmount !== 22.50) throw new Error('GST mismatch: ' + bill1.gstAmount);
-// Owner, 1 Oct 2026: delivery = rider pay (4.5 road km x Rs 10 = 45) + markup (0% by default).
-if (bill1.riderPay !== 45) throw new Error('Rider pay mismatch: ' + bill1.riderPay);
-if (bill1.deliveryFee !== 45.00) throw new Error('Delivery fee mismatch: ' + bill1.deliveryFee);
+// Owner, 2 Oct 2026: delivery = rider pay (4.5 road km x Rs 12 = 54) + markup (0% by default).
+// It said Rs 10 = 45 until the default moved to Rs 12, and failed from then on.
+if (bill1.riderPay !== 54) throw new Error('Rider pay mismatch: ' + bill1.riderPay);
+if (bill1.deliveryFee !== 54.00) throw new Error('Delivery fee mismatch: ' + bill1.deliveryFee);
 console.log('[PASS] Test 1: Standard Order Pricing');
 
 // Test 2: Gold takes a PERCENTAGE off delivery (3cbe959), not free delivery.

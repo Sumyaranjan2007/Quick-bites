@@ -281,6 +281,70 @@ try {
     for (const row of statement.orders) assert.equal(row.unexplained, 0, `order ${row.orderNumber} unexplained`);
   });
 
+  // -------------------------------------------------------------------
+  console.log('\n-- The downloadable invoice (PDF)');
+  const pdf = async (path: string, token?: string) => {
+    const res = await fetch(`${API}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(15000)
+    });
+    const bytes = Buffer.from(await res.arrayBuffer());
+    return { status: res.status, type: res.headers.get('content-type') || '', name: res.headers.get('content-disposition') || '', text: bytes.toString('latin1') };
+  };
+  const money = (rupees: number) => `Rs ${rupees.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  /** Every xref offset points at its object, and startxref at the table: a reader can open it. */
+  const wellFormed = (text: string) => {
+    const start = Number(/startxref\n(\d+)/.exec(text)?.[1]);
+    if (text.slice(start, start + 4) !== 'xref') return false;
+    const offsets = [...text.slice(start).matchAll(/^(\d{10}) 00000 n $/gm)].map(m => Number(m[1]));
+    return offsets.length > 3 && offsets.every((o, i) => text.slice(o).startsWith(`${i + 1} 0 obj`));
+  };
+
+  const period = await pdf('/earnings/statement.pdf', partner.token);
+  it('The partner downloads the period invoice as a real PDF', () => {
+    assert.equal(period.status, 200, period.text.slice(0, 200));
+    assert.match(period.type, /application\/pdf/);
+    assert.match(period.name, /attachment; filename="QuickBites-earnings-\d{8}-to-\d{8}\.pdf"/);
+    assert.ok(period.text.startsWith('%PDF-1.4') && period.text.trimEnd().endsWith('%%EOF'));
+    assert.ok(wellFormed(period.text), 'xref offsets do not match the objects');
+  });
+  it('...listing both orders, the dish at the KITCHEN price, never the customer price', () => {
+    for (const o of [stored, secondOrder]) assert.ok(period.text.includes(`#${o.orderNumber}`), `missing ${o.orderNumber}`);
+    assert.ok(period.text.includes(`2 x `), 'no dish line');
+    assert.ok(period.text.includes(money(partnerFood)), `no ${money(partnerFood)}`);
+    assert.equal(period.text.includes(money(round2(partnerFood * (1 + MARKUP / 100)))), false, 'customer price leaked');
+  });
+  it('...and a summary that is the sum of the orders on the statement screen', () => {
+    const net = round2(statement.orders.reduce((t: number, o: any) => t + o.net, 0) + statement.summary.adjustments);
+    assert.ok(period.text.includes(money(net)), `summary ${money(net)} not printed`);
+    assert.ok(period.text.includes(money(statement.summary.outstanding)), 'outstanding not printed');
+  });
+
+  const one = await pdf(`/earnings/statement.pdf?orderId=${stored.id}`, partner.token);
+  it('One order downloads as its own invoice, and only that order', () => {
+    assert.equal(one.status, 200);
+    assert.ok(one.name.includes(`QuickBites-invoice-${stored.orderNumber}.pdf`), one.name);
+    assert.ok(one.text.includes(`#${stored.orderNumber}`));
+    assert.equal(one.text.includes(`#${secondOrder.orderNumber}`), false);
+    assert.ok(wellFormed(one.text));
+  });
+  const pdfAsCustomer = await pdf('/earnings/statement.pdf', customer.token);
+  const signedOut = await pdf('/earnings/statement.pdf');
+  const notTheirs = await pdf('/earnings/statement.pdf?orderId=ord_somebody_else', partner.token);
+  it('Nobody else gets it: a customer, and no sign-in at all', () => {
+    assert.notEqual(pdfAsCustomer.status, 200);
+    assert.equal(signedOut.status, 401);
+  });
+  it("An order that is not this kitchen's is not found", () => {
+    assert.equal(notTheirs.status, 404);
+  });
+  const fromAdmin = await pdf(`/admin/payouts/statement/RESTAURANT/${RESTAURANT_ID}/pdf`, admin.token);
+  it("An admin downloads the same restaurant's invoice with the same figures", () => {
+    assert.equal(fromAdmin.status, 200, fromAdmin.text.slice(0, 200));
+    assert.ok(fromAdmin.text.includes(money(statement.summary.outstanding)));
+    assert.ok(fromAdmin.text.includes(`#${stored.orderNumber}`));
+  });
+
   const dashboard = (await api(`/restaurants/${RESTAURANT_ID}/dashboard`, {}, partner.token)).json?.data?.dashboard;
   it('The partner dashboard reports kitchen-price sales, not the customer bill', () => {
     const expected = round2(partnerFood + partnerPackaging + DISH_PRICE + partnerPackaging);

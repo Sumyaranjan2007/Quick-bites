@@ -6,6 +6,53 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-06] -- Claude Opus 5.5 -- Partner and Admin websites, restaurant invoices, fixes
+
+> **For the owner.** Restaurants can now use the Partner app in a web browser at
+> `/partner`, and you can use the Admin app at `/admin` — the same apps, every feature,
+> with the new "Glass Kitchen" look. Restaurants can download a PDF invoice of their
+> orders (Money → Statement), and you can download any restaurant's from Money → Pay.
+> Phones get the invoice button with the next APK build.
+
+Owner decisions (6 Oct): the websites run the apps' own code (not separate sites), are
+served by the live server (no extra cost), in the "Glass Kitchen" design.
+
+**Websites.** `scripts/build-web.mjs` builds `admin-mobile` and `restaurant-mobile` for the
+web into `apps/backend-api/web/`; the Dockerfile has a `web` stage that runs it on every
+deploy and copies only the output; `routes/webApps.ts` serves `/admin` and `/partner`
+(their own CSP for the web font, hashed bundles cached a year, the page never, a missing
+bundle is a 404). Web-only files (`*.web.ts`): `webSetup` (glass shell + colour overrides),
+`config` (talks to the server it was loaded from), Admin `download`, Partner `invoice`.
+`packages/design-system/src/web/glassShell.ts`: gradient backdrop, frosted panel, DM Sans,
+hover/focus, and a real dialog replacing `Alert.alert` — a silent no-op in a browser, used
+126 times across the two apps. Fixed for the web, and for tablets: Admin charts sized from
+the window ran off their card (now measure themselves); a menu draft with a photo failed to
+save at all without a file system. Metro pin narrowed to `export:embed`; Mapbox resolves to
+nothing on the web (drawn-map fallback). Rehearsed the Docker stage in a clean folder, which
+found the Admin and Partner apps used `expo-build-properties` and the web packages without
+declaring them (worked only because the customer app installs them) — now declared.
+The old Vite consoles `apps/admin-web`, `apps/restaurant-web` are retired, not deleted.
+
+**Restaurant invoices.** `GET /api/earnings/statement.pdf` (period, or `?orderId=` for one
+order) and `GET /api/admin/payouts/statement/:type/:id/pdf`, both from
+`modules/payments/statementPdf.ts` on top of `statementFor` — the same figures as the
+Statement screen, dishes at the kitchen's prices, "Not a GST tax invoice", an order that is
+not the caller's is a 404. `utils/simplePdf.ts`: a dependency-free PDF writer. Partner app:
+period chips + download, per-order download (Android folder picker; browser download on the
+web). Admin: download on the statement sheet. 7 checks in `ownPricesAndSearch` (the
+customer's marked-up price never appears; xref offsets valid); 2 planted bugs caught.
+
+**Fixes.** Public `GET /restaurants` and `/restaurants/:id` no longer expose the owner's
+phone and id, commission, verification status or packaging declaration (allow-list; checked
+in `offers`, mutation caught). Android back on the Gold screen returns to Profile instead of
+offering to exit. Partner dashboard stats were cut off on 360-wide phones ("AVERAGE ORD") —
+the rows wrap. Stale `pricing-engine` test still expected Rs 10/km. `offers` and
+`profileEdits` printed "BROKEN" after passing. Server packages: express 4.22.3, qs 6.16.0,
+proxy-addr 2.0.8 (npm audit: 1 critical, 3 moderate → 0). New suite `webApps`. Gate 83/83,
+`npm run verify` green.
+
+---
+
 ## [2026-10-05] -- Claude Opus 5.5 -- Customer app ready for its first iPhone build
 
 > **For the owner.** The customer app can now be built for iPhone from this PC (Expo EAS)

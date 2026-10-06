@@ -111,10 +111,13 @@ Starts the API and sockets on `http://127.0.0.1:5000`. With `SEED_DEMO_DATA=true
 and `customer@quickbite.app` / `pass123` works.
 
 ```bash
-npm run dev --workspace=@quick-bites/admin-web
+node scripts/build-web.mjs
 ```
 
-The web console, if you prefer a browser to the admin app.
+Builds the Partner and Admin apps for the browser into `apps/backend-api/web/`; the
+running API then serves them at `/partner` and `/admin` (Railway builds them on every
+deploy). For live editing instead, run an app's own web dev server pointed at your API:
+`cd apps/admin-mobile && EXPO_PUBLIC_API_URL=http://localhost:5000/api npx expo start --web`.
 
 ---
 

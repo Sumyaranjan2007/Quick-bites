@@ -242,7 +242,8 @@ async function saveDraft(key: string, draft: Draft): Promise<void> {
       if (!d.imageUrl) continue;
       const path = `${dir}${d.id}.txt`;
       const info = await FileSystem.getInfoAsync(path).catch(() => ({ exists: false }) as any);
-      if (!info.exists) await FileSystem.writeAsStringAsync(path, d.imageUrl);
+      // No file system in a web browser: the draft's text is still saved, the photo is not.
+      if (!info.exists) await FileSystem.writeAsStringAsync(path, d.imageUrl).catch(() => undefined);
     }
   }
   // Photos of dishes that were removed are deleted with them.

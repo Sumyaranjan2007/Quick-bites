@@ -236,7 +236,9 @@ const styles = StyleSheet.create({
   centre: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
   bigMoney: { fontSize: 34, fontWeight: '800', color: c.brand },
   bigMoneySub: { fontSize: 13, color: c.textMuted, marginTop: 2, marginBottom: spacing.lg },
-  metricRow: { flexDirection: 'row', gap: spacing.lg, marginBottom: spacing.lg },
+  // Wraps: two 140-wide stats do not fit side by side on a 360-wide phone, and
+  // without wrapping the right one was cut off ("AVERAGE ORD").
+  metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginBottom: spacing.lg },
   quietNote: { fontSize: 13, color: c.textMuted, lineHeight: 19 },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 124, paddingTop: spacing.md },
   barColumn: { flex: 1, alignItems: 'center' },

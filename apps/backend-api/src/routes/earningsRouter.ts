@@ -30,6 +30,7 @@ import { resolvePayee, parsePreference } from '../modules/payments/payeeIdentity
 import { effectiveCharges } from '../modules/payments/restaurantCharges.ts';
 import { AppError } from '../utils/AppError.ts';
 import { statementFor, statementView } from '../modules/payments/statements.ts';
+import { sendStatementPdf } from '../modules/payments/statementPdf.ts';
 import {
   raiseRequest,
   withdrawRequest,
@@ -80,6 +81,29 @@ earningsRouter.get(
           statement: statementView(statement),
           openRequest: open ? requestView(open) : null
         }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/earnings/statement.pdf — the same statement as a downloadable PDF:
+ * a summary and every order with its dishes and deductions. `orderId` makes it
+ * the invoice for one order instead.
+ */
+earningsRouter.get(
+  '/statement.pdf',
+  authMiddleware(),
+  validate({ query: StatementQuery.extend({ orderId: z.string().trim().max(80).optional() }) }),
+  async (req, res, next) => {
+    try {
+      const payee = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as));
+      await sendStatementPdf(res, payee.ownerType, payee.ownerId, payee.ownerName, {
+        from: req.query.from as string | undefined,
+        to: req.query.to as string | undefined,
+        orderId: req.query.orderId as string | undefined
       });
     } catch (err) {
       next(err);

@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Express } from 'express';
 import { publicPages } from './routes/publicPages.ts';
+import { webApps } from './routes/webApps.ts';
 import { correlationIdMiddleware } from './middlewares/correlationId.ts';
 import { securityHeadersMiddleware } from './middlewares/securityHeaders.ts';
 import { corsMiddleware } from './middlewares/cors.ts';
@@ -23,6 +24,11 @@ export function createApp(): Express {
 
   // 4. CORS Whitelist
   app.use(corsMiddleware);
+
+  // The Partner and Admin websites. Before the rate limiter: loading a page is a
+  // handful of static files and must not spend the API allowance of the person
+  // about to use it.
+  app.use(webApps);
 
   // 4b. A larger ceiling for the menu-building routes only (1 Oct 2026): a
   // photo of a printed menu page, or a batch of dishes with their photos, is

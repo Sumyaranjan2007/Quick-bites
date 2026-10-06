@@ -26,8 +26,13 @@ the business **QUICK BITES** (MSME Udyam `UDYAM-KR-29-0052148`, contact
 | Quick Bites Rider | `apps/delivery-mobile` | `com.quickbite.rider` | delivery riders | public |
 | Quick Bites Operations (the admin app) | `apps/admin-mobile` | `com.quickbite.admin` | the owner / operations | **private** (APK only) |
 
-`apps/admin-web` and `apps/restaurant-web` exist but are **out of scope** (owner decision,
-25 Sep): do not audit, fix or route-check them.
+**Websites (6 Oct):** the Partner and Admin apps also run in a web browser at
+`/partner` and `/admin` on the live server — the apps' own code built for the web
+(`scripts/build-web.mjs`, run by the Dockerfile on every deploy; served by
+`apps/backend-api/src/routes/webApps.ts`), with the "Glass Kitchen" web look
+(`packages/design-system/src/web/glassShell.ts`). Every app feature is on the web
+automatically. The old separate Vite consoles `apps/admin-web` and `apps/restaurant-web`
+are **retired** (not deployed, out of date) and await the owner's OK to delete.
 
 ### The owner
 
@@ -54,7 +59,7 @@ clearly first, then do the work** (they complained when an answer was buried).
 - **Hosting:** Railway, project **endearing-ambition**, environment **production**: the
   backend service (Dockerfile) + a Postgres service. Pushing `main` deploys.
   **Live URL:** `https://quick-bites-production.up.railway.app` (`/health`, `/api/...`,
-  public pages `/privacy`, `/terms`, `/delete-account`).
+  public pages `/privacy`, `/terms`, `/delete-account`, websites `/partner`, `/admin`).
 - **Services:** Razorpay (payments) + RazorpayX (payouts); Mapbox (maps, road distance,
   Directions for a single trip); Meilisearch (search); Firebase Cloud Messaging (push);
   Groq vision (reads printed menus from photos — server-side key only); SMS sign-in codes
@@ -128,6 +133,11 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 - **Account deletion:** customers delete at once (password or a fresh phone code).
   Partners and riders *request* deletion; an admin completes it after dues are settled
   (People → Deletion requests).
+- **Restaurant invoices (6 Oct):** Partner → Money → Statement → *Download invoice (PDF)*
+  for the last 30 days / this month / last month / all orders, and *Download this order's
+  invoice* per order; Admin → Money → Pay → Owed → Statement → *Download invoice (PDF)*.
+  One PDF builder (`modules/payments/statementPdf.ts`) on top of `statementFor`, dishes at
+  the kitchen's prices, labelled "Not a GST tax invoice" (no GSTIN yet).
 - **Open owner question:** the partner policy text still promises payment "automatically
   on the weekly run", which contradicts paying whenever. Waiting for the owner's wording.
 
@@ -136,7 +146,7 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 ## 5. Daily commands
 
 ```bash
-node scripts/run-backend-tests.mjs                 # THE gate: 81 backend suites, ~100 s, takes a machine-wide lock
+node scripts/run-backend-tests.mjs                 # THE gate: 82 backend suites, ~100 s, takes a machine-wide lock
 node scripts/check-secrets.mjs                     # no secrets in tracked files
 npx turbo typecheck                                # all workspaces
 node scripts/check-i18n.mjs ; node scripts/check-apk-secrets.mjs
@@ -144,6 +154,7 @@ npm run verify        /  npm run verify:full       # everything, stops at first 
 bash scripts/build-apks.sh                         # all four signed APKs  -> build/apk/
 bash scripts/build-apks.sh --aab                   # + Play bundles        -> build/aab/
 bash scripts/build-apks.sh --only admin-mobile     # one app (exact folder name)
+node scripts/build-web.mjs                         # /partner and /admin websites -> apps/backend-api/web (Railway builds them itself)
 cd apps/customer-mobile && npx eas-cli build -p ios --profile production   # iPhone, in Expo's cloud (never EAS for Android)
 node scripts/reset-live.mjs                        # OWNER ONLY: wipes live data (needs ALLOW_PLATFORM_RESET)
 python scripts/play-store/make-graphics.py         # 512 icons + 1024x500 feature graphics -> build/play-store/
@@ -249,6 +260,14 @@ fails inside React Native/libraries, an Expo SDK upgrade (and a new Android rele
   designing around its absence.
 - Scope: four phone apps only, no extra features, no OTA, finish before build.
 - A worktree with junctioned `node_modules` runs main's `@quick-bites/*` packages.
+- **Web-only code lives in `*.web.ts` files** (Metro picks them for the web build):
+  `src/webSetup.web.ts`, `config.web.ts`, `download.web.ts`, `invoice.web.ts`. React Native's
+  `Alert.alert` is a silent no-op in a browser; the web shell replaces it with a real dialog.
+  Size from a component's own layout, not `useWindowDimensions` (the window is wider than
+  the 1180 px web panel).
+- **Every Expo plugin in an `app.json` must be a declared dependency of that app.** The
+  Admin and Partner apps used `expo-build-properties` without declaring it; it only worked
+  because the customer app installs it. A clean install (Railway) fails on that.
 - **iPhone-only behaviour is fenced with `Platform.OS === 'ios'`** (never `Platform.select`:
   react-native-web ignores a forced OS, so browser checks lie). The Android customer app must
   not change unless the owner asks; check with `npx expo config --type introspect` that the

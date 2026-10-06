@@ -95,6 +95,23 @@ async function run() {
   );
   check('and the home screen has no banner', f.promotion === null, JSON.stringify(f.promotion));
 
+  // Anyone can call these two routes without an account.
+  const PRIVATE = ['ownerId', 'phone', 'commissionPercent', 'kycStatus', 'gstin', 'partnerPackagingFee'];
+  const leaked = (r: any) => PRIVATE.filter(k => k in r);
+  check(
+    'The public feed hides the owner, their phone, commission and verification',
+    f.restaurants.every(r => leaked(r).length === 0),
+    JSON.stringify(f.restaurants.map(leaked))
+  );
+  const one = await api(`/restaurants/${target.id}`);
+  check(
+    'and so does a single restaurant, which still has its name and menu',
+    leaked(one.json?.data?.restaurant || { ownerId: 1 }).length === 0 &&
+      one.json?.data?.restaurant?.name === target.name &&
+      Boolean(one.json?.data?.menu),
+    JSON.stringify(leaked(one.json?.data?.restaurant || {}))
+  );
+
   // ---------------------------------------------------------------------
   console.log('\n-- A coupon that is live');
   clearCoupons();
@@ -440,6 +457,7 @@ async function run() {
     console.log('  EVERY OFFER SHOWN IS ONE THAT EXISTS              ');
     console.log('====================================================\n');
     setTimeout(() => process.exit(0), 100);
+    return;
   }
   console.log(`  OFFERS BROKEN - ${failures} CHECK(S) FAILED`);
   console.log('====================================================\n');

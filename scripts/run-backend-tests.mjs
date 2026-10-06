@@ -71,6 +71,7 @@ const SUITES = [
   'adminSections',
   'adminPush',
   'apnsPush',
+  'webApps',
   'orderMap',
   'riderTripPush',
   'carryingWatch',

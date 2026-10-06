@@ -160,6 +160,13 @@
       "../../packages/config/expo-plugins/withLegacyBackGesture",
       "../../packages/config/expo-plugins/withMapboxToken",
       "../../packages/config/expo-plugins/withExternalAppQueries"
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/partner"
+    },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "bundler": "metro"
+    }
   }
 }

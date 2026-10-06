@@ -1121,6 +1121,7 @@ async function run() {
     console.log('  PROFILE REVIEW HOLDS - NOTHING UNREVIEWED IS LIVE  ');
     console.log('====================================================\n');
     setTimeout(() => process.exit(0), 100);
+    return;
   }
   console.log(`  PROFILE REVIEW BROKEN - ${failures} CHECK(S) FAILED`);
   console.log('====================================================\n');

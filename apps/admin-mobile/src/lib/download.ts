@@ -33,7 +33,7 @@ const EXT: Record<string, string> = {
   'application/pdf': 'pdf'
 };
 
-async function asBase64(source: string): Promise<{ base64: string; mime: string }> {
+async function asBase64(source: string, headers?: Record<string, string>): Promise<{ base64: string; mime: string }> {
   const match = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(source);
   if (match) {
     const mime = match[1].toLowerCase();
@@ -44,7 +44,7 @@ async function asBase64(source: string): Promise<{ base64: string; mime: string 
     const target = `${FileSystem.cacheDirectory}download-${Date.now()}`;
     let result: FileSystem.FileSystemDownloadResult;
     try {
-      result = await FileSystem.downloadAsync(source, target);
+      result = await FileSystem.downloadAsync(source, target, headers ? { headers } : undefined);
     } catch {
       throw new Error('The file could not be fetched. Check the internet connection and try again.');
     }
@@ -77,9 +77,10 @@ async function folderUri(forceAsk = false): Promise<string> {
  * Saves `source` (a data URI or a link) as `name`. Returns a sentence saying
  * where it went. Throws an Error with a readable message.
  */
-export async function saveDocument(source: string, name: string): Promise<string> {
+/** `headers` for a file that needs the admin's sign-in, such as a statement PDF. */
+export async function saveDocument(source: string, name: string, headers?: Record<string, string>): Promise<string> {
   if (Platform.OS !== 'android') throw new Error('Saving files is available on Android.');
-  const { base64, mime } = await asBase64(source);
+  const { base64, mime } = await asBase64(source, headers);
   if (mime.startsWith('image/')) return saveToGallery(base64, mime, name);
   const SAF = FileSystem.StorageAccessFramework;
   let dir = await folderUri();

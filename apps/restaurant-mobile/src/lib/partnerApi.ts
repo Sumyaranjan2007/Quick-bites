@@ -678,6 +678,20 @@ export interface StatementView {
   };
 }
 
+/**
+ * The invoice PDF (a period, or one order with `orderId`): where it is and the
+ * sign-in it needs. Downloaded by lib/invoice.ts (phone) or invoice.web.ts.
+ */
+export function invoiceRequest(range: { from?: string; to?: string; orderId?: string }) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(range)) if (value) params.set(key, value);
+  const query = params.toString();
+  return {
+    url: `${apiUrl}/earnings/statement.pdf${query ? `?${query}` : ''}`,
+    headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
+  };
+}
+
 export function fetchStatement(range?: { from?: string; to?: string }) {
   const params = new URLSearchParams();
   if (range?.from) params.set('from', range.from);
