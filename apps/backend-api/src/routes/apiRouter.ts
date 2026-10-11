@@ -5,6 +5,7 @@ import { authRouter } from './authRouter.ts';
 import { paymentRouter } from './paymentRouter.ts';
 import { kycRouter } from './kycRouter.ts';
 import { adminRouter } from './adminRouter.ts';
+import { isPublicSiteHost } from './webApps.ts';
 import { payeeAccountRouter } from './payeeAccountRouter.ts';
 import { cashRouter } from './cashRouter.ts';
 import { earningsRouter } from './earningsRouter.ts';
@@ -70,7 +71,8 @@ apiRouter.use('/auth', authRouter);
 apiRouter.use('/payments', paymentRouter);
 apiRouter.use('/membership', membershipRouter);
 apiRouter.use('/kyc', authMiddleware(), kycRouter);
-apiRouter.use('/admin', authMiddleware('admin'), adminRouter);
+// The admin API, like the admin console, does not exist on the public website's domain.
+apiRouter.use('/admin', (req, res, next) => (isPublicSiteHost(req.headers.host) ? res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found.' } }) : next()), authMiddleware('admin'), adminRouter);
 apiRouter.use('/riders', authMiddleware('rider'), riderRouter);
 apiRouter.use('/wallets', authMiddleware(), walletRouter);
 // Every app registers its push token here, on launch and after sign-in.

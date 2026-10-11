@@ -6,6 +6,7 @@
  * on the PUBLIC list below, with the reason it is public. A new route that
  * forgets its auth middleware fails this suite by name.
  */
+import http from 'node:http';
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { config } from '../config/env.ts';
@@ -83,7 +84,31 @@ async function run(): Promise<void> {
   await new Promise<void>(r => server.once('listening', () => r()));
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
 
+  // Before the sweep below, which trips the per-address rate limiter.
+  const separationFailures: string[] = [];
+  // The admin console and admin API do not exist on the public website's domain.
+  const status = (p: string, host: string) =>
+    new Promise<number>(resolve => {
+      const req = http.request({ host: '127.0.0.1', port: (server.address() as any).port, path: p, headers: { host } }, res => {
+        res.resume();
+        resolve(res.statusCode || 0);
+      });
+      req.on('error', () => resolve(0));
+      req.end();
+    });
+  const hostChecks: Array<[string, boolean]> = [
+    ['/admin is not found on www.quickbitesresturants.in', (await status('/admin', 'www.quickbitesresturants.in')) === 404],
+    ['/admin is not found on quickbitesresturants.in', (await status('/admin', 'quickbitesresturants.in')) === 404],
+    ['the admin API is not found on the public domain', (await status('/api/admin/dashboard', 'www.quickbitesresturants.in')) === 404],
+    ['/partner still works on the public domain', (await status('/partner', 'www.quickbitesresturants.in')) !== 404],
+    ['/admin still answers on the Railway address', (await status('/admin', 'quick-bites-production.up.railway.app')) !== 404]
+  ];
+  for (const [name, passed] of hostChecks) {
+    console.log(`${passed ? '[PASS]' : '[FAIL]'} Admin separation: ${name}`);
+    if (!passed) separationFailures.push(`Admin separation: ${name}`);
+  }
   const open: string[] = [];
+  open.push(...separationFailures);
   for (const { method, path } of collect(app)) {
     const url = base + path.replace(/:(\w+)\??/g, 'probe').replace(/\*$/, 'probe');
     const res = await fetch(url, {

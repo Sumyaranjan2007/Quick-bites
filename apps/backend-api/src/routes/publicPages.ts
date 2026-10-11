@@ -133,9 +133,10 @@ for (const file of ['google644d46e6db0e1cb0.html', 'googlefa2292644f7d3bb0.html'
   });
 }
 
-// Search engines may read the public pages; the admin console and the API are not for indexing.
+// Search engines may read the public pages, not the API. /admin is not listed:
+// it does not exist on the public domain, and naming it would only advertise it.
 publicPages.get('/robots.txt', (_req, res) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${SITE}/sitemap.xml\n`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${SITE}/sitemap.xml\n`);
 });
 
 publicPages.get('/sitemap.xml', (_req, res) => {

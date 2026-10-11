@@ -39,6 +39,19 @@ const CSP = [
 
 export const webApps = Router();
 
+/**
+ * The admin console is never served on the public website's domain (owner,
+ * 11 Oct 2026: "it will be separate and it should never be connected"). It
+ * answers only on the Railway address; on quickbitesresturants.in it is a
+ * plain 404, as if it did not exist.
+ */
+export const isPublicSiteHost = (host?: string) => /(^|\.)quickbitesresturants\.in(:\d+)?$/i.test(String(host || ''));
+
+webApps.use('/admin', (req, res, next) => {
+  if (isPublicSiteHost(req.headers.host)) return res.status(404).type('text/plain').send('Not found');
+  next();
+});
+
 for (const name of ['admin', 'partner']) {
   const dir = path.join(WEB_ROOT, name);
   const index = path.join(dir, 'index.html');
