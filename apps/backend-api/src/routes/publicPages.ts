@@ -115,16 +115,32 @@ function servePolicy(file: string, title: string) {
 
 /**
  * The business's home page (owner, 11 Oct 2026: the domain points here). A
- * browser gets the page; anything asking for JSON still gets the API's root
- * answer from app.ts, so nothing that probes "/" changes.
+ * browser gets the page; anything asking for JSON gets the API status answer
+ * (moved here from app.ts), so nothing that probes "/" changes.
  */
 publicPages.get('/logo.png', (_req, res) => {
   // A copy inside apps/backend-api: the server's Docker image has no customer-mobile folder.
   res.sendFile(path.join(ROOT, 'apps', 'backend-api', 'assets', 'logo.png'), { maxAge: '1d' });
 });
 
-publicPages.get('/', (req, res, next) => {
-  if (req.accepts(['json', 'html']) !== 'html') return next();
+publicPages.get('/', (req, res) => {
+  if (req.accepts(['json', 'html']) !== 'html') {
+    res.json({
+      success: true,
+      name: 'Quick Bites Platform API',
+      version: '2.0.0',
+      status: 'ONLINE',
+      endpoints: {
+        health: '/health',
+        restaurants: '/api/v1/restaurants',
+        search: '/api/v1/search',
+        auth: '/api/v1/auth',
+        orders: '/api/v1/orders'
+      },
+      meta: { timestamp: new Date().toISOString(), correlationId: (req as any).correlationId }
+    });
+    return;
+  }
   const id = businessIdentity() as any;
   const email = escape(String(id?.contactEmail || 'officalquickbites@gmail.com'));
   const phone = escape(String(id?.contactPhone || ''));

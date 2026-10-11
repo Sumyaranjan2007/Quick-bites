@@ -67,26 +67,7 @@ export function createApp(): Express {
   // Privacy policy, terms and account deletion as web pages (Play Store).
   app.use(publicPages);
 
-  // Root welcome & status endpoint
-  app.get('/', (req, res) => {
-    res.json({
-      success: true,
-      name: 'Quick Bites Platform API',
-      version: '2.0.0',
-      status: 'ONLINE',
-      endpoints: {
-        health: '/health',
-        restaurants: '/api/v1/restaurants',
-        search: '/api/v1/search',
-        auth: '/api/v1/auth',
-        orders: '/api/v1/orders'
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        correlationId: req.correlationId
-      }
-    });
-  });
+  // "/" (home page for browsers, status JSON otherwise) is in publicPages.
 
   // 8. API Router (Universal support for /api/v1 and /api)
   app.use('/api/v1', apiRouter);
