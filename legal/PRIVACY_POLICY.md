@@ -1,7 +1,7 @@
 # Quick Bites Privacy Policy
 
 **Effective Date:** September 5, 2026  
-**Last Updated:** October 6, 2026  
+**Last Updated:** October 11, 2026  
 **Governing Law:** Digital Personal Data Protection Act (DPDP Act 2023), Republic of India  
 
 ---
@@ -68,7 +68,7 @@ We process personal data solely for lawful purposes under Section 4 and Section 
 We do not sell personal data to data brokers. We share data only with the service providers strictly necessary to deliver our services:
 - **Railway Corporation:** Hosting of our servers and our database, where account, order and payment records are stored.
 - **Razorpay Software Private Limited:** Payment processing, refunds and payouts to restaurants and delivery partners.
-- **MSG91 (Walkover Web Solutions Private Limited):** Sending the one-time sign-in code to your mobile number by SMS.
+- **Brevo (Sendinblue SAS):** Emailing the one-time sign-in code to the email address you give us.
 - **Firebase / Google Cloud:** Push notifications sent to Android phones.
 - **Apple Inc.:** Push notifications sent to iPhones (Apple Push Notification service).
 - **Mapbox Inc.:** Maps, address lookup and road distances used to calculate delivery pay and fees.
@@ -99,5 +99,6 @@ You have the following statutory rights regarding your personal data:
 
 In accordance with the Information Technology Act 2000 and the DPDP Act 2023, the details of the Grievance Officer are:
 - **Designation:** Data Protection & Grievance Officer
-- **Email:** privacy@quickbite.app
-- **Address:** Quick Bite Technologies Pvt Ltd, 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038, India.
+- **Email:** officalquickbites@gmail.com
+- **Phone:** 7899415741
+- **Address:** QUICK BITES, Harohalli, Kanakapura Main Road, Harohalli, Ramanagara, Karnataka 562112, India.

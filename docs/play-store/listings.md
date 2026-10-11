@@ -169,6 +169,6 @@ Create these on the LIVE system before submitting; never use real people's accou
 
 | App | What to enter in Play Console |
 |---|---|
-| Quick Bites | Phone: the number set as `OTP_REVIEW_PHONE` on Railway · Code: the 6 digits set as `OTP_REVIEW_CODE` · Note: "Enter the phone number, tap Send Code, then enter this code. No SMS is sent to this number." |
+| Quick Bites | Phone: the number set as `OTP_REVIEW_PHONE` on Railway · Email: any address, e.g. `review@example.com` · Code: the 6 digits set as `OTP_REVIEW_CODE` · Note: "Enter this phone number and any email, tap Send Code, then enter this code. No email is sent for this number." |
 | Partner | Email + password of a demo restaurant you create (e.g. review.partner@…) · Note: "Demo restaurant; orders placed by the reviewer appear under Orders." |
 | Rider | Email + password of a demo rider you create and approve (KYC approved) · Note: "Demo rider; go online with the switch at the top to receive offers." |
