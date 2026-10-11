@@ -123,6 +123,28 @@ publicPages.get('/logo.png', (_req, res) => {
   res.sendFile(path.join(ROOT, 'apps', 'backend-api', 'assets', 'logo.png'), { maxAge: '1d' });
 });
 
+/** The public website's address, for search engines (owner's domain, 11 Oct 2026). */
+const SITE = 'https://www.quickbitesresturants.in';
+
+// Google Search Console ownership file. Google says to keep it after verifying.
+publicPages.get('/google644d46e6db0e1cb0.html', (_req, res) => {
+  res.type('html').send('google-site-verification: google644d46e6db0e1cb0.html');
+});
+
+// Search engines may read the public pages; the admin console and the API are not for indexing.
+publicPages.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${SITE}/sitemap.xml\n`);
+});
+
+publicPages.get('/sitemap.xml', (_req, res) => {
+  const urls = ['/', '/partner', '/privacy', '/terms', '/delete-account'];
+  res.type('application/xml').send(
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      urls.map(u => `  <url><loc>${SITE}${u}</loc></url>`).join('\n') +
+      '\n</urlset>\n'
+  );
+});
+
 publicPages.get('/', (req, res) => {
   if (req.accepts(['json', 'html']) !== 'html') {
     res.json({
@@ -149,9 +171,35 @@ publicPages.get('/', (req, res) => {
   );
   res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quick Bites — food delivery in Harohalli</title>
-<meta name="description" content="Order food from local restaurants in Harohalli and Ramanagara and track your delivery live.">
+<title>Quick Bites — Food Delivery in Harohalli, Kanakapura Road &amp; Ramanagara</title>
+<meta name="description" content="Order food online from local restaurants in Harohalli, Kanakapura Road and Ramanagara. See the full bill before you pay, pay online or cash on delivery, and track your order live.">
+<link rel="canonical" href="${SITE}/">
 <link rel="icon" href="/logo.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Quick Bites">
+<meta property="og:title" content="Quick Bites — Food Delivery in Harohalli">
+<meta property="og:description" content="Order food from local restaurants in Harohalli and Ramanagara and track your delivery live.">
+<meta property="og:url" content="${SITE}/">
+<meta property="og:image" content="${SITE}/logo.png">
+<script type="application/ld+json">${JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Quick Bites',
+    legalName: 'QUICK BITES',
+    url: `${SITE}/`,
+    logo: `${SITE}/logo.png`,
+    email: id?.contactEmail || 'officalquickbites@gmail.com',
+    ...(id?.contactPhone ? { telephone: `+91${String(id.contactPhone).replace(/\D/g, '').slice(-10)}` } : {}),
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: [id?.addressLine, id?.street].filter(Boolean).join(', '),
+      addressLocality: id?.city || 'Harohalli',
+      addressRegion: id?.state || 'Karnataka',
+      postalCode: id?.pincode || '562112',
+      addressCountry: 'IN'
+    },
+    areaServed: ['Harohalli', 'Kanakapura Road', 'Ramanagara']
+  }).replace(/</g, '\\u003c')}</script>
 <style>
 :root{--ink:#241a1c;--muted:#6b5d60;--brand:#6e0f1e;--gold:#f5a623;--bg:#fffaf3;--card:#fff;--line:#eddfd2}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
@@ -171,7 +219,7 @@ footer nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px}
 <header>
 <img src="/logo.png" alt="Quick Bites logo">
 <h1>Quick Bites</h1>
-<p class="lede">Food from the restaurants around you, delivered to your door in Harohalli and Ramanagara. See the whole bill before you pay, and track your order live.</p>
+<p class="lede">Food from the restaurants around you, delivered to your door in Harohalli, along Kanakapura Road and across Ramanagara. See the whole bill before you pay, and track your order live.</p>
 <span class="badge">Coming soon on Google Play</span>
 </header>
 <section class="grid">

@@ -8,6 +8,8 @@
  */
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
+import { config } from '../config/env.ts';
+import { corsDecision } from '../middlewares/cors.ts';
 
 /** Routes a stranger may call, and why. Path patterns use Express syntax. */
 const WEB = 'web page: the home page, the legal pages Google requires, or a sign-in page';
@@ -16,6 +18,9 @@ const BROWSE = 'customers browse before signing in (App Store guideline 5.1.1)';
 const PUBLIC: Record<string, string> = {
   'GET /': WEB,
   'GET /logo.png': WEB,
+  'GET /google644d46e6db0e1cb0.html': 'Google Search Console ownership file',
+  'GET /robots.txt': 'search engine rules',
+  'GET /sitemap.xml': 'search engine page list',
   'GET /privacy': WEB,
   'GET /terms': WEB,
   'GET /delete-account': WEB,
@@ -89,6 +94,23 @@ async function run(): Promise<void> {
     if (status && status < 400 && !PUBLIC[`${method} ${path}`]) open.push(`${method} ${path} -> ${status}`);
   }
   server.close();
+
+  // Which websites may call the API from a browser, under production rules.
+  const prod = (config as any).IS_PRODUCTION;
+  (config as any).IS_PRODUCTION = true;
+  const ok = (origin: string, host: string) => corsDecision(origin, host) === null;
+  const corsChecks: Array<[string, boolean]> = [
+    ['our own site on our own domain is allowed (sign-in on www.quickbitesresturants.in)', ok('https://www.quickbitesresturants.in', 'www.quickbitesresturants.in')],
+    ['the Railway address is allowed', ok('https://quick-bites-production.up.railway.app', 'quick-bites-production.up.railway.app')],
+    ['another website is refused', !ok('https://evil.example', 'www.quickbitesresturants.in')],
+    ['a look-alike host is refused', !ok('https://www.quickbitesresturants.in.evil.example', 'www.quickbitesresturants.in')],
+    ['plain http is refused', !ok('http://www.quickbitesresturants.in', 'www.quickbitesresturants.in')]
+  ];
+  (config as any).IS_PRODUCTION = prod;
+  for (const [name, passed] of corsChecks) {
+    console.log(`${passed ? '[PASS]' : '[FAIL]'} CORS: ${name}`);
+    if (!passed) open.push(`CORS: ${name}`);
+  }
 
   if (open.length) {
     console.log(`[FAIL] ${open.length} route(s) answer a caller with no sign-in and are not on the public list:`);
