@@ -215,7 +215,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
         )}
         <View style={styles.brand} onTouchEnd={serverSettingsAllowed ? registerTap : undefined}>
           <View style={styles.logoFrame}>
-            <Image source={require('../../assets/adaptive-icon.png')} style={styles.logo} resizeMode="contain" />
+            <Image source={require('../../assets/logo-mark.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.brandName}>Quick Bites</Text>
           <Text style={styles.brandTag}>{t('auth.tagline')}</Text>
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  logo: { width: 76, height: 76 },
+  logo: { width: 68, height: 68 },
   brandName: {
     fontSize: tokens.font.size['2xl'],
     fontWeight: tokens.font.weight.extrabold,
