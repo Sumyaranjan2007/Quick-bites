@@ -1,10 +1,10 @@
 /**
- * The "Glass Kitchen" frame for the Partner and Admin apps when they run in a
- * web browser (served at /partner and /admin).
+ * The frame for the Partner and Admin apps when they run in a web browser
+ * (served at /partner and /admin).
  *
  * The apps' own screens are unchanged; this only dresses the page around them
- * — a maroon-to-amber backdrop, the app in one frosted panel, the brand font,
- * hover and keyboard focus — and supplies the one thing React Native for Web
+ * — cream and white, full screen, the brand font, hover and keyboard focus —
+ * and supplies the one thing React Native for Web
  * leaves out: `Alert.alert`, which is a silent no-op there. Every "Are you
  * sure?" in both apps (well over a hundred) would otherwise do nothing in a
  * browser, so it is replaced by an accessible dialog with any number of buttons.
@@ -16,59 +16,47 @@ type AlertButton = { text?: string; onPress?: () => void; style?: 'default' | 'c
 type AlertOptions = { cancelable?: boolean; onDismiss?: () => void };
 
 const CSS = `
-:root { --qb-maroon:#641C32; --qb-maroon-deep:#3A0D1B; --qb-amber:#FFC928; --qb-ink:#171313; }
-html, body { height:100%; margin:0; }
-body {
-  background:
-    radial-gradient(60vmax 60vmax at 8% 12%, rgba(255,201,40,.55), transparent 60%),
-    radial-gradient(55vmax 55vmax at 92% 88%, rgba(255,140,60,.45), transparent 60%),
-    linear-gradient(135deg, var(--qb-maroon-deep) 0%, var(--qb-maroon) 45%, #A8452E 75%, #E79A2C 100%);
-  background-attachment: fixed;
-  background-size: 140% 140%;
-  animation: qb-drift 28s ease-in-out infinite alternate;
-}
-@keyframes qb-drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
-body::before, body::after {
-  content:''; position:fixed; z-index:-1; border-radius:50%; filter: blur(70px); pointer-events:none;
-}
-body::before { width:46vmax; height:46vmax; left:-12vmax; bottom:-16vmax; background: rgba(255,201,40,.55); animation: qb-float 22s ease-in-out infinite alternate; }
-body::after { width:38vmax; height:38vmax; right:-10vmax; top:-12vmax; background: rgba(214,69,107,.5); animation: qb-float 26s ease-in-out infinite alternate-reverse; }
-@keyframes qb-float { from { transform: translate(0,0) scale(1); } to { transform: translate(8vmax,-6vmax) scale(1.15); } }
+/*
+ * Cream and white, full screen (owner, 11 Oct 2026). The earlier frame drew
+ * moving, blurred colour blobs behind a blurred panel; phones spent every
+ * frame repainting them, taps lagged and pages seemed not to switch. Now:
+ * flat colours, no animation, the app filling the whole window.
+ */
+:root { --qb-maroon:#641C32; --qb-amber:#F5A623; --qb-ink:#1F1A17; --qb-cream:#FFF8EE; --qb-line:#EFE3D3; }
+html, body { height:100%; margin:0; background:var(--qb-cream); -webkit-text-size-adjust:100%; }
+body { overscroll-behavior:none; }
 #root, #root div, #root span, #root input, #root textarea, .qb-dialog, .qb-dialog * {
   font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
+/*
+ * The visible window, not 100vh: on a phone 100vh includes the space behind
+ * the browser's own address and tool bars, which hid the app's bottom tabs.
+ */
 #root {
-  display:flex; flex-direction:column;
-  height:100vh; box-sizing:border-box;
-  background: rgba(255,250,244,.78);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
-  backdrop-filter: blur(28px) saturate(1.4);
+  display:flex; flex-direction:column; box-sizing:border-box;
+  width:100%; height:100vh; height:100dvh;
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--qb-cream) 100%);
 }
-@media (min-width: 900px) {
-  #root {
-    max-width:1180px; height:calc(100vh - 48px); margin:24px auto;
-    border-radius:28px; overflow:hidden;
-    border:1px solid rgba(255,255,255,.65);
-    box-shadow: 0 30px 80px rgba(42,7,16,.45), inset 0 1px 0 rgba(255,255,255,.7);
-  }
+/* No double-tap zoom wait: a tap answers at once. */
+#root, #root * { touch-action: manipulation; -webkit-tap-highlight-color: rgba(100,28,50,.08); }
+@media (hover: hover) {
+  #root [role="button"], #root [role="tab"], #root [tabindex="0"] { transition: filter .12s ease; }
+  #root [role="button"]:hover, #root [role="tab"]:hover, #root [tabindex="0"]:hover { filter: brightness(.97); cursor:pointer; }
 }
-#root [role="button"], #root [role="tab"], #root [role="switch"], #root [tabindex="0"] { transition: filter .15s ease, transform .15s ease; }
-#root [role="button"]:hover, #root [role="tab"]:hover, #root [tabindex="0"]:hover { filter: brightness(1.06) saturate(1.05); }
-#root [role="button"]:active, #root [tabindex="0"]:active { transform: scale(.985); }
 :focus-visible { outline: 3px solid var(--qb-amber) !important; outline-offset: 2px; border-radius: 10px; }
 ::-webkit-scrollbar { width:10px; height:10px; }
-::-webkit-scrollbar-thumb { background: rgba(100,28,50,.28); border-radius:10px; border:2px solid transparent; background-clip:padding-box; }
+::-webkit-scrollbar-thumb { background: rgba(100,28,50,.22); border-radius:10px; border:2px solid transparent; background-clip:padding-box; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 .qb-dialog-backdrop {
   position:fixed; inset:0; z-index:2147483000; display:flex; align-items:center; justify-content:center; padding:16px;
-  background: rgba(42,7,16,.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  background: rgba(31,26,23,.45);
   animation: qb-fade .16s ease-out;
 }
 .qb-dialog {
   width:min(440px,100%); box-sizing:border-box; padding:24px; border-radius:24px; color:var(--qb-ink);
-  background: rgba(255,252,247,.92); border:1px solid rgba(255,255,255,.8);
-  box-shadow: 0 24px 60px rgba(42,7,16,.4);
+  background: #FFFFFF; border:1px solid var(--qb-line);
+  box-shadow: 0 24px 60px rgba(31,26,23,.25);
   animation: qb-rise .2s cubic-bezier(.2,.8,.2,1);
 }
 .qb-dialog h2 { margin:0 0 8px; font-size:19px; font-weight:800; letter-spacing:-.01em; }
@@ -84,8 +72,8 @@ body::after { width:38vmax; height:38vmax; right:-10vmax; top:-12vmax; backgroun
 @keyframes qb-fade { from { opacity:0; } }
 @keyframes qb-rise { from { opacity:0; transform: translateY(12px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) {
-  body, body::before, body::after, .qb-dialog, .qb-dialog-backdrop { animation:none !important; }
-  #root [role="button"], #root [tabindex="0"] { transition:none; }
+  .qb-dialog, .qb-dialog-backdrop { animation:none !important; }
+  #root [role="button"], #root [role="tab"], #root [tabindex="0"] { transition:none; }
 }
 `;
 

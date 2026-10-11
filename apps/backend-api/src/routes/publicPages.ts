@@ -115,7 +115,7 @@ function servePolicy(file: string, title: string) {
 
 /**
  * The business's home page (owner, 11 Oct 2026: the domain points here). A
- * browser gets the page; anything asking for JSON gets the API status answer
+ * browser (or crawler) gets the page; a caller asking for JSON gets the API status
  * (moved here from app.ts), so nothing that probes "/" changes.
  */
 publicPages.get('/logo.png', (_req, res) => {
@@ -148,7 +148,9 @@ publicPages.get('/sitemap.xml', (_req, res) => {
 });
 
 publicPages.get('/', (req, res) => {
-  if (req.accepts(['json', 'html']) !== 'html') {
+  // The page unless the caller asks for JSON specifically: crawlers and link
+  // previews often send "Accept: */*" and must get the page, not the status.
+  if (req.accepts(['html', 'json']) === 'json') {
     res.json({
       success: true,
       name: 'Quick Bites Platform API',

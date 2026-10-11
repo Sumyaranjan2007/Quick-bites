@@ -165,25 +165,29 @@ export const SectionRail: React.FC<{
             hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
           >
             {item.icon}
-            <Text
-              style={[
-                s.railLabel,
-                variant === 'group' && s.railLabelGroup,
-                isActive && s.railLabelActive
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit={variant === 'group'}
-              minimumFontScale={0.8}
-            >
-              {item.label}
-            </Text>
-            {item.badge ? (
-              // In the group row the count sits in the cell's corner: inline, it
-              // pushed against the next name ("1 Money", "2People") (V9-1).
-              <View style={[s.railBadge, variant === 'group' && s.railBadgeCorner]}>
-                <Text style={s.railBadgeText}>{item.badge > 99 ? '99+' : item.badge}</Text>
-              </View>
-            ) : null}
+            {/* The label and its count travel together, so on a wide screen the
+                count stays at the word instead of the stretched cell's edge. */}
+            <View style={variant === 'group' ? s.railLabelBox : s.railLabelInline}>
+              <Text
+                style={[
+                  s.railLabel,
+                  variant === 'group' && s.railLabelGroup,
+                  isActive && s.railLabelActive
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit={variant === 'group'}
+                minimumFontScale={0.8}
+              >
+                {item.label}
+              </Text>
+              {item.badge ? (
+                // In the group row the count sits at the word's corner: inline, it
+                // pushed against the next name ("1 Money", "2People") (V9-1).
+                <View style={[s.railBadge, variant === 'group' && s.railBadgeCorner]}>
+                  <Text style={s.railBadgeText}>{item.badge > 99 ? '99+' : item.badge}</Text>
+                </View>
+              ) : null}
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -970,8 +974,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  // Raised above the label's line so it never sits on the letters.
-  railBadgeCorner: { position: 'absolute', top: -2, right: -4, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4 },
+  railLabelInline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  railLabelBox: { position: 'relative', flexShrink: 1, minWidth: 0 },
+  // Raised above the end of the word so it never sits on the letters.
+  railBadgeCorner: { position: 'absolute', top: -9, right: -12, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4 },
   railBadgeText: { fontSize: 10, fontWeight: tokens.font.weight.heavy, color: '#2A0710' },
 
   card: {
