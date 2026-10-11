@@ -113,6 +113,65 @@ function servePolicy(file: string, title: string) {
   };
 }
 
+/**
+ * The business's home page (owner, 11 Oct 2026: the domain points here). A
+ * browser gets the page; anything asking for JSON still gets the API's root
+ * answer from app.ts, so nothing that probes "/" changes.
+ */
+publicPages.get('/logo.png', (_req, res) => {
+  // A copy inside apps/backend-api: the server's Docker image has no customer-mobile folder.
+  res.sendFile(path.join(ROOT, 'apps', 'backend-api', 'assets', 'logo.png'), { maxAge: '1d' });
+});
+
+publicPages.get('/', (req, res, next) => {
+  if (req.accepts(['json', 'html']) !== 'html') return next();
+  const id = businessIdentity() as any;
+  const email = escape(String(id?.contactEmail || 'officalquickbites@gmail.com'));
+  const phone = escape(String(id?.contactPhone || ''));
+  const address = escape(
+    [id?.addressLine, id?.street, id?.city, id?.district, id?.state, id?.pincode].filter(Boolean).join(', ')
+  );
+  res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick Bites — food delivery in Harohalli</title>
+<meta name="description" content="Order food from local restaurants in Harohalli and Ramanagara and track your delivery live.">
+<link rel="icon" href="/logo.png">
+<style>
+:root{--ink:#241a1c;--muted:#6b5d60;--brand:#6e0f1e;--gold:#f5a623;--bg:#fffaf3;--card:#fff;--line:#eddfd2}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
+.wrap{max-width:880px;margin:0 auto;padding-inline:20px}
+header{padding-block:48px 28px;text-align:center}
+header img{width:96px;height:96px}
+h1{font-size:clamp(34px,7vw,52px);line-height:1.05;margin:14px 0 10px;color:var(--brand);letter-spacing:-.02em}
+.lede{font-size:19px;color:var(--muted);max-width:34em;margin:0 auto}
+.badge{display:inline-block;margin-top:20px;padding:10px 18px;border-radius:999px;background:var(--brand);color:#fff;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;padding-block:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px}
+.card h2{font-size:18px;margin:0 0 6px}.card p{margin:0 0 10px;color:var(--muted)}
+a{color:var(--brand);font-weight:600}
+footer{border-top:1px solid var(--line);margin-top:24px;padding-block:22px 40px;color:var(--muted);font-size:14px}
+footer nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px}
+</style></head><body><div class="wrap">
+<header>
+<img src="/logo.png" alt="Quick Bites logo">
+<h1>Quick Bites</h1>
+<p class="lede">Food from the restaurants around you, delivered to your door in Harohalli and Ramanagara. See the whole bill before you pay, and track your order live.</p>
+<span class="badge">Coming soon on Google Play</span>
+</header>
+<section class="grid">
+<div class="card"><h2>Order food</h2><p>Browse local restaurants, pick sizes and extras, pay online or with cash where the restaurant accepts it.</p></div>
+<div class="card"><h2>For restaurants</h2><p>Take orders, build your menu and see every rupee you earn.</p><a href="/partner">Partner sign-in</a></div>
+<div class="card"><h2>For delivery riders</h2><p>See your pay before you accept each trip. Get the Quick Bites Rider app to register.</p></div>
+</section>
+<footer>
+<nav><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a><a href="/delete-account">Delete your account</a></nav>
+<div>QUICK BITES${id?.udyamNumber ? ` · Udyam ${escape(String(id.udyamNumber))}` : ''}</div>
+${address ? `<div>${address}</div>` : ''}
+<div>${email}${phone ? ` · ${phone}` : ''}</div>
+</footer>
+</div></body></html>`);
+});
+
 publicPages.get('/privacy', servePolicy('PRIVACY_POLICY.md', 'Privacy Policy'));
 publicPages.get('/terms', servePolicy('TERMS_OF_SERVICE.md', 'Terms of Service'));
 
