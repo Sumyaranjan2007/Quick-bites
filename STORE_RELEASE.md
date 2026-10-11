@@ -36,7 +36,7 @@ section at the end.
 > - **iPhone (customer app only):** full guide in `docs/app-store/IOS.md`; the
 >   build must run on a Mac or in Expo's cloud (EAS).
 > - Step-by-step launch guide with the Data safety table and the good-standing
->   checklist: https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs
+>   checklist: https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F
 
 ---
 

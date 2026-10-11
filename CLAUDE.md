@@ -208,7 +208,9 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
 
 ---
 
-## 7. Play Store launch — status on 6 Oct 2026
+## 7. Play Store launch — status on 11 Oct 2026
+
+**Plan (11 Oct, owner):** launch from an **individual** Play account first (closed test: 12+ testers opted in for 14 days per app, then "Apply for production"), and change the same account to Organization once the D-U-N-S number arrives (Google requires a verified business website for that switch). Bundles to upload: versionCode 24 in `build/aab/`. The guide below covers every step.
 
 Ready in the repo / on this PC:
 - AABs for Customer, Partner, Rider (`build/aab/`, copied to `build/play-store/`) — these are
@@ -219,7 +221,7 @@ Ready in the repo / on this PC:
   `build/play-store/<app>/` and `build/QuickBites-PlayStore-graphics.zip` (gitignored).
 - Public pages on live: `/privacy`, `/terms`, `/delete-account`.
 - Launch guide (step by step, Data safety table, good-standing checklist):
-  https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs · Staff guide for all four apps:
+  https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F · Staff guide for all four apps:
   https://claude.ai/artifact/7WMWotXGyeB3RquM9kU5zR (both private to the owner's account).
 
 Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0):

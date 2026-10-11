@@ -95,7 +95,7 @@ and back again the day DLT is approved — step by step in **J** below.
    and demo rider logins from step C3.
 6. Follow the launch guide for Data safety, content rating (18+ only), and the
    rider app's location foreground-service declaration:
-   https://claude.ai/artifact/NKd7YFsKSQaFKJhze5i5xs
+   https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F
 
 ### C. Live server settings (Railway → backend → Variables)
 
