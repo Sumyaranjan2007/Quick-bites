@@ -118,6 +118,55 @@ export const msg91Driver: OtpDriver = {
 };
 
 /**
+ * Email codes through Brevo's HTTPS API (owner's choice, 11 Oct 2026: email
+ * instead of SMS, so no DLT). HTTPS, not SMTP: Railway blocks outbound SMTP
+ * below its Pro plan. BREVO_API_KEY and EMAIL_FROM (a sender verified in
+ * Brevo) live on Railway; the key travels in a header and is never logged.
+ */
+export async function sendCodeByEmail(to: string, code: string): Promise<OtpDeliveryResult> {
+  const key = process.env.BREVO_API_KEY || '';
+  const from = process.env.EMAIL_FROM || '';
+  if (!key || !from) return { accepted: false, error: 'BREVO_API_KEY and EMAIL_FROM must both be set.' };
+  const minutes = config.OTP_TTL_MINUTES;
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': key, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        sender: { name: process.env.EMAIL_FROM_NAME || 'Quick Bites', email: from },
+        to: [{ email: to }],
+        subject: `${code} is your Quick Bites code`,
+        textContent: `Your Quick Bites sign-in code is ${code}. It is valid for ${minutes} minutes. Do not share it with anyone.`,
+        htmlContent: `<p>Your Quick Bites sign-in code is</p><p style="font-size:28px;font-weight:bold;letter-spacing:4px">${code}</p><p>It is valid for ${minutes} minutes. Do not share it with anyone. If you did not ask for it, ignore this email.</p>`
+      }),
+      signal: AbortSignal.timeout(10_000)
+    });
+    const body: any = await res.json().catch(() => null);
+    if (res.ok && body?.messageId) return { accepted: true, reference: String(body.messageId) };
+    return { accepted: false, error: `Brevo refused: ${String(body?.message || res.status)}` };
+  } catch (err: any) {
+    return { accepted: false, error: `Brevo unreachable: ${err?.name || 'error'}` };
+  }
+}
+
+/**
+ * OTP_PROVIDER=email: codes go only by email (sendCodeByEmail, chosen in
+ * otpService). This driver is reached only by an old app version asking with a
+ * phone for an account that has no email yet, which cannot be delivered.
+ */
+export const emailOnlyDriver: OtpDriver = {
+  name: 'email',
+  delivers: true,
+  async send(): Promise<OtpDeliveryResult> {
+    return { accepted: false, error: 'This account has no email yet; the customer must update the app to sign in.' };
+  }
+};
+
+/** An account address a person can receive mail at (not the phone sign-up placeholder). */
+export const isRealEmail = (email?: string | null) =>
+  !!email && !String(email).toLowerCase().endsWith('@phone.quickbite.app');
+
+/**
  * Twilio Verify — best documentation, highest per-message cost to India, and
  * still subject to the same DLT registration. Only the shape is here; the
  * network call is not written.
@@ -170,6 +219,7 @@ const DRIVERS: Record<string, OtpDriver> = {
   fixed: fixedDriver,
   '2factor': twoFactorDriver,
   msg91: msg91Driver,
+  email: emailOnlyDriver,
   twilio: twilioDriver
 };
 

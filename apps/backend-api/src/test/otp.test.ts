@@ -15,7 +15,7 @@ import { otpService } from '../modules/auth/otpService.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { config } from '../config/env.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
-import { msg91Driver } from '../modules/auth/otpDrivers.ts';
+import { msg91Driver, sendCodeByEmail } from '../modules/auth/otpDrivers.ts';
 
 console.log('====================================================');
 console.log('        RUNNING PHONE / OTP SIGN-IN TESTS           ');
@@ -326,6 +326,84 @@ async function run() {
     (config as any).OTP_PROVIDER = realProvider;
     delete process.env.MSG91_AUTH_KEY;
     delete process.env.MSG91_TEMPLATE_ID;
+  }
+
+  console.log('\n--- Email codes (Brevo) ---');
+  const mails: { to: string; key: string; subject: string }[] = [];
+  let brevoAnswer: any = { messageId: '<m1@brevo>' };
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input?.url ?? input);
+    if (url.startsWith('https://api.brevo.com/')) {
+      const body = JSON.parse(String(init?.body || '{}'));
+      mails.push({ to: body.to?.[0]?.email, key: String(init?.headers?.['api-key'] || ''), subject: String(body.subject || '') });
+      return new Response(JSON.stringify(brevoAnswer), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+  (config as any).OTP_PROVIDER = 'email';
+  process.env.BREVO_API_KEY = 'test-brevo-key-not-real';
+  process.env.EMAIL_FROM = 'codes@example.com';
+  const codeIn = (subject: string) => (subject.match(/^(\d{6}) /) || [])[1] || '';
+  try {
+    const fresh = '9812' + String(Math.floor(100000 + Math.random() * 899999));
+    resetAuthRateLimit();
+    await api('/auth/otp/request', { method: 'POST', body: { phone: fresh, email: 'New.Person@Example.com ' } });
+    check('A new number with an email gets its code by email, not SMS', mails.length === 1 && mails[0].to === 'new.person@example.com' && mails[0].key === 'test-brevo-key-not-real', JSON.stringify(mails));
+    const emailed = codeIn(mails[0]?.subject || '');
+    check('with a fresh 6-digit code', /^\d{6}$/.test(emailed) && emailed !== config.OTP_FIXED_CODE, emailed);
+    const made = await api('/auth/otp/verify', { method: 'POST', body: { phone: fresh, code: emailed } });
+    check('and the code creates the account with that email and phone',
+      made.status === 200 && made.json?.data?.user?.email === 'new.person@example.com' && made.json?.data?.user?.phone === fresh,
+      JSON.stringify(made.json?.data?.user));
+
+    // Someone types this customer's phone with THEIR email: the code goes to the customer.
+    mails.length = 0;
+    resetAuthRateLimit();
+    otpService.forget(fresh);
+    await api('/auth/otp/request', { method: 'POST', body: { phone: fresh, email: 'attacker@example.com' } });
+    check("A typed email never redirects an existing account's code", mails.length === 1 && mails[0].to === 'new.person@example.com', JSON.stringify(mails));
+
+    // An app already on phones sends only the phone: an account with an email still gets it by email.
+    mails.length = 0;
+    resetAuthRateLimit();
+    otpService.forget(fresh);
+    await api('/auth/otp/request', { method: 'POST', body: { phone: fresh } });
+    check('An old app (phone only) reaches an account with an email by email', mails.length === 1 && mails[0].to === 'new.person@example.com', JSON.stringify(mails));
+    const again = await api('/auth/otp/verify', { method: 'POST', body: { phone: fresh, code: codeIn(mails[0]?.subject || '') } });
+    check('and signs in to the same account', again.status === 200 && again.json?.data?.isNewAccount === false && again.json?.data?.user?.email === 'new.person@example.com');
+
+    // An account made by phone before email codes has no address; the first email sign-in claims it.
+    const legacy = '9813' + String(Math.floor(100000 + Math.random() * 899999));
+    const legacyUser = await userRepository.create({ id: `usr_legacy_${legacy}`, email: `${legacy}@phone.quickbite.app`, fullName: 'Old Customer', phone: legacy, role: 'customer' as any, isGold: false, preferredLanguage: 'en' } as any);
+    mails.length = 0;
+    resetAuthRateLimit();
+    await api('/auth/otp/request', { method: 'POST', body: { phone: legacy, email: 'old.customer@example.com' } });
+    const claimed = await api('/auth/otp/verify', { method: 'POST', body: { phone: legacy, code: codeIn(mails[0]?.subject || '') } });
+    check('An account from before email codes keeps its orders and takes the email',
+      claimed.status === 200 && claimed.json?.data?.user?.id === legacyUser.id && (await userRepository.findById(legacyUser.id))?.email === 'old.customer@example.com');
+
+    // An email already on another account cannot be reused for a second one.
+    const other = '9814' + String(Math.floor(100000 + Math.random() * 899999));
+    mails.length = 0;
+    resetAuthRateLimit();
+    await api('/auth/otp/request', { method: 'POST', body: { phone: other, email: 'new.person@example.com' } });
+    const dup = await api('/auth/otp/verify', { method: 'POST', body: { phone: other, code: codeIn(mails[0]?.subject || '') } });
+    check('An email already on another account is refused for a new one', dup.status === 409 && dup.json?.error?.code === 'EMAIL_IN_USE', `${dup.status} ${JSON.stringify(dup.json?.error)}`);
+
+    const badEmail = await api('/auth/otp/request', { method: 'POST', body: { phone: other, email: 'not-an-email' } });
+    check('A malformed email is refused', badEmail.status === 400);
+
+    brevoAnswer = { code: 'unauthorized', message: 'Key not found' };
+    const refusedMail = await sendCodeByEmail('x@example.com', '123456');
+    check('A Brevo refusal is reported with its reason', refusedMail.accepted === false && /Key not found/.test(refusedMail.error || ''), refusedMail.error);
+    delete process.env.BREVO_API_KEY;
+    const unset = await sendCodeByEmail('x@example.com', '123456');
+    check('Without a Brevo key nothing is sent and the log says why', unset.accepted === false && /BREVO_API_KEY/.test(unset.error || ''));
+  } finally {
+    globalThis.fetch = realFetch;
+    (config as any).OTP_PROVIDER = realProvider;
+    delete process.env.BREVO_API_KEY;
+    delete process.env.EMAIL_FROM;
   }
 
   server.close();

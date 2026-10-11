@@ -12,7 +12,37 @@ each step unblocks the next.
 
 ## Part 0 — Your list for the Play Store launch (5 October 2026)
 
-### A. Make SMS sign-in codes arrive (blocks every customer)
+### 0. Sign-in codes by EMAIL (11 October 2026) — do this first; replaces A and J
+
+Since 11 Oct the customer app asks for **phone + email** and sends the code to
+the **email** through **Brevo** (free: 300 emails a day, no card). The phone is
+kept so riders and restaurants can call. A and J below are no longer needed.
+
+1. Sign up at **brevo.com** with `officalquickbites@gmail.com` (free plan).
+2. **Senders, domains & dedicated IPs → Senders → Add a sender:** name
+   `Quick Bites`, email `officalquickbites@gmail.com`. Click the link Brevo
+   emails you to verify it.
+3. **SMTP & API → API keys → Generate a new API key** (name it `railway`). Copy it.
+   Do not paste it in any chat.
+4. **Railway → backend → Variables:**
+   - `OTP_PROVIDER` = `email`
+   - `BREVO_API_KEY` = the key from step 3
+   - `EMAIL_FROM` = `officalquickbites@gmail.com`
+   - `OTP_TTL_MINUTES` = `10`
+   - delete `OTP_ALLOW_FIXED_IN_PRODUCTION` and `OTP_FIXED_CODE` if they are set
+   - then **Deploy**.
+5. Install the new customer APK, sign in with your phone and email, and check the
+   inbox **and the spam folder**. In Railway's log, `OTP_REQUESTED … provider:
+   email deliveryAccepted: true` means Brevo took it.
+6. **If codes land in spam:** buy a domain (for example `quickbites.in`, about
+   ₹500–900 a year), add it in Brevo → Senders, domains → Domains, add the
+   DNS records Brevo shows (SPF/DKIM/DMARC), and change `EMAIL_FROM` to
+   `codes@yourdomain`. That is what gets mail into the inbox reliably.
+
+Google Play / Apple reviewers: give them the reviewer phone number (any email)
+and `OTP_REVIEW_CODE` — no email is sent for that number.
+
+### A. Make SMS sign-in codes arrive (no longer needed — see 0)
 
 Right now customers ask for a code, MSG91 accepts it, and **no SMS arrives**.
 MSG91's own log says **"DLT Template id not found"**: your QUICK_BITES template

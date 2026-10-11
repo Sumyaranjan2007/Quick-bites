@@ -32,7 +32,8 @@
 import crypto from 'crypto';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
-import { activeDriver, maskPhone } from './otpDrivers.ts';
+import { activeDriver, maskPhone, sendCodeByEmail, isRealEmail } from './otpDrivers.ts';
+import { userRepository } from '../../db/repositories/userRepository.ts';
 import { normalizeIndianPhone } from '../../utils/phone.ts';
 
 interface PendingCode {
@@ -41,6 +42,8 @@ interface PendingCode {
   expiresAt: number;
   attempts: number;
   lastSentAt: number;
+  /** Where an email code went. Proven by the code, so verify may file it on the account. */
+  email?: string;
 }
 
 /** Codes live in the same store as everything else, so they survive a restart. */
@@ -132,7 +135,7 @@ export const otpService = {
     return activeDriver().delivers;
   },
 
-  async request(rawPhone: string): Promise<RequestOutcome> {
+  async request(rawPhone: string, typedEmail?: string): Promise<RequestOutcome> {
     const phone = normalizeIndianPhone(rawPhone);
     const misconfigured = this.configurationError();
     if (misconfigured) {
@@ -155,23 +158,42 @@ export const otpService = {
     const review = isReviewNumber(phone);
     const code = review ? config.OTP_REVIEW_CODE : driver.name === 'fixed' ? config.OTP_FIXED_CODE : generateCode();
 
+    // Email codes (11 Oct 2026). An account that already has an address gets the
+    // code THERE, whatever was typed: otherwise anyone typing a customer's phone
+    // with their own email would receive the code to that customer's account.
+    // A staff number gets nothing (verify refuses it anyway). Old app versions
+    // send no email; an account without an address then stays on SMS.
+    const account = await userRepository.findByPhone(phone);
+    const email = account
+      ? (account.role !== 'customer' ? undefined : isRealEmail(account.email) ? account.email : typedEmail)
+      : typedEmail;
+    const byEmail = Boolean(email) || Boolean(typedEmail);
+
     write(phone, {
       phone,
       codeHash: hash(code),
       expiresAt: now + config.OTP_TTL_MINUTES * 60 * 1000,
       attempts: 0,
-      lastSentAt: now
+      lastSentAt: now,
+      ...(email ? { email: email.trim().toLowerCase() } : {})
     });
 
-    // The store reviewers' number is answered with its known code, no SMS.
-    const delivery = review ? { accepted: true, reference: 'review-number' } : await driver.send(phone, code);
+    // The store reviewers' number is answered with its known code, no message.
+    // The fixed driver sends nothing on either channel.
+    const delivery = review
+      ? { accepted: true, reference: 'review-number' }
+      : driver.name === 'fixed' || !byEmail
+        ? await driver.send(phone, code)
+        : email
+          ? await sendCodeByEmail(email, code)
+          : { accepted: true, reference: 'staff-number' };
 
     console.log(JSON.stringify({
       level: delivery.accepted ? 'INFO' : 'ERROR',
       timestamp: new Date().toISOString(),
       event: 'OTP_REQUESTED',
       phone: maskPhone(phone),
-      provider: review ? 'review-number' : driver.name,
+      provider: review ? 'review-number' : byEmail && driver.name !== 'fixed' ? 'email' : driver.name,
       deliveryAccepted: delivery.accepted,
       // Deliberately absent: the code. Never log a credential.
       error: delivery.error
@@ -191,7 +213,7 @@ export const otpService = {
    * an unknown number it means "create the account", which is Zomato's flow and
    * is why there is no separate sign-up.
    */
-  async verify(rawPhone: string, submittedCode: string): Promise<{ ok: boolean; reason?: string }> {
+  async verify(rawPhone: string, submittedCode: string): Promise<{ ok: boolean; reason?: string; email?: string }> {
     const phone = normalizeIndianPhone(rawPhone);
     const misconfigured = this.configurationError();
     if (misconfigured) return { ok: false, reason: misconfigured };
@@ -244,7 +266,7 @@ export const otpService = {
 
     // Consumed before the caller issues anything, so a code cannot be replayed.
     clear(phone);
-    return { ok: true };
+    return { ok: true, email: pending.email };
   },
 
   /** Test seam: forget any pending code for a number. */

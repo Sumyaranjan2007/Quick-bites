@@ -183,7 +183,7 @@ export const ProfileScreen: React.FC<Props> = ({
   const deleteAccount = async () => {
     if (!apiUrl || !token) return;
     if (passwordless ? !deleteCode.trim() : !deletePassword) {
-      setDeleteError(passwordless ? 'Enter the code sent to your phone.' : 'Enter your password to confirm.');
+      setDeleteError(passwordless ? 'Enter the code sent to your email.' : 'Enter your password to confirm.');
       return;
     }
     setDeleteBusy(true);
@@ -596,7 +596,7 @@ export const ProfileScreen: React.FC<Props> = ({
               {passwordless ? (
                 <>
                   <Text style={styles.label}>
-                    {codeSent ? 'Code sent to' : 'We will send a code to'} {user?.phone || 'your phone'}
+                    {codeSent ? 'Code sent to your email' : 'We will email you a code to confirm'}
                   </Text>
                   <TextInput
                     style={styles.input}

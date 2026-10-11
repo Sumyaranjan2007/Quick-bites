@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 6 October 2026 · **Last release:** versionCode 21–23 (1.4.0), built 6 Oct · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 11 October 2026 (sign-in codes by email) · **Last release:** versionCode 21–23 (1.4.0), built 6 Oct · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -88,7 +88,8 @@ clearly first, then do the work** (they complained when an answer was buried).
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one super admin, re-applied on every boot (≥ 10 chars). **The password was shared in a chat — the owner must change it.** |
 | `ALLOW_PLATFORM_RESET` | Enables the guarded wipe used by `scripts/reset-live.mjs`. **Must be `false`/absent at launch.** |
 | `SEED_DEMO_DATA`, `DEMO_MODE` | Must be off in production (production seeds nothing). |
-| `OTP_PROVIDER` | `msg91` on live (also `fixed`, `2factor`; `twilio` is a stub). |
+| `OTP_PROVIDER` | **`email` from 11 Oct** (customer app asks phone + email; code by email). Also `fixed`, `msg91`, `2factor` (SMS, old app versions only); `twilio` is a stub. |
+| `BREVO_API_KEY`, `EMAIL_FROM` (+ optional `EMAIL_FROM_NAME`) | Email codes through Brevo's HTTPS API (Railway blocks SMTP below Pro). An account with an email always gets its code there, whatever is typed; `EMAIL_IN_USE` refuses an email already on another account. Owner steps: `OWNER_ACTIONS.md` Part 0 step 0. |
 | `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID` | MSG91 **account Authkey** (NOT the OTP-widget `tokenAuth`) and the **SendOTP template id** (`6ac278e24b79348aee059012`, template "QUICK_BITES", sender `QKBTES`). |
 | `OTP_TTL_MINUTES` | Code lifetime. **Set to `10`** — the MSG91 template text says "valid for 10 minutes" (default is 5). |
 | `OTP_REVIEW_PHONE`, `OTP_REVIEW_CODE` | One number Google's reviewers sign in with; no SMS is sent to it. Values only on Railway and in Play Console → App access. |

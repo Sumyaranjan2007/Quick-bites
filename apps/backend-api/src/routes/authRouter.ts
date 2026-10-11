@@ -18,7 +18,7 @@ import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
 import { otpService } from '../modules/auth/otpService.ts';
-import { maskPhone } from '../modules/auth/otpDrivers.ts';
+import { maskPhone, isRealEmail } from '../modules/auth/otpDrivers.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
 import { notifyAdminsNewSignup } from '../notifications/adminNotifier.ts';
@@ -880,11 +880,16 @@ authRouter.post(
  * handset being in the building.
  */
 
-const OtpRequestSchema = z.object({ phone: phoneSchema });
+// Email is optional so the apps already on phones (phone only) keep working.
+const OtpRequestSchema = z.object({
+  phone: phoneSchema,
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.').max(254)
+    .refine(isRealEmail, 'Enter a valid email address.').optional()
+});
 
 const OtpVerifySchema = z.object({
   phone: phoneSchema,
-  code: z.string().trim().regex(/^\d{4,8}$/, 'Enter the code from your phone.'),
+  code: z.string().trim().regex(/^\d{4,8}$/, 'Enter the code we sent you.'),
   // Only read when the number has no account yet; ignored otherwise, so this
   // cannot be used to rename an existing account by signing into it.
   fullName: z.string().trim().min(2).max(80).optional()
@@ -903,7 +908,7 @@ authRouter.post(
   validate({ body: OtpRequestSchema }),
   async (req, res, next) => {
     try {
-      const outcome = await otpService.request(req.body.phone);
+      const outcome = await otpService.request(req.body.phone, req.body.email);
 
       if (outcome.configurationError) {
         // The deployment cannot issue codes at all. That is this platform's
@@ -935,7 +940,7 @@ authRouter.post(
   validate({ body: OtpRequestSchema }),
   async (req, res, next) => {
     try {
-      const outcome = await otpService.request(req.body.phone);
+      const outcome = await otpService.request(req.body.phone, req.body.email);
       if (outcome.configurationError) {
         throw new AppError(outcome.configurationError, 503, 'OTP_UNAVAILABLE');
       }
@@ -970,6 +975,28 @@ authRouter.post(
 
       let user = await userRepository.findByPhone(phone);
       let created = false;
+      // The address the code was emailed to: receiving it proves the customer holds it.
+      const email = result.email;
+
+      if (user && user.role !== 'customer') {
+        // A staff member's number reaching this endpoint must not hand out a
+        // staff token. They sign in with their credentials, in their own app.
+        throw new AppError(
+          'This number belongs to a partner account. Sign in from the partner app with your email and password.',
+          403,
+          'STAFF_ACCOUNT'
+        );
+      }
+      if (email) {
+        const holder = await userRepository.findByEmail(email);
+        if (holder && holder.id !== user?.id) {
+          throw new AppError(
+            'This email is already used by another Quick Bites account. Use a different email.',
+            409,
+            'EMAIL_IN_USE'
+          );
+        }
+      }
 
       if (!user) {
         // First sign-in. The role is assigned here and never read from the
@@ -979,7 +1006,7 @@ authRouter.post(
           id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           // Kept for staff tooling that still indexes by address. It is not a
           // login credential for this account: there is no password to use with it.
-          email: `${phone}@phone.quickbite.app`,
+          email: email || `${phone}@phone.quickbite.app`,
           fullName: fullName || 'Quick Bites Customer',
           phone,
           role: 'customer' as UserRole,
@@ -987,14 +1014,12 @@ authRouter.post(
           preferredLanguage: 'en'
         });
         created = true;
-      } else if (user.role !== 'customer') {
-        // A staff member's number reaching this endpoint must not hand out a
-        // staff token. They sign in with their credentials, in their own app.
-        throw new AppError(
-          'This number belongs to a partner account. Sign in from the partner app with your email and password.',
-          403,
-          'STAFF_ACCOUNT'
-        );
+      } else if (email && !isRealEmail(user.email)) {
+        // seniordev: an account made by phone code before 11 Oct has no address,
+        // so the first email sign-in claims it. Those accounts were only ever
+        // protected by the shared test code; anything newer has an address and
+        // gets its code there.
+        user = (await userRepository.update(user.id, { email })) || user;
       }
 
       console.log(JSON.stringify({

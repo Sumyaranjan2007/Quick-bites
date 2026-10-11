@@ -12,7 +12,7 @@ import {
   Image
 } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { Phone, Server, ShieldCheck, User, ArrowLeft } from 'lucide-react-native';
+import { Phone, Mail, Server, ShieldCheck, User, ArrowLeft } from 'lucide-react-native';
 import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
@@ -51,6 +51,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
   const [step, setStep] = useState<Step>('phone');
 
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [fullName, setFullName] = useState('');
 
@@ -89,13 +90,17 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
       setFieldErrors({ phone: 'Enter your 10-digit mobile number.' });
       return;
     }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setFieldErrors({ email: 'Enter your email address. We send the code there.' });
+      return;
+    }
     clearMessages();
     setLoading(true);
     try {
       const res = await apiFetch(`${apiUrl}/auth/otp/${isResend ? 'resend' : 'request'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
+        body: JSON.stringify({ phone, email: email.trim() })
       });
       const data = await res.json();
 
@@ -106,8 +111,10 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
         setStep('code');
         setNotice(
           configured
-            ? `We have sent a code to ${phone}.`
-            : 'This test build does not send SMS. Enter the verification code you were given.'
+            // An account that already has an email gets the code there, which may
+            // differ from what was typed, so the address is not repeated back.
+            ? 'We have sent a code to your email. Check your inbox and spam folder.'
+            : 'This test build does not send codes. Enter the verification code you were given.'
         );
       } else {
         const parsed = parseApiError(data, 'Could not send a code. Try again in a moment.');
@@ -233,11 +240,30 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
                   placeholderTextColor={c.text.muted}
                   keyboardType="phone-pad"
                   autoFocus
+                  returnKeyType="next"
+                />
+              </View>
+              {!!fieldErrors.phone && <Text style={styles.fieldErrorText}>{fieldErrors.phone}</Text>}
+
+              <Text style={styles.label}>{t('auth.email')}</Text>
+              <View style={[styles.field, !!fieldErrors.email && styles.fieldError]}>
+                <Mail size={17} color={c.text.muted} />
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder={t('auth.emailPlaceholder')}
+                  placeholderTextColor={c.text.muted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
                   returnKeyType="go"
                   onSubmitEditing={() => requestCode()}
                 />
               </View>
-              {!!fieldErrors.phone && <Text style={styles.fieldErrorText}>{fieldErrors.phone}</Text>}
+              {!!fieldErrors.email && <Text style={styles.fieldErrorText}>{fieldErrors.email}</Text>}
 
               {!!formError && (
                 <View style={styles.formErrorBox}>
@@ -285,7 +311,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
                   placeholder="------"
                   placeholderTextColor={c.text.muted}
                   keyboardType="number-pad"
-                  // iPhone offers the code from the SMS above the keyboard.
+                  // iPhone offers a code from Mail or Messages above the keyboard.
                   textContentType="oneTimeCode"
                   autoFocus
                   returnKeyType="go"

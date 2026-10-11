@@ -183,7 +183,8 @@ it('V9-4/13 Cash amounts keep their paise', () => {
 it('V9-10/11 A phone-only customer sees no internal address and honest code wording', () => {
   const pr = code('customer-mobile/src/screens/ProfileScreen.tsx');
   assert.ok(pr.includes("!String(user.email).endsWith('@phone.quickbite.app')"));
-  assert.ok(pr.includes("codeSent ? 'Code sent to' : 'We will send a code to'"));
+  // Since 11 Oct the delete code goes to the account's email, not the phone.
+  assert.ok(pr.includes("codeSent ? 'Code sent to your email' : 'We will email you a code to confirm'"));
 });
 
 // ---------------------------------------------------------------------

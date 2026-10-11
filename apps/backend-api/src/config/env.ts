@@ -162,7 +162,7 @@ export const config = {
    * is law rather than a vendor rule, and it is the long-pole item for going
    * live. See legal/COMPLIANCE.md.
    */
-  OTP_PROVIDER: (process.env.OTP_PROVIDER || 'fixed') as 'fixed' | '2factor' | 'msg91' | 'twilio',
+  OTP_PROVIDER: (process.env.OTP_PROVIDER || 'fixed') as 'fixed' | 'email' | '2factor' | 'msg91' | 'twilio',
   OTP_FIXED_CODE: process.env.OTP_FIXED_CODE || '123456',
   /** Whether OTP_FIXED_CODE was set on purpose. Production never runs on the 123456 default. */
   OTP_FIXED_CODE_SET: Boolean((process.env.OTP_FIXED_CODE || '').trim()),

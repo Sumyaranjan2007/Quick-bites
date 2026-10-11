@@ -6,6 +6,29 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-11] -- Claude Opus 5.5 -- Customer sign-in codes by email (Brevo) instead of SMS
+
+> **For the owner.** SMS needed DLT approval that never came, so customers now
+> type their **phone and email**, and the code arrives **by email**. The phone is
+> kept for calls. Set up Brevo and four Railway settings (`OWNER_ACTIONS.md`
+> Part 0 step 0), then install the new customer app.
+
+- The customer app's sign-in asks for mobile number + email; the code goes to the
+  email. Delete account sends its code to the account's email. English, Kannada and Hindi.
+- Server: `POST /auth/otp/request` accepts an optional `email` (old apps send
+  phone only and keep working). `OTP_PROVIDER=email` + `BREVO_API_KEY` +
+  `EMAIL_FROM` send through Brevo's HTTPS API (Railway blocks SMTP below Pro).
+- **Safety:** an account that already has an email always gets the code at THAT
+  address, whatever is typed, so typing someone's phone with your own email gets
+  you nothing (mutation-tested: sending to the typed address is caught). A staff
+  number gets no code. An email already on another account is refused
+  (`EMAIL_IN_USE`). Accounts created by phone before 11 Oct have no email; the
+  first email sign-in files one on them (they were only ever protected by the
+  shared test code).
+- 11 new checks in the OTP suite (53); gate 83/83.
+
+---
+
 ## [2026-10-06] -- Claude Opus 5.5 -- Every Markdown file brought up to date
 
 > **For the owner.** A new AI (or person) now reads `CLAUDE.md` and finds every other
