@@ -53,7 +53,7 @@ old `apps/admin-web` and `apps/restaurant-web` were deleted on 6 Oct.
 ```bash
 npm install
 npm run dev --workspace=@quick-bites/backend-api     # local backend (data in apps/backend-api/data/)
-node scripts/run-backend-tests.mjs                   # the gate: 83 suites
+node scripts/run-backend-tests.mjs                   # the gate: 84 suites
 npm run verify                                       # secrets, i18n, typecheck, tests
 bash scripts/build-apks.sh --aab                     # four signed APKs + Play bundles
 node scripts/build-web.mjs                           # the /partner and /admin websites

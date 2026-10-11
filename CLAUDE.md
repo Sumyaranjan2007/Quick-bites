@@ -156,7 +156,7 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 ## 5. Daily commands
 
 ```bash
-node scripts/run-backend-tests.mjs                 # THE gate: 83 backend suites, ~100 s, takes a machine-wide lock
+node scripts/run-backend-tests.mjs                 # THE gate: 84 backend suites, ~100 s, takes a machine-wide lock
 node scripts/check-secrets.mjs                     # no secrets in tracked files
 npx turbo typecheck                                # all workspaces
 node scripts/check-i18n.mjs ; node scripts/check-apk-secrets.mjs

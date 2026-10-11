@@ -85,6 +85,7 @@ const SUITES = [
   'sockets',
   'sockets.security',
   'otp',
+  'anonymousAccess',
   'onboarding',
   'payments',
   'security',

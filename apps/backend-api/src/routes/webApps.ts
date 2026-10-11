@@ -30,7 +30,11 @@ const CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob:",
   "connect-src 'self' https: wss: data: blob:",
-  "frame-ancestors 'none'"
+  "frame-ancestors 'none'",
+  // As the API's own policy: no plugins, no rewritten <base>, forms post only here.
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'"
 ].join('; ');
 
 export const webApps = Router();

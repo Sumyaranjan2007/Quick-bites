@@ -943,9 +943,15 @@ const s = StyleSheet.create({
   // obviously a heading and its contents rather than two sets of buttons.
   railWrapGroup: { borderBottomWidth: 0 },
   railItemGroup: {
-    flex: 1,
+    // Each cell takes its label's width and the spare is shared: equal cells
+    // cut "Catalogue" and pushed "System" off a 375 px screen, because a
+    // browser cannot shrink text to fit the way Android does.
+    // Fits a 360 px phone; below that the cells shrink rather than run off.
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
     justifyContent: 'center',
-    paddingHorizontal: tokens.space[1],
+    paddingHorizontal: 4,
     paddingVertical: 10,
     borderRadius: 0,
     borderBottomWidth: 2,
@@ -964,7 +970,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  railBadgeCorner: { position: 'absolute', top: 0, right: 2, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4 },
+  // Raised above the label's line so it never sits on the letters.
+  railBadgeCorner: { position: 'absolute', top: -2, right: -4, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4 },
   railBadgeText: { fontSize: 10, fontWeight: tokens.font.weight.heavy, color: '#2A0710' },
 
   card: {
