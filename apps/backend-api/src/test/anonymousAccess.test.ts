@@ -19,6 +19,7 @@ const PUBLIC: Record<string, string> = {
   'GET /': WEB,
   'GET /logo.png': WEB,
   'GET /google644d46e6db0e1cb0.html': 'Google Search Console ownership file',
+  'GET /googlefa2292644f7d3bb0.html': 'Google Search Console ownership file',
   'GET /robots.txt': 'search engine rules',
   'GET /sitemap.xml': 'search engine page list',
   'GET /privacy': WEB,

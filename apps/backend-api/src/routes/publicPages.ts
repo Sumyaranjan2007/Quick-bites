@@ -126,10 +126,12 @@ publicPages.get('/logo.png', (_req, res) => {
 /** The public website's address, for search engines (owner's domain, 11 Oct 2026). */
 const SITE = 'https://www.quickbitesresturants.in';
 
-// Google Search Console ownership file. Google says to keep it after verifying.
-publicPages.get('/google644d46e6db0e1cb0.html', (_req, res) => {
-  res.type('html').send('google-site-verification: google644d46e6db0e1cb0.html');
-});
+// Google Search Console ownership files (one per property). Google says to keep them after verifying.
+for (const file of ['google644d46e6db0e1cb0.html', 'googlefa2292644f7d3bb0.html']) {
+  publicPages.get(`/${file}`, (_req, res) => {
+    res.type('html').send(`google-site-verification: ${file}`);
+  });
+}
 
 // Search engines may read the public pages; the admin console and the API are not for indexing.
 publicPages.get('/robots.txt', (_req, res) => {
