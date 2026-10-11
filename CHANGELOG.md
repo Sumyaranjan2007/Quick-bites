@@ -6,6 +6,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-11] -- Claude Opus 5.5 -- New customer logo; Customer versionCode 28
+
+- The owner's new logo: launcher icon and round (adaptive) icon show the pin mark,
+  centred by its visual weight (box-centring left the pin ~8% left) and scaled so the
+  swoosh stays inside Android's visible circle; the startup screen shows the full logo
+  and now spells **Quickbites** (the old one read "Quickbits"); the sign-in screen uses
+  a tight copy (`assets/logo-mark.png`). Play icon and feature graphic regenerated.
+- **Customer APK + AAB versionCode 28** (archived in
+  `quick-bites-release-archive/v28-customer-2026-10-11`). Upload this Customer bundle;
+  Partner and Rider stay on versionCode 24. Codes 25–27 were consumed by builds that
+  failed on a locked `android/` folder (a stopped build's Gradle kept running).
+- Privacy policy: Brevo replaces MSG91; the made-up grievance contact replaced with the
+  real business address, email and phone.
+
+---
+
 ## [2026-10-11] -- Claude Opus 5.5 -- Customer sign-in codes by email (Brevo) instead of SMS
 
 > **For the owner.** SMS needed DLT approval that never came, so customers now
