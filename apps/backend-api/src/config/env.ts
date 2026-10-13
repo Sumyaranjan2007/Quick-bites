@@ -386,7 +386,7 @@ export const config = {
   APNS_KEY_ID: process.env.APNS_KEY_ID || '',
   APNS_TEAM_ID: process.env.APNS_TEAM_ID || '',
   APNS_PRIVATE_KEY: process.env.APNS_PRIVATE_KEY || '',
-  APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || 'com.quickbite.app',
+  APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || 'in.quickbites.app',
   APNS_HOST: process.env.APNS_HOST || '',
 
   /*

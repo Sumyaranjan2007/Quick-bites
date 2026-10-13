@@ -21,7 +21,7 @@ the business **QUICK BITES** (MSME Udyam `UDYAM-KR-29-0052148`, contact
 
 | App | Folder | Android package | Who uses it | Play Store |
 | --- | --- | --- | --- | --- |
-| Quick Bites | `apps/customer-mobile` | `com.quickbite.app` | customers | public · **also iPhone** (App Store, being prepared — §7b) |
+| Quick Bites | `apps/customer-mobile` | `com.quickbite.app` (iPhone: `in.quickbites.app`) | customers | public · **also iPhone** (App Store, being prepared — §7b) |
 | Quick Bites Partner | `apps/restaurant-mobile` | `com.quickbite.partner` | restaurants | public |
 | Quick Bites Rider | `apps/delivery-mobile` | `com.quickbite.rider` | delivery riders | public |
 | Quick Bites Operations (the admin app) | `apps/admin-mobile` | `com.quickbite.admin` | the owner / operations | **private** (APK only) |
@@ -102,7 +102,7 @@ clearly first, then do the work** (they complained when an answer was buried).
 | `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR` | Server-side road distance (Directions for one trip, Matrix for many). |
 | `MEILISEARCH_HOST`, `MEILISEARCH_API_KEY` | Search. |
 | `FCM_SERVICE_ACCOUNT_JSON` | Push notifications (Android). |
-| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (+ optional `APNS_BUNDLE_ID`, default `com.quickbite.app`) | Push to iPhone through Apple (FCM rejects iPhone tokens). **Not set yet** — the owner creates the .p8 key. `/health` → `services.applePush.configured`. |
+| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (+ `APNS_BUNDLE_ID`, default `in.quickbites.app` — the iPhone bundle id, which differs from Android's) | Push to iPhone through Apple (FCM rejects iPhone tokens). **Set 13 Oct 2026** (key `Y5SGGTTN2X`, team `SPZBSG55FZ`); the .p8 is kept outside the repo. `/health` → `services.applePush.configured`. |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Menu-from-photo reader. **The Groq key was shared in a chat — rotate it.** |
 | `EXOTEL_*` | Masked calling (optional, not required for launch). |
 | Timing knobs | `ORDER_ACCEPT_TIMEOUT_MINUTES`, `RIDER_NOSHOW_*`, `RIDER_ASSIGN_ALERT_MINUTES`, `PAYMENT_*_AFTER_MINUTES`, `DEFAULT_PREP_MINUTES`, `DELIVERY_*`, `MAX_TIP_AMOUNT`, `DEFAULT_SERVICE_RADIUS_KM`, `PLACES_REGION`. |

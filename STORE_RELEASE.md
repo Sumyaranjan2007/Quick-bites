@@ -249,7 +249,7 @@ hides among fake ones.
 
 All four apps now carry the iOS settings that are decided in the repo:
 
-- **Bundle identifiers** — `com.quickbite.app` / `.partner` / `.rider` / `.admin`
+- **Bundle identifiers** — `com.quickbite.app` / `.partner` / `.rider` / `.admin` (the customer iPhone app is `in.quickbites.app`: `com.quickbite.app` is taken on Apple)
 - **`buildNumber`** — starts at `1`; must increase on **every** upload
 - **App icon with no alpha channel.** App Store Connect rejects transparent
   icons outright (`ITMS-90717`); all four icons were RGBA and are now flattened

@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.quickbite.app",
+      "bundleIdentifier": "in.quickbites.app",
       "buildNumber": "7",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

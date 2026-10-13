@@ -115,7 +115,7 @@ try {
     assert.equal(decoded.payload.iss, 'TEAM765432');
   });
   it('addresses the customer app as an alert, high priority, collapsing by tag', () => {
-    assert.equal(good.headers['apns-topic'], 'com.quickbite.app');
+    assert.equal(good.headers['apns-topic'], 'in.quickbites.app');
     assert.equal(good.headers['apns-push-type'], 'alert');
     assert.equal(good.headers['apns-priority'], '10');
     assert.equal(good.headers['apns-collapse-id'], 'order-ord_1');
