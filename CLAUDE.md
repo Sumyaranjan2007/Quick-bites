@@ -241,18 +241,20 @@ Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0):
 
 ---
 
-## 7b. App Store (iPhone, customer app only) — status on 5 Oct 2026
+## 7b. App Store (iPhone, customer app only) — status on 14 Oct 2026
 
-Full guide for the owner: **`docs/app-store/IOS.md`** (what to buy, EAS and Xcode builds, test
-checklist, every App Store Connect field, review notes). Done in code (5 Oct): iOS permission
-reasons, UPI app schemes, privacy manifest, `eas.json` + Mapbox `.netrc` hook, Apple push on the
-server, browse-without-sign-in, edge-swipe back, large titles, haptics, keyboard-safe sheets,
-44-pt targets, Privacy/Terms links (both phones), hidden server settings off on iPhone.
-**Never compiled for iOS yet** (no Mac here); only bundled for iOS and exercised in a browser
-with the platform forced to iOS. Waiting on the owner: Apple Developer enrolment, APNs key →
-Railway, Expo account + `eas init` (commit the projectId it writes into `app.json`), first
-EAS build. Risk: Apple requires Xcode 26 and the app is on Expo SDK 52 — if the first build
-fails inside React Native/libraries, an Expo SDK upgrade (and a new Android release) is needed.
+Full guide for the owner: **`docs/app-store/IOS.md`**. Built on this Mac with Xcode 26 (not EAS):
+bundle id `in.quickbites.app`, app "Quick Bites: Food Delivery" (Apple ID 6822422503), version
+1.4.0, **build 10** uploaded (maps fixed, location purpose string, iPhone "Choose on map" fix).
+Listing, App Privacy (published 14 Oct), age rating, price (Free, India), review contact and
+manual release are filled in through the App Store Connect API (key in
+`~/.appstoreconnect/private_keys/`, never in git). TestFlight internal group "Internal team".
+**Waiting on:** a real, admin-approved partner restaurant (for the store screenshots, the review
+notes' restaurant name and the reviewer's test order), the owner typing the reviewer code into
+App Review → Password, and the owner pressing Add for Review / Submit.
+Lessons: Xcode's app.config step passes an unresolved `ios/Pods/../..` path (config plugins
+must `path.resolve` it); iOS cannot open a Modal while another is closing (use `onDismiss`);
+full-screen Modals need the safe-area insets on iPhone.
 
 ## 8. Working rules (each was learned the hard way)
 

@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "in.quickbites.app",
-      "buildNumber": "8",
+      "buildNumber": "10",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDisplayName": "Quick Bites",
@@ -195,8 +195,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Quick Bites uses your location to set your delivery address and show how far your food is.",
-          "locationAlwaysAndWhenInUsePermission": false,
+          "locationWhenInUsePermission": "Quick Bites uses your location while you use the app to show nearby restaurants, set your delivery address on the map and show how far your food is.",
+          "locationAlwaysAndWhenInUsePermission": "Quick Bites uses your location only while you use the app, to show nearby restaurants and set your delivery address on the map. It does not track you in the background.",
           "locationAlwaysPermission": false
         }
       ],

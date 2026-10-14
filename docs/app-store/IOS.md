@@ -310,7 +310,7 @@ that has never used Quick Bites (account B); the iPhone.
   | Contact Info | Name, Email Address, Phone Number, Physical Address | Account; sign-in by phone number + a code sent to the email; delivery |
   | Location | Precise Location | Delivery address and distance; Mapbox map statistics |
   | User Content | Emails or Text Messages | Order chat with the rider/restaurant |
-  | User Content | Photos or Videos | Profile photo, photos on help requests |
+  | User Content | Photos or Videos | Profile photo |
   | User Content | Customer Support | Help requests and refund requests |
   | User Content | Other User Content | Order ratings |
   | Identifiers | User ID | The account id |
@@ -326,10 +326,14 @@ that has never used Quick Bites (account B); the iPhone.
   Apple's "Allow tracking?" prompt (App Tracking Transparency does not apply).
 
 ### This version
-- **Screenshots:** iPhone **6.9-inch** (1320 × 2868), at least 3, up to 10. Take them on the
-  iPhone 17 Pro Max Simulator with `scripts/app-store/screenshots.sh` (`prepare`, then `shot
-  01-home` … after each screen, `check`, `finish`): home, restaurant, basket, checkout,
-  tracking, profile. It sets a clean status bar (9:41, full signal and battery).
+- **Screenshots (checked in App Store Connect on 14 Oct 2026):** the only **required** set is
+  **"iPhone with Dynamic Island (medium display)"** — 6.1"/6.3", portrait **1206 × 2622** or
+  1179 × 2556 (API type `APP_IPHONE_61`), 1–10 images. Everything else is optional: large display
+  1320 × 2868 / 1290 × 2796 / 1260 × 2736, iPhone Duo 1398 × 2034 / 2007 × 2853, older iPhones,
+  and iPad (the app is iPhone-only). Take them with `scripts/app-store/screenshots.sh`
+  (`SIZE=6.3` = iPhone 17 Pro, the default; `SIZE=6.9` = iPhone 17 Pro Max): `prepare`, then
+  `shot 03-home` … after each screen, `check`, `finish`. It sets a clean status bar (9:41, full
+  signal and battery). Set: home, restaurant, basket, checkout, tracking, profile.
 - **Promotional text (170):** `Order from restaurants around Harohalli and track your food live, from the kitchen to your door.`
 - **Description:** the "Full description" in `docs/play-store/listings.md` §1 (it fits Apple's
   4,000-character limit as it is).

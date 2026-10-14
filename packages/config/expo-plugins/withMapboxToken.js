@@ -56,7 +56,10 @@ function readValue(projectRoot, name) {
 
   // apps/<app> -> repository root. Walked upward rather than hardcoded, so
   // this keeps working if an app moves.
-  let dir = projectRoot;
+  // Resolved first: Xcode's app.config step passes "<app>/ios/Pods/../..", and
+  // walking up that string five times never left ios/, so every iPhone build
+  // until 14 Oct 2026 shipped with no map token (the "Map not available" card).
+  let dir = path.resolve(projectRoot);
   for (let depth = 0; depth < 5; depth++) {
     const candidate = path.join(dir, '.env');
     if (fs.existsSync(candidate)) {

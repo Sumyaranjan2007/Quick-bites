@@ -9,6 +9,7 @@ import {
   Platform
 } from 'react-native';
 import { MapPin, X, Crosshair, Check } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
@@ -82,6 +83,14 @@ export const MapAddressPicker: React.FC<Props> = ({
   apiUrl,
   token
 }) => {
+  /*
+   * iPhone: a full-screen Modal covers the status bar, so without the insets the
+   * close button and title sat under the clock and the Dynamic Island, and the
+   * Confirm button on the home indicator. Android's Modal window already starts
+   * below the status bar, so it keeps its layout unchanged.
+   */
+  const insets = useSafeAreaInsets();
+  const iosInsets = Platform.OS === 'ios' ? { paddingTop: insets.top, paddingBottom: insets.bottom } : null;
   const [centre, setCentre] = useState(initial || FALLBACK_CENTRE);
   /*
    * WHERE THE CAMERA IS BEING SENT, which is not the same as where it is.
@@ -212,7 +221,7 @@ export const MapAddressPicker: React.FC<Props> = ({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.root}>
+      <View style={[styles.root, iosInsets]}>
         <View style={styles.header}>
           <TouchableOpacity hitSlop={10} onPress={onClose} style={styles.headerButton} accessibilityLabel="Close map">
             <X size={20} color={c.text.primary} />

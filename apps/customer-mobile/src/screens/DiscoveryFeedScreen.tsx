@@ -8,7 +8,8 @@ import {
   StyleSheet,
   Image,
   RefreshControl,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
@@ -168,6 +169,13 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   const [locality, setLocality] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  /*
+   * iPhone: "Choose on map" closes the "Deliver to" sheet and opens the map. iOS
+   * cannot present a screen while the one under it is still sliding away, so
+   * opening both in the same moment silently showed nothing. The map opens once
+   * the sheet has finished closing (Modal onDismiss, iOS only).
+   */
+  const mapAfterSheetRef = useRef(false);
 
   /**
    * Restaurants that serve a dish matching what was typed, and which dish.
@@ -872,6 +880,12 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         transparent
         animationType="slide"
         onRequestClose={() => setLocationSheetOpen(false)}
+        onDismiss={() => {
+          if (mapAfterSheetRef.current) {
+            mapAfterSheetRef.current = false;
+            setMapOpen(true);
+          }
+        }}
       >
         <View style={styles.sheetBackdrop}>
           <View style={styles.locationSheet}>
@@ -920,7 +934,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
               style={styles.chooseOnMap}
               onPress={() => {
                 setLocationSheetOpen(false);
-                setMapOpen(true);
+                if (Platform.OS === 'ios') mapAfterSheetRef.current = true;
+                else setMapOpen(true);
               }}
               activeOpacity={0.85}
             >

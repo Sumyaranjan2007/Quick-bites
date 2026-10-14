@@ -6,6 +6,34 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-14] -- Claude Opus 5.5 -- iPhone 1.4.0 (10): maps on iPhone, location purpose string
+
+> **For the owner.** Builds 7–9 showed "Map not available in this build" on every
+> iPhone map (address picker, order tracking): the map key never reached the iPhone
+> build. Build 10 has real maps. It also answers Apple's ITMS-90683 email, and the
+> "Choose on map" button on the home screen works on iPhone (it did nothing before).
+
+- `withMapboxToken`: resolves the project path before looking for the root `.env`.
+  Xcode's app.config step passes `<app>/ios/Pods/../..`; walking up that string never
+  reached the repository root, so iPhone builds had `mapboxConfigured: false`.
+  Android builds pass a clean path and are unaffected.
+- `NSLocationAlwaysAndWhenInUseUsageDescription` added through the expo-location
+  plugin (Apple's ITMS-90683 on build 8: expo-location and Mapbox contain the
+  "Always" request API, which the app never calls). No background location mode;
+  the strings say the location is used only while the app is open. The
+  when-in-use string now names nearby restaurants too. Android config is
+  byte-identical (`expo config --type introspect`).
+- Home → "Deliver to" → "Choose on map" opened nothing on iPhone (iOS cannot
+  present the map while the sheet is still closing); the map now opens when the
+  sheet has closed (`Modal onDismiss`, iPhone only).
+- The map screen's header sat under the clock and the Dynamic Island, and Confirm
+  on the home indicator; safe-area padding on iPhone only.
+- iPhone build number 10. Screenshots: the required App Store set is the 6.3-inch
+  "medium display" (1206 × 2622); `scripts/app-store/screenshots.sh` takes `SIZE=6.3`
+  (default) or `SIZE=6.9`.
+
+---
+
 ## [2026-10-14] -- Claude Opus 5.5 -- iPhone 1.4.0 (8): honest FSSAI badge, rating and prep time
 
 > **For the owner.** The customer app no longer says "FSSAI verified" for a kitchen
