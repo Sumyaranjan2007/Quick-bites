@@ -7,10 +7,30 @@
  * forgets its auth middleware fails this suite by name.
  */
 import http from 'node:http';
-import { createApp } from '../app.ts';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { seedDatabase } from '../db/seed.ts';
 import { config } from '../config/env.ts';
 import { corsDecision } from '../middlewares/cors.ts';
+
+/*
+ * A stand-in for the /partner and /admin website build.
+ *
+ * The real build (scripts/build-web.mjs) is made by the Dockerfile on Railway
+ * and is gitignored, so on CI and on a fresh checkout both pages fell through
+ * to the ordinary 404 and the two "still answers" checks below failed for a
+ * reason that has nothing to do with the host rule they test. With a page to
+ * serve, a 404 can only come from the host rule. Set before the app loads:
+ * webApps.ts reads QB_WEB_DIR once, when it is imported.
+ */
+const webDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qb-anon-web-'));
+for (const name of ['admin', 'partner']) {
+  fs.mkdirSync(path.join(webDir, name), { recursive: true });
+  fs.writeFileSync(path.join(webDir, name, 'index.html'), `<!doctype html><title>${name} app</title>`);
+}
+process.env.QB_WEB_DIR = webDir;
+const { createApp } = await import('../app.ts');
 
 /** Routes a stranger may call, and why. Path patterns use Express syntax. */
 const WEB = 'web page: the home page, the legal pages Google requires, or a sign-in page';
