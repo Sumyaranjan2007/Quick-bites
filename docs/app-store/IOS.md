@@ -301,31 +301,35 @@ that has never used Quick Bites (account B); the iPhone.
 
 ### App Privacy
 - **Privacy Policy URL:** `https://quick-bites-production.up.railway.app/privacy`
-- **Data collection** — answer "Yes, we collect data", then tick exactly these. For every one:
-  **Linked to the user: Yes**, **Used for tracking: No**, purpose **App Functionality**.
+- **Data collection** — **published 14 Oct 2026.** "Yes, we collect data", then exactly these.
+  For every one: **Linked to the user: Yes**, **Used for tracking: No**, purpose **App Functionality**
+  (Precise Location also **Analytics**, for the Mapbox map's usage statistics).
 
   | Apple category | Data type | Why |
   |---|---|---|
   | Contact Info | Name, Email Address, Phone Number, Physical Address | Account; sign-in by phone number + a code sent to the email; delivery |
-  | Location | Precise Location | Delivery address and distance |
-  | User Content | Photos or Videos | Profile photo |
-  | User Content | Customer Support | Help requests |
-  | User Content | Other User Content | Ratings, order chat |
-  | Identifiers | Device ID | Push notifications |
+  | Location | Precise Location | Delivery address and distance; Mapbox map statistics |
+  | User Content | Emails or Text Messages | Order chat with the rider/restaurant |
+  | User Content | Photos or Videos | Profile photo, photos on help requests |
+  | User Content | Customer Support | Help requests and refund requests |
+  | User Content | Other User Content | Order ratings |
+  | Identifiers | User ID | The account id |
+  | Identifiers | Device ID | Push notification token |
   | Purchases | Purchase History | Orders and Gold |
   | Financial Info | Payment Info | Card/UPI details entered in Razorpay's sheet |
 
-  Map library: Mapbox's SDK can send anonymous usage and location statistics. Check Mapbox's
-  page "App Store privacy details" for its current list and add what it names, marked **Not
-  linked** and **Analytics**.
+  Not collected: no crash reporter, analytics or advertising SDK is in the app (checked
+  against `package.json` on 14 Oct). Voice search uses Apple's speech recognition; the
+  app sends only the resulting text as a search, which the server does not store.
 
 - **Tracking:** No. There are no advertising or tracking libraries, so the app never shows
   Apple's "Allow tracking?" prompt (App Tracking Transparency does not apply).
 
 ### This version
 - **Screenshots:** iPhone **6.9-inch** (1320 × 2868), at least 3, up to 10. Take them on the
-  iPhone 17 Pro Max Simulator with ⌘S: home, menu with a size choice, basket and bill,
-  tracking, profile.
+  iPhone 17 Pro Max Simulator with `scripts/app-store/screenshots.sh` (`prepare`, then `shot
+  01-home` … after each screen, `check`, `finish`): home, restaurant, basket, checkout,
+  tracking, profile. It sets a clean status bar (9:41, full signal and battery).
 - **Promotional text (170):** `Order from restaurants around Harohalli and track your food live, from the kitchen to your door.`
 - **Description:** the "Full description" in `docs/play-store/listings.md` §1 (it fits Apple's
   4,000-character limit as it is).

@@ -6,6 +6,29 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-14] -- Claude Opus 5.5 -- iPhone 1.4.0 (8): honest FSSAI badge, rating and prep time
+
+> **For the owner.** The customer app no longer says "FSSAI verified" for a kitchen
+> whose licence nobody checked. The badge now appears only after an admin approves a
+> real 14-digit FSSAI licence in the documents queue. Kitchens activated by hand get
+> no badge until their licence is approved there.
+
+- Server: `GET /api/restaurants` and `GET /api/restaurants/:id` send `fssaiVerified`,
+  true only when the restaurant's licence number is 14 digits, its latest FSSAI
+  document is APPROVED, and that document (if it records a number) has the same number
+  (`isFssaiVerified` in `modules/restaurants/restaurantDocuments.ts`). New suite
+  `fssaiBadge` (mutation-checked: dropping the APPROVED check fails 5 checks).
+- Customer app (iPhone and Android source): the badge shows only when `fssaiVerified`
+  is true; a restaurant with no ratings shows "New" instead of "★ 0.0" (and the feed
+  no longer invents 4.5); the restaurant page hides the time chip when there is no
+  estimate instead of showing " MIN".
+- iPhone build number 8 (Android versionCode unchanged at 28).
+- App Store: `scripts/app-store/screenshots.sh` takes 6.9-inch (1320 × 2868)
+  screenshots with a clean status bar into `build/app-store/screenshots/` (gitignored).
+- App Privacy published on App Store Connect (see `docs/app-store/IOS.md` §6).
+
+---
+
 ## [2026-10-11] -- Claude Opus 5.5 -- New customer logo; Customer versionCode 28
 
 - The owner's new logo: launcher icon and round (adaptive) icon show the pin mark,

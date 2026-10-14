@@ -35,6 +35,18 @@ export class KycRepository {
     return list;
   }
 
+  /** Every document for one kind of entity, grouped by entity id (one pass for a whole feed). */
+  async groupByEntity(entityType: 'RESTAURANT' | 'RIDER'): Promise<Map<string, KycDocument[]>> {
+    const groups = new Map<string, KycDocument[]>();
+    for (const doc of memoryStore.kycDocuments.values()) {
+      if (doc.entityType !== entityType) continue;
+      const list = groups.get(doc.entityId);
+      if (list) list.push(doc);
+      else groups.set(doc.entityId, [doc]);
+    }
+    return groups;
+  }
+
   async reviewDocument(
     id: string,
     status: 'APPROVED' | 'REJECTED',

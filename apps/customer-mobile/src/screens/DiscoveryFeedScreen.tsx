@@ -39,6 +39,8 @@ export interface RestaurantItem {
   isPureVeg: boolean;
   /** False when this kitchen takes online payment only (set by Quick Bites). */
   acceptsCash?: boolean;
+  /** True only when Quick Bites approved a real FSSAI licence for this kitchen. */
+  fssaiVerified?: boolean;
   priceForTwo: number;
   packagingFee?: number;
   bannerUrl?: string;
@@ -280,12 +282,13 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             id: r.id,
             name: r.name,
             cuisine: Array.isArray(r.cuisineTags) ? r.cuisineTags.join(', ') : 'Indian',
-            rating: r.ratingAverage ?? 4.5,
+            rating: r.ratingAverage ?? 0,
             ratingCount: r.ratingCount,
             deliveryTimeMins: r.estimatedDeliveryMinutes,
             distanceKm: r.distanceKm,
             isPureVeg: !!r.isPureVeg,
             acceptsCash: r.acceptsCash !== false,
+            fssaiVerified: r.fssaiVerified === true,
             priceForTwo: r.costForTwo ?? 400,
             packagingFee: r.packagingFee,
             bannerUrl: r.bannerUrl,

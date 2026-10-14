@@ -146,3 +146,30 @@ export function buildDocumentOverview(documents: KycDocument[]): DocumentOvervie
     awaitingReview: slots.filter(s => s.status === 'PENDING').map(s => s.label)
   };
 }
+
+/** The shape of every licence FSSAI issues: fourteen digits. */
+export const FSSAI_LICENCE_NUMBER = /^\d{14}$/;
+
+/**
+ * Whether customers may be told this kitchen's FSSAI licence was checked.
+ *
+ * The customer app used to print "FSSAI verified partner kitchen" on every
+ * restaurant, including ones whose licence field held typed letters. A
+ * licence counts as verified only when all three hold: the number on the
+ * restaurant is a real 14-digit licence number, the latest FSSAI document an
+ * administrator reviewed was APPROVED, and that document (when it records a
+ * number) carries the same number. A kitchen activated by hand, with no
+ * approved licence in the queue, gets no badge: nobody checked it here.
+ */
+export function isFssaiVerified(licenceNumber: unknown, documents: KycDocument[]): boolean {
+  const number = typeof licenceNumber === 'string' ? licenceNumber.replace(/\s+/g, '') : '';
+  if (!FSSAI_LICENCE_NUMBER.test(number)) return false;
+  let latest: KycDocument | undefined;
+  for (const doc of documents) {
+    if (doc.documentType !== 'FSSAI') continue;
+    if (!latest || new Date(doc.submittedAt).getTime() > new Date(latest.submittedAt).getTime()) latest = doc;
+  }
+  if (!latest || latest.status !== 'APPROVED') return false;
+  if (latest.documentNumber && latest.documentNumber.replace(/\s+/g, '') !== number) return false;
+  return true;
+}

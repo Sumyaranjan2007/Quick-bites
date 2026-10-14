@@ -95,6 +95,10 @@ export const DietMark: React.FC<{ isVeg: boolean; size?: number }> = ({ isVeg, s
   </View>
 );
 
+/**
+ * A restaurant nobody has rated yet says "New" rather than "★ 0.0", which
+ * reads as a terrible score, not an absent one.
+ */
 export const RatingBadge: React.FC<{ value: number; count?: number; compact?: boolean }> = ({
   value,
   count,
@@ -102,8 +106,14 @@ export const RatingBadge: React.FC<{ value: number; count?: number; compact?: bo
 }) => (
   <View style={s.ratingRow}>
     <View style={s.ratingBadge}>
-      <Text style={s.ratingStar}>★</Text>
-      <Text style={s.ratingValue}>{value.toFixed(1)}</Text>
+      {count ? (
+        <>
+          <Text style={s.ratingStar}>★</Text>
+          <Text style={s.ratingValue}>{value.toFixed(1)}</Text>
+        </>
+      ) : (
+        <Text style={s.ratingValue}>New</Text>
+      )}
     </View>
     {!compact && count ? (
       <Text style={s.ratingCount}>

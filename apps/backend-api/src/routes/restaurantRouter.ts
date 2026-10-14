@@ -17,6 +17,7 @@ import { AppError } from '../utils/AppError.ts';
 import { buildRestaurantDashboard } from '../modules/restaurants/restaurantInsights.ts';
 import {
   buildDocumentOverview,
+  isFssaiVerified,
   RESTAURANT_DOCUMENT_TYPES,
   ACCEPTED_FORMATS,
   MAX_UPLOAD_MB
@@ -79,7 +80,9 @@ const PUBLIC_RESTAURANT_FIELDS = [
   'serviceRadiusKm', 'isOpen', 'openingHours', 'forceOpenUntil', 'kitchenStatusChangedAt',
   // Worked out per request for the feed.
   'distanceKm', 'isWithinServiceArea', 'locationPending', 'estimatedDeliveryMinutes',
-  'offer', 'photos', 'photoSource', 'placeholder', 'isServing', 'opensAt'
+  'offer', 'photos', 'photoSource', 'placeholder', 'isServing', 'opensAt',
+  // True only when an administrator approved a real 14-digit licence (isFssaiVerified).
+  'fssaiVerified'
 ] as const;
 
 export function publicRestaurant(r: Record<string, any>): Record<string, any> {
@@ -125,6 +128,7 @@ restaurantRouter.get('/', async (req, res) => {
       : 'relevance';
 
     const list = await restaurantRepository.listActive();
+    const kycByRestaurant = await kycRepository.groupByEntity('RESTAURANT');
 
     /*
      * Offers are read once for the whole feed, not per restaurant.
@@ -338,7 +342,9 @@ restaurantRouter.get('/', async (req, res) => {
     return res.json({
       success: true,
       data: {
-        restaurants: annotated.map(publicRestaurant),
+        restaurants: annotated.map(r =>
+          publicRestaurant({ ...r, fssaiVerified: isFssaiVerified(r.fssaiLicenseNumber, kycByRestaurant.get(r.id) ?? []) })
+        ),
         /*
          * The home screen's hero banner, or null.
          *
@@ -413,7 +419,11 @@ restaurantRouter.get('/:id', async (req, res) => {
       await menuRepository.findByRestaurantId(restaurant.id),
       restaurant.id
     );
-    return res.json({ success: true, data: { restaurant: publicRestaurant(restaurant), menu } });
+    const fssaiVerified = isFssaiVerified(
+      restaurant.fssaiLicenseNumber,
+      await kycRepository.findByEntity('RESTAURANT', restaurant.id)
+    );
+    return res.json({ success: true, data: { restaurant: publicRestaurant({ ...restaurant, fssaiVerified }), menu } });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }

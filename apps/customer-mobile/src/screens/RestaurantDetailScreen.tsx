@@ -299,17 +299,19 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             </View>
           </View>
 
-          <View style={styles.heroEta}>
-            <Timer size={12} color={c.text.primary} />
-            <Text style={styles.heroEtaText}>{restaurant.deliveryTimeMins} MIN</Text>
-          </View>
+          {restaurant.deliveryTimeMins !== undefined && (
+            <View style={styles.heroEta}>
+              <Timer size={12} color={c.text.primary} />
+              <Text style={styles.heroEtaText}>{restaurant.deliveryTimeMins} MIN</Text>
+            </View>
+          )}
         </View>
 
         {/* Restaurant summary */}
         <Card style={styles.summaryCard}>
           <View style={styles.summaryTop}>
             <Text style={styles.title}>{restaurant.name}</Text>
-            <RatingBadge value={restaurant.rating} compact />
+            <RatingBadge value={restaurant.rating} count={restaurant.ratingCount} compact />
           </View>
           <Text style={styles.cuisine}>{restaurant.cuisine}</Text>
           <Text style={styles.costLine}>
@@ -317,10 +319,13 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             ₹{restaurant.priceForTwo} for two
           </Text>
 
-          <View style={styles.fssaiRow}>
-            <ShieldCheck size={13} color={c.dietary.veg} />
-            <Text style={styles.fssaiText}>FSSAI verified partner kitchen</Text>
-          </View>
+          {/* Only for a licence Quick Bites approved; never for an unchecked number. */}
+          {restaurant.fssaiVerified === true && (
+            <View style={styles.fssaiRow}>
+              <ShieldCheck size={13} color={c.dietary.veg} />
+              <Text style={styles.fssaiText}>FSSAI verified partner kitchen</Text>
+            </View>
+          )}
           {restaurant.acceptsCash === false ? (
             <Text style={styles.onlineOnly}>Online payment only — this restaurant does not take cash on delivery.</Text>
           ) : null}

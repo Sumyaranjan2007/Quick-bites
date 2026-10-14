@@ -32,6 +32,7 @@ apps/backend-api/data/store.json
 build/apk/
 build/aab/
 build/play-store/
+build/app-store/
 # Launch-test screenshots: evidence for one run on one emulator, regenerated
 # every time. Megabytes of PNG that go stale the moment anything changes.
 build/screenshots/
