@@ -330,7 +330,7 @@ export const LoginScreen: React.FC<{
           <View style={s.footerNote}>
             <ShieldCheck size={14} color={t.color.textMuted} />
             <Text style={s.footerNoteText}>
-              Your location is only shared while you are on shift and carrying an order.
+              Your location is only shared while you are on shift.
             </Text>
           </View>
         </ScrollView>

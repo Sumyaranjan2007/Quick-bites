@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 16 October 2026 (Expo SDK 54: target API 36, 16 KB pages) · **Last release:** versionCode 21–23 (1.4.0), built 6 Oct · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 16 October 2026 (Expo SDK 54: target API 36, 16 KB pages) · **Last release:** versionCode 29 (1.4.0), all four apps, built 16 Oct · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -212,11 +212,11 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
 
 ## 7. Play Store launch — status on 11 Oct 2026
 
-**Plan (11 Oct, owner):** launch from an **individual** Play account first (closed test: 12+ testers opted in for 14 days per app, then "Apply for production"), and change the same account to Organization once the D-U-N-S number arrives (Google requires a verified business website for that switch). Bundles to upload: versionCode 24 in `build/aab/`. The guide below covers every step.
+**Plan (11 Oct, owner):** launch from an **individual** Play account first (closed test: 12+ testers opted in for 14 days per app, then "Apply for production"), and change the same account to Organization once the D-U-N-S number arrives (Google requires a verified business website for that switch). Bundles to upload: **versionCode 29** in `build/aab/` (16 Oct, Expo SDK 54: target API 36, 16 KB pages — the older bundles would be refused). The guide below covers every step.
 
 Ready in the repo / on this PC:
 - AABs for Customer, Partner, Rider (`build/aab/`, copied to `build/play-store/`) — these are
-  the **versionCode 20** bundles from 4 Oct; run `bash scripts/build-apks.sh --aab` for fresh ones
+  the **versionCode 29** bundles from 16 Oct (archived in `quick-bites-release-archive/v29-sdk54-2026-10-16`); run `bash scripts/build-apks.sh --aab` for fresh ones
   before uploading.
 - Listings: `docs/play-store/listings.md` (names, short + full descriptions within limits,
   categories, Console answers, demo-login table). Graphics + screenshots in
