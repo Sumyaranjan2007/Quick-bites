@@ -7,7 +7,9 @@ change, no other companies' names, no emojis or keyword lists.
 
 ---
 
-## 1. Quick Bites (customer) — `com.quickbite.app`
+## 1. Quick Bites (customer) — `in.quickbites.app`
+
+(`com.quickbite.app` is another developer's published app, "QuickBite"; Play refused it on 16 Oct 2026.)
 
 **App name** (11/30)
 ```

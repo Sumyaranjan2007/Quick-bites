@@ -26,7 +26,7 @@ applications, and there is exactly one copy of each.
 
 | App | Package | Keystore |
 | --- | --- | --- |
-| Customer | `com.quickbite.app` | `C:\Users\priya\quickbites-keystores\quickbites-customer-v2.jks` |
+| Customer | `in.quickbites.app` (was `com.quickbite.app` until 16 Oct) | `C:\Users\priya\quickbites-keystores\quickbites-customer-v2.jks` |
 | Partner | `com.quickbite.partner` | `C:\Users\priya\quickbites-keystores\quickbites-partner.jks` |
 | Rider | `com.quickbite.rider` | `C:\Users\priya\quickbites-keystores\quickbites-rider.jks` |
 | Admin | `com.quickbite.admin` | `C:\Users\priya\quickbites-keystores\quickbites-admin.jks` |
@@ -132,7 +132,7 @@ because the package name and the signing key are both unchanged:
 
 | App | Package | Key | Updates in place? |
 | --- | --- | --- | --- |
-| Customer | `com.quickbite.app` | `quickbites-customer-v2.jks` | Yes, from 22 Sep 2026 |
+| Customer | `in.quickbites.app` | `quickbites-customer-v2.jks` | Yes, from 22 Sep 2026 |
 | Partner | `com.quickbite.partner` | `quickbites-partner.jks` | Yes, always |
 | Rider | `com.quickbite.rider` | `quickbites-rider.jks` | Yes, always |
 | Admin | `com.quickbite.admin` | `quickbites-admin.jks` | Yes, always |

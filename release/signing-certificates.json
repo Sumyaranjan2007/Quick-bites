@@ -4,7 +4,8 @@
   "installedVersionCode": 7,
   "apps": {
     "customer-mobile": {
-      "package": "com.quickbite.app",
+      "package": "in.quickbites.app",
+      "packageNote": "Was com.quickbite.app until 16 Oct 2026; that name belongs to another developer's app on Google Play. Same certificate. Phones with the old package must uninstall it: Android treats in.quickbites.app as a different app.",
       "certificateSha256": "3a31fead5aaa2696d2e44a16de0d7d9bfc43cc125f014978948544c5ca61fe1d",
       "certificateDn": "CN=Quick Bites, OU=customer, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
     },

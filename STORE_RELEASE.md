@@ -44,7 +44,7 @@ section at the end.
 
 | App | Package ID | Play track |
 |---|---|---|
-| Customer (`apps/customer-mobile`) | `com.quickbite.app` | Production |
+| Customer (`apps/customer-mobile`) | `in.quickbites.app` | Production |
 | Partner (`apps/restaurant-mobile`) | `com.quickbite.partner` | Production |
 | Rider (`apps/delivery-mobile`) | `com.quickbite.rider` | Production |
 | Admin (`apps/admin-mobile`) | `com.quickbite.admin` | **Internal testing only** |

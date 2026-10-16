@@ -154,7 +154,7 @@
       "userInterfaceStyle": "light"
     },
     "android": {
-      "package": "com.quickbite.app",
+      "package": "in.quickbites.app",
       "googleServicesFile": "./google-services.json",
       "versionCode": 29,
       "adaptiveIcon": {

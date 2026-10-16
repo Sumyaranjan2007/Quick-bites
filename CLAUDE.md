@@ -21,7 +21,7 @@ the business **QUICK BITES** (MSME Udyam `UDYAM-KR-29-0052148`, contact
 
 | App | Folder | Android package | Who uses it | Play Store |
 | --- | --- | --- | --- | --- |
-| Quick Bites | `apps/customer-mobile` | `com.quickbite.app` (iPhone: `in.quickbites.app`) | customers | public · **also iPhone** (App Store, being prepared — §7b) |
+| Quick Bites | `apps/customer-mobile` | `in.quickbites.app` on Android and iPhone (Android was `com.quickbite.app` until 16 Oct: that name is another developer's app on Play) | customers | public · **also iPhone** (App Store, being prepared — §7b) |
 | Quick Bites Partner | `apps/restaurant-mobile` | `com.quickbite.partner` | restaurants | public |
 | Quick Bites Rider | `apps/delivery-mobile` | `com.quickbite.rider` | delivery riders | public |
 | Quick Bites Operations (the admin app) | `apps/admin-mobile` | `com.quickbite.admin` | the owner / operations | **private** (APK only) |

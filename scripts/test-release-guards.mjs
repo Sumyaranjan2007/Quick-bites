@@ -168,7 +168,12 @@ try {
     for (const app of Object.keys(pinned.apps)) {
       check(`${app}: the 23 Sep APK passes against its pin (the pin is the phones' certificate)`, () => {
         const problems = verifyApk(app, archived(app), { expectedVersionCode: 7 });
-        assert(problems.length === 0, problems.join(' | '));
+        // A package renamed since 23 Sep (packageNote) keeps the certificate: the name is the only difference.
+        const renamed = Boolean(pinned.apps[app].packageNote);
+        assert(
+          renamed ? problems.length === 1 && /^Its package is /.test(problems[0]) : problems.length === 0,
+          problems.join(' | ')
+        );
       });
     }
     check('The customer APK checked as the admin app is refused, on certificate AND package', () => {

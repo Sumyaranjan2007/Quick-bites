@@ -28,7 +28,7 @@ echo "=== anything Quick Bites logged ==="
 
 echo ""
 echo "=== which of the four are running right now ==="
-for pkg in com.quickbite.app com.quickbite.partner com.quickbite.rider com.quickbite.admin; do
+for pkg in in.quickbites.app com.quickbite.partner com.quickbite.rider com.quickbite.admin; do
   pid="$("$ADB" -s "$SERIAL" shell pidof "$pkg" 2>/dev/null | tr -d '\r')"
   printf "  %-26s %s\n" "$pkg" "${pid:-not running}"
 done

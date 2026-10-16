@@ -35,7 +35,7 @@ PORT=$((5552 + INSTANCE * 2))
 SERIAL="emulator-$PORT"
 
 APPS=(
-  "QuickBites-Customer:com.quickbite.app:Quick Bites"
+  "QuickBites-Customer:in.quickbites.app:Quick Bites"
   "QuickBites-Partner:com.quickbite.partner:Quick Bites Partner"
   "QuickBites-Rider:com.quickbite.rider:Quick Bites Rider"
   "QuickBites-Admin:com.quickbite.admin:Quick Bites Operations"
