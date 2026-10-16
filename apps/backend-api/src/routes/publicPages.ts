@@ -262,7 +262,7 @@ publicPages.get('/delete-account', (_req, res) => {
 <h2>Without the app</h2>
 <p>Email <a href="mailto:${email}">${email}</a>${phone ? ` or call ${phone}` : ''} from the phone number or email on your account, with the words "Delete my account". We confirm by reply.</p>
 <h2>What we keep</h2>
-<p>Records of completed orders and payments are kept as long as Indian tax and accounting law requires, without your contact details. Everything else is deleted. See our <a href="/privacy">Privacy Policy</a>.</p>`
+<p>Records of completed orders and payments are kept for five (5) years, as Indian tax law and the Consumer Protection (E-Commerce) Rules 2020 require, without your contact details. Everything else is deleted. See our <a href="/privacy">Privacy Policy</a>.</p>`
     )
   );
 });
