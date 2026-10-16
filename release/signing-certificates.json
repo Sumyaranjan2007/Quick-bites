@@ -15,7 +15,8 @@
       "certificateDn": "CN=Quick Bites, OU=partner, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
     },
     "delivery-mobile": {
-      "package": "com.quickbite.rider",
+      "package": "in.quickbites.rider",
+      "packageNote": "Was com.quickbite.rider until 16 Oct 2026; Google Play reported that name already in use. Same certificate. Phones with the old package must uninstall it: Android treats in.quickbites.rider as a different app.",
       "certificateSha256": "070e4fb4fb5e4c4900dca0e61defe2971ed1c2c2416ea4e2e51e23e64b4df881",
       "certificateDn": "CN=Quick Bites, OU=rider, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"
     },

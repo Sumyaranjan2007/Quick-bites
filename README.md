@@ -23,7 +23,7 @@ switched on (see `OWNER_ACTIONS.md` Part 0 J).
 | --- | --- | --- | --- |
 | Quick Bites | `apps/customer-mobile` | `in.quickbites.app` | customers: browse, order, pay online or cash where allowed, track live |
 | Quick Bites Partner | `apps/restaurant-mobile` | `com.quickbite.partner` | restaurants: take orders, build menus (also from photos), see money, download invoices (PDF, or one PDF per order in a ZIP) |
-| Quick Bites Rider | `apps/delivery-mobile` | `com.quickbite.rider` | riders: see pay before accepting, navigate, collect cash, earnings |
+| Quick Bites Rider | `apps/delivery-mobile` | `in.quickbites.rider` | riders: see pay before accepting, navigate, collect cash, earnings |
 | Quick Bites Operations (admin) | `apps/admin-mobile` | `com.quickbite.admin` | the owner: approvals, rates, payouts, COD switch, menus, support |
 
 Backend: `apps/backend-api` (Express + Socket.IO, TypeScript, PostgreSQL in

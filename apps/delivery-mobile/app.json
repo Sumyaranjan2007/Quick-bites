@@ -95,7 +95,7 @@
       }
     },
     "android": {
-      "package": "com.quickbite.rider",
+      "package": "in.quickbites.rider",
       "googleServicesFile": "./google-services.json",
       "versionCode": 31,
       "adaptiveIcon": {

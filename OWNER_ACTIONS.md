@@ -468,7 +468,7 @@ calls Google — which is also what makes the caching and rate limiting possible
 | Package name | SHA-1 certificate fingerprint |
 |---|---|
 | `in.quickbites.app` (was `com.quickbite.app`) | `27:73:59:D7:0F:68:63:1D:AF:63:FA:6C:EC:DA:CF:0D:14:25:F4:65` |
-| `com.quickbite.rider` | `51:12:84:DC:BD:56:59:24:2C:0D:AF:89:FA:E1:15:3A:72:8F:4E:D4` |
+| `in.quickbites.rider` (was `com.quickbite.rider`) | `51:12:84:DC:BD:56:59:24:2C:0D:AF:89:FA:E1:15:3A:72:8F:4E:D4` |
 | `com.quickbite.partner` | `90:CB:40:3A:70:B4:97:0D:3D:A1:32:1D:FB:DB:08:E1:8D:69:6E:89` |
 | `com.quickbite.admin` | `E7:90:8F:36:AE:E4:79:17:A7:7E:F9:87:D9:6D:50:57:A6:A9:01:FF` |
 
