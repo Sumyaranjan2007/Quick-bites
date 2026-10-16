@@ -216,8 +216,8 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
 
 Ready in the repo / on this PC:
 - AABs for Customer, Partner, Rider (`build/aab/`, copied to `build/play-store/`) — these are
-  the **versionCode 29** bundles from 16 Oct (archived in `quick-bites-release-archive/v29-sdk54-2026-10-16`); run `bash scripts/build-apks.sh --aab` for fresh ones
-  before uploading.
+  the **versionCode 29** bundles from 16 Oct (archived in `quick-bites-release-archive/v29-sdk54-2026-10-16`); upload these. The Rider
+  sign-in sentence about location was corrected after this build (in the next one).
 - Listings: `docs/play-store/listings.md` (names, short + full descriptions within limits,
   categories, Console answers, demo-login table). Graphics + screenshots in
   `build/play-store/<app>/` and `build/QuickBites-PlayStore-graphics.zip` (gitignored).

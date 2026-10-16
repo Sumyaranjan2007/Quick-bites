@@ -157,11 +157,11 @@ This app is for delivery partners. Register in the app and upload your documents
 | Target audience | **18 and over** only. Do not tick younger ages (avoids the Families policy) |
 | News app | No |
 | COVID-19 app | No |
-| Data safety | See the table in the launch guide |
+| Data safety | See the table in the launch guide (https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F, updated 16 Oct: includes what Mapbox, Razorpay and Firebase send) |
 | Government app | No |
 | Financial features | "My app doesn't provide any financial features" (payments are for food and services) |
 | Health | No |
-| Foreground service (Rider only) | Location: "Tracks the rider's position during an active delivery so the customer can follow it and dispatch can offer nearby trips." Attach a short screen recording of a delivery |
+| Foreground service (Rider only) | Location: "While a rider has switched on their shift, a foreground service with a visible notification keeps the app running so it can ring for new delivery offers, send the rider's position to rank offers by distance, and show the rider's live position to the customer during a delivery. It stops as soon as the rider switches the shift off." Attach an unlisted YouTube recording: shift on, notification, an offer, the delivery map, shift off |
 
 ## Demo logins for Google's reviewers (App access)
 
