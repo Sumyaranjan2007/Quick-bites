@@ -6,6 +6,30 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-16] -- Claude Opus 5.5 -- versionCode 31: map crash on real phones fixed
+
+> **For the owner.** Version 30 closed the Partner app when you tapped "my location"
+> on the kitchen map (your Vivo, Android 15). The same crash was waiting in the Customer
+> address map and the Rider trip map: any map showing the blue "you are here" dot died
+> on its first real GPS fix. Fixed in all three, and checked on your phone with live GPS.
+
+- Cause (from the phone's own crash report): `NullPointerException` in
+  `NativeRNMBXLocationModuleSpec.emitOnLocationUpdate`. @rnmapbox/maps 10.3's
+  `UserLocation` listens through its location module, whose events only exist in React
+  Native's new architecture; these apps run the old one, so the first GPS fix crashed.
+  The emulator never fed Mapbox a GPS fix, which is why every emulator test passed.
+- Fix: `MapCanvas` (`src/lib/nativeMap.ts` in Customer, Partner, Rider) draws the dot
+  with Mapbox's `LocationPuck`, which is native and never uses that module. No other
+  native library in the apps uses the same event pattern (checked across node_modules).
+- Checked on the owner's Vivo V2312 (Android 15) against the private test server:
+  Partner sign-up map + my location (20 s of live GPS), Customer "Choose on map" + my
+  location, Rider shift on (location service), a full cash order (emulator Customer →
+  phone Partner accept, prep time, ready → phone Rider full-screen offer, trip map with
+  live GPS, pickup code, live location to customer, delivery code, ₹30 earned, ledger
+  posted → Customer "Delivered"). Not checked: the Razorpay payment page on a real phone.
+
+---
+
 ## [2026-10-16] -- Claude Opus 5.5 -- Expo SDK 54: the Android apps can go to Google Play again
 
 > **For the owner.** Google Play would have refused every bundle built before today:

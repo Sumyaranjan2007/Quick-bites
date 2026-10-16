@@ -177,7 +177,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   showUserLocation = false
 }) => {
   if (!Mapbox) return null;
-  const { MapView, Camera, UserLocation } = Mapbox;
+  const { MapView, Camera, LocationPuck } = Mapbox;
 
   return React.createElement(
     MapView,
@@ -205,7 +205,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       zoomLevel: zoomForSpan(spanMetres),
       animationDuration: 350
     }),
-    showUserLocation && UserLocation ? React.createElement(UserLocation, { key: 'me' }) : null,
+    // LocationPuck, not UserLocation: UserLocation listens through @rnmapbox's
+    // location module, whose events need React Native's new architecture. On the
+    // old one the first real GPS fix crashed the app (NullPointerException in
+    // emitOnLocationUpdate, Vivo Android 15, 16 Oct 2026). The puck is drawn natively.
+    showUserLocation && LocationPuck ? React.createElement(LocationPuck, { key: 'me' }) : null,
     children
   );
 };
