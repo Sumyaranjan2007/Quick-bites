@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Image, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Modal } from './Modal';
 import { QrCode, CheckCircle2, X, Banknote, WifiOff } from 'lucide-react-native';
 import { t } from '../theme';
 import { Button } from './ui';

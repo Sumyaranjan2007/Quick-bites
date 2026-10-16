@@ -8,9 +8,9 @@ import {
   StyleSheet,
   Image,
   RefreshControl,
-  Modal,
   Platform
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
 import { Search, MapPin, ChevronDown, Mic, Heart, Timer, X, Map as MapIcon } from 'lucide-react-native';

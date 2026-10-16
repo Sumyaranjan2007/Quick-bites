@@ -3,7 +3,7 @@
  * then written into a folder they choose once (Android's file picker; the
  * choice is remembered). The web build uses invoice.web.ts instead.
  */
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { invoiceRequest } from './partnerApi';

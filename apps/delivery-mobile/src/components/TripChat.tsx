@@ -5,12 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from './Modal';
 import { X, Send } from 'lucide-react-native';
 import { t } from '../theme';
 import { api, type ApiContext, type OrderMessage } from '../lib/api';

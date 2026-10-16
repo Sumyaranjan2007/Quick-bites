@@ -27,14 +27,14 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Modal,
   Image,
   ActivityIndicator,
   Alert,
   StyleSheet
 } from 'react-native';
+import { Modal } from './Modal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /* ------------------------------------------------------------------------- */
 /*                               Types and rules                             */

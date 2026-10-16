@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { Modal } from '../components/Modal';
 import { Clock, CheckCircle2, Minus, Plus, BellRing, VolumeX } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, Button, Pill, EmptyState, ErrorNote } from '../components/ui';

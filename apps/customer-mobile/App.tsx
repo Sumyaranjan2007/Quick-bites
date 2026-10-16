@@ -303,9 +303,9 @@ function AppRoot() {
     (async () => {
       const stored = await loadStoredSession();
       if (!cancelled && stored) {
+        setApiUrl(stored.apiUrl); // before the token, as in onLoginSuccess
         setAuthToken(stored.token);
         setCurrentUser(stored.user);
-        setApiUrl(stored.apiUrl);
         setIsAuthenticated(true);
         // Not awaited: the feed must load whether or not a push service
         // answers, and on a cold start that is the screen they came for.
@@ -422,10 +422,13 @@ function AppRoot() {
             Platform.OS === 'ios' ? () => setCurrentScreen(selectedRestaurant ? 'detail' : 'feed') : undefined
           }
           onLoginSuccess={(token, user, url) => {
+            // Address before token: the old architecture renders after each
+            // set here, and a token paired with the default address sends a
+            // test server's token to the live server, which signs the tester out.
+            setApiUrl(url);
             setAuthToken(token);
             void registerForPush(url, token);
             setCurrentUser(user);
-            setApiUrl(url);
             setIsAuthenticated(true);
             void saveStoredSession({ token, user, apiUrl: url });
           }}

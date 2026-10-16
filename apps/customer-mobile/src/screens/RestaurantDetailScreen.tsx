@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal,
   Image
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
 import { Card, DietMark, RatingBadge, Button, EmptyState, LoadingState, Skeleton } from '../components/ui';
 import { ArrowLeft, ShoppingBag, ShieldCheck, Heart, Share2, Timer, Tag } from 'lucide-react-native';

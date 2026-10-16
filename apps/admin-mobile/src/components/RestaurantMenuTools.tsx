@@ -13,7 +13,8 @@
  * sends the push and lists it in their Recent decisions).
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+import { Modal } from './Modal';
 import { MenuBuilder, DishEditorSheet, dishProblems, type DraftDish, type BuilderPalette } from './MenuBuilder';
 import { pickDishPhoto, pickMenuPages } from '../lib/photo';
 import { Card, Button, Sheet, Loading, EmptyState, ResourceError } from './ui';

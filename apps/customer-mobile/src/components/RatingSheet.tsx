@@ -5,9 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from './Modal';
 import { Star, X } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';

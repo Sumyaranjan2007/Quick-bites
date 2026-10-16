@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Modal } from './Modal';
 import { Bike, IndianRupee, MapPin, Route, Store, Timer } from 'lucide-react-native';
 import { t } from '../theme';
 import { Button, Pill } from './ui';

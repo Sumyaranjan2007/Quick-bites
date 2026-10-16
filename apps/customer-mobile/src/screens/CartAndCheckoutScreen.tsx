@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
 import { Card, DietMark, KeyboardLift } from '../components/ui';
 

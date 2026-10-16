@@ -5,9 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
   Platform
 } from 'react-native';
+import { Modal } from './Modal';
 import * as Location from 'expo-location';
 import { MapPin, X, Crosshair, Check } from 'lucide-react-native';
 import { c } from '../theme';

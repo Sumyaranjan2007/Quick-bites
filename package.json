@@ -32,9 +32,13 @@
     "node": ">=22.6.0"
   },
   "overrides": {
-    "react-native-svg": "15.8.0"
+    "react-native-svg": "15.12.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "@types/react": "~19.1.10"
   },
   "dependencies": {
-    "react-native-svg": "15.8.0"
+    "react-native-svg": "15.12.1"
   }
 }

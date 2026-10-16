@@ -7,12 +7,12 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Modal,
   Image,
   ActivityIndicator,
   Linking,
   Platform
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import {
   ArrowLeft,
   User,

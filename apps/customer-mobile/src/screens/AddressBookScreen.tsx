@@ -7,9 +7,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
   Alert
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { ArrowLeft, MapPin, Plus, Pencil, Trash2, Navigation, Check, Map as MapIcon } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card, EmptyState, KeyboardLift } from '../components/ui';

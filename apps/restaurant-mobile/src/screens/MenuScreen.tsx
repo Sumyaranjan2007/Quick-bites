@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Modal, TouchableOpacity, RefreshControl, Image, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity, RefreshControl, Image, Alert } from 'react-native';
+import { Modal } from '../components/Modal';
 import { Plus, Clock3, CheckCircle2, XCircle, Camera, Image as ImageIcon, X } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';

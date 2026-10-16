@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Modal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Share
 } from 'react-native';
+import { Modal } from './Modal';
 import { X, FileText, Share2 } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';

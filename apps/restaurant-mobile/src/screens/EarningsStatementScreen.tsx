@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { Modal } from '../components/Modal';
 import { c } from '../theme';
 import { Card, SectionHeading, Pill, Button, EmptyState, ErrorNote } from '../components/ui';
 import {

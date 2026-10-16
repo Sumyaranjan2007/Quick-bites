@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Modal } from './Modal';
 import { Mic, X, Check } from 'lucide-react-native';
 import {
   ExpoSpeechRecognitionModule,

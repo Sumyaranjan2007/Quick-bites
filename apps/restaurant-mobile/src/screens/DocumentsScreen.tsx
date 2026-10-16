@@ -5,11 +5,11 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Modal,
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { FileText, CheckCircle2, Clock3, XCircle, Camera, ShieldCheck } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote } from '../components/ui';

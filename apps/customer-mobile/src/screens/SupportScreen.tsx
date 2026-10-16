@@ -8,9 +8,9 @@ import {
   StyleSheet,
   Linking,
   Alert,
-  Modal,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import {
   ArrowLeft,
   Phone,

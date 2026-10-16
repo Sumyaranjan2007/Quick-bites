@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal,
   TextInput,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
 import { Linking, Alert } from 'react-native';
 import { Bike, Phone, ArrowLeft, Check, X, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';

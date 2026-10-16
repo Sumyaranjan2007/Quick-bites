@@ -8,9 +8,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Modal,
   Alert
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { ArrowLeft, Star, Receipt, Eye, EyeOff, X } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { Card, KeyboardLift } from '../components/ui';

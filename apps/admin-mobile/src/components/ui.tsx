@@ -9,12 +9,12 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
-  Modal,
   KeyboardAvoidingView,
   useWindowDimensions,
   type ViewStyle,
   type TextStyle
 } from 'react-native';
+import { Modal } from './Modal';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { tokens, toneForStatus, humanise } from '../theme/tokens';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';

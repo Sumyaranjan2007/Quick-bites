@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  Modal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from './Modal';
 import { X, ChevronLeft, ChevronRight, ScrollText, TriangleAlert } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { apiFetch } from '../lib/apiFetch';

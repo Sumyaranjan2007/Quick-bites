@@ -121,13 +121,11 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
             "minSdkVersion": 24,
-            "buildToolsVersion": "35.0.0",
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true,
-            "kotlinVersion": "1.9.25"
+            "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ],

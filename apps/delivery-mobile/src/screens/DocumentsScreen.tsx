@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { Modal } from '../components/Modal';
 import { CircleCheck, CircleX, Clock, FileUp, Info } from 'lucide-react-native';
 import { t } from '../theme';
 import { Button, Card, EmptyState, LoadingBlock, Pill, SectionTitle } from '../components/ui';

@@ -6,6 +6,45 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-16] -- Claude Opus 5.5 -- Expo SDK 54: the Android apps can go to Google Play again
+
+> **For the owner.** Google Play would have refused every bundle built before today:
+> since 31 Aug 2026 new apps and updates must target Android 16 (API 36), and the apps
+> targeted 35; and 13 of the 16 native libraries were not built for 16 KB memory pages.
+> Both came from Expo SDK 52 / React Native 0.76. All four apps are now on Expo SDK 54
+> (React Native 0.81, React 19.1), target API 36, and every native library is 16 KB
+> aligned (checked on built APKs with aapt2 and an ELF check). No APK, AAB or
+> versionCode was produced: run `bash scripts/build-apks.sh --aab` when you say
+> "make APK". Not yet seen on a real Android 16 phone or with Razorpay's payment page
+> open (the emulator crashed in its own graphics both times) — check those on a phone.
+
+- Versions: expo ~54.0.37, react-native 0.81.5, react 19.1.0, lucide-react-native
+  ^0.545.0, @rnmapbox/maps ^10.2.10 (resolves 10.3.8), expo-speech-recognition 3.1.3.
+  Root `overrides` pin react, react-dom, react-native and @types/react so one copy is
+  hoisted (npm otherwise hoisted RN 0.88 as a peer). `expo-doctor`: 18/18 on all four.
+- app.json: compileSdk/targetSdk 36; removed the Kotlin 1.9.25 and build-tools 35
+  pins (SDK 54 brings Kotlin 2.1). metro.config.js keeps Expo's default watchFolders.
+- expo-file-system 19: the old API is imported from `expo-file-system/legacy`
+  (partner and admin invoices, menu photos). Partner invoice PDF saved on the emulator.
+- expo-notifications 0.32: `shouldShowAlert` became `shouldShowBanner` + `shouldShowList`.
+- **Edge-to-edge.** SDK 54 draws every Android app under the system bars, and RN 0.81
+  forces every Modal under them too: the "Deliver to" sheet's "Choose on map" sat
+  behind the back/home keys. Each app has `src/components/Modal.tsx`, which pads the
+  bars on Android (measured inside the modal, as admin's Sheet already did) and is
+  RN's Modal on iPhone and web. All 38 modals use it.
+- Customer app on a private test server: it set the sign-in token before the server
+  address, so for one render the orders request sent the test token to the live server,
+  which refused it and signed the tester out (v28 does the same). The address is now
+  set first, on sign-in and on restore. No change on the live server.
+- Checked on the Android 14 emulator against the private QA server: Rider sign-in,
+  shift on (location foreground service type `location` running), tabs; Customer
+  sign-in, feed, voice-search permission, address sheet, map picker, cart, order and
+  payment start; Partner sign-in, dashboard, invoice PDF download and save. Backend gate:
+  every check passes; `fssaiBadge` then crashes on exit on Windows (libuv assertion),
+  identically on the untouched 82b6e35 — environmental, not this change.
+
+---
+
 ## [2026-10-14] -- Claude Opus 5.5 -- iPhone 1.4.0 (10): maps on iPhone, location purpose string
 
 > **For the owner.** Builds 7–9 showed "Map not available in this build" on every

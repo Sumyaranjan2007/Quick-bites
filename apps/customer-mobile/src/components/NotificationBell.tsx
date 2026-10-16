@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { Modal } from './Modal';
 import { Bell, X, BellOff } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { useNotifications } from '../lib/useNotifications';
