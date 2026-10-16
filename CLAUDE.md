@@ -183,8 +183,23 @@ the SDK 54 upgrade — also environmental.
 a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
 `OTP_PROVIDER=fixed OTP_FIXED_CODE=123456`, every live service variable blanked,
 `DATABASE_URL` unset, and the Razorpay **test** keys from `.env`. Point an emulator
-(AVD `qb34`, Android 15) at `http://10.0.2.2:7071/api`. Drive it with `adb`
-(`uiautomator dump` fails during continuous animations — use `screencap` then).
+(AVD `qb34`, Android 14, x86_64) at `http://10.0.2.2:7071/api`. Drive it with `adb`
+(`uiautomator dump` fails during continuous animations — use `screencap` then). Each app's
+server address is behind **6 quick taps on the sign-in logo** → "Server settings".
+
+Emulator facts on this PC (16 Oct): boot with `-gpu swiftshader_indirect` (host GPU leaves the
+device "offline"); the Android 16 AVD `qb-test` never comes online; leftover `emulator`/`qemu`
+processes and `*.lock` files in `~/.android/avd/*.avd` block the next boot; Mapbox renders land
+black in software mode (fine on phones); Razorpay's payment page crashes the emulator itself.
+**The emulator never feeds Mapbox a GPS fix**, so GPS-dependent crashes only show on a phone.
+
+**Testing on the owner's phone (Vivo V2312, Android 15):** with USB debugging allowed, `adb
+reverse tcp:7071 tcp:7071` lets the phone reach the QA server at `http://localhost:7071/api`
+(cleartext is allowed for localhost). A crash the owner already hit is saved on the phone:
+`adb shell dumpsys dropbox --print data_app_crash` (native: `data_app_native_crash`). Vivo
+asks to confirm USB installs and may drop authorisation mid-install. The phone's Customer and
+Operations apps are signed in to LIVE accounts: never order or change anything with them;
+afterwards `pm clear` only the apps you pointed at the QA server and `adb reverse --remove-all`.
 
 ---
 

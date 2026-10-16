@@ -151,28 +151,41 @@ This app is for delivery partners. Register in the app and upload your documents
 
 ---
 
-## Answers for the other Play Console sections (all three apps)
+## Answers for the other Play Console sections (as filled in, 16–17 Oct 2026)
 
-| Section | Answer |
+Menu names are the 2026 Play Console's: forms live under **Monitor and improve → Policy and
+programs → App content**; app signing under **Protected with Play**; testing under **Test and
+release → Testing → Closed testing**. The Dashboard's "Finish setting up your app" list links to
+each form. Full walkthrough with the Data safety table: https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F
+
+| Form | Answer (all three apps unless noted) |
 |---|---|
-| App access | "All or some functionality is restricted" → give the demo login below |
-| Ads | No, the app does not contain ads |
-| Content rating | Questionnaire: category "Utility, productivity, communication or other"; no violence, sexual content, gambling or drugs; users can interact (chat with rider/restaurant) → expect **Everyone / 3+** (IARC) |
-| Target audience | **18 and over** only. Do not tick younger ages (avoids the Families policy) |
-| News app | No |
-| COVID-19 app | No |
-| Data safety | See the table in the launch guide (https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F, updated 16 Oct: includes what Mapbox, Razorpay and Firebase send) |
-| Government app | No |
-| Financial features | "My app doesn't provide any financial features" (payments are for food and services) |
-| Health | No |
-| Foreground service (Rider only) | Location: "While a rider has switched on their shift, a foreground service with a visible notification keeps the app running so it can ring for new delivery offers, send the rider's position to rank offers by distance, and show the rider's live position to the customer during a delivery. It stops as soon as the rider switches the shift off." Attach an unlisted YouTube recording: shift on, notification, an offer, the delivery map, shift off |
+| Privacy policy | `https://quick-bites-production.up.railway.app/privacy` |
+| Sign-in details (was "App access") | "All or some functionality is restricted" → see the next section |
+| Ads | No, my app does not contain ads |
+| Content rating | Category **All other app types**. Downloaded content: No. Users interact: **Yes** (order chat). UGC primary: No. Nudity / violence sharing: No. Block users: **No**. Report users: **Yes** (Help & support on an order). Chat moderation: No. Friends-only: No. Online content: **Yes** (restaurant listings; not AI-generated; no rating-relevant content). Age-restricted products: No. Shares precise location with other users: Customer No, Partner No, **Rider Yes**. Digital goods: No (Gold is a discount on physical deliveries). Cash rewards / NFTs: No. Browser: No. News/educational: No. Result: **Everyone / 3+** |
+| Target audience and content | **18 and over** only (the Terms require 18+; under-18s are children under the DPDP Act); appeals to children: No. The store rating stays 3+ |
+| Data safety | Collects data Yes · encrypted in transit Yes · account creation: Customer **Username and other authentication** (phone + one-time code), Partner and Rider **Username and password** · delete-account URL `https://quick-bites-production.up.railway.app/delete-account` · delete some data without the account: No. Every type: **Collected only**, ephemeral **No**. Types and purposes: the launch guide's table |
+| Government apps | No |
+| Financial features | My app doesn't provide any financial features |
+| Health | My app does not have any health features |
+| Advertising ID | **No**. Not on the Dashboard list, but "Send changes for review" is blocked without it |
+| Store settings | App; Customer **Food & drink**, Partner and Rider **Business**; email officalquickbites@gmail.com; phone +917899415741; website https://www.quickbitesresturants.in; external marketing on |
+| Store listing | Text from this file; icon, feature graphic and screenshots from `build/play-store/<app>/`; AI asset declaration: "Don't label assets" (unless the logo was made with an AI image tool) |
+| App signing | Google-managed (default). Nothing to export |
+| Closed test | Countries **India**; testers: email list **Quick Bites testers** (15 people, `build/play-store/testers.csv`, gitignored); feedback email officalquickbites@gmail.com; release name `1.4.0 (32)` (Rider `1.4.0 (33)`); notes `<en-IN>First test release</en-IN>`; managed publishing **off** until production |
+| Foreground service (Rider only, appears after its upload) | Type Location; use case "Background Location Updates: User-initiated location sharing"; description: "While a rider has switched on their shift, a foreground service with a visible notification keeps the app running so it can ring for new delivery offers, send the rider's position to rank offers by distance, and show the rider's live position to the customer during a delivery. It stops as soon as the rider switches the shift off."; impact: "Riders would miss delivery offers and customers would lose live tracking of their food."; unlisted YouTube video: shift on → notification → offer → delivery map → shift off |
 
-## Demo logins for Google's reviewers (App access)
+## Demo logins for Google's reviewers (Sign-in details)
 
-Create these on the LIVE system before submitting; never use real people's accounts.
+Create these on the LIVE system before sending for review (reviewers cannot create accounts).
+The owner keeps the passwords and the reviewer code in a password manager — never in this file.
 
-| App | What to enter in Play Console |
-|---|---|
-| Quick Bites | Phone: the number set as `OTP_REVIEW_PHONE` on Railway · Email: any address, e.g. `review@example.com` · Code: the 6 digits set as `OTP_REVIEW_CODE` · Note: "Enter this phone number and any email, tap Send Code, then enter this code. No email is sent for this number." |
-| Partner | Email + password of a demo restaurant you create (e.g. review.partner@…) · Note: "Demo restaurant; orders placed by the reviewer appear under Orders." |
-| Rider | Email + password of a demo rider you create and approve (KYC approved) · Note: "Demo rider; go online with the switch at the top to receive offers." |
+| App | Name | Username | Password | Any other information |
+|---|---|---|---|---|
+| Quick Bites | Customer account | the number in `OTP_REVIEW_PHONE`, with +91 | the 6 digits in `OTP_REVIEW_CODE` | "This app signs in with a mobile number plus an email, and a 6-digit code. On the sign-in screen enter mobile number <number> (India, +91) and the email officalquickbites+playreview@gmail.com, tap Send Code, then enter the code given in the Password field. This code never expires and no email or SMS is sent for this number. To place a test order, open Quick Bites Test Kitchen and choose Cash on delivery at checkout." |
+| Partner | Restaurant partner account | `officalquickbites+partner@gmail.com` (Quick Bites Test Kitchen) | its password | "Demo restaurant. Orders placed by the reviewer appear under Orders; the Menu tab shows its dishes." |
+| Rider | Rider account | `officalquickbites+rider@gmail.com` | its password | "Demo rider with approved documents. Turn on the shift switch at the top to go online and receive delivery offers." |
+
+The reviewer number must be signed in once by the owner before review, so its account exists.
+The test kitchen needs dishes, **Cash on delivery** on, and **Online** while any app is in review.
