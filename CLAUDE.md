@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 16 October 2026 (Expo SDK 54: target API 36, 16 KB pages) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 17 October 2026 (Play Console setup: Customer in review; Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -210,35 +210,48 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
   key can be reset by Google. Phones with sideloaded APKs uninstall them once before installing from Play.
 ---
 
-## 7. Play Store launch — status on 11 Oct 2026
+## 7. Play Store launch — status on 17 Oct 2026
 
-**Plan (11 Oct, owner):** launch from an **individual** Play account first (closed test: 12+ testers opted in for 14 days per app, then "Apply for production"), and change the same account to Organization once the D-U-N-S number arrives (Google requires a verified business website for that switch). Bundles to upload: **versionCode 32** in `build/aab/` (16 Oct, Expo SDK 54: target API 36, 16 KB pages; Customer package `in.quickbites.app`). Older bundles are refused. The guide below covers every step.
+**Plan (11 Oct, owner):** launch from an **individual** Play account first (closed test: 12+ testers opted in for 14 days per app, then "Apply for production"), and change the same account to Organization once the D-U-N-S number arrives (Google requires a verified business website for that switch).
+
+**Where each app stands (17 Oct):**
+
+| App | Package (final) | Bundle | Play Console |
+|---|---|---|---|
+| Customer | `in.quickbites.app` | versionCode 32 | Closed test **sent for review** 16 Oct |
+| Partner | `com.quickbite.partner` | versionCode 32 | Release saved; send once the test kitchen exists on live |
+| Rider | `in.quickbite.rider` | versionCode 33 | Release ready; foreground-service declaration + video, then send |
+
+All bundles are in `build/aab/` (Rider 33 archived in `quick-bites-release-archive/v33-rider-in.quickbite.rider-2026-10-17`,
+Customer/Partner 32 in `v32-rider-package-2026-10-16`). Signing is Google-managed (see §6).
+Closed test: India, email list "Quick Bites testers" (15 people, CSV in `build/play-store/testers.csv`,
+gitignored). Managed publishing off until production.
 
 Ready in the repo / on this PC:
-- AABs for Customer, Partner, Rider (`build/aab/`, copied to `build/play-store/`) — these are
-  the **versionCode 32** bundles from 16 Oct (archived in `quick-bites-release-archive/v32-rider-package-2026-10-16`); upload these.
-- Listings: `docs/play-store/listings.md` (names, short + full descriptions within limits,
-  categories, Console answers, demo-login table). Graphics + screenshots in
-  `build/play-store/<app>/` and `build/QuickBites-PlayStore-graphics.zip` (gitignored).
-- Public pages on live: `/privacy`, `/terms`, `/delete-account`.
-- Launch guide (step by step, Data safety table, good-standing checklist):
+- Listings: `docs/play-store/listings.md`. Graphics + screenshots in `build/play-store/<app>/`.
+- Public pages: `/privacy`, `/terms`, `/delete-account` on the Railway URL and on the business
+  website `https://www.quickbitesresturants.in` (set as the store listing website).
+- Launch guide (2026 Console menus, every form answer, Data safety table):
   https://claude.ai/artifact/JPXk1ZvcLnQC9xgyiXRy9F · Staff guide for all four apps:
   https://claude.ai/artifact/7WMWotXGyeB3RquM9kU5zR (both private to the owner's account).
+- **Play gotcha:** the Advertising ID declaration (App content → Advertising ID → No) is not on
+  the Dashboard list but blocks "Send changes for review".
 
-Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0):
-1. **D-U-N-S number** (free, via D&B with the Udyam details; purpose text in
-   `build/play-store/DUNS-application-text.txt`), then an **Organization** Play Console account.
-2. **SMS:** MSG91 accepts every code but nothing is delivered — MSG91's log says
-   **"DLT Template id not found"**. The QUICK_BITES template in MSG91 has no DLT Template
-   ID. The owner must register (or find) the template on the Jio DLT portal and paste its
-   19-digit id into MSG91 → OTP → Templates. The DLT portal asked for a Letter of Authority
-   and proof of authority; drafts were made in `build/play-store/DLT/` (gitignored, contains
-   personal details). Business type must match the Udyam certificate (it names the business
-   "QUICK BITES", which suggests a proprietorship — the owner chose "private limited"; both
-   versions were provided).
-3. Razorpay live keys; `ALLOW_PLATFORM_RESET=false`; new `ADMIN_PASSWORD`; rotate Groq key;
-   demo restaurant + demo rider accounts on live for reviewers; the PEPK key; backing up
-   the keystore folder off this PC.
+Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0, item 00):
+1. **Before Google's reviewers look (now):** `OTP_REVIEW_PHONE` / `OTP_REVIEW_CODE` on Railway and
+   one sign-in with them; "Quick Bites Test Kitchen" and the test rider created and approved on
+   live (kitchen: dishes, Cash on delivery, Online); Business phone in Operations → Settings →
+   Business registration (live pages still show `6666666666`).
+2. Testers: send the opt-in link once each app is approved; 12+ must stay 14 consecutive days.
+3. Razorpay live keys before production; `ALLOW_PLATFORM_RESET=false`; new `ADMIN_PASSWORD`;
+   rotate the Groq key; back up the keystore folder off this PC.
+4. **D-U-N-S number**, then switch the account to Organization.
+5. **SMS** (only for old app versions): MSG91 "DLT Template id not found"; DLT drafts in
+   `build/play-store/DLT/` (gitignored).
+6. A CA: GST collected without a GSTIN, and record retention (5 years in the Privacy Policy vs
+   72 months under GST).
+7. Firebase: keep the old `com.quickbite.app` / `com.quickbite.rider` / `in.quickbites.rider`
+   entries until no phone has those builds.
 
 ---
 

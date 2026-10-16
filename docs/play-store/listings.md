@@ -53,7 +53,7 @@ Quick Bites works with local restaurant partners who are checked before they can
 **Tags:** Food delivery, Restaurants
 **Contact email:** officalquickbites@gmail.com
 **Phone:** +91 7899415741
-**Website:** (leave empty, or your website if you have one)
+**Website:** https://www.quickbitesresturants.in
 **Privacy policy:** https://quick-bites-production.up.railway.app/privacy
 
 ---

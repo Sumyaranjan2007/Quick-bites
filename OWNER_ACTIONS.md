@@ -12,6 +12,30 @@ each step unblocks the next.
 
 ## Part 0 — Your list for the Play Store launch (5 October 2026)
 
+### 00. Play Console — what is left (17 October 2026) — do these first
+
+Customer is with Google for review; Partner and Rider are uploaded. Google's reviewers sign in
+with what you gave in "Sign-in details", so these must be true on the LIVE system **now**:
+
+1. **Railway** → backend → Variables: `OTP_REVIEW_PHONE` = the reviewer number you typed in Play
+   Console, `OTP_REVIEW_CODE` = the 6-digit code you typed as its password → **Deploy**. Then sign
+   in once on your phone with that number, `officalquickbites+playreview@gmail.com` and the code
+   (reviewers cannot create accounts), and sign back in to your own account.
+2. **Quick Bites Test Kitchen**: register it in the Partner app (`officalquickbites+partner@gmail.com`),
+   approve it in Operations, add 3–4 dishes, People → the restaurant → Payments → **Cash on delivery
+   ON**, and keep it **Online** until all three apps are approved.
+3. **Test rider**: register in the Rider app (`officalquickbites+rider@gmail.com`), upload documents,
+   approve them in Operations.
+4. **Business phone**: Operations → Settings → Business registration → Business phone `7899415741`
+   (the delete-account page and the website still show `6666666666`).
+5. Partner and Rider: **Advertising ID → No** in App content, then **Send changes for review**.
+   Rider also needs the foreground-service declaration and its unlisted YouTube video.
+6. When each app is approved: copy the opt-in link (Closed testing → Testers) and send it to the
+   15 testers. 12+ must stay opted in for 14 days in a row and use the app.
+7. Keep the passwords for the test kitchen, test rider and reviewer code in your password
+   manager, never in this project (it is public).
+
+
 ### 0. Sign-in codes by EMAIL (11 October 2026) — do this first; replaces A and J
 
 Since 11 Oct the customer app asks for **phone + email** and sends the code to

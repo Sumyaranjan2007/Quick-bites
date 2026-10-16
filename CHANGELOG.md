@@ -6,6 +6,48 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-17] -- Claude Opus 5.5 -- Play Console setup: Customer in review, Rider is in.quickbite.rider (versionCode 33)
+
+> **For the owner.** The Customer app was sent to Google for its first review on 16 Oct
+> (closed test). Partner's release is uploaded and waiting to be sent; Rider's release is
+> ready. Before Google's reviewers look, three things must exist on the LIVE system: the
+> reviewer number on Railway, the "Quick Bites Test Kitchen" and the test rider (approved,
+> kitchen with Cash on delivery and Online), and the real business phone in Operations →
+> Settings → Business registration (the live delete-account page still says "6666666666").
+
+**Package names (final; a Play Console app's package can never change):**
+
+| App | Android package | Bundle to upload |
+|---|---|---|
+| Customer | `in.quickbites.app` | versionCode 32 |
+| Partner | `com.quickbite.partner` | versionCode 32 |
+| Rider | `in.quickbite.rider` (no "s") | **versionCode 33** |
+
+- Rider: the Play Console app was created as `in.quickbite.rider`, which then refused the
+  `in.quickbites.rider` bundle, so Rider was renamed to match and rebuilt alone as versionCode
+  33 (commit 897882f, from the Rider Play session). Same signing key; Firebase file lists the
+  new name. Customer and Partner stay on 32.
+- Play App Signing: Google-managed key (the default). The apps ship only through Play; our
+  keystores are upload keys. Phones with sideloaded APKs uninstall them once.
+- `/delete-account` now states the retention period (five years, as the Privacy Policy says);
+  Play's Data safety form requires it. Ask a CA whether GST needs six years (72 months).
+- Play Console answers used (all three apps; details in the launch guide artifact):
+  content rating "All other app types" → Everyone / 3+ (users interact; Rider also shares
+  location); target audience 18 and over only (the Terms require 18+); Data safety: collected
+  only, never shared, ephemeral No, account deletion URL `/delete-account`; Advertising ID No;
+  Financial features none; Health none; Government No; managed publishing off for testing.
+- **Gotcha:** the Advertising ID declaration is not on the Dashboard's task list, but Play's
+  pre-review check blocks "Send changes for review" without it (App content → Advertising ID →
+  No). None of the apps requests AD_ID (checked with aapt2).
+- Closed test: India only; one email list "Quick Bites testers" (15 Gmail addresses) shared by
+  all three apps; the CSV is `build/play-store/testers.csv` (gitignored: real people's emails).
+- Store listing: Customer 6 screenshots, Partner 5, Rider 4 (all 1080×1920; icon 512, feature
+  graphic 1024×500, no transparency); download size about 20 MB per phone (Play splits the
+  136 MB universal APK by device). The business website `https://www.quickbitesresturants.in`
+  serves the home page, `/privacy` and `/delete-account` and is set as the listing website.
+
+---
+
 ## [2026-10-16] -- Claude Opus 5.5 -- versionCode 32: Rider is in.quickbites.rider
 
 > **For the owner.** Play Console refused `com.quickbite.rider` as already in use, so the
