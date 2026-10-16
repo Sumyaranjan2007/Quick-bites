@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-16] -- Claude Opus 5.5 -- versionCode 32: Rider is in.quickbites.rider
+
+> **For the owner.** Play Console refused `com.quickbite.rider` as already in use, so the
+> Rider app is now `in.quickbites.rider` (same signing key). Phones with the old Rider app
+> must uninstall it; accounts are on the server and nothing is lost. Partner keeps
+> `com.quickbite.partner`, which Play accepted.
+
+- Built with a google-services.json listing in.quickbites.rider (Firebase quick-bites-ff708).
+- Checked: packages, targetSdkVersion 36, 16 KB alignment in all APKs and AABs, pinned
+  certificates, no server keys. Release-guard tests 24/24 (renamed pins keep their certificate).
+
+---
+
 ## [2026-10-16] -- Claude Opus 5.5 -- versionCode 31: map crash on real phones fixed
 
 > **For the owner.** Version 30 closed the Partner app when you tapped "my location"
