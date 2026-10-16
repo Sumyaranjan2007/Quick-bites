@@ -28,7 +28,7 @@ applications, and there is exactly one copy of each.
 | --- | --- | --- |
 | Customer | `in.quickbites.app` (was `com.quickbite.app` until 16 Oct) | `C:\Users\priya\quickbites-keystores\quickbites-customer-v2.jks` |
 | Partner | `com.quickbite.partner` | `C:\Users\priya\quickbites-keystores\quickbites-partner.jks` |
-| Rider | `in.quickbites.rider` (was `com.quickbite.rider` until 16 Oct) | `C:\Users\priya\quickbites-keystores\quickbites-rider.jks` |
+| Rider | `in.quickbite.rider` (was `com.quickbite.rider`, then `in.quickbites.rider`) | `C:\Users\priya\quickbites-keystores\quickbites-rider.jks` |
 | Admin | `com.quickbite.admin` | `C:\Users\priya\quickbites-keystores\quickbites-admin.jks` |
 
 Each app reads its own `apps/<app>/android/keystore.properties`, which holds
@@ -134,7 +134,7 @@ because the package name and the signing key are both unchanged:
 | --- | --- | --- | --- |
 | Customer | `in.quickbites.app` | `quickbites-customer-v2.jks` | Yes, from 22 Sep 2026 |
 | Partner | `com.quickbite.partner` | `quickbites-partner.jks` | Yes, always |
-| Rider | `in.quickbites.rider` | `quickbites-rider.jks` | Yes, always |
+| Rider | `in.quickbite.rider` | `quickbites-rider.jks` | Yes, always |
 | Admin | `com.quickbite.admin` | `quickbites-admin.jks` | Yes, always |
 
 The customer app required one uninstall when it moved to `-v2` on 22 Sep 2026.

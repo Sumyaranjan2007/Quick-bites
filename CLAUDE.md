@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 16 October 2026 (Expo SDK 54: target API 36, 16 KB pages) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` from 32) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 16 October 2026 (Expo SDK 54: target API 36, 16 KB pages) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -23,7 +23,7 @@ the business **QUICK BITES** (MSME Udyam `UDYAM-KR-29-0052148`, contact
 | --- | --- | --- | --- | --- |
 | Quick Bites | `apps/customer-mobile` | `in.quickbites.app` on Android and iPhone (Android was `com.quickbite.app` until 16 Oct: that name is another developer's app on Play) | customers | public · **also iPhone** (App Store, being prepared — §7b) |
 | Quick Bites Partner | `apps/restaurant-mobile` | `com.quickbite.partner` | restaurants | public |
-| Quick Bites Rider | `apps/delivery-mobile` | `in.quickbites.rider` (was `com.quickbite.rider` until 16 Oct: Play reported it in use) | delivery riders | public |
+| Quick Bites Rider | `apps/delivery-mobile` | `in.quickbite.rider` (no "s": the Play Console app was created with this name; was `com.quickbite.rider`, then `in.quickbites.rider` in build 32) | delivery riders | public |
 | Quick Bites Operations (the admin app) | `apps/admin-mobile` | `com.quickbite.admin` | the owner / operations | **private** (APK only) |
 
 **Websites (6 Oct):** the Partner and Admin apps also run in a web browser at

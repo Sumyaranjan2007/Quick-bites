@@ -31,7 +31,7 @@ ADB="$ANDROID_HOME/platform-tools/adb.exe"
 APPS=(
   "QuickBites-Customer:in.quickbites.app:Quick Bites"
   "QuickBites-Partner:com.quickbite.partner:Quick Bites Partner"
-  "QuickBites-Rider:in.quickbites.rider:Quick Bites Rider"
+  "QuickBites-Rider:in.quickbite.rider:Quick Bites Rider"
   "QuickBites-Admin:com.quickbite.admin:Quick Bites Operations"
 )
 

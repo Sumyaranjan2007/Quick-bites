@@ -95,9 +95,9 @@
       }
     },
     "android": {
-      "package": "in.quickbites.rider",
+      "package": "in.quickbite.rider",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 32,
+      "versionCode": 33,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F8A5F"

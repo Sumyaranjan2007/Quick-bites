@@ -46,7 +46,7 @@ section at the end.
 |---|---|---|
 | Customer (`apps/customer-mobile`) | `in.quickbites.app` | Production |
 | Partner (`apps/restaurant-mobile`) | `com.quickbite.partner` | Production |
-| Rider (`apps/delivery-mobile`) | `in.quickbites.rider` | Production |
+| Rider (`apps/delivery-mobile`) | `in.quickbite.rider` | Production |
 | Admin (`apps/admin-mobile`) | `com.quickbite.admin` | **Internal testing only** |
 
 The admin app is internal operations tooling. Publishing it publicly invites

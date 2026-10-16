@@ -105,9 +105,9 @@ This app is for restaurant owners and their staff. To start selling, create an a
 
 ---
 
-## 3. Quick Bites Rider (delivery partners) — `in.quickbites.rider`
+## 3. Quick Bites Rider (delivery partners) — `in.quickbite.rider`
 
-(Play reported `com.quickbite.rider` already in use on 16 Oct 2026.)
+(Play reported `com.quickbite.rider` in use on 16 Oct 2026; the Play Console app was then created as `in.quickbite.rider`, without the "s", which cannot be changed.)
 
 **App name** (17/30)
 ```
