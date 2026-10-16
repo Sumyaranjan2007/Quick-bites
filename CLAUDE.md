@@ -205,9 +205,9 @@ a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
   `quick-bites-release-archive/v21-22-23-2026-10-06`; no new AABs). versionCode 19 was consumed
   by a failed admin build and skipped. Builds before 6 Oct run through `D:\qb` skipped the
   release guards silently (fixed in `c05d582`).
-- **Play App Signing:** upload the existing keys via Google's **PEPK** tool so store
-  updates match the sideloaded copies. Waiting for the Play Console encryption public key.
-
+- **Play App Signing (16 Oct, decided):** Google-managed app signing key (the default). The apps are
+  distributed only through Play, so no PEPK export. Our keystores are the **upload keys**; a lost upload
+  key can be reset by Google. Phones with sideloaded APKs uninstall them once before installing from Play.
 ---
 
 ## 7. Play Store launch — status on 11 Oct 2026
