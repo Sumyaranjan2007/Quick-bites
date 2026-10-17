@@ -43,8 +43,8 @@ date) and add one line under "Built" at the end of its stage. Never delete a row
 
 | Session | Steps | Files it owns (the other never edits them) |
 |---|---|---|
-| **Senior dev clean code skills** (main; the only one that pushes) | B3, B4, B6, B11, security findings in its files (L1, L3, L5, L6, R2, R3), then C–G with the owner | `modules/orders/{orderService,orderSweeper,tripOffers,eta}.ts`, `routes/{riderRouter,restaurantRouter,authRouter}.ts`, `routes/admin/{peopleRoutes,catalogRoutes}.ts`, `modules/{restaurants,search,places}/*`, `db/repositories/userRepository.ts`, `sockets/socketServer.ts` |
-| **b8-help-chat** (parallel; commits, never pushes, sends the hash to the main session) | B8, B10 (`modules/orders/kitchenTicket.ts` + `routes/orderRouter.ts`), B7 (`routes/admin/recordRoutes.ts`), security L2, L4, R6 | support module + its own new files, `middlewares/{cors,errorHandler}.ts`, the one-line L2 fix |
+| **Senior dev clean code skills** (main; the only one that pushes) | done: B1, B5, B4, B3 · now: B6, security L1 (authRouter part), R2, R3 · then C–G with the owner | `routes/{authRouter,restaurantRouter-B5 parts}.ts`, `routes/admin/{peopleRoutes,catalogRoutes}.ts`, `db/repositories/userRepository.ts`, `modules/orders/{orderService,orderSweeper,tripOffers,eta,opsRescue}.ts`, `modules/{restaurants,search,places}/*` |
+| **b8-help-chat** (parallel; commits, never pushes, sends the hash to the main session) | done: B8, B10, B7, Stage F L2/L4/R6 · now: B11 live tracking data, security L1 (restaurantRouter/walletRouter), L3, L5, L6, review R5 | `routes/riderRouter.ts` (telemetry parts; B4 claim/list/decline stay as built), `sockets/{socketServer,socketAuth}.ts` (location handling; B3 `eta` field stays), `db/repositories/riderRepository.ts`, `routes/kycRouter.ts`, `routes/walletRouter.ts`, `db/normaliseStore.ts`, the L1/L3/L5/L6 lines in `routes/restaurantRouter.ts` |
 
 Shared files (`CHANGELOG.md`, this plan, `docs/TESTING.md`, `scripts/run-backend-tests.mjs`, `shared-types`, `CLAUDE.md`, `REVIEW_LOG.md`): re-read right before a small additive edit. Stage by path only.
 

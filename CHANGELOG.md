@@ -31,6 +31,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   `test/helpers/offerTo.ts` used by `flows`, `opsRescue`, `pipeline`, `regression`; 19 mutations caught
   (11 dispatch, 8 ETA). `moneyPaths` caught a real gap (decline path did not save): fixed. Gate green except
   the known Windows `fssaiBadge`; typecheck 7/7.
+- **Live (18 Oct, ~03:35 IST), observed:** `/health` healthy; `/partner`, `/admin`, `/privacy` load; a login POST from
+  our own site reaches the server (401 for a wrong password) while a stranger site is refused (403, Stage F L4) and
+  the phone apps (no Origin) are unaffected; help chat, kitchen ticket, records and the rider offer list answer 401
+  without a sign-in. Not observed live (needs sign-ins): an actual one-rider offer, the ETA fields, a ticket PDF.
 - Pushed together with the parallel session's B8 (`a4b19c9`), B10 (`ec41f10`), B7 (`420d2b3`) and Stage F
   (`c449965`), after this session's gate on the combined tree.
 
