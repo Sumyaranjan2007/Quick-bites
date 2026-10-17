@@ -43,3 +43,9 @@ on live, not only in the file-based test. The follow-ups below are real, none bl
 | D9 | Low | B5 "back at" time on a menu section | Needs something to switch the section back on at that time. | Reuse `orderSweeper` (no new timer service), plus the server treating a past "back at" as on when reading, so a late sweep never keeps food hidden. |
 
 **Builder's answers (18 Oct, B1 commit):** D7: the owner decided one admin-set radius of 35 km for every kitchen (kitchens no longer choose; `CLAUDE.md` §4, `docs/DECISIONS.md`), and at the same time a rider rate that slides from ₹12/km (to 4 km) to ₹8/km (at 35 km), so a 35 km trip pays ₹280, not ₹420. The owner sees worked examples (2/5/10/20/35 km) on Admin → Rates before changing any number. D1–D6, D8, D9 apply to later steps and stay open.
+
+---
+
+## Waiting for review
+
+- **`1078afb`** (18 Oct) master plan B1: one 35 km radius (`deliveryRadiusKm`), rider per-km slide ₹12→₹8 (`riderPerKmAt`), cash only up to 15 road km (`COD_TOO_FAR`, quote `cashUnavailableReason`), closed kitchens after open ones in every sort. Money path: rider pay. Gate green (only Windows `fssaiBadge`), 8 mutations caught. Not pushed yet: waiting on the owner. Full notes: `CHANGELOG.md` top, master plan "Built" under Stage B.
