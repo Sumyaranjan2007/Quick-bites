@@ -7,23 +7,30 @@
 Benchmarked against a market-leading Indian delivery app. The study (recordings, timings) is kept
 private, outside this public repo. No asset, code or Lottie file from another app is used.
 
-Build plan: `docs/plans/new-architecture-and-animations-2026-10-17.md`. Everything here works on
-Reanimated 3 (old architecture, SDK 54); Reanimated 4 only makes it smoother.
+Build plan: `docs/plans/master-plan-2026-10-18.md` Stage C (New Architecture + Reanimated 4) then
+Stage D. Built with Reanimated 4: CSS transitions for state changes, shared values only where a finger
+or scroll drives the value (`expo:expo-animation` skill). Design system: [`../system/README.md`](../system/README.md).
 
-## Tokens (one place: add `motion` to `theme/tokens.ts` when built)
+## Tokens (one place: `motion` in `theme/tokens.ts` when built)
+
+Updated 18 Oct to the Expo animation rules: no ease-in on UI (exits use the ease-out curve, shorter),
+springs in Reanimated 4's `{ duration, dampingRatio }` form, press scale 0.97.
 
 | Token | Value | Use |
 |---|---|---|
-| `press` | 100 ms, scale 0.96 | finger down on any card or button; release is a spring |
-| `quick` | 160 ms | chip/tab change, text swap, number roll |
+| `press` | 120 ms, scale 0.97, `easeOut` (CSS transition) | finger down on any card or button; back to 1 on release |
+| `quick` | 160 ms | chip change, text swap, number roll |
 | `standard` | 260 ms | screen enter, sheet content, cart bar |
 | `slow` | 400 ms | progress fills, map camera |
-| Exit | 70% of the enter time | anything leaving is faster than arriving |
-| `easeOut` (enter) | cubic-bezier(0.2, 0, 0, 1) | things arriving |
-| `easeIn` (exit) | cubic-bezier(0.4, 0, 1, 1) | things leaving |
-| `springPress` | damping 18, stiffness 420 | release after press |
-| `springSheet` | damping 24, stiffness 230 | bottom sheets, cart bar |
-| `springBump` | damping 9, stiffness 320 | count bump, "added" pop (one small overshoot) |
+| Exit | 70% of the enter time, same `easeOut` curve | anything leaving is faster than arriving |
+| `easeOut` | cubic-bezier(0.23, 1, 0.32, 1) | default for everything without a finger on it |
+| `easeInOut` | cubic-bezier(0.77, 0, 0.175, 1) | something moving across the screen (marker glide uses `linear`) |
+| `easeSheet` | cubic-bezier(0.32, 0.72, 0, 1) | a sheet opened by a tap |
+| `springSettle` | `{ duration: 400, dampingRatio: 1 }` | settle, no overshoot |
+| `springSheet` | `{ duration: 300, dampingRatio: 0.8, velocity }` | sheet/cart bar released from a drag |
+| `springBump` | `{ duration: 300, dampingRatio: 0.55 }` | count bump, "added" pop (one small overshoot; only on the user's own action) |
+
+Older names used in the screen files: `springPress` = `press` (a transition, not a spring).
 
 ## Haptics (`src/lib/haptics.ts` exists, iPhone only today)
 
@@ -34,14 +41,15 @@ Reanimated 3 (old architecture, SDK 54); Reanimated 4 only makes it smoother.
 | order placed, order delivered, coupon applied | `haptic.success` |
 | error, refused coupon, out of stock | `haptic.warning` |
 
-**Change needed (owner to approve):** turn haptics on for Android too (expo-haptics supports it).
-Today Android users feel nothing.
+**Approved by the owner (17 Oct): soft haptics on Android too** (master plan Stage D1). Fire in the
+same frame as the visual, once per user action, never on scroll, never the only feedback.
 
 ## Rules
 
 1. Motion explains a change (where it came from, where it went). No decoration loops except loaders.
-2. Respect the phone's *Remove animations* / *Reduce motion*: durations go to 0, springs become a
-   plain set, loaders become static (`AccessibilityInfo.isReduceMotionEnabled`).
+2. Respect the phone's *Remove animations* / *Reduce motion* (`useReducedMotion`,
+   `ReduceMotion.System`): fewer and gentler, not zero. Keep opacity and colour changes that explain a
+   state; drop movement, scale, parallax, overshoot and loops (loaders become a static skeleton).
 3. Only animate `transform` and `opacity` (cheap, on the UI thread). Never width/height except in
    Reanimated layout animations.
 4. A list animates its first appearance only, never on every scroll or refresh.
