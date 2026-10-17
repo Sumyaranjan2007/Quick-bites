@@ -4,6 +4,7 @@ import { calculateDistanceKm } from '../../db/client.ts';
 import { searchDishesInMenus } from './menuFallbackSearch.ts';
 import { memoryStore } from '../../db/client.ts';
 import { customerDishPrice } from '../payments/restaurantCharges.ts';
+import { sectionIsOn } from '../restaurants/menuSections.ts';
 
 /*
  * The index is a copy, and a copy goes stale between rebuilds. Every hit is
@@ -24,7 +25,7 @@ function liveDish(hit: any): any | null {
   for (const cat of menu?.categories || []) {
     for (const item of cat.items || []) {
       if (item.id !== hit.id) continue;
-      if (item.isAvailable === false) return null;
+      if (item.isAvailable === false || !sectionIsOn(cat)) return null;
       return {
         ...hit,
         name: item.name,

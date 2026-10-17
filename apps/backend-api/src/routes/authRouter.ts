@@ -21,6 +21,7 @@ import { otpService } from '../modules/auth/otpService.ts';
 import { maskPhone, isRealEmail, sendEmail } from '../modules/auth/otpDrivers.ts';
 import { page, escape } from './publicPages.ts';
 import type { UserRole } from '@quick-bites/shared-types';
+import { CUISINE_TYPES } from '@quick-bites/shared-types';
 import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
 import { notifyAdminsNewSignup } from '../notifications/adminNotifier.ts';
 
@@ -492,7 +493,9 @@ const PartnerRegistrationSchema = z.object({
    */
   /** Ignored since 18 Oct 2026 (admins set one radius); accepted so older Partner apps still sign up. */
   serviceRadiusKm: z.number().min(1).max(25).optional(),
-  isPureVeg: z.boolean().optional()
+  /** The partner's "pure veg" tick from older apps; now only sets `cuisineType` (the seal is admin-only, B5). */
+  isPureVeg: z.boolean().optional(),
+  cuisineType: z.enum(CUISINE_TYPES).optional()
 });
 
 const RiderRegistrationSchema = z.object({
@@ -839,7 +842,9 @@ async function openRestaurant(user: { id: string }, body: Record<string, any>) {
       longitude: body.longitude ?? UNSET_COORDINATES.longitude
     },
     fssaiLicenseNumber: body.fssaiLicenseNumber,
-    isPureVeg: Boolean(body.isPureVeg),
+    // The Pure Veg seal is given only by admins (owner, 18 Oct 2026); the partner's tick is their cuisine type.
+    isPureVeg: false,
+    ...(body.cuisineType || body.isPureVeg ? { cuisineType: body.cuisineType ?? 'VEG' } : {}),
     packagingFee: 0,
     status: 'PENDING_APPROVAL',
     kycStatus: 'PENDING_APPROVAL',

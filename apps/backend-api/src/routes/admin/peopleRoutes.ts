@@ -26,6 +26,7 @@ import { summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { setRiderOfferPoolMembership } from '../../sockets/socketServer.ts';
 import type { Order } from '@quick-bites/shared-types';
+import { CUISINE_TYPES } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
 import { tripTakeHome } from '../../modules/riders/tripPayout.ts';
 import {
@@ -516,6 +517,7 @@ peopleRoutes.get('/restaurants', requirePermission('users.restaurants.view'), as
         blockReason: (memoryStore.users.get(restaurant.ownerId) as any)?.blockReason || '',
         isOpen: restaurant.isOpen,
         isPureVeg: restaurant.isPureVeg,
+        cuisineType: restaurant.cuisineType,
         rating: restaurant.ratingAverage,
         ratingCount: restaurant.ratingCount,
         orders: own.length,
@@ -601,7 +603,9 @@ const RestaurantUpdateSchema = z.object({
   city: z.string().trim().max(80).optional(),
   cuisineTags: z.array(z.string().trim().max(40)).max(12).optional(),
   packagingFee: z.number().min(0).max(200).optional(),
+  /** The Pure Veg seal: needs `catalog.restaurants.pureVegSeal` as well (B5). */
   isPureVeg: z.boolean().optional(),
+  cuisineType: z.enum(CUISINE_TYPES).optional(),
   status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'SUSPENDED', 'CLOSED']).optional(),
   /**
    * Where the kitchen actually is.
@@ -641,6 +645,14 @@ peopleRoutes.patch(
       if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
 
       const { reason, status, isBlocked, blockReason, ...fields } = req.body;
+      const access = req.adminAccess;
+      if (
+        fields.isPureVeg !== undefined &&
+        fields.isPureVeg !== Boolean(restaurant.isPureVeg) &&
+        !(access?.isSuperAdmin || access?.permissions.includes('catalog.restaurants.pureVegSeal'))
+      ) {
+        throw new AppError('Only staff allowed to give the Pure Veg seal can change it.', 403, 'PERMISSION_DENIED');
+      }
       const owner = await userRepository.findById(restaurant.ownerId);
       const before = {
         status: restaurant.status,

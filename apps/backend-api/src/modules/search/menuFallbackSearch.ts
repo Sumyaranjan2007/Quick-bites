@@ -25,6 +25,7 @@
 import { memoryStore } from '../../db/client.ts';
 import type { Restaurant } from '@quick-bites/shared-types';
 import { customerDishPrice } from '../payments/restaurantCharges.ts';
+import { sectionIsOn } from '../restaurants/menuSections.ts';
 
 export interface DishHit {
   id: string;
@@ -59,7 +60,7 @@ export function searchDishesInMenus(query: string, limit = 40): DishHit[] {
 
     for (const category of menu.categories || []) {
       for (const item of category.items || []) {
-        if (item.isAvailable === false) continue;
+        if (item.isAvailable === false || !sectionIsOn(category)) continue;
 
         const name = String(item.name || '').toLowerCase();
         const description = String(item.description || '').toLowerCase();

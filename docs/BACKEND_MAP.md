@@ -41,7 +41,7 @@ All paths answer under `/api/...` and `/api/v1/...` (`src/app.ts:73-74`). Respon
 | site root | `routes/publicPages.ts` | public | 8 | `/`, `/privacy`, `/terms`, `/delete-account`, logo, robots, sitemap |
 | `/partner`, `/admin` | `routes/webApps.ts` | the app's own sign-in | – | the websites (static build in `apps/backend-api/web/`) |
 
-Admin sub-routers (`routes/admin/`): `catalogRoutes` 18 (menus, menu requests, categories,
+Admin sub-routers (`routes/admin/`): `catalogRoutes` 21 (B5 added `POST /menus/:restaurantId/sections/:categoryId/availability`, `GET`/`PUT /recommended-restaurants`; menus, menu requests, categories,
 profile edits), `dashboardRoutes` 9, `financeRoutes` 14, `legacyRoutes` 3, `marketingRoutes` 7
 (coupons), `orderRoutes` 9, `payeeRoutes` 4, `payoutRoutes` 21, `peopleRoutes` 16 (restaurants,
 riders, customers, deletion requests `:702-747`), `platformRoutes` 3 (settings, guarded reset
@@ -76,3 +76,5 @@ Permissions are defined in `modules/admin/permissions.ts`; types `AdminPermissio
 3. Money write? Check every other place that sets the same state (`CLAUDE.md` §8).
 4. Add or extend a suite in `src/test/`; `bodyContract` and `routeContract` suites check the apps' calls.
 5. `node scripts/docs/route-inventory.mjs` and commit the regenerated `docs/generated/*`.
+
+**B5 (18 Oct):** partner `POST /api/restaurants/:id/menu/sections/:categoryId/availability` (section switch, owner only); `GET /api/restaurants` adds `isRecommended`, `cuisineType`, `needsLocation`, `listKind` (`recommended` when no location and admins chose kitchens). Section rule in one place: `modules/restaurants/menuSections.ts` (`sectionIsOn`, `dishesForOrdering` used by quote/checkout/reorder, `menuForCustomers`, `reopenSectionsDue` run by `orderSweeper`).

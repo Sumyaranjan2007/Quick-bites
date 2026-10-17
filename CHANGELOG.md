@@ -6,6 +6,37 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan B5: kitchen type and Pure Veg seal, switch off a whole menu section, recommended restaurants
+
+> **For the owner.** Three server changes, live on push; the screens for them come with the app work
+> (Stages D/E). (1) A kitchen now says whether it is veg, non-veg or both (the partner's own word,
+> checked by you like other profile changes). The **Pure Veg seal** can only be given by staff you
+> allow (super admins today); customers see the seal and the Pure Veg filter uses it. No live kitchen
+> had it, so nothing changes today. (2) A partner (or staff) can switch off a **whole menu section**,
+> e.g. dosa after 7 pm, optionally "until" a time; its dishes cannot be ordered, then come back exactly
+> as they were. (3) You choose **recommended restaurants**; they show first on every customer's home,
+> and a customer who has not set a location sees only them (until you pick some, nothing changes).
+
+- Types: `Restaurant.cuisineType` (`CUISINE_TYPES`), `MenuCategory.isAvailable` + `backAt`, permissions
+  `catalog.restaurants.pureVegSeal`, `catalog.restaurants.recommend`; `cuisineType` is a reviewed profile field.
+- Seal: `isPureVeg` is the seal; `PATCH /api/admin/restaurants/:id` changing it needs the seal permission
+  (sending the unchanged value still works for the admin app); partner sign-up's `isPureVeg` tick now sets
+  `cuisineType: 'VEG'` only; `publicRestaurant` shows `cuisineType: 'VEG'` when sealed.
+- Sections: `modules/restaurants/menuSections.ts` is the one rule (`sectionIsOn`, `dishesForOrdering` for
+  quote/checkout/reorder in `orderService.ts`, `menuForCustomers` for `GET /restaurants/:id(/menu)`, search
+  in `searchService`/`menuFallbackSearch`/`syncService`); routes `POST /api/restaurants/:id/menu/sections/:categoryId/availability`
+  (owner) and `POST /api/admin/menus/:restaurantId/sections/:categoryId/availability` (`catalog.menus.edit`,
+  audit-logged); `orderSweeper` runs `reopenSectionsDue` (set back into the map so Postgres sees it).
+- Recommended: `modules/restaurants/recommended.ts` (`settings.recommendedRestaurants`), `GET/PUT
+  /api/admin/recommended-restaurants`; feed adds `isRecommended`, `needsLocation`, `listKind`; relevance
+  order = open first, then recommended rank, then distance, rating.
+- Checks: new suite `catalogueCuration` (37 checks; runner 89 suites); 15 mutations caught (seal permission,
+  seal outranks type, sign-up tick, type validation, section in checkout/menu/search, back-at both ways,
+  ownership, recommend permission, unknown id, no-location list, recommended first, search not limited).
+  Gate green except the known Windows `fssaiBadge`; typecheck 7/7; secrets; web build.
+- Parallel work: session `b8-help-chat` is building master plan B8 (help chat) in this folder at the same
+  time (owner's request). It does not push; this session pushes after its own gate.
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan B1: one 35 km radius, rider pay that slides with distance, cash only up to 15 km
 
 > **For the owner.** Every kitchen is now shown to, and can deliver to, customers within **35 km**

@@ -46,6 +46,7 @@ import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, Restaurant, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
+import { dishesForOrdering } from '../restaurants/menuSections.ts';
 import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
 import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor, codOverrideFor } from './cancellationFee.ts';
 import { contributionPaise } from '../payments/orderMargin.ts';
@@ -376,10 +377,8 @@ export const orderService = {
       throw new AppError('Restaurant menu not found.', 404, 'MENU_NOT_FOUND');
     }
 
-    const allDishes = new Map<string, any>();
-    for (const cat of menu.categories) {
-      for (const dish of cat.items) allDishes.set(dish.id, dish);
-    }
+    // A dish in a switched-off menu section is unavailable (B5).
+    const allDishes = dishesForOrdering(menu);
 
     let partnerItemsTotal = 0;
     const pricedItems: Array<{
@@ -651,12 +650,8 @@ export const orderService = {
       throw new AppError('Restaurant menu not found.', 404, 'MENU_NOT_FOUND');
     }
 
-    const allDishes = new Map<string, any>();
-    for (const cat of menu.categories) {
-      for (const dish of cat.items) {
-        allDishes.set(dish.id, dish);
-      }
-    }
+    // A dish in a switched-off menu section is out of stock (B5).
+    const allDishes = dishesForOrdering(menu);
 
     let partnerItemsTotal = 0;
     const orderItems: Array<{
@@ -930,10 +925,7 @@ export const orderService = {
         : `${restaurant.name} is closed right now.`;
     }
 
-    const liveDishes = new Map<string, any>();
-    for (const cat of menu?.categories || []) {
-      for (const dish of cat.items) liveDishes.set(dish.id, dish);
-    }
+    const liveDishes = dishesForOrdering(menu);
 
     const items: Array<{
       dishId: string;

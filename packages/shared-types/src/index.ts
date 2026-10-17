@@ -144,6 +144,9 @@ export interface MenuChangeRequest {
   resultingDishId?: string;
 }
 
+export const CUISINE_TYPES = ['VEG', 'NON_VEG', 'BOTH'] as const;
+export type CuisineType = (typeof CUISINE_TYPES)[number];
+
 export interface Restaurant {
   id: string;
   ownerId: string;
@@ -161,7 +164,14 @@ export interface Restaurant {
    */
   fssaiLicenseNumber?: string;
   gstin?: string;
+  /**
+   * The Pure Veg SEAL (owner, 18 Oct 2026; master plan B5). Set only by an admin
+   * holding `catalog.restaurants.pureVegSeal`, never by the partner. Customers see
+   * the badge and the Pure Veg filter from this, whatever `cuisineType` says.
+   */
   isPureVeg: boolean;
+  /** What the partner says they serve, through a reviewed profile edit. The seal outranks it. */
+  cuisineType?: CuisineType;
   /**
    * Cash on delivery for this kitchen. Absent or true = accepted. Set only by an
    * administrator (owner, 2 Oct 2026).
@@ -334,6 +344,8 @@ export const EDITABLE_PROFILE_FIELDS = [
   'pincode',
   'coordinates',
   'cuisineTags',
+  // Veg / non-veg / both, the partner's own word (B5). The Pure Veg seal is admin-only.
+  'cuisineType',
   'costForTwo',
   // What the partner says packaging costs them. Reviewed like everything else
   // here, because it reaches a customer's bill.
@@ -354,6 +366,7 @@ export interface EditableProfile {
   pincode: string;
   coordinates: Coordinates;
   cuisineTags: string[];
+  cuisineType: CuisineType;
   costForTwo: number;
   partnerPackagingFee: number;
   bannerUrl: string;
@@ -460,6 +473,14 @@ export interface MenuCategory {
   name: string;
   sortOrder: number;
   items: MenuItem[];
+  /**
+   * The whole section switched off ("no dosa after 7 pm", B5). False hides every
+   * dish in it from customers; each dish keeps its own `isAvailable`, so switching
+   * the section back on restores them as they were. Absent = on.
+   */
+  isAvailable?: boolean;
+  /** When an off section counts as on again (ISO). Passed = on, without anyone switching it. */
+  backAt?: string;
 }
 
 export interface RestaurantMenu {
@@ -1049,6 +1070,8 @@ export type AdminPermission =
   | 'orders.refunds.handle'
   // Restaurant & menu
   | 'catalog.restaurants.approve'
+  | 'catalog.restaurants.pureVegSeal'
+  | 'catalog.restaurants.recommend'
   | 'catalog.menus.view'
   | 'catalog.menus.review'
   | 'catalog.menus.edit'
@@ -1121,6 +1144,8 @@ export const ADMIN_PERMISSION_GROUPS: Array<{
     label: 'Restaurant & Menu',
     permissions: [
       { id: 'catalog.restaurants.approve', label: 'Approve/reject restaurants', description: 'Decide restaurant onboarding.' },
+      { id: 'catalog.restaurants.pureVegSeal', label: 'Give/remove the Pure Veg seal', description: 'Only after checking the kitchen serves no meat or egg.' },
+      { id: 'catalog.restaurants.recommend', label: 'Choose recommended restaurants', description: 'Shown first on every customer home, and when no location is set.' },
       { id: 'catalog.menus.view', label: 'View menus', description: 'Read any partner’s catalogue.' },
       { id: 'catalog.menus.review', label: 'Approve/reject menu requests', description: 'Decide partner menu changes.' },
       { id: 'catalog.menus.edit', label: 'Add/edit/delete menu items', description: 'Write directly to a live menu.' },

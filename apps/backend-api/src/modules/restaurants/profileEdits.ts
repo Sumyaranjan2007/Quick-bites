@@ -1,4 +1,6 @@
 import {
+  CUISINE_TYPES,
+  type CuisineType,
   EDITABLE_PROFILE_FIELDS,
   type EditableProfile,
   type EditableProfileField,
@@ -208,6 +210,14 @@ export function validateProfileChanges(input: unknown): ProfileValidationResult 
         tags.push(trimmed);
       }
       value.cuisineTags = tags;
+    }
+  }
+
+  if ('cuisineType' in raw) {
+    if (!(CUISINE_TYPES as readonly unknown[]).includes(raw.cuisineType)) {
+      errors.push('Choose veg, non-veg, or both.');
+    } else {
+      value.cuisineType = raw.cuisineType as CuisineType;
     }
   }
 

@@ -4,6 +4,7 @@ import { onCollectionChange } from '../../db/client.ts';
 import { customerDishPrice } from '../payments/restaurantCharges.ts';
 import { meiliClient } from './meiliClient.ts';
 import { searchCache } from './searchCache.ts';
+import { sectionIsOn } from '../restaurants/menuSections.ts';
 
 export interface SyncReport {
   success: boolean;
@@ -86,7 +87,7 @@ export const syncService = {
               // "Biryani" restaurant matched "biry" — Paneer Butter Masala was
               // suggested for biryani (V9-2). Restaurants still match on cuisine.
               restaurantCuisines: r.cuisineTags,
-              isAvailable: item.isAvailable && r.status === 'ACTIVE',
+              isAvailable: item.isAvailable && sectionIsOn(cat) && r.status === 'ACTIVE',
               city,
               rating: r.ratingAverage,
               latitude: r.coordinates?.latitude || 12.9716,

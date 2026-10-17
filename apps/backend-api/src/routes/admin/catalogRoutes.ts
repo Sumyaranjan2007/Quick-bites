@@ -21,6 +21,9 @@ import { restaurantRepository } from '../../db/repositories/restaurantRepository
 import { categoryRepository } from '../../db/repositories/categoryRepository.ts';
 import { emitMenuUpdated, emitMenuRequestReviewed } from '../../sockets/socketServer.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
+import { setSectionAvailability, SectionSwitchSchema, sectionState } from '../../modules/restaurants/menuSections.ts';
+import { recommendedIds, saveRecommended, MAX_RECOMMENDED } from '../../modules/restaurants/recommended.ts';
+import { isKitchenServing } from '../../modules/restaurants/openingHours.ts';
 import { memoryStore } from '../../db/client.ts';
 import { matchesQuery } from './shared.ts';
 import { profileEditRepository } from '../../db/repositories/profileEditRepository.ts';
@@ -231,6 +234,67 @@ catalogRoutes.post(
       });
 
       res.status(201).json({ success: true, data: { item: created } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** POST /api/admin/menus/:restaurantId/sections/:categoryId/availability — the partner's section switch, for staff (B5). */
+catalogRoutes.post(
+  '/menus/:restaurantId/sections/:categoryId/availability',
+  requirePermission('catalog.menus.edit'),
+  validate({ body: SectionSwitchSchema }),
+  async (req, res, next) => {
+    try {
+      const { restaurantId, categoryId } = req.params;
+      const section = await setSectionAvailability(restaurantId, categoryId, req.body.isAvailable, req.body.backAt);
+      emitMenuUpdated(restaurantId);
+      recordAudit(req, {
+        action: req.body.isAvailable ? 'MENU_SECTION_ON' : 'MENU_SECTION_OFF',
+        entityType: 'MENU_SECTION',
+        entityId: categoryId,
+        summary: `${req.body.isAvailable ? 'Switched on' : 'Switched off'} section "${section.name}" at ${restaurantId}${section.backAt ? ` until ${section.backAt}` : ''}`,
+        after: sectionState(section)
+      });
+      res.json({ success: true, data: { section: sectionState(section) } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/* ------------------------------ Recommended ------------------------------ */
+
+/** GET /api/admin/recommended-restaurants — the list in order, with each kitchen's state (B5). */
+catalogRoutes.get('/recommended-restaurants', requirePermission('catalog.restaurants.recommend'), (_req, res) => {
+  const restaurants = recommendedIds()
+    .map(id => memoryStore.restaurants.get(id) as any)
+    .filter(Boolean)
+    .map(r => ({ id: r.id, name: r.name, status: r.status, isServing: isKitchenServing(r) }));
+  res.json({ success: true, data: { restaurants } });
+});
+
+const RecommendedSchema = z.object({ restaurantIds: z.array(z.string().min(1).max(80)).max(MAX_RECOMMENDED) });
+
+/** PUT /api/admin/recommended-restaurants — replace the list; the order given is the order customers see. */
+catalogRoutes.put(
+  '/recommended-restaurants',
+  requirePermission('catalog.restaurants.recommend'),
+  validate({ body: RecommendedSchema }),
+  (req, res, next) => {
+    try {
+      const before = recommendedIds();
+      const ids = saveRecommended(req.body.restaurantIds, req.user!.id);
+      recordAudit(req, {
+        action: 'RECOMMENDED_RESTAURANTS_SET',
+        entityType: 'SETTING',
+        entityId: 'recommendedRestaurants',
+        summary: `Recommended restaurants: ${ids.length ? ids.join(', ') : 'none'}`,
+        before,
+        after: ids
+      });
+      res.json({ success: true, data: { restaurantIds: ids } });
     } catch (err) {
       next(err);
     }

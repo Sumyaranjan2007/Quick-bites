@@ -28,6 +28,8 @@ import { profileEditRepository } from '../db/repositories/profileEditRepository.
 import { notifyAdminsMenuRequestRaised, notifyAdminsProfileEditRaised } from '../notifications/adminNotifier.ts';
 import { couponRepository } from '../db/repositories/couponRepository.ts';
 import { inflateMenuForCustomer } from '../modules/payments/restaurantCharges.ts';
+import { recommendedIds } from '../modules/restaurants/recommended.ts';
+import { menuForCustomers, setSectionAvailability, SectionSwitchSchema, sectionState } from '../modules/restaurants/menuSections.ts';
 import { bestOfferFor, platformPromotion } from '../modules/restaurants/restaurantOffers.ts';
 import {
   buildImagery,
@@ -76,7 +78,7 @@ export const restaurantRouter = Router();
  */
 const PUBLIC_RESTAURANT_FIELDS = [
   'id', 'name', 'slug', 'description', 'addressLine', 'city', 'pincode', 'coordinates',
-  'fssaiLicenseNumber', 'isPureVeg', 'acceptsCash', 'packagingFee', 'ratingAverage',
+  'fssaiLicenseNumber', 'isPureVeg', 'cuisineType', 'isRecommended', 'acceptsCash', 'packagingFee', 'ratingAverage',
   'ratingCount', 'cuisineTags', 'bannerUrl', 'galleryUrls', 'costForTwo', 'highlightTag',
   'serviceRadiusKm', 'isOpen', 'openingHours', 'forceOpenUntil', 'kitchenStatusChangedAt',
   // Worked out per request for the feed.
@@ -87,7 +89,10 @@ const PUBLIC_RESTAURANT_FIELDS = [
 ] as const;
 
 export function publicRestaurant(r: Record<string, any>): Record<string, any> {
-  return Object.fromEntries(PUBLIC_RESTAURANT_FIELDS.filter(k => k in r).map(k => [k, r[k]]));
+  const shown = Object.fromEntries(PUBLIC_RESTAURANT_FIELDS.filter(k => k in r).map(k => [k, r[k]]));
+  // The Pure Veg seal (admin-given) outranks what the partner says they serve (B5).
+  if (r.isPureVeg) shown.cuisineType = 'VEG';
+  return shown;
 }
 
 /**
@@ -170,6 +175,11 @@ restaurantRouter.get('/', async (req, res) => {
     // Undefined is now the honest answer, and the app shows "Set your location"
     // rather than a number nobody computed.
     const origin = lat !== undefined && lng !== undefined ? { latitude: lat, longitude: lng } : null;
+
+    // Admins' recommended kitchens, in their order (B5): first on the home, and the whole
+    // list for a customer with no location yet (unless they are searching by name).
+    const recommendedRank = new Map(recommendedIds().map((id, i) => [id, i] as const));
+    const onlyRecommended = !origin && !query && recommendedRank.size > 0;
 
     /*
      * Photographs, and what to draw when there are none.
@@ -256,6 +266,7 @@ restaurantRouter.get('/', async (req, res) => {
     // Keeping them was the old behaviour and it showed people restaurants that
     // could not deliver to them.
     if (origin) annotated = annotated.filter(r => r.isWithinServiceArea);
+    if (onlyRecommended) annotated = annotated.filter(r => recommendedRank.has(r.id));
 
     if (isPureVeg) annotated = annotated.filter(r => r.isPureVeg);
     // `isOpen !== false` rather than `isOpen === true`, so a kitchen recorded
@@ -307,6 +318,7 @@ restaurantRouter.get('/', async (req, res) => {
      * kind of thing that never reproduces when someone goes looking for it.
      */
     const last = (n: number | undefined) => n ?? Number.MAX_SAFE_INTEGER;
+    const rankOf = (r: Restaurant) => last(recommendedRank.get(r.id));
 
     switch (sort) {
       case 'rating':
@@ -329,10 +341,12 @@ restaurantRouter.get('/', async (req, res) => {
       default:
         // Relevance: an open kitchen first — a closed one cannot be ordered
         // from, so however good it is it is not the most relevant thing on the
-        // screen — then nearest, then best rated.
+        // screen — then the admins' recommended ones in their order (B5), then
+        // nearest, then best rated.
         annotated.sort(
           (a, b) =>
             Number(isKitchenServing(b)) - Number(isKitchenServing(a)) ||
+            rankOf(a) - rankOf(b) ||
             last(a.distanceKm) - last(b.distanceKm) ||
             byRating(a, b)
         );
@@ -345,8 +359,16 @@ restaurantRouter.get('/', async (req, res) => {
       success: true,
       data: {
         restaurants: annotated.map(r =>
-          publicRestaurant({ ...r, fssaiVerified: isFssaiVerified(r.fssaiLicenseNumber, kycByRestaurant.get(r.id) ?? []) })
+          publicRestaurant({
+            ...r,
+            isRecommended: recommendedRank.has(r.id),
+            fssaiVerified: isFssaiVerified(r.fssaiLicenseNumber, kycByRestaurant.get(r.id) ?? [])
+          })
         ),
+        /** No location sent: the app asks for one first (#7). */
+        needsLocation: !origin,
+        /** 'recommended' when the list is only the admins' picks (no location yet), else 'nearby'/'all'. */
+        listKind: onlyRecommended ? 'recommended' : origin ? 'nearby' : 'all',
         /*
          * The home screen's hero banner, or null.
          *
@@ -418,7 +440,7 @@ restaurantRouter.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Restaurant not found' });
     }
     const menu = inflateMenuForCustomer(
-      await menuRepository.findByRestaurantId(restaurant.id),
+      menuForCustomers(await menuRepository.findByRestaurantId(restaurant.id)),
       restaurant.id
     );
     const fssaiVerified = isFssaiVerified(
@@ -438,7 +460,7 @@ restaurantRouter.get('/:id/menu', async (req, res) => {
     // never writes, so the kitchen's stored menu cannot drift upward on
     // every read.
     const menu = inflateMenuForCustomer(
-      await menuRepository.findByRestaurantId(req.params.id),
+      menuForCustomers(await menuRepository.findByRestaurantId(req.params.id)),
       req.params.id
     );
     if (!menu) {
@@ -639,6 +661,24 @@ restaurantRouter.post('/:id/menu/toggle-stock', authMiddleware('restaurant_owner
     next(err);
   }
 });
+
+// POST /api/restaurants/:id/menu/sections/:categoryId/availability — a whole section off or on (B5).
+// Each dish keeps its own switch, so turning the section on restores the dishes as they were.
+restaurantRouter.post(
+  '/:id/menu/sections/:categoryId/availability',
+  authMiddleware('restaurant_owner'),
+  validate({ body: SectionSwitchSchema }),
+  async (req, res, next) => {
+    try {
+      await assertOwnsRestaurant(req, req.params.id);
+      const section = await setSectionAvailability(req.params.id, req.params.categoryId, req.body.isAvailable, req.body.backAt);
+      emitMenuUpdated(req.params.id);
+      return res.json({ success: true, data: { section: sectionState(section) } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 const KitchenStatusSchema = z.object({
   isKitchenActive: z.boolean()
