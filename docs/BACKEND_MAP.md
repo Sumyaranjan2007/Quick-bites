@@ -45,7 +45,7 @@ Admin sub-routers (`routes/admin/`): `catalogRoutes` 21 (B5 added `POST /menus/:
 profile edits), `dashboardRoutes` 9, `financeRoutes` 14, `legacyRoutes` 3, `marketingRoutes` 7
 (coupons), `orderRoutes` 9, `payeeRoutes` 4, `payoutRoutes` 21, `peopleRoutes` 16 (restaurants,
 riders, customers, deletion requests `:702-747`), `platformRoutes` 3 (settings, guarded reset
-`:150`), `pricingRoutes` 20 (rates, rider pay by city), `rbacRoutes` 8 (roles), `supportRoutes` 6.
+`:150`), `pricingRoutes` 20 (rates, rider pay by city), `rbacRoutes` 8 (roles), `supportRoutes` 6, `recordRoutes` 3 (B7: one record per person, documents one by one or as a ZIP).
 Permissions are defined in `modules/admin/permissions.ts`; types `AdminPermission` in
 `packages/shared-types/src/index.ts:1035`.
 

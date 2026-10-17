@@ -6,6 +6,35 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan B7: one record per person, every document viewable and downloadable (server)
+
+> **For the owner.** Operations can now open one record for any restaurant, rider or customer (#11)
+> and see, in one place: their documents grouped by kind (licences, tax, identity, bank) with status
+> and dates, their photos, their support tickets, and the history of what staff changed about them.
+> Each document can be downloaded on its own, or all of them at once as one ZIP file. Every download
+> is written to the history, because these are identity papers. Staff only see the parts their role
+> allows: a finance admin sees the record without identity papers or tickets. Aadhaar numbers show
+> only their last 4 digits. Nothing changes on phones yet: the Record screen comes with the Operations
+> app work (Stage E). Not built yet: the "reveal phone/email" button with its history line.
+
+- New `routes/admin/recordRoutes.ts`, mounted in `routes/adminRouter.ts` (so `attachAdminAccess`, staff only):
+  - `GET /api/admin/records/:kind/:id` (`restaurant` | `rider` | `customer`, permission
+    `users.<restaurants|drivers|customers>.view`): `name`, `userId`, `photos`, `documents` (grouped, `file` =
+    image | link | missing, `downloadPath`, no file bodies), `support.tickets`, `history` (audit lines whose
+    entity is the person, their account, documents or tickets; newest 200), `detailPath` (the existing
+    People detail route keeps profile, orders and money). `documents` needs `documents.view`, `support`
+    `support.tickets.view`, `history` `admin.audit.view`; otherwise `null`.
+  - `GET .../documents/:docId/file`: the document's own bytes (`attachment`, e.g. `Vikram-Singh-AADHAAR.png`),
+    302 to a stored link, 404 `FILE_MISSING`; a document of someone else is 404 `DOCUMENT_NOT_FOUND`.
+  - `GET .../documents.zip`: every stored file + `index.txt` (type, status, number, file / link / FILE MISSING).
+  - Both downloads need `documents.view` and write `DOCUMENT_DOWNLOADED` / `DOCUMENTS_DOWNLOADED_ALL` to the audit log.
+- No new permission, collection or app change. A customer record is only an account holding `customer`.
+- Checks: new suite `personRecord` (28; runner now 92 suites). 11 mutations (per-kind permission, the three
+  part permissions, history scope, both download permissions, document ownership, Aadhaar mask, download
+  audit, customer role), all caught.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan B10: kitchen ticket to print, no prices (server)
 
 > **For the owner.** The server can now make the kitchen ticket you asked for (#2): a slip for the

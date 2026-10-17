@@ -106,6 +106,7 @@ const SUITES = [
   'deliveryRadius',
   'helpChat',
   'kitchenTicket',
+  'personRecord',
   'catalogueCuration',
   'bodyContract',
   'durableMoney',

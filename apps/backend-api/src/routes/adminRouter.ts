@@ -26,6 +26,7 @@ import { marketingRoutes } from './admin/marketingRoutes.ts';
 import { supportRoutes } from './admin/supportRoutes.ts';
 import { rbacRoutes } from './admin/rbacRoutes.ts';
 import { legacyRoutes } from './admin/legacyRoutes.ts';
+import { recordRoutes } from './admin/recordRoutes.ts';
 
 export const adminRouter = Router();
 
@@ -52,3 +53,4 @@ adminRouter.use(marketingRoutes);
 adminRouter.use(supportRoutes);
 adminRouter.use(rbacRoutes);
 adminRouter.use(legacyRoutes);
+adminRouter.use(recordRoutes);

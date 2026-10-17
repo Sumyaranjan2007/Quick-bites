@@ -28,7 +28,7 @@ node scripts/build-web.mjs           # the /partner and /admin websites build
 **Baseline on 17 Oct 2026 (`c25685c` and `3caa076`):** 1344 checks passed, 0 failed; the run
 reports `1 SUITE(S) FAILED: fssaiBadge` only because of the known Windows exit crash below.
 
-**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **91** on disk (all listed in the runner; `deliveryRadius`, `catalogueCuration`, `helpChat` and `kitchenTicket` added 18 Oct).
+**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **92** on disk (all listed in the runner; `deliveryRadius`, `catalogueCuration`, `helpChat`, `kitchenTicket` and `personRecord` added 18 Oct).
 
 ## Known environmental failures (Windows, not defects)
 
@@ -142,6 +142,7 @@ Description = the suite's own header line.
 | `deliveryRadius` | One 35 km radius on the map (list and checkout), closed kitchens listed after open ones, rider pay sliding with distance, cash only up to 15 road km, the 35 km applied once (master plan B1). |
 | `helpChat` | B8: help topics per app (no customer topic for partner/rider), fixed answers from live data (order status + arrival, refund case, owed, cash, documents), own orders only (customer-app session of a partner is a customer), "Talk to us" ticket with the server-rebuilt chat, one ticket per double tap, 5 an hour, staff reply pushed, raiser's reply reopens. |
 | `kitchenTicket` | B10: 80/58 mm ticket PDF, one page as long as the order, dishes with options and pickup code, no price/total/payment/phone/address/delivery code, owning kitchen after Accept or staff with order access only, cancelled marked. |
+| `personRecord` | B7: one record per restaurant/rider/customer: documents grouped (no file bodies, Aadhaar masked), photos, tickets, history about that person only; each part behind its permission; one file or all as ZIP, only through its own person, audit-logged. |
 | `qaAppText` | The owner's QA pass on v8 (26 Sep), app half: #9 to #15. |
 | `qaRound1` | v9 QA round 1 (26 Sep), server fixes: V9-16, V9-8, V9-2, V9-3. |
 | `rateLimitPerUser` | The request limit is per account, not per address (N15 / S4). |
