@@ -400,7 +400,7 @@ rider's trip map cost nothing however often they are opened.
 turning a pin into an address, measuring a road distance. All of those are
 70,000 free per month each, and this platform makes roughly four of them per
 order. At 50 orders a day you are not close to any cap; full workings are in
-`QUICK_BITE_COMPLETE_RESEARCH.md` §2.1.
+`docs/history/QUICK_BITE_COMPLETE_RESEARCH.md` §2.1.
 
 You still have to put a card on file — Google will not enable the APIs without
 one — but at your stage you are very unlikely to be charged.

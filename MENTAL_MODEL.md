@@ -151,7 +151,7 @@ Every API endpoint validates the incoming JWT signature and enforces strict role
 
 ## 5. UI/UX Design System Standard
 
-All 4 mobile applications follow the unified design specifications established in `design for customers/` and `design/DESIGN_TOKENS.md`:
+All 4 mobile applications follow the unified design specifications established in `design/customer-screens/` and `design/DESIGN_TOKENS.md`:
 - **Typography:** Plus Jakarta Sans across all headers, buttons, cards, and data badges.
 - **Color Identity:**
   - Primary Brand Crimson / Warm Saffron: `#FF4F18` / `#E23744`

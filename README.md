@@ -60,9 +60,9 @@ node scripts/build-web.mjs                           # the /partner and /admin w
 ```
 
 Details, pitfalls and the private QA-server recipe: `COMMANDS.md` and
-`CLAUDE.md` §5. Signing keys: `SIGNING_KEYS.md`. Play Store: `STORE_RELEASE.md`
+`CLAUDE.md` §5. Signing keys: `SIGNING_KEYS.md`. Play Store: `docs/play-store/STORE_RELEASE.md`
 and `docs/play-store/listings.md`. iPhone: `docs/app-store/IOS.md`. Installing on
-phones: `DOWNLOAD.md`.
+phones: `docs/DOWNLOAD.md`.
 
 ## Rules that matter most
 

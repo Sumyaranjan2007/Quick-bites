@@ -346,7 +346,7 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
 
 **Living (kept current):** `CLAUDE.md` (this) · `AGENTS.md` (pointer) · `README.md` ·
 `CHANGELOG.md` (newest first) · `OWNER_ACTIONS.md` · `COMMANDS.md` · `SIGNING_KEYS.md` ·
-`STORE_RELEASE.md` · `DOWNLOAD.md` · `SESSION_COORDINATION.md` · `legal/*` ·
+`docs/play-store/STORE_RELEASE.md` · `docs/DOWNLOAD.md` · `SESSION_COORDINATION.md` · `legal/*` ·
 `docs/play-store/listings.md` · `docs/app-store/IOS.md` · `docs/plans/FOUR-APP-FLOWS.md` · `docs/plans/CONNECTION-MAP.md` ·
 the two newest plans `docs/plans/menu-ai-maps-money-2026-10-01.md` and
 `docs/plans/cod-menus-payouts-playstore-2026-10-02.md`.
@@ -355,14 +355,15 @@ the two newest plans `docs/plans/menu-ai-maps-money-2026-10-01.md` and
 "what changed since" note at the top; the body below it is from late September.
 
 **Historical (true when written, not updated since — do not treat as current; each one carries a
-"HISTORICAL" banner at the top since 6 Oct):** `PRD.md`,
-`TAD.md`, `APP_FLOW.md`, `DATABASE_SPEC.md`, `FRONTEND_SPEC.md`, `IMPLEMENTATION_PLAN.md`,
-`MENTAL_MODEL.md`, `FEATURE_TICKETS.md`, `FEATURES_PLAN.md`, `MASTER_FIX_PLAN.md`,
-`REBUILD_PLAN.md`, `SCALE_PLAN.md`, `PAYMENTS_PLAN.md`, `OWNER_SETUP.md`,
-`FREE_DEPLOYMENT_GUIDE.md`, `QUICK_BITE_COMPLETE_RESEARCH.md`, `TEAMMATE_GUIDE.md`,
-`OBSERVABILITY.md`, `SEO_PERFORMANCE.md`, `TEST_PLAN.md`, `TESTING_STRATEGY.md`,
-`SECURITY_ACCESS.md`, `security/SECURITY_CHECKLIST.md`, `build/MANIFEST.md`,
-`build/chunk-*.md`, `design/*`, and the older `docs/plans/*` audits. Several describe a
+"HISTORICAL" banner at the top since 6 Oct):** at the root (kept there because
+`scripts/diagnostics.js` requires them) `PRD.md`, `TAD.md`, `APP_FLOW.md`, `DATABASE_SPEC.md`,
+`FRONTEND_SPEC.md`, `IMPLEMENTATION_PLAN.md`, `MENTAL_MODEL.md`, `FEATURE_TICKETS.md`,
+`TEAMMATE_GUIDE.md`, `OBSERVABILITY.md`, `SEO_PERFORMANCE.md`, `TESTING_STRATEGY.md`,
+`SECURITY_ACCESS.md`, `AI_RECOVERY.md`, `SLIDES.html`; in `docs/history/` (moved 17 Oct)
+`FEATURES_PLAN.md`, `MASTER_FIX_PLAN.md`, `REBUILD_PLAN.md`, `SCALE_PLAN.md`, `PAYMENTS_PLAN.md`,
+`OWNER_SETUP.md`, `FREE_DEPLOYMENT_GUIDE.md`, `QUICK_BITE_COMPLETE_RESEARCH.md`, `TEST_PLAN.md`;
+and `security/SECURITY_CHECKLIST.md`, `build/MANIFEST.md`, `build/chunk-*.md`, `design/*`
+(customer mock-ups in `design/customer-screens/`), and the older `docs/plans/*` audits. Several describe a
 Cloudflare tunnel, seeded `pass123` accounts, wallets and Google Maps — all since removed or
 replaced.
 
