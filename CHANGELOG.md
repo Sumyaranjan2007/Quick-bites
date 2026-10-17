@@ -37,6 +37,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   `membership` (basket pinned flat), `regression` (test address moved inside 35 km) updated to the new
   rule. 8 mutations, all caught. Gate green except the known Windows `fssaiBadge` exit crash; typecheck 7/7;
   secrets, i18n, web build pass.
+- **Live (18 Oct, ~02:05 IST), owner confirmed the numbers first.** Observed on production: from a point
+  ~20 km from Harohalli the list shows all 6 kitchens (2 before), closed ones last even when sorted by
+  rating; from ~64 km only the two Bangalore kitchens remain. Not observed (needs a signed-in account):
+  the 15 km cash rule and the new rider pay on a real quote; covered by `deliveryRadius` and the pricing tests.
 - Moved to B5: "no location → recommended list" (needs the recommended list). Review D7 answered in
   `docs/reviews/REVIEW_LOG.md`. Tracker updated in the master plan.
 - Working rule from the owner (18 Oct): **seniordev + cleancode are the main skills** for every coding

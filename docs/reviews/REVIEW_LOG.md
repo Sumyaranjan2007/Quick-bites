@@ -48,4 +48,4 @@ on live, not only in the file-based test. The follow-ups below are real, none bl
 
 ## Waiting for review
 
-- **`1078afb`** (18 Oct) master plan B1: one 35 km radius (`deliveryRadiusKm`), rider per-km slide ₹12→₹8 (`riderPerKmAt`), cash only up to 15 road km (`COD_TOO_FAR`, quote `cashUnavailableReason`), closed kitchens after open ones in every sort. Money path: rider pay. Gate green (only Windows `fssaiBadge`), 8 mutations caught. Not pushed yet: waiting on the owner. Full notes: `CHANGELOG.md` top, master plan "Built" under Stage B.
+- **`1078afb`** (18 Oct) master plan B1: one 35 km radius (`deliveryRadiusKm`), rider per-km slide ₹12→₹8 (`riderPerKmAt`), cash only up to 15 road km (`COD_TOO_FAR`, quote `cashUnavailableReason`), closed kitchens after open ones in every sort. Money path: rider pay. Gate green (only Windows `fssaiBadge`), 8 mutations caught. Pushed 18 Oct with the owner's go-ahead (numbers confirmed); live since the deploy at ~02:05 IST. Full notes: `CHANGELOG.md` top, master plan "Built" under Stage B.
