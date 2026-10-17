@@ -137,6 +137,11 @@ async function run() {
   );
   forged.close();
 
+  // L2: the algorithm is pinned, as on HTTP. HS384 with the right secret was accepted before.
+  const otherAlg = connect(url, { token: jwt.sign({ sub: 'usr_customer_01', role: 'customer' }, config.JWT_SECRET, { algorithm: 'HS384' }) });
+  check('A token signed with another algorithm (HS384) is refused', (await connectionOutcome(otherAlg)) === false);
+  otherAlg.close();
+
   const valid = connect(url, { token: tokenFor('usr_customer_01', 'customer') });
   check('A correctly signed token connects', (await connectionOutcome(valid)) === true);
 

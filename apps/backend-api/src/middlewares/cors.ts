@@ -28,14 +28,9 @@ export function corsDecision(origin: string | undefined, host: string | undefine
   } catch {
     return refuse('CORS access blocked for malformed origin');
   }
-  if (parsed.protocol === 'https:') {
-    if (host && parsed.host === host) return null;
-    // Preview deployments, matched on the host only. The previous rule included
-    // `origin.includes('vercel.app')`, which also matched hosts an attacker controls,
-    // such as https://vercel.app.evil.example — and with credentials enabled that is
-    // enough to read authenticated responses from a victim's browser.
-    if (parsed.hostname.endsWith('.vercel.app') || parsed.hostname.endsWith('.railway.app')) return null;
-  }
+  // Only our exact hosts (L4, 18 Oct 2026): any `*.vercel.app` / `*.railway.app` used to pass,
+  // and anyone can create one of those. Our own pages are the same host as the API.
+  if (parsed.protocol === 'https:' && host && parsed.host === host) return null;
   return refuse(`CORS access blocked for origin: ${origin}`);
 }
 

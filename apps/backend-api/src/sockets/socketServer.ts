@@ -80,7 +80,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     let role: SocketRole;
 
     try {
-      const payload = jwt.verify(token, config.JWT_SECRET) as any;
+      const payload = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'] }) as any; // pinned, as on HTTP (L2)
       if (!payload?.sub) {
         return next(new Error('INVALID_SOCKET_TOKEN: Token carries no subject.'));
       }

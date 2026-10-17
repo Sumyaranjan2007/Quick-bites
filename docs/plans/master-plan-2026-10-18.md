@@ -207,7 +207,7 @@ Truth first: **no app can be made impossible to reverse-engineer** (we read the 
 | Data | Postgres backups (A2), payee numbers encrypted (exists), anonymised deletions (B6), logs without phone/email |
 | Deliverable | `docs/SECURITY.md`: the rules every change must follow + the checklist run before each release |
 
-**Built:** –
+**Built:** findings outside the main session's files (18 Oct): L2 socket tokens pinned to HS256 (`sockets/socketServer.ts`, one line), L4 browser origins only our exact hosts (`middlewares/cors.ts`: the `*.vercel.app` / `*.railway.app` allowance removed; our pages are the same host), review R6 refusals (4xx) logged at WARN, failures (5xx) at ERROR (`middlewares/errorHandler.ts`). Checks added to `sockets.security` and `anonymousAccess`; 3 mutations caught. L1, L3, L5, L6, R2, R3 are in the main session's files and stay with it.
 
 ## Stage G — Test, build, release · ~3–4 days
 Gate + all checks (`docs/TESTING.md`); phone tests of every stage's checklist (motion on and off); web check; then **only on "make APK"**: one build of all four apps (versionCode 34+), archive, Play upload, new reviews, update Play Console: Data safety (location, calls), background-location declaration + video, App access (reviewer code), Advertising ID.

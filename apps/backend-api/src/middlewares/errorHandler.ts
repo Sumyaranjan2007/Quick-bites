@@ -9,10 +9,12 @@ export function errorHandler(
   const statusCode = err.status || err.statusCode || 500;
   const errorCode = err.code || (statusCode === 404 ? 'NOT_FOUND' : 'INTERNAL_SERVER_ERROR');
   
-  // Structured JSON Log in compliance with Rule 12 & OBSERVABILITY.md
-  console.error(JSON.stringify({
+  // Structured JSON Log in compliance with Rule 12 & OBSERVABILITY.md. A refusal
+  // (4xx) is the server working, logged at WARN so real failures stand out (R6).
+  const refused = statusCode < 500;
+  (refused ? console.warn : console.error)(JSON.stringify({
     timestamp: new Date().toISOString(),
-    level: 'ERROR',
+    level: refused ? 'WARN' : 'ERROR',
     requestId: req.correlationId,
     userId: req.user?.id || null,
     path: req.originalUrl,

@@ -13,6 +13,8 @@ import path from 'node:path';
 import { seedDatabase } from '../db/seed.ts';
 import { config } from '../config/env.ts';
 import { corsDecision } from '../middlewares/cors.ts';
+import { errorHandler } from '../middlewares/errorHandler.ts';
+import { AppError } from '../utils/AppError.ts';
 
 /*
  * A stand-in for the /partner and /admin website build.
@@ -151,11 +153,28 @@ async function run(): Promise<void> {
     ['another website is refused', !ok('https://evil.example', 'www.quickbitesresturants.in')],
     ['a look-alike host is refused', !ok('https://www.quickbitesresturants.in.evil.example', 'www.quickbitesresturants.in')],
     ['plain http is refused', !ok('http://www.quickbitesresturants.in', 'www.quickbitesresturants.in')],
+    // L4: anyone can make a *.railway.app or *.vercel.app site; only our exact hosts count.
+    ["another person's *.railway.app site is refused", !ok('https://someone-else.up.railway.app', 'www.quickbitesresturants.in')],
+    ["another person's *.vercel.app site is refused", !ok('https://evil.vercel.app', 'quick-bites-production.up.railway.app')],
     // K2: a refusal is a 403 the error handler passes on, never a status-less Error (500).
     ['a malformed origin is refused with 403', (corsDecision('not a url', 'www.quickbitesresturants.in') as any)?.status === 403],
     ['another website is refused with 403', (corsDecision('https://evil.example', 'www.quickbitesresturants.in') as any)?.status === 403]
   ];
   (config as any).IS_PRODUCTION = prod;
+
+  // R6: a refusal (4xx AppError) is logged at WARN; only a real failure (5xx) at ERROR.
+  const levels: string[] = [];
+  const [error, warn] = [console.error, console.warn];
+  console.error = (line: string) => levels.push(`error:${JSON.parse(line).level}`);
+  console.warn = (line: string) => levels.push(`warn:${JSON.parse(line).level}`);
+  const res: any = { status: () => res, json: () => res };
+  try {
+    errorHandler(new AppError('nope', 403, 'ORIGIN_NOT_ALLOWED'), { originalUrl: '/x', method: 'GET' } as any, res, () => {});
+    errorHandler(new Error('boom'), { originalUrl: '/x', method: 'GET' } as any, res, () => {});
+  } finally {
+    [console.error, console.warn] = [error, warn];
+  }
+  corsChecks.push(['a refused request is logged at WARN, a crash at ERROR (R6)', levels.join(',') === 'warn:WARN,error:ERROR']);
   for (const [name, passed] of corsChecks) {
     console.log(`${passed ? '[PASS]' : '[FAIL]'} CORS: ${name}`);
     if (!passed) open.push(`CORS: ${name}`);

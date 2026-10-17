@@ -6,6 +6,27 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Stage F security: socket tokens pinned, browser origins narrowed, quieter error log
+
+> **For the owner.** Three small security tidy-ups from the 18 Oct audit, server only, nothing to do on
+> your side. (1) The live-updates connection now accepts sign-in tokens of exactly one kind, the same
+> rule the rest of the server already used. (2) Other people's websites on the free Railway and Vercel
+> addresses can no longer call our server from a browser; only our own pages can (they are on our own
+> address, so nothing of ours changes). (3) The server log no longer files ordinary refusals (wrong
+> password, not allowed) as errors, so a real failure stands out. Apps and websites are unaffected.
+
+- L2 `sockets/socketServer.ts`: `jwt.verify(..., { algorithms: ['HS256'] })`, as `middlewares/auth.ts`. Check:
+  `sockets.security` "a token signed with another algorithm (HS384) is refused" (it connected before).
+- L4 `middlewares/cors.ts`: production allows an `https:` origin only when it is the request's own host,
+  or one listed in `CORS_WHITELIST`. Checks in `anonymousAccess`: a stranger's `*.railway.app` and
+  `*.vercel.app` site are refused; our domain and the Railway address still pass.
+- Review R6 `middlewares/errorHandler.ts`: status < 500 logs `level: 'WARN'` through `console.warn`; 5xx
+  stays `ERROR` on `console.error`. Check in `anonymousAccess`. Response bodies unchanged.
+- 3 mutations (one per fix), all caught. `docs/SECURITY.md` L2/L4 and `REVIEW_LOG` R6 marked fixed;
+  master plan Stage F "Built". L1, L3, L5, L6, R2, R3 are in the main session's files (left to it).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan B7: one record per person, every document viewable and downloadable (server)
 
 > **For the owner.** Operations can now open one record for any restaurant, rider or customer (#11)
