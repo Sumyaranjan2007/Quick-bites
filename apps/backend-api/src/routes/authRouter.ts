@@ -18,7 +18,8 @@ import { AppError } from '../utils/AppError.ts';
 import { z } from 'zod';
 import { phoneSchema, optionalPhoneSchema } from '../utils/phone.ts';
 import { otpService } from '../modules/auth/otpService.ts';
-import { maskPhone, isRealEmail } from '../modules/auth/otpDrivers.ts';
+import { maskPhone, isRealEmail, sendEmail } from '../modules/auth/otpDrivers.ts';
+import { page, escape } from './publicPages.ts';
 import type { UserRole } from '@quick-bites/shared-types';
 import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
 import { notifyAdminsNewSignup } from '../notifications/adminNotifier.ts';
@@ -100,6 +101,8 @@ authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registra
      * customer role is added to it.
      */
     const identity = await resolveIdentity(email, phone, password, 'customer' as UserRole);
+    // Unreachable today (a password-less account is a customer already); kept a refusal.
+    if (identity.kind === 'CONFIRM_BY_EMAIL') throw roleAlreadyHeld('customer' as UserRole);
 
     // Never taken from the request: the only role obtainable by self-registration.
     const assignedRole: UserRole = 'customer';
@@ -548,14 +551,16 @@ function enforceNewPasswordStrength(password: string): void {
  * never become a way to attach yourself to somebody else's account by claiming
  * to be them.
  *
- * Two outcomes, and the caller must handle both:
+ * Three outcomes, and the caller must handle each:
  *   { kind: 'NEW' }             nobody holds this identity; create an account
  *   { kind: 'EXISTING', user }  proven theirs; grant the role instead
+ *   { kind: 'CONFIRM_BY_EMAIL', user }  a password-less account; askToConfirmByEmail
  * Anything else throws.
  */
 type IdentityCheck =
   | { kind: 'NEW' }
-  | { kind: 'EXISTING'; user: NonNullable<Awaited<ReturnType<typeof userRepository.findByPhone>>> };
+  | { kind: 'EXISTING'; user: NonNullable<Awaited<ReturnType<typeof userRepository.findByPhone>>> }
+  | { kind: 'CONFIRM_BY_EMAIL'; user: NonNullable<Awaited<ReturnType<typeof userRepository.findByPhone>>> };
 
 async function resolveIdentity(
   email: string,
@@ -608,15 +613,11 @@ async function resolveIdentity(
       'PHONE_IN_USE'
     );
   }
-  if (byEmail && (!byPhone || byPhone.id !== byEmail.id)) {
-    throw new AppError(
-      'This email address already has a Quick Bites account, registered to a different mobile number. Sign in to add this to it, or register with a different address.',
-      409,
-      'EMAIL_IN_USE'
-    );
-  }
-
-  const existing = byPhone || byEmail!;
+  // What is left: the email's account, with this phone or a phone nobody holds.
+  // A different phone is allowed now (owner, 17 Oct 2026): the restaurant or
+  // rider record keeps the typed number; the account keeps its own. The proof
+  // below (password, or the account's own inbox) is what protects it.
+  const existing = byEmail!;
 
   /*
    * A blocked account cannot collect a new role.
@@ -645,6 +646,17 @@ async function resolveIdentity(
    */
   const proven = existing.passwordHash ? await bcrypt.compare(password, existing.passwordHash) : false;
 
+  /*
+   * NO PASSWORD TO PROVE: a customer who signs in with an emailed code. Asking
+   * for "that account's password" refused them for ever. Their proof is the
+   * same one the Customer app uses — their inbox: the caller emails a link
+   * (`askToConfirmByEmail`) and nothing changes until it is opened.
+   */
+  if (!existing.passwordHash && isRealEmail(existing.email)) {
+    if (hasRole(existing, role)) throw roleAlreadyHeld(role);
+    return { kind: 'CONFIRM_BY_EMAIL', user: existing };
+  }
+
   if (!proven) {
     throw new AppError(
       byPhone
@@ -658,25 +670,214 @@ async function resolveIdentity(
   // Already has it. Refused plainly rather than creating a second restaurant
   // or a second rider record against one person - the shape of bug that is
   // only noticed when payouts go to the wrong one of them.
-  if (hasRole(existing, role)) {
-    /*
-     * A sentence per role. This was a two-branch ternary on `role === 'rider'`,
-     * which was fine while only two routes called it — and told a customer
-     * registering a second time that they already had a restaurant.
-     */
-    const alreadyHave: Record<string, string> = {
-      rider: 'You are already registered as a delivery partner. Sign in to the delivery app instead.',
-      restaurant_owner: 'You already have a restaurant on Quick Bites. Sign in to the partner app instead.',
-      customer: 'You already have a Quick Bites account. Sign in instead.'
-    };
-    throw new AppError(
-      alreadyHave[role] ?? 'You already have this on your Quick Bites account. Sign in instead.',
-      409,
-      'ROLE_ALREADY_HELD'
-    );
-  }
+  if (hasRole(existing, role)) throw roleAlreadyHeld(role);
 
   return { kind: 'EXISTING', user: existing };
+}
+
+/*
+ * A sentence per role. This was a two-branch ternary on `role === 'rider'`,
+ * which was fine while only two routes called it — and told a customer
+ * registering a second time that they already had a restaurant.
+ */
+function roleAlreadyHeld(role: UserRole): AppError {
+  const alreadyHave: Record<string, string> = {
+    rider: 'You are already registered as a delivery partner. Sign in to the delivery app instead.',
+    restaurant_owner: 'You already have a restaurant on Quick Bites. Sign in to the partner app instead.',
+    customer: 'You already have a Quick Bites account. Sign in instead.'
+  };
+  return new AppError(
+    alreadyHave[role] ?? 'You already have this on your Quick Bites account. Sign in instead.',
+    409,
+    'ROLE_ALREADY_HELD'
+  );
+}
+
+/*
+ * Adding a role to a password-less (customer) account, proved by its inbox.
+ *
+ * Held in memory, keyed by a hash of the link's token, for 30 minutes.
+ * seniordev: lost on a server restart (the person registers again); move to
+ * the store if links ever need to outlive a deploy.
+ *
+ * The link opens a page with a Confirm BUTTON (a POST). A GET never changes
+ * anything, because mail scanners open every link in an email; a GET that
+ * confirmed would let a stranger's request through without the owner.
+ */
+type PendingRole = {
+  userId: string;
+  role: 'restaurant_owner' | 'rider';
+  passwordHash: string;
+  body: Record<string, any>;
+  createdAt: number;
+};
+const pendingRoles = new Map<string, PendingRole>();
+const CONFIRM_TTL_MS = 30 * 60_000;
+const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
+
+function publicBaseUrl(): string {
+  // Never the request's Host header: a forged Host would put a stranger's
+  // domain in the link, and they would collect the token.
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  if (config.NODE_ENV === 'production') return 'https://quick-bites-production.up.railway.app';
+  return `http://localhost:${config.PORT}`;
+}
+
+const ROLE_WORDS = {
+  restaurant_owner: { thing: 'a restaurant', app: 'Quick Bites Partner' },
+  rider: { thing: 'delivery (Rider)', app: 'Quick Bites Rider' }
+} as const;
+
+async function askToConfirmByEmail(user: { id: string; email: string }, role: PendingRole['role'], body: Record<string, any>): Promise<never> {
+  const { password, ...rest } = body;
+  const now = Date.now();
+  for (const [key, p] of pendingRoles) {
+    if (now - p.createdAt > CONFIRM_TTL_MS) pendingRoles.delete(key);
+  }
+  const words = ROLE_WORDS[role];
+  const sentMessage =
+    `This email already has a Quick Bites account. To add ${words.thing} to it, we emailed a link to ${user.email}. ` +
+    `Open it and tap Confirm, then come back and sign in with this email and the password you just chose.`;
+
+  enforceNewPasswordStrength(password);
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  // One email a minute per account: a resubmitted form updates the link already
+  // sent (its latest password and details) instead of filling the inbox.
+  const recent = Array.from(pendingRoles.values()).find(p => p.userId === user.id && now - p.createdAt < 60_000);
+  if (recent) {
+    Object.assign(recent, { role, passwordHash, body: rest });
+    throw new AppError(sentMessage, 409, 'CONFIRM_BY_EMAIL');
+  }
+
+  for (const [key, p] of pendingRoles) if (p.userId === user.id) pendingRoles.delete(key);
+  const token = crypto.randomBytes(32).toString('hex');
+  pendingRoles.set(hashToken(token), { userId: user.id, role, passwordHash, body: rest, createdAt: now });
+
+  const link = `${publicBaseUrl()}/api/auth/confirm/${token}`;
+  const what = role === 'restaurant_owner' ? `the restaurant "${String(rest.restaurantName)}"` : 'delivery (Rider)';
+  const sent = await sendEmail(
+    user.email,
+    `Confirm: add ${words.thing} to your Quick Bites account`,
+    `Someone asked to add ${what} to your Quick Bites account. If it was you, open this link and tap Confirm (valid for 30 minutes): ${link}\n\nIf it was not you, ignore this email. Nothing changes.`,
+    `<p>Someone asked to add ${escape(what)} to your Quick Bites account.</p><p>If it was you, open this link and tap <strong>Confirm</strong> (valid for 30 minutes):</p><p><a href="${link}">${link}</a></p><p>If it was not you, ignore this email. Nothing changes.</p>`
+  );
+  if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'ROLE_CONFIRM_LINK', link }));
+  // Off production the logged link stands in for the email (QA server).
+  if (!sent.accepted && config.NODE_ENV === 'production') {
+    pendingRoles.delete(hashToken(token));
+    console.error(JSON.stringify({ level: 'ERROR', event: 'ROLE_CONFIRM_EMAIL_FAILED', userId: user.id, error: sent.error }));
+    throw new AppError('We could not send the confirmation email just now. Try again in a few minutes.', 503, 'EMAIL_UNAVAILABLE');
+  }
+  throw new AppError(sentMessage, 409, 'CONFIRM_BY_EMAIL');
+}
+
+/** The restaurant record for a partner sign-up (also run by a confirmed email link). */
+async function openRestaurant(user: { id: string }, body: Record<string, any>) {
+  const { phone, restaurantName } = body;
+  const slug = restaurantName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60);
+
+  const restaurant = await restaurantRepository.create({
+    id: `rst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    ownerId: user.id,
+    name: restaurantName,
+    slug: `${slug}-${Math.random().toString(36).slice(2, 5)}`,
+    phone,
+    addressLine: body.addressLine,
+    city: body.city,
+    pincode: body.pincode,
+    // The placeholder is Bangalore's centre, kept because `coordinates` is
+    // a required field and a kitchen with none would break callers that
+    // assume it. It is NOT treated as a location: `hasRealLocation` in
+    // modules/restaurants/restaurantLocation.ts recognises this exact pair
+    // as "never set", so a restaurant carrying it is listed everywhere
+    // rather than measured from a point nobody chose.
+    //
+    // The partner app now requires a pin before it will register, so this
+    // branch only runs for a client that has not been updated.
+    coordinates: {
+      latitude: body.latitude ?? UNSET_COORDINATES.latitude,
+      longitude: body.longitude ?? UNSET_COORDINATES.longitude
+    },
+    // Absent is meaningful: the listing falls back to the platform default
+    // rather than storing a number nobody chose.
+    ...(body.serviceRadiusKm ? { serviceRadiusKm: body.serviceRadiusKm } : {}),
+    fssaiLicenseNumber: body.fssaiLicenseNumber,
+    isPureVeg: Boolean(body.isPureVeg),
+    packagingFee: 0,
+    status: 'PENDING_APPROVAL',
+    kycStatus: 'PENDING_APPROVAL',
+    ratingAverage: 0,
+    ratingCount: 0,
+    cuisineTags: [],
+    isOpen: false
+  } as any);
+
+  console.log(JSON.stringify({
+    level: 'INFO',
+    timestamp: new Date().toISOString(),
+    event: 'PARTNER_REGISTERED',
+    userId: user.id,
+    restaurantId: restaurant.id
+  }));
+
+  /*
+   * AND TELL SOMEBODY THEY ARE WAITING.
+   *
+   * This announced nothing at all. A restaurant registered, landed in
+   * PENDING_APPROVAL, and waited for somebody to happen to open the People
+   * screen — so the platform's own growth was the one thing it never
+   * mentioned. A partner who waits three days has usually signed up with
+   * somebody else by then.
+   */
+  void notifyAdminsNewSignup({
+    entityId: restaurant.id,
+    entityName: restaurant.name,
+    kind: 'RESTAURANT'
+  });
+  return restaurant;
+}
+
+/** The delivery-partner record for a rider sign-up (also run by a confirmed email link). */
+async function openRiderRecord(user: { id: string }, body: Record<string, any>) {
+  const { phone, fullName, vehicleType, licenseNumber } = body;
+  const rider = await riderRepository.create({
+    userId: user.id,
+    fullName,
+    phone,
+    vehicleType,
+    licenseNumber,
+    vehicleRegistrationNumber: body.vehicleRegistrationNumber,
+    kycStatus: 'PENDING_APPROVAL',
+    isOnline: false,
+    codCashInHand: 0,
+    walletBalance: 0,
+    ratingAverage: 0,
+    ratingCount: 0,
+    tripsToday: 0
+  } as any);
+
+  console.log(JSON.stringify({
+    level: 'INFO',
+    timestamp: new Date().toISOString(),
+    event: 'RIDER_REGISTERED',
+    userId: user.id,
+    riderId: rider.id
+  }));
+
+  // Same silence as a partner signing up. A rider cannot earn until they are
+  // approved, so nobody knowing they are there is a rider who gives up.
+  void notifyAdminsNewSignup({
+    entityId: rider.id,
+    entityName: rider.fullName || 'A new rider',
+    kind: 'RIDER'
+  });
+  return rider;
 }
 
 /**
@@ -692,8 +893,9 @@ authRouter.post(
   async (req, res, next) => {
     try {
       const email = String(req.body.email).trim().toLowerCase();
-      const { phone, fullName, password, restaurantName } = req.body;
+      const { phone, fullName, password } = req.body;
       const identity = await resolveIdentity(email, phone, password, 'restaurant_owner' as UserRole);
+      if (identity.kind === 'CONFIRM_BY_EMAIL') return await askToConfirmByEmail(identity.user, 'restaurant_owner', req.body);
 
       // Same rule as the rider route: an existing person keeps their account
       // and gains a role, rather than being told to find another phone number.
@@ -715,70 +917,7 @@ authRouter.post(
         });
       }
 
-      const slug = restaurantName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 60);
-
-      const restaurant = await restaurantRepository.create({
-        id: `rst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        ownerId: user.id,
-        name: restaurantName,
-        slug: `${slug}-${Math.random().toString(36).slice(2, 5)}`,
-        phone,
-        addressLine: req.body.addressLine,
-        city: req.body.city,
-        pincode: req.body.pincode,
-        // The placeholder is Bangalore's centre, kept because `coordinates` is
-        // a required field and a kitchen with none would break callers that
-        // assume it. It is NOT treated as a location: `hasRealLocation` in
-        // modules/restaurants/restaurantLocation.ts recognises this exact pair
-        // as "never set", so a restaurant carrying it is listed everywhere
-        // rather than measured from a point nobody chose.
-        //
-        // The partner app now requires a pin before it will register, so this
-        // branch only runs for a client that has not been updated.
-        coordinates: {
-          latitude: req.body.latitude ?? UNSET_COORDINATES.latitude,
-          longitude: req.body.longitude ?? UNSET_COORDINATES.longitude
-        },
-        // Absent is meaningful: the listing falls back to the platform default
-        // rather than storing a number nobody chose.
-        ...(req.body.serviceRadiusKm ? { serviceRadiusKm: req.body.serviceRadiusKm } : {}),
-        fssaiLicenseNumber: req.body.fssaiLicenseNumber,
-        isPureVeg: Boolean(req.body.isPureVeg),
-        packagingFee: 0,
-        status: 'PENDING_APPROVAL',
-        kycStatus: 'PENDING_APPROVAL',
-        ratingAverage: 0,
-        ratingCount: 0,
-        cuisineTags: [],
-        isOpen: false
-      } as any);
-
-      console.log(JSON.stringify({
-        level: 'INFO',
-        timestamp: new Date().toISOString(),
-        event: 'PARTNER_REGISTERED',
-        userId: user.id,
-        restaurantId: restaurant.id
-      }));
-
-      /*
-       * AND TELL SOMEBODY THEY ARE WAITING.
-       *
-       * This announced nothing at all. A restaurant registered, landed in
-       * PENDING_APPROVAL, and waited for somebody to happen to open the People
-       * screen — so the platform's own growth was the one thing it never
-       * mentioned. A partner who waits three days has usually signed up with
-       * somebody else by then.
-       */
-      void notifyAdminsNewSignup({
-        entityId: restaurant.id,
-        entityName: restaurant.name,
-        kind: 'RESTAURANT'
-      });
+      const restaurant = await openRestaurant(user, req.body);
 
       res.status(201).json({
         success: true,
@@ -809,8 +948,9 @@ authRouter.post(
   async (req, res, next) => {
     try {
       const email = String(req.body.email).trim().toLowerCase();
-      const { phone, fullName, password, vehicleType, licenseNumber } = req.body;
+      const { phone, fullName, password } = req.body;
       const identity = await resolveIdentity(email, phone, password, 'rider' as UserRole);
+      if (identity.kind === 'CONFIRM_BY_EMAIL') return await askToConfirmByEmail(identity.user, 'rider', req.body);
 
       /*
        * An existing customer KEEPS their account and gains the rider role.
@@ -838,37 +978,7 @@ authRouter.post(
         });
       }
 
-      const rider = await riderRepository.create({
-        userId: user.id,
-        fullName,
-        phone,
-        vehicleType,
-        licenseNumber,
-        vehicleRegistrationNumber: req.body.vehicleRegistrationNumber,
-        kycStatus: 'PENDING_APPROVAL',
-        isOnline: false,
-        codCashInHand: 0,
-        walletBalance: 0,
-        ratingAverage: 0,
-        ratingCount: 0,
-        tripsToday: 0
-      } as any);
-
-      console.log(JSON.stringify({
-        level: 'INFO',
-        timestamp: new Date().toISOString(),
-        event: 'RIDER_REGISTERED',
-        userId: user.id,
-        riderId: rider.id
-      }));
-
-      // Same silence as a partner signing up. A rider cannot earn until they are
-      // approved, so nobody knowing they are there is a rider who gives up.
-      void notifyAdminsNewSignup({
-        entityId: rider.id,
-        entityName: rider.fullName || 'A new rider',
-        kind: 'RIDER'
-      });
+      const rider = await openRiderRecord(user, req.body);
 
       res.status(201).json({
         success: true,
@@ -885,6 +995,81 @@ authRouter.post(
     }
   }
 );
+
+/**
+ * GET/POST /api/auth/confirm/:token — the link `askToConfirmByEmail` sends.
+ *
+ * GET only shows what will happen and a Confirm button; POST does it, with
+ * every check of the sign-up repeated, because things may have changed in the
+ * half hour since (a role granted, the number taken, the account blocked).
+ */
+function pendingFor(token: string): PendingRole | null {
+  const pending = pendingRoles.get(hashToken(String(token)));
+  if (!pending || Date.now() - pending.createdAt > CONFIRM_TTL_MS) return null;
+  return pending;
+}
+
+const expiredPage = () =>
+  page('Link expired', '<h1>This link has expired</h1><p>Links work once, for 30 minutes. Register again in the app to get a new one.</p>');
+
+authRouter.get('/confirm/:token', (req, res) => {
+  const pending = pendingFor(req.params.token);
+  res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'no-referrer');
+  if (!pending) return res.status(404).type('html').send(expiredPage());
+  const words = ROLE_WORDS[pending.role];
+  const what = pending.role === 'restaurant_owner' ? `the restaurant "${escape(String(pending.body.restaurantName))}"` : 'delivery (Rider)';
+  res.type('html').send(
+    page(
+      'Confirm',
+      `<h1>Add ${escape(words.thing)} to your account?</h1>
+<p>This adds ${what} to your Quick Bites account. Your orders and addresses stay as they are.</p>
+<form method="post"><button type="submit" style="font-size:18px;padding:12px 28px;border-radius:12px;border:0;background:#6e0f1e;color:#fff">Confirm</button></form>
+<p>Not you? Close this page. Nothing changes.</p>`
+    )
+  );
+});
+
+authRouter.post('/confirm/:token', requireFeature('registrations'), async (req, res, next) => {
+  try {
+    const key = hashToken(String(req.params.token));
+    const pending = pendingFor(req.params.token);
+    res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'no-referrer');
+    if (!pending) return res.status(404).type('html').send(expiredPage());
+    pendingRoles.delete(key); // once only, whatever happens next
+
+    const fail = (message: string) =>
+      res.status(409).type('html').send(page('Not added', `<h1>Not added</h1><p>${escape(message)}</p>`));
+    let user = await userRepository.findById(pending.userId);
+    if (!user) return fail('This account no longer exists.');
+    if (user.isBlocked) return fail('This account has been blocked. Contact Quick Bites support.');
+    if (hasRole(user, pending.role)) return fail(roleAlreadyHeld(pending.role).message);
+    const byPhone = await userRepository.findByPhone(pending.body.phone);
+    if (byPhone && byPhone.id !== user.id) {
+      return fail('That mobile number now belongs to another Quick Bites account. Register again with a different number.');
+    }
+
+    // The password typed at sign-up becomes the account's Partner/Rider password,
+    // unless one was set in the meantime (that one stands).
+    if (!user.passwordHash) user = (await userRepository.update(user.id, { passwordHash: pending.passwordHash }))!;
+    // A phone-code account is named "Quick Bites Customer" until told otherwise.
+    if (user.fullName === 'Quick Bites Customer' && pending.body.fullName) {
+      user = (await userRepository.update(user.id, { fullName: pending.body.fullName }))!;
+    }
+    user = (await grantRole(user.id, pending.role))!;
+    if (pending.role === 'restaurant_owner') await openRestaurant(user, pending.body);
+    else await openRiderRecord(user, pending.body);
+
+    const words = ROLE_WORDS[pending.role];
+    res.type('html').send(
+      page(
+        'Confirmed',
+        `<h1>Done</h1><p>Open the <strong>${escape(words.app)}</strong> app, tap <strong>Sign in</strong>, and use ${escape(user.email)} with the password you chose. An administrator reviews your documents before you can start.</p>`
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* ========================================================================== *
  *                     PHONE SIGN-IN (CUSTOMERS)                              *

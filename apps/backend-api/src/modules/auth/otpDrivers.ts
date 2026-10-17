@@ -124,10 +124,19 @@ export const msg91Driver: OtpDriver = {
  * Brevo) live on Railway; the key travels in a header and is never logged.
  */
 export async function sendCodeByEmail(to: string, code: string): Promise<OtpDeliveryResult> {
+  const minutes = config.OTP_TTL_MINUTES;
+  return sendEmail(
+    to,
+    `${code} is your Quick Bites code`,
+    `Your Quick Bites sign-in code is ${code}. It is valid for ${minutes} minutes. Do not share it with anyone.`,
+    `<p>Your Quick Bites sign-in code is</p><p style="font-size:28px;font-weight:bold;letter-spacing:4px">${code}</p><p>It is valid for ${minutes} minutes. Do not share it with anyone. If you did not ask for it, ignore this email.</p>`
+  );
+}
+
+export async function sendEmail(to: string, subject: string, textContent: string, htmlContent: string): Promise<OtpDeliveryResult> {
   const key = process.env.BREVO_API_KEY || '';
   const from = process.env.EMAIL_FROM || '';
   if (!key || !from) return { accepted: false, error: 'BREVO_API_KEY and EMAIL_FROM must both be set.' };
-  const minutes = config.OTP_TTL_MINUTES;
   try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -135,9 +144,9 @@ export async function sendCodeByEmail(to: string, code: string): Promise<OtpDeli
       body: JSON.stringify({
         sender: { name: process.env.EMAIL_FROM_NAME || 'Quick Bites', email: from },
         to: [{ email: to }],
-        subject: `${code} is your Quick Bites code`,
-        textContent: `Your Quick Bites sign-in code is ${code}. It is valid for ${minutes} minutes. Do not share it with anyone.`,
-        htmlContent: `<p>Your Quick Bites sign-in code is</p><p style="font-size:28px;font-weight:bold;letter-spacing:4px">${code}</p><p>It is valid for ${minutes} minutes. Do not share it with anyone. If you did not ask for it, ignore this email.</p>`
+        subject,
+        textContent,
+        htmlContent
       }),
       signal: AbortSignal.timeout(10_000)
     });

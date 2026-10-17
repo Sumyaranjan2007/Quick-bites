@@ -420,25 +420,40 @@ async function run() {
   console.log('\n-- An email that is already somebody else\u2019s');
 
   /*
-   * The mirror of the phone half-match, and it had no check until a mutant
-   * pointed that out: deleting the guard left every test green. Without it, an
-   * existing email plus a NEW phone number attaches that number to an account
-   * whose real owner never supplied it.
+   * The mirror of the phone half-match. Until 17 Oct 2026 an existing email
+   * with a NEW phone was refused even with the right password. The owner wants
+   * one email across the apps, and the number is no longer attached to the
+   * account: it goes on the rider (or restaurant) record, and the account keeps
+   * its own. The account's password is the proof, so the wrong one is refused.
    */
   const emailOwnerPhone = freshPhone();
   const emailOwnerEmail = `owner_${Date.now()}@r.test`;
   await registerCustomer(emailOwnerPhone, 'email-owner-pass-1', emailOwnerEmail);
 
-  const newNumberSameEmail = await registerRider(freshPhone(), 'email-owner-pass-1', emailOwnerEmail);
+  const otherNumber = freshPhone();
+  const wrongPassword = await registerRider(otherNumber, 'not-their-password', emailOwnerEmail);
   check(
-    'An existing email with a DIFFERENT number is refused',
-    newNumberSameEmail.status === 409,
-    `status ${newNumberSameEmail.status}`
+    'An existing email with a DIFFERENT number and the wrong password is refused',
+    wrongPassword.status === 409,
+    `status ${wrongPassword.status}`
   );
   check(
     'and it is the email that is named as the problem',
-    String(newNumberSameEmail.json?.error?.code) === 'EMAIL_IN_USE',
-    newNumberSameEmail.json?.error?.code
+    String(wrongPassword.json?.error?.code) === 'EMAIL_IN_USE',
+    wrongPassword.json?.error?.code
+  );
+  const newNumberSameEmail = await registerRider(otherNumber, 'email-owner-pass-1', emailOwnerEmail);
+  check(
+    "With the account's own password it is the same account, gaining the role",
+    newNumberSameEmail.status === 201,
+    `status ${newNumberSameEmail.status} ${newNumberSameEmail.json?.error?.code || ''}`
+  );
+  const emailOwner = await userRepository.findByEmail(emailOwnerEmail);
+  check(
+    'and the account keeps its own number; the new one is on the rider record',
+    emailOwner?.phone === emailOwnerPhone &&
+      Array.from(memoryStore.riders.values()).some((r: any) => r.userId === emailOwner?.id && r.phone === otherNumber),
+    `${emailOwner?.phone}`
   );
 
   // -------------------------------------------------------------------

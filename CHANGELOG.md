@@ -6,6 +6,35 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-17] -- Claude Opus 5.5 -- A customer can open a restaurant or ride with the same email
+
+> **For the owner.** Partner/Rider "Create account" refused an email already used in the
+> Customer app ("registered to a different mobile number"). A Customer-app account has no
+> password, so it could never prove it was theirs. Now sign-up emails a link to that address;
+> they tap **Confirm** on the page it opens, then sign in to the Partner/Rider app with that
+> email and the password they typed. Same account: the Customer app keeps working as before.
+> Server change only: no new APK or bundle. The reply in the app is the red message box,
+> which now explains the email.
+
+- `resolveIdentity` (authRouter): an existing email with a new phone is no longer refused.
+  The typed phone goes on the restaurant/rider record; the account keeps its own. Proof is
+  the account's password, or, for a password-less (Customer-app) account, the new
+  `CONFIRM_BY_EMAIL` outcome. Phone of another account → `IDENTITY_CONFLICT`, wrong
+  password → `EMAIL_IN_USE`/`PHONE_IN_USE`, unchanged.
+- `askToConfirmByEmail`: emails a 30-minute, single-use link (`GET/POST /api/auth/confirm/:token`,
+  token stored only as a hash, in memory; a restart drops pending links). GET only shows a
+  Confirm button (mail scanners open links); POST repeats every check, sets the typed
+  password if the account has none, replaces the "Quick Bites Customer" placeholder name,
+  grants the role and creates the restaurant/rider exactly as sign-up does (`openRestaurant`,
+  `openRiderRecord`, now shared). One email a minute per account; a resubmit updates the link.
+- Link address: `PUBLIC_BASE_URL`, else Railway's `RAILWAY_PUBLIC_DOMAIN`, else the live URL;
+  never the request's Host header. `sendEmail` (otpDrivers) is the Brevo sender the codes use.
+- New suite `customerAddsRole` (29 checks; 5 guards mutation-checked, each caught). `identity`
+  updated to the new rule; `bodyContract` lists the bodyless confirm POST. Verified on a local
+  QA server in the browser: sign-up → link → Confirm → Partner login and Customer sign-in both work.
+
+---
+
 ## [2026-10-17] -- Claude Opus 5.5 -- One person, several apps: partners and riders can also order food
 
 > **For the owner.** A restaurant owner or rider can now sign in to the **Customer** app with

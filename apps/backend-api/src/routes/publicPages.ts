@@ -21,7 +21,7 @@ export const publicPages = Router();
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
-const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function inline(text: string): string {
   return escape(text)
@@ -90,7 +90,7 @@ export function renderMarkdown(md: string): string {
   return out.join('\n');
 }
 
-function page(title: string, body: string): string {
+export function page(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title)} — Quick Bites</title>

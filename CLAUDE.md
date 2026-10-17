@@ -1,6 +1,6 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 17 October 2026 (Play Console setup: Customer in review; Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 17 October 2026 (one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -99,6 +99,7 @@ clearly first, then do the work** (they complained when an answer was buried).
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Payments. **Live was still on `rzp_test_` keys on 2 Oct; the owner must add live keys.** |
 | `RAZORPAYX_KEY_ID`, `RAZORPAYX_KEY_SECRET`, `RAZORPAYX_ACCOUNT_NUMBER`, `RAZORPAYX_WEBHOOK_SECRET` | Automatic payouts (optional; admins can pay by hand with a UTR). |
 | `PAYEE_ACCOUNT_KEY` | Encrypts full bank account numbers, stored apart from the record. |
+| `PUBLIC_BASE_URL` (optional) | Address put in emailed confirm links. Unset is fine: Railway's own domain, else the live URL. |
 | `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR` | Server-side road distance (Directions for one trip, Matrix for many). |
 | `MEILISEARCH_HOST`, `MEILISEARCH_API_KEY` | Search. |
 | `FCM_SERVICE_ACCOUNT_JSON` | Push notifications (Android). |
@@ -315,6 +316,8 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
   that `middlewares/auth.ts` limits to customer features. Any new staff route that checks
   ownership instead of `authMiddleware('<role>')` must be added to the mount list there, or a
   customer session could reach it. Pushes pick the app by channel (`forApp`).
+  The other way (17 Oct): Partner/Rider sign-up on a Customer-app email (no password) emails a
+  confirm link (`askToConfirmByEmail`, `/api/auth/confirm/:token`); only its POST changes anything.
 - **Never use @rnmapbox `UserLocation` (or its `locationManager`).** On the old architecture its
   location events crash the app on the first real GPS fix (v30, 16 Oct). Use `LocationPuck`, as
   `MapCanvas` does. Emulators never feed Mapbox a GPS fix, so only a real phone shows this.
