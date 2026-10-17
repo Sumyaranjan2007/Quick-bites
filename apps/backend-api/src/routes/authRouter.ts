@@ -5,7 +5,7 @@ import { notifyAdminsDeletionRequested } from '../notifications/adminNotifier.ts
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { userRepository, grantRole, hasRole, rolesOf } from '../db/repositories/userRepository.ts';
-import { memoryStore, triggerAutoSave } from '../db/client.ts';
+import { memoryStore, triggerAutoSave, persistDurably } from '../db/client.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
@@ -696,9 +696,9 @@ function roleAlreadyHeld(role: UserRole): AppError {
 /*
  * Adding a role to a password-less (customer) account, proved by its inbox.
  *
- * Held in memory, keyed by a hash of the link's token, for 30 minutes.
- * seniordev: lost on a server restart (the person registers again); move to
- * the store if links ever need to outlive a deploy.
+ * Kept in the store (`pendingRoleConfirmations`), keyed by a hash of the
+ * link's token, for 30 minutes. It used to be a Map in memory, so every deploy
+ * voided the links people had just been emailed (K3, 17 Oct 2026).
  *
  * The link opens a page with a Confirm BUTTON (a POST). A GET never changes
  * anything, because mail scanners open every link in an email; a GET that
@@ -711,7 +711,8 @@ type PendingRole = {
   body: Record<string, any>;
   createdAt: number;
 };
-const pendingRoles = new Map<string, PendingRole>();
+/** Read through memoryStore each time: loading a snapshot replaces the map. */
+const pendingRoles = (): Map<string, PendingRole> => memoryStore.pendingRoleConfirmations;
 const CONFIRM_TTL_MS = 30 * 60_000;
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -746,8 +747,8 @@ const steps = (items: string[]) => `<ol style="padding-left:22px">${items.map(i 
 async function askToConfirmByEmail(user: { id: string; email: string }, role: PendingRole['role'], body: Record<string, any>): Promise<never> {
   const { password, ...rest } = body;
   const now = Date.now();
-  for (const [key, p] of pendingRoles) {
-    if (now - p.createdAt > CONFIRM_TTL_MS) pendingRoles.delete(key);
+  for (const [key, p] of pendingRoles()) {
+    if (now - p.createdAt > CONFIRM_TTL_MS) pendingRoles().delete(key);
   }
   const words = ROLE_WORDS[role];
   // Shown in the app's message box under the sign-up form: it must say what to do next.
@@ -763,15 +764,18 @@ async function askToConfirmByEmail(user: { id: string; email: string }, role: Pe
 
   // One email a minute per account: a resubmitted form updates the link already
   // sent (its latest password and details) instead of filling the inbox.
-  const recent = Array.from(pendingRoles.values()).find(p => p.userId === user.id && now - p.createdAt < 60_000);
+  const recent = Array.from(pendingRoles().entries()).find(([, p]) => p.userId === user.id && now - p.createdAt < 60_000);
   if (recent) {
-    Object.assign(recent, { role, passwordHash, body: rest });
+    pendingRoles().set(recent[0], { ...recent[1], role, passwordHash, body: rest });
+    await persistDurably();
     throw new AppError(sentMessage, 409, 'CONFIRM_BY_EMAIL');
   }
 
-  for (const [key, p] of pendingRoles) if (p.userId === user.id) pendingRoles.delete(key);
+  for (const [key, p] of pendingRoles()) if (p.userId === user.id) pendingRoles().delete(key);
   const token = crypto.randomBytes(32).toString('hex');
-  pendingRoles.set(hashToken(token), { userId: user.id, role, passwordHash, body: rest, createdAt: now });
+  pendingRoles().set(hashToken(token), { userId: user.id, role, passwordHash, body: rest, createdAt: now });
+  // Saved before the email goes out: a link that arrives must still work after a restart.
+  await persistDurably();
 
   const link = `${publicBaseUrl()}/api/auth/confirm/${token}`;
   const what = whatIsAdded(role, rest);
@@ -794,7 +798,8 @@ async function askToConfirmByEmail(user: { id: string; email: string }, role: Pe
   if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'ROLE_CONFIRM_LINK', link }));
   // Off production the logged link stands in for the email (QA server).
   if (!sent.accepted && config.NODE_ENV === 'production') {
-    pendingRoles.delete(hashToken(token));
+    pendingRoles().delete(hashToken(token));
+    triggerAutoSave();
     console.error(JSON.stringify({ level: 'ERROR', event: 'ROLE_CONFIRM_EMAIL_FAILED', userId: user.id, error: sent.error }));
     throw new AppError('We could not send the confirmation email just now. Try again in a few minutes.', 503, 'EMAIL_UNAVAILABLE');
   }
@@ -1032,8 +1037,14 @@ authRouter.post(
  * half hour since (a role granted, the number taken, the account blocked).
  */
 function pendingFor(token: string): PendingRole | null {
-  const pending = pendingRoles.get(hashToken(String(token)));
-  if (!pending || Date.now() - pending.createdAt > CONFIRM_TTL_MS) return null;
+  const key = hashToken(String(token));
+  const pending = pendingRoles().get(key);
+  if (!pending) return null;
+  if (Date.now() - pending.createdAt > CONFIRM_TTL_MS) {
+    pendingRoles().delete(key);
+    triggerAutoSave();
+    return null;
+  }
   return pending;
 }
 
@@ -1072,7 +1083,8 @@ authRouter.post('/confirm/:token', requireFeature('registrations'), async (req, 
     const pending = pendingFor(req.params.token);
     res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'same-origin');
     if (!pending) return res.status(404).type('html').send(expiredPage());
-    pendingRoles.delete(key); // once only, whatever happens next
+    pendingRoles().delete(key); // once only, whatever happens next
+    await persistDurably();
 
     const fail = (message: string) =>
       res.status(409).type('html').send(

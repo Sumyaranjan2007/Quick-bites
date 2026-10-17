@@ -55,7 +55,7 @@ password-less (Customer-app) account → `CONFIRM_BY_EMAIL` (`:657`).
 
 `askToConfirmByEmail` (`:746`) emails a link `GET/POST /api/auth/confirm/:token`:
 - 30 minutes (`CONFIRM_TTL_MS` `:715`), single use, token stored only as a hash, one email a minute per account (`:766`).
-- Held **in memory** (`pendingRoles` Map `:714`): every deploy or restart drops pending links (`docs/KNOWN_ISSUES.md`).
+- Kept in the store (`memoryStore.pendingRoleConfirmations`, saved before the email is sent): links survive deploys and restarts (fixed 18 Oct 2026, K3).
 - GET (`:1051`) only shows a Confirm button (mail scanners open links); POST (`:1069`) repeats every check, sets the typed password, grants the role (`:1097`), creates the restaurant/rider.
 - Link host: `PUBLIC_BASE_URL`, else `RAILWAY_PUBLIC_DOMAIN`, else the live URL (`:721-722`); never the request's Host.
 - `/auth/confirm/` is exempt from the CORS origin check (`middlewares/cors.ts:40-43`); the page sends `Referrer-Policy: same-origin` (a `no-referrer` page makes browsers send `Origin: null`).

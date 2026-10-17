@@ -8,7 +8,7 @@ Verified on 17 Oct 2026 at commit `3caa076`.
 
 | Fact | Where |
 |---|---|
-| All data lives in memory in `memoryStore`: 31 `Map` collections | `apps/backend-api/src/db/client.ts:62-147` (types), `:149-180` (instance) |
+| All data lives in memory in `memoryStore`: 32 `Map` collections | `apps/backend-api/src/db/client.ts:62-147` (types), `:149-180` (instance) |
 | Production saves to **Postgres**, one table `store_documents (collection, id, data JSONB, updated_at)` | `src/db/postgresStore.ts:144-150`; loaded on boot `:153` |
 | Production refuses to start without `DATABASE_URL` (unless `ALLOW_FILE_PERSISTENCE=true`, for tests) | `src/server.ts:51` |
 | Locally: `apps/backend-api/data/store.json` (gitignored); `QB_DATA_DIR` overrides the folder | `src/db/client.ts:28-31`, save `:317`, load `:337` |
@@ -31,7 +31,7 @@ says repositories are the only writers; in the code many routes and modules writ
 | `users` | `UserProfile` :10 (+ `UserRecord` in `userRepository.ts:6`) | id, email, phone, fullName, role, **roles** (multi-role), isGold, isBlocked, adminRoleId, favouriteRestaurantIds | `db/repositories/userRepository.ts` |
 | `restaurants` | `Restaurant` :147 | ownerId, name, phone, address, coordinates, fssaiLicenseNumber, gstin, **acceptsCash** (COD switch), packagingFee, status, kycStatus, isOpen, openingHours, commissionPercent | `restaurantRepository.ts`, `modules/platform/staffDeletion.ts`, `modules/restaurants/rejectionWatch.ts`, `routes/admin/legacyRoutes.ts`, `routes/admin/peopleRoutes.ts`, `routes/kycRouter.ts` |
 | `addresses` | (address fields) | userId, addressLine, landmark, city, pincode, coordinates | `addressRepository.ts`, `userRepository.ts`, `db/seed.ts` |
-| `orders` | `Order` :580 | orderNumber, customerId, customerName, (customerPhone: declared, **never set**, see `docs/KNOWN_ISSUES.md`), restaurantId, riderId, status, paymentStatus, paymentMethod, items, **bill** (frozen prices, `OrderBillBreakdown` :525), deliveryOtp, pickupCode, distanceKm, riderPayout, riderCoordinates, timestamps | `orderRepository.ts`, `db/normaliseStore.ts`, `userRepository.ts`, `modules/orders/{deliveryCompletion,opsRescue,orderSweeper}.ts`, `routes/admin/{financeRoutes,marketingRoutes}.ts`, `routes/{cashRouter,paymentRouter,riderRouter}.ts` |
+| `orders` | `Order` :580 | orderNumber, customerId, customerName, customerPhone (from the account at checkout since 18 Oct; shown by `contactVisibility.ts`), restaurantId, riderId, status, paymentStatus, paymentMethod, items, **bill** (frozen prices, `OrderBillBreakdown` :525), deliveryOtp, pickupCode, distanceKm, riderPayout, riderCoordinates, timestamps | `orderRepository.ts`, `db/normaliseStore.ts`, `userRepository.ts`, `modules/orders/{deliveryCompletion,opsRescue,orderSweeper}.ts`, `routes/admin/{financeRoutes,marketingRoutes}.ts`, `routes/{cashRouter,paymentRouter,riderRouter}.ts` |
 | `menus` | `RestaurantMenu` :465, `MenuItem` :447 | restaurantId, categories → items (price, isVeg, isAvailable, optionGroups) | `menuRepository.ts` |
 | `menuRequests` | `MenuChangeRequest` :107 | restaurantId, kind (ADD_ITEM/EDIT_ITEM), payload, status, batchId, fromAiDraft | `menuRequestRepository.ts` |
 | `profileEdits` | `ProfileEdit` :383 | restaurantId, changes, previous, status, rejections | `profileEditRepository.ts` |
@@ -59,6 +59,5 @@ says repositories are the only writers; in the code many routes and modules writ
 | `settings` | – | key/value switches: OTP state, membership plans, incentives, payment policies, business identity, feature flags, admin notification prefs | `modules/auth/otpService.ts`, `modules/membership/membershipService.ts`, `modules/payments/{incentiveConfig,paymentPolicies}.ts`, `modules/platform/{businessIdentity,featureFlags}.ts`, `notifications/{adminDigest,adminNotificationPrefs}.ts`, `routes/paymentRouter.ts` |
 | `meta` | – | bookkeeping (seed revision, AI usage, city rates, account-number key check) | `db/seed.ts`, `modules/menu/menuAi.ts`, `modules/payments/{payeeAccountNumbers,pricingConfig,riderCityRates}.ts`, `routes/admin/platformRoutes.ts` |
 
-Not in the store: pending emailed confirm links live in a `Map` inside `routes/authRouter.ts:714`
-and are lost on restart (`docs/KNOWN_ISSUES.md`). `apps/backend-api/prisma/schema.prisma` is an
+Pending emailed confirm links are in the store since 18 Oct 2026 (`pendingRoleConfirmations`, keyed by a hash of the token, 30 minutes, written by `routes/authRouter.ts` only; wiped by the platform reset). `apps/backend-api/prisma/schema.prisma` is an
 unused leftover.

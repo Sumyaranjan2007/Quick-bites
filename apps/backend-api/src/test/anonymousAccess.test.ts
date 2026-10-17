@@ -150,7 +150,10 @@ async function run(): Promise<void> {
     ['the Railway address is allowed', ok('https://quick-bites-production.up.railway.app', 'quick-bites-production.up.railway.app')],
     ['another website is refused', !ok('https://evil.example', 'www.quickbitesresturants.in')],
     ['a look-alike host is refused', !ok('https://www.quickbitesresturants.in.evil.example', 'www.quickbitesresturants.in')],
-    ['plain http is refused', !ok('http://www.quickbitesresturants.in', 'www.quickbitesresturants.in')]
+    ['plain http is refused', !ok('http://www.quickbitesresturants.in', 'www.quickbitesresturants.in')],
+    // K2: a refusal is a 403 the error handler passes on, never a status-less Error (500).
+    ['a malformed origin is refused with 403', (corsDecision('not a url', 'www.quickbitesresturants.in') as any)?.status === 403],
+    ['another website is refused with 403', (corsDecision('https://evil.example', 'www.quickbitesresturants.in') as any)?.status === 403]
   ];
   (config as any).IS_PRODUCTION = prod;
   for (const [name, passed] of corsChecks) {

@@ -141,6 +141,12 @@ export interface DbStore {
   profileEdits: Map<string, any>;
   /** Where a push notification is actually delivered: one row per installed app. */
   deviceTokens: Map<string, any>;
+  /**
+   * Emailed "confirm it is you" links for adding a partner/rider role to a
+   * Customer-app account, keyed by a hash of the link's token (never the token).
+   * Stored rather than held in memory so a deploy does not void them (K3).
+   */
+  pendingRoleConfirmations: Map<string, any>;
   /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
   meta: Map<string, any>;
 }
@@ -177,6 +183,7 @@ export const memoryStore: DbStore = {
   restaurantCharges: new Map(),
   profileEdits: new Map(),
   deviceTokens: new Map(),
+  pendingRoleConfirmations: new Map(),
   meta: new Map()
 };
 

@@ -1,5 +1,9 @@
 import cors from 'cors';
 import { config } from '../config/env.ts';
+import { AppError } from '../utils/AppError.ts';
+
+/** A refused Origin is a 403, not the 500 a plain Error became (K2, 17 Oct 2026). */
+const refuse = (message: string) => new AppError(message, 403, 'ORIGIN_NOT_ALLOWED');
 
 /**
  * Which browser origins may call the API with credentials. Returns null to
@@ -22,7 +26,7 @@ export function corsDecision(origin: string | undefined, host: string | undefine
   try {
     parsed = new URL(origin);
   } catch {
-    return new Error('CORS access blocked for malformed origin');
+    return refuse('CORS access blocked for malformed origin');
   }
   if (parsed.protocol === 'https:') {
     if (host && parsed.host === host) return null;
@@ -32,7 +36,7 @@ export function corsDecision(origin: string | undefined, host: string | undefine
     // enough to read authenticated responses from a victim's browser.
     if (parsed.hostname.endsWith('.vercel.app') || parsed.hostname.endsWith('.railway.app')) return null;
   }
-  return new Error(`CORS access blocked for origin: ${origin}`);
+  return refuse(`CORS access blocked for origin: ${origin}`);
 }
 
 export const corsMiddleware = cors((req: any, callback) => {

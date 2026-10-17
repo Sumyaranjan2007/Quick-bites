@@ -191,6 +191,10 @@ async function run() {
   // A rider must never be handed the customer's doorstep OTP.
   check('Delivery partner is not shown the doorstep OTP',
     !JSON.stringify(broadcast.json).includes(String(customerOtp)));
+  // K1 stores the customer's phone on the order; an open offer goes to several riders.
+  const offer = (broadcast.json?.data?.broadcasts ?? []).find((o: any) => o.id === orderId) || {};
+  check('...nor the customer\'s phone before accepting the trip',
+    !offer.customerPhone && !offer.customerPhoneMasked, JSON.stringify(offer).slice(0, 200));
 
   // --- 4. Rider claims it; both the customer and the kitchen see it ---
   /*

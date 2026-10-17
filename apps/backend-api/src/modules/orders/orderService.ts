@@ -783,6 +783,11 @@ export const orderService = {
       orderNumber,
       customerId: input.customerId,
       customerName: customer.fullName,
+      // The account's own phone, so the rider and kitchen can call (K1, 17 Oct 2026).
+      // Nothing set it before, so "Call customer" in the rider app had no number.
+      // Who sees it, and until when, is decided by contactVisibility; deleting
+      // the account (or its customer side) removes it from past orders.
+      customerPhone: customer.phone,
       restaurantId: input.restaurantId,
       restaurantName: restaurant.name,
       deliveryAddressId: input.deliveryAddressId,

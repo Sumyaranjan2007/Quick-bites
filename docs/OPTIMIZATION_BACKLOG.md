@@ -9,8 +9,8 @@ with its own checks. "New build" = needs new APKs/AABs and a store release.
 
 | # | Item | Saves / earns | Risk | Effort | New build? |
 |---|---|---|---|---|---|
-| O1 | **Fix K1: store the customer's phone on new orders** (`orderService.ts:780`) so riders can call | fewer failed deliveries and support calls; it is a broken button today | low (server only; `contactVisibility.ts` already masks it by status) | small | no |
-| O2 | **Keep pending confirm links in the store, not memory** (`authRouter.ts:714`) and **return 403 for a malformed Origin** (`cors.ts:23-25`) | partners/riders who sign up near a deploy no longer have to redo it; cleaner error logs | low | small | no |
+| O1 | ✅ done 18 Oct. **Fix K1: store the customer's phone on new orders** (`orderService.ts:780`) so riders can call | fewer failed deliveries and support calls; it is a broken button today | low (server only; `contactVisibility.ts` already masks it by status) | small | no |
+| O2 | ✅ done 18 Oct. **Keep pending confirm links in the store, not memory** (`authRouter.ts:714`) and **return 403 for a malformed Origin** (`cors.ts:23-25`) | partners/riders who sign up near a deploy no longer have to redo it; cleaner error logs | low | small | no |
 | O3 | **Let `scripts/diagnostics.js` find historical docs in `docs/history/`** (change its `requiredDocs` list, `:39-53`), then move the 15 remaining September docs off the root | a root an AI can read in one glance; less chance an AI trusts a stale document | very low (CI-only check) | small | no |
 
 ## Code shared by copy across the four apps

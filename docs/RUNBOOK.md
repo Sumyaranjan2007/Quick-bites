@@ -42,7 +42,7 @@ New key at the provider → Railway variable → Deploy → `/health` → delete
 | Everyone blocked, need a stopgap | – | `OTP_PROVIDER=fixed` + `OTP_ALLOW_FIXED_IN_PRODUCTION=true` + a private `OTP_FIXED_CODE` (not a repeat or run), then back (`OWNER_ACTIONS.md` Part 0 J) |
 | SMS (old app versions) | MSG91 log "DLT Template id not found" | owner finishes DLT (`OWNER_ACTIONS.md` A) |
 | Store reviewer cannot sign in | `OTP_REVIEW_PHONE`/`OTP_REVIEW_CODE` on Railway match Play Console → App access | set both, Deploy |
-| Confirm link "expired" after a deploy | links are in memory (`routes/authRouter.ts:714`) | register again for a new link |
+| Confirm link "expired" | links last 30 minutes and work once (kept across deploys since 18 Oct) | register again for a new link |
 
 ## Never
 

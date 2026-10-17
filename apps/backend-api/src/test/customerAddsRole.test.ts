@@ -17,7 +17,7 @@
 import http from 'http';
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
-import { memoryStore } from '../db/client.ts';
+import { memoryStore, saveStoreToFile, clearStore, loadStoreFromFile } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { userRepository, rolesOf } from '../db/repositories/userRepository.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
@@ -110,6 +110,16 @@ async function run() {
     check('...and opening alone changes nothing (mail scanners open links)',
       !rolesOf(await userRepository.findById(customer.id)).includes('restaurant_owner'));
 
+    // K3: the link must outlive a deploy. Save, wipe memory, load: what a restart does.
+    const token = link.split('/').pop() || '';
+    check('The link is stored by its hash, never the token itself',
+      memoryStore.pendingRoleConfirmations.size === 1 && !memoryStore.pendingRoleConfirmations.has(token));
+    saveStoreToFile();
+    clearStore();
+    loadStoreFromFile();
+    check('...and survives a restart (K3)', memoryStore.pendingRoleConfirmations.size === 1,
+      `size ${memoryStore.pendingRoleConfirmations.size}`);
+
     const confirmed = await call(pathOf(link), { method: 'POST' });
     check('Confirm adds the restaurant', confirmed.status === 200 && /Confirmed/.test(confirmed.text), `status ${confirmed.status}`);
     check('...and the page says what to do next', /Sign in/.test(confirmed.text) && /Quick Bites Partner/.test(confirmed.text));
@@ -167,7 +177,7 @@ async function run() {
     }
     check('Confirm works when the browser sends Origin: null (live server rules)', nullOriginConfirm.status === 200,
       `status ${nullOriginConfirm.status}`);
-    check('...while the rest of the API still refuses that origin', nullOriginApi.status >= 400 && nullOriginApi.status !== 404,
+    check('...while the rest of the API refuses that origin with 403, not 500 (K2)', nullOriginApi.status === 403,
       `status ${nullOriginApi.status}`);
     const ravi = (await userRepository.findByEmail(RIDER_EMAIL))!;
     check('...after Confirm, a rider record exists',

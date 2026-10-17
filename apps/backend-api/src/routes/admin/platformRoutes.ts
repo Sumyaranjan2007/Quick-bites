@@ -121,7 +121,9 @@ const WIPED = [
    * dead or - worse - still live on somebody's phone, ready to deliver a
    * notification about an order placed by an account that no longer exists.
    */
-  'deviceTokens'
+  'deviceTokens',
+  /** An emailed confirm link goes with the account it would change. */
+  'pendingRoleConfirmations'
 ] as const;
 
 /*

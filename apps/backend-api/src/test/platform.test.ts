@@ -843,6 +843,23 @@ async function run() {
     );
     check('and still gets the pickup code they need at the counter', Boolean(riderView.pickupCode));
 
+    // K1 (17 Oct 2026): the order keeps the customer's phone, so "Call customer" works.
+    const accountPhone = (memoryStore.users.get(stored.customerId) as any)?.phone;
+    check('A new order stores the customer account phone (K1)',
+      Boolean(accountPhone) && stored.customerPhone === accountPhone, `${stored.customerPhone} vs ${accountPhone}`);
+    // The trip route looks the order up by the rider RECORD and a live stage;
+    // the shortcut above set neither, so set them for these checks and put them back.
+    const live: any = memoryStore.orders.get(order.id);
+    const riderRecord: any = Array.from(memoryStore.riders.values()).find((r: any) => r.userId === 'usr_rider_01');
+    const before = { riderId: live.riderId, riderStage: live.riderStage, customerPhone: live.customerPhone };
+    Object.assign(live, { riderId: riderRecord?.id, riderStage: 'PICKED_UP' });
+    const trip = async () => (await api('/riders/orders/active', riderToken)).json?.data?.order || {};
+    const shown = await trip();
+    check('...and the rider\'s live trip shows it', shown.customerPhone === accountPhone, String(shown.customerPhone));
+    delete live.customerPhone; // an order placed before K1
+    check('...an older order without it takes the account phone', (await trip()).customerPhone === accountPhone);
+    Object.assign(live, before);
+
     const asCustomer = await api(`/orders/${order.id}`, customerToken);
     const customerView: any = asCustomer.json?.data?.order || {};
     check('The customer IS given the delivery OTP — they read it out at the door',

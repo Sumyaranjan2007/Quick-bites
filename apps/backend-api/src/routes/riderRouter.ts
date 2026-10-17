@@ -225,6 +225,14 @@ async function shapeTripForRider(order: Order) {
 
   const isCod = order.paymentMethod === 'CASH_ON_DELIVERY';
 
+  // Orders placed before customerPhone was stored (K1) take it from the account.
+  // Only for the rider who has the trip: an open offer goes to several riders,
+  // and none of them may see who the customer is before accepting.
+  let customerPhone = order.riderId ? order.customerPhone : undefined;
+  if (order.riderId && !customerPhone && order.customerId && order.customerId !== 'deleted_user') {
+    customerPhone = (await userRepository.findById(order.customerId))?.phone;
+  }
+
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -238,8 +246,8 @@ async function shapeTripForRider(order: Order) {
     customerName: order.customerName,
     // Live only while the trip is. Once the order is delivered or cancelled the
     // rider keeps the name and loses the number — see contactVisibility.
-    customerPhone: visibleContact(order.customerPhone, order.status).phone,
-    customerPhoneMasked: visibleContact(order.customerPhone, order.status).maskedPhone,
+    customerPhone: visibleContact(customerPhone, order.status).phone,
+    customerPhoneMasked: visibleContact(customerPhone, order.status).maskedPhone,
     dropAddress: order.deliveryAddressText || 'Customer doorstep',
     dropCoordinates: order.deliveryCoordinates,
     distanceKm,
