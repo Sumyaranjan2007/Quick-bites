@@ -2,7 +2,43 @@
 
 > **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
 
-**Status: plan only. Nothing is built until the owner says "make".** This is the one plan to follow.
+## START HERE — any new session (AI or developer) continues from this file
+
+The owner may open a fresh session and paste only this file's path. Do this, in order:
+
+1. **Load the main skills first** (Skill tool): `seniordev`, then `cleancode`. Follow them on every
+   change: read the code first, reuse what exists, shortest correct diff, one runnable check per
+   non-trivial rule, mutation-check it (break the guard, watch the check fail, put it back).
+   Also available when a step needs them: `security-review`, `superpowers:verification-before-completion`,
+   `expo:*` (Stages C–E), `vercel-react-native-skills`, `skills:react-native-best-practices`,
+   `ui-ux-designer`, context7 (library docs), mobile-mcp (phone/emulator).
+2. **Read**: `CLAUDE.md` (owner, money rules §4, working rules §8), `docs/FOLDER_MAP.md`, then this
+   file's **Owner decisions**, **Who builds what**, **Tracker** and **Findings** tables, then the top
+   3 entries of `CHANGELOG.md`.
+3. **See where work stopped**: `git log --oneline -15`, `git status --short`. Uncommitted files that
+   are NOT yours may be another session's work in progress (check "Who builds what" and file times):
+   never edit, stage, stash or revert them. The next step is the first Tracker row not ✅ in the
+   current stage, in your own column of "Who builds what".
+4. **Each step**: server change + one suite (listed in `SUITES` in `scripts/run-backend-tests.mjs`)
+   + docs in the same commit (`CHANGELOG.md` top entry "For the owner" first, this Tracker row,
+   the stage's **Built:** line, the maps in `docs/`). Gate: `node scripts/run-backend-tests.mjs`
+   (if it refuses because another session's new suite is not listed yet, run a scratch copy of the
+   runner with only `assertEverySuiteIsListed()` removed, never edit their file). Typecheck. Stage by
+   explicit path only. Push `main` (deploys live), then ask devops-sre to confirm `/health`.
+5. **Team sessions** (started 18 Oct, may still exist): security-reviewer, code-reviewer, qa-engineer,
+   devops-sre, product-designer. They write only their own files (`docs/SECURITY.md`,
+   `docs/reviews/REVIEW_LOG.md`, `docs/qa/QA_PLAN.md`, `docs/ops/OPS_GUIDE.md`, `design/`) and send
+   findings; fix theirs that fall in your files, then reply with the commit.
+6. **Never**: money rules changed without the owner; secrets in any tracked file (repo is PUBLIC);
+   competitor names or assets in the repo; `git add -A` / stash / reset / clean; APK builds unless the
+   owner says "make APK"; signing in to live with the owner's password.
+7. **Owner decisions still open** are marked ⏳ in the Findings table: build around them with
+   today's behaviour, never decide them yourself.
+
+## Status
+
+**Building, owner said "make" (18 Oct 2026).** Live on production: A1, B1, B3, B4, B5, B7, B8, B10, Stage F
+part (see Tracker). This is the one plan to follow.
 It takes in, and replaces as the order of work:
 [`k1-k3-fixes-2026-10-17.md`](k1-k3-fixes-2026-10-17.md),
 [`new-architecture-and-animations-2026-10-17.md`](new-architecture-and-animations-2026-10-17.md) (its steps stay the recipe for Stage C),
