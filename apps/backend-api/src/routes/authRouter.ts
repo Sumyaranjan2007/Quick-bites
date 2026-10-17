@@ -76,7 +76,7 @@ const RegisterSchema = z.object({
 });
 
 // POST /api/auth/register
-authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registrations'), validate({ body: RegisterSchema }), async (req, res) => {
+authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registrations'), validate({ body: RegisterSchema }), async (req, res, next) => {
   try {
     // Stored normalised so the account is found however it is later typed;
     // lookups trim and lowercase too, but the record itself should be clean.
@@ -168,7 +168,7 @@ authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registra
         meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
       });
     }
-    return res.status(500).json({ success: false, error: error.message });
+    return next(error); // security L1: the error handler masks internals in production
   }
 });
 
@@ -179,7 +179,7 @@ authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registra
  */
 const LoginBodySchema = z.object({ email: z.unknown(), password: z.unknown(), role: z.unknown() });
 
-authRouter.post('/login', authRateLimiterMiddleware, validate({ body: LoginBodySchema }), async (req, res) => {
+authRouter.post('/login', authRateLimiterMiddleware, validate({ body: LoginBodySchema }), async (req, res, next) => {
   try {
     const { email, password, role } = req.body;
     if (!email || !password) {
@@ -224,12 +224,12 @@ authRouter.post('/login', authRateLimiterMiddleware, validate({ body: LoginBodyS
       }
     });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return next(error); // security L1: the error handler masks internals in production
   }
 });
 
 // GET /api/auth/me/:userId
-authRouter.get('/me/:userId', authMiddleware(), async (req, res) => {
+authRouter.get('/me/:userId', authMiddleware(), async (req, res, next) => {
   try {
     const isSelf = req.user?.id === req.params.userId;
     const isAdmin = req.user?.role === 'admin' || req.user?.role === 'super_admin';
@@ -250,7 +250,7 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res) => {
     // delete the account, or on a "change password" row.
     return res.json({ success: true, data: { user: { ...safeUser, hasPassword: Boolean(passwordHash) } } });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return next(error); // security L1: the error handler masks internals in production
   }
 });
 
@@ -270,6 +270,15 @@ const UpdateProfileSchema = z.object({
  */
 authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }), async (req, res, next) => {
   try {
+    // A number is one person's (security M1, 18 Oct 2026): taking another
+    // account's phone here pointed its sign-in codes and its riders' calls at
+    // the taker. Changing it with a code to the new number is master plan B6.
+    if (req.body.phone !== undefined) {
+      const holder = await userRepository.findByPhone(req.body.phone);
+      if (holder && holder.id !== req.user!.id) {
+        throw new AppError('That mobile number is already on another Quick Bites account.', 409, 'PHONE_IN_USE');
+      }
+    }
     const updated = await userRepository.updateProfile(req.user!.id, req.body);
     if (!updated) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
 
@@ -718,6 +727,24 @@ type PendingRole = {
 /** Read through memoryStore each time: loading a snapshot replaces the map. */
 const pendingRoles = (): Map<string, PendingRole> => memoryStore.pendingRoleConfirmations;
 const CONFIRM_TTL_MS = 30 * 60_000;
+
+/**
+ * Deletes confirm links past their 30 minutes (review R3, 18 Oct 2026). Each
+ * holds a password hash and sign-up details, and since K3 they are saved, so
+ * an unused one would otherwise sit in the database for ever. Run by the
+ * order sweeper; returns how many went.
+ */
+export function pruneExpiredConfirmLinks(now = Date.now()): number {
+  let pruned = 0;
+  for (const [key, p] of pendingRoles()) {
+    if (now - p.createdAt > CONFIRM_TTL_MS) {
+      pendingRoles().delete(key);
+      pruned++;
+    }
+  }
+  if (pruned > 0) triggerAutoSave();
+  return pruned;
+}
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
 function publicBaseUrl(): string {

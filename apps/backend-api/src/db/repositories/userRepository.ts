@@ -27,6 +27,31 @@ function revokeLiveAccess(userId: string): void {
   }
 }
 
+/**
+ * A deleted customer's past orders, and the refund cases copied from them, keep
+ * their money but lose the person: no name, phone or address (review R2,
+ * 18 Oct 2026: refund cases kept the phone after the order lost it).
+ */
+function anonymiseCustomerHistory(userId: string): void {
+  for (const order of memoryStore.orders.values()) {
+    if (order.customerId === userId) {
+      order.customerId = 'deleted_user';
+      order.customerName = 'Deleted account';
+      delete order.customerPhone;
+      delete order.deliveryAddressText;
+      memoryStore.orders.set(order.id, order);
+    }
+  }
+  for (const request of memoryStore.refundRequests.values()) {
+    if (request.customerId === userId) {
+      request.customerId = 'deleted_user';
+      request.customerName = 'Deleted account';
+      delete request.customerPhone;
+      memoryStore.refundRequests.set(request.id, request);
+    }
+  }
+}
+
 export const userRepository = {
   async findById(id: string): Promise<UserRecord | null> {
     return memoryStore.users.get(id) || null;
@@ -113,15 +138,7 @@ export const userRepository = {
     for (const [id, addr] of memoryStore.addresses.entries()) {
       if (addr.userId === userId) memoryStore.addresses.delete(id);
     }
-    for (const order of memoryStore.orders.values()) {
-      if (order.customerId === userId) {
-        order.customerId = 'deleted_user';
-        order.customerName = 'Deleted account';
-        delete order.customerPhone;
-        delete order.deliveryAddressText;
-        memoryStore.orders.set(order.id, order);
-      }
-    }
+    anonymiseCustomerHistory(userId);
     const roles = rolesOf(user).filter(r => r !== 'customer');
     user.roles = roles;
     if (user.role === 'customer') user.role = roles[0];
@@ -146,15 +163,7 @@ export const userRepository = {
       if (txn.userId === userId) memoryStore.walletTransactions.delete(id);
     }
 
-    for (const order of memoryStore.orders.values()) {
-      if (order.customerId === userId) {
-        order.customerId = 'deleted_user';
-        order.customerName = 'Deleted account';
-        delete order.customerPhone;
-        delete order.deliveryAddressText;
-        memoryStore.orders.set(order.id, order);
-      }
-    }
+    anonymiseCustomerHistory(userId);
 
     memoryStore.users.delete(userId);
     triggerAutoSave();

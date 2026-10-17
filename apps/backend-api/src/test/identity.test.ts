@@ -24,6 +24,7 @@ import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
 import { memoryStore } from '../db/client.ts';
 import { userRepository, rolesOf } from '../db/repositories/userRepository.ts';
 import crypto from 'crypto';
+import { normalizeIndianPhone } from '../utils/phone.ts';
 
 const PORT = 5201;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -535,6 +536,21 @@ async function run() {
   // A brand new number must still take the ordinary path.
   const newbie = await registerRider(freshPhone(), 'brand-new-rider-1', `new_${Date.now()}@r.test`);
   check('A rider with a new number registers as before', newbie.status === 201, `status ${newbie.status}`);
+
+  // Security M1 (18 Oct 2026): a profile edit cannot take another account's number,
+  // however it is written; your own number and a free one still save.
+  resetAuthRateLimit();
+  const me = await api('/auth/login', { method: 'POST', body: { email: 'customer@quickbite.app', password: 'pass123' } });
+  const myToken = me.json?.data?.token;
+  const taken = await api('/auth/me', { method: 'PATCH', body: { phone: '+91 98765 11223' } }, myToken);
+  check("A customer cannot put a partner's number on their own profile",
+    taken.status === 409 && taken.json?.error?.code === 'PHONE_IN_USE', `status ${taken.status} ${taken.json?.error?.code}`);
+  check("...and the partner's account keeps it",
+    normalizeIndianPhone((await userRepository.findByEmail('partner@quickbite.app'))?.phone || '') === '9876511223');
+  const mine = await api('/auth/me', { method: 'PATCH', body: { phone: seededPhone } }, myToken);
+  check('Saving your own number again is fine', mine.status === 200, `status ${mine.status}`);
+  const free = await api('/auth/me', { method: 'PATCH', body: { phone: '9123400099' } }, myToken);
+  check('A number nobody holds saves', free.status === 200, `status ${free.status}`);
 
   /*
    * The server is closed and the process is given a moment to finish doing it.

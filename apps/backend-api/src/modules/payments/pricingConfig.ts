@@ -260,10 +260,16 @@ export function deliveryRadiusKm(): number {
   return km > 0 ? km : Infinity;
 }
 
-/** Why cash is not offered on a long trip; shown to the customer before they choose. */
-export function cashTooFarReason(tripKm: number): string | null {
+/**
+ * Why cash is not offered on a long trip; shown to the customer before they choose.
+ * An address with no pin has no measured distance, so with a cash limit on, cash
+ * needs a pin (security L7, 18 Oct 2026: the nominal 3.5 km let cash through for any trip).
+ */
+export function cashTooFarReason(tripKm: number, measured = true): string | null {
   const limit = Number(getActiveRates().codMaxDistanceKm);
-  if (!(limit > 0) || !(tripKm > limit)) return null;
+  if (!(limit > 0)) return null;
+  if (!measured) return 'Pin your delivery address on the map to pay by cash on delivery, or pay online.';
+  if (!(tripKm > limit)) return null;
   return `Cash on delivery is available only up to ${limit} km. This restaurant is ${tripKm.toFixed(1)} km away, so please pay online.`;
 }
 

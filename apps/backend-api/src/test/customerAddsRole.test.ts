@@ -21,6 +21,7 @@ import { memoryStore, saveStoreToFile, clearStore, loadStoreFromFile } from '../
 import { config } from '../config/env.ts';
 import { userRepository, rolesOf } from '../db/repositories/userRepository.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
+import { pruneExpiredConfirmLinks } from '../routes/authRouter.ts';
 
 let failures = 0;
 function check(label: string, condition: boolean, detail = '') {
@@ -277,6 +278,14 @@ async function run() {
     const shared = await customerSignIn('9000707070', KITCHEN_EMAIL);
     check('With the shared test code an email alone does not sign in to its account',
       shared.status === 409 && shared.json?.error?.code === 'EMAIL_IN_USE', `status ${shared.status} ${shared.json?.error?.code}`);
+
+    // Review R3: links past their 30 minutes are deleted by the sweeper's prune.
+    const old = Date.now() - 31 * 60_000;
+    memoryStore.pendingRoleConfirmations.set('r3-old', { userId: 'u', role: 'rider', passwordHash: 'x', body: {}, createdAt: old });
+    memoryStore.pendingRoleConfirmations.set('r3-new', { userId: 'u', role: 'rider', passwordHash: 'x', body: {}, createdAt: Date.now() });
+    pruneExpiredConfirmLinks();
+    check('An expired confirm link is pruned (R3)', !memoryStore.pendingRoleConfirmations.has('r3-old'));
+    check('...a live one is kept', memoryStore.pendingRoleConfirmations.has('r3-new'));
   } finally {
     await new Promise<void>(r => server.close(() => r()));
   }

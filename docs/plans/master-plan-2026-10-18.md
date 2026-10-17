@@ -242,6 +242,25 @@ Sources: Google's setup and key-security guides ([get an API key](https://develo
 
 ---
 
+## Findings from the role sessions that change this plan (18 Oct 2026)
+
+Each line: who found it, what changes, status. Full detail in the role's own file.
+
+| # | From | Finding → change | Status |
+|---|---|---|---|
+| F-1 | security (`docs/SECURITY.md`) | M1: a profile edit could take another account's phone → refused (`PHONE_IN_USE`) | ✅ 18 Oct (main) |
+| F-1b | security round 2 | L7: pinless address could pay cash for any trip → cash needs a pin (`COD_NEEDS_PIN`); L1 (sign-in routes) raw errors → error handler; L8 (record link redirect) goes with L5 | ✅ L7, L1-auth 18 Oct (main); L8 with L5 (parallel) |
+| F-2 | review R2, R3 | deletion now also strips refund cases; expired confirm links pruned by the sweeper | ✅ 18 Oct (main) |
+| F-3 | review R1 | K1 made **automatic RazorpayX refund payout links** reachable (`refunds.ts:234`; before, no phone meant the manual queue). **Owner decision**: keep automatic links, or keep refunds manual until RazorpayX is live | ⏳ owner |
+| F-4 | review D1, D2 | No Roads/Routes call per GPS fix: B11 projects the rider onto the `computeRoutes` polyline on our server (snap only if off-route); B3 recomputes road time only on status change/off-route | rule for B2/B11 |
+| F-5 | devops (`docs/ops/OPS_GUIDE.md`) | Railway stops reading `railway.json` after **1 Dec 2026**: owner copies its settings (+ draining 30 s, overlap 0) to the dashboard **before 15 Nov**, then we delete the file and its mentions in one commit | ⏳ owner, then main |
+| F-6 | devops | Deploy overlap: a write on the old server during a deploy can be overwritten by the new one (both in memory). Until fixed: deploy outside 12:00–14:30 and 19:00–22:30. Fix: new server re-reads documents changed after its boot (one suite) — new step **A4** | ⬜ A4 |
+| F-7 | designer (`design/system/`) | Lexend Deca has no Hindi/Kannada letters: Stage D1 also bundles **Noto Sans Devanagari + Noto Sans Kannada** (OFL) and picks by language | rule for D1 |
+| F-8 | designer | Colour contrast fails accessibility on muted text, veg/non-veg, rating, gold: new values in `design/system/README.md`, applied in D1 | rule for D1 |
+| F-9 | designer | Partner/Rider/Operations use a different maroon and cream than Customer: **owner decision** one shared colour set (Stage E) | ⏳ owner |
+| F-10 | designer | Kitchen ticket cannot print option names ("Extra cheese"): orders store option ids only → store option names at checkout; there is no order cooking note field. Ticket width setting 80/58 mm; CANCELLED line | B10 follow-up |
+| F-11 | designer | Rider offer shows the drop **area** only before accept; customer sees an honest "running late, new time" card, not only "ahead" | rule for E/D |
+
 ## Rules for every step (so nothing breaks)
 - Check the feature exists first; extend it, never a second copy (seniordev ladder). Money/account state: grep every writer first (`CLAUDE.md` §8).
 - Server steps ship alone, behind the gate, and stay compatible with the apps on phones today (old app versions keep working).

@@ -358,10 +358,21 @@ try {
     assert.equal((memoryStore.restaurants.get(OTHER) as any).status, statusBefore);
     assert.equal((memoryStore.users.get(partnerUser.id) as any).isBlocked, false, 'the account is still locked');
   });
+  // Review R2: a refund case copies the customer's name and phone from the order.
+  const rahul: any = Array.from(memoryStore.users.values()).find((u: any) => u.email === 'rahul.sharma@quickbite.app');
+  memoryStore.refundRequests.set('rr_r2_check', {
+    id: 'rr_r2_check', orderId: 'ord_r2', customerId: rahul.id, customerName: rahul.fullName, customerPhone: '9800011122'
+  } as any);
   const customerDeletes = await api('/auth/me', { method: 'DELETE', body: { password: 'pass123' } }, await login('rahul.sharma@quickbite.app'));
   it('A customer is still deleted at once, as before', () => {
     assert.equal(customerDeletes.status, 200, JSON.stringify(customerDeletes.json).slice(0, 200));
     assert.equal(customerDeletes.json.data.deleted, true);
+  });
+  it('...and their refund cases lose their name and phone too (review R2)', () => {
+    const r: any = memoryStore.refundRequests.get('rr_r2_check');
+    assert.equal(r.customerPhone, undefined);
+    assert.equal(r.customerName, 'Deleted account');
+    assert.equal(r.customerId, 'deleted_user');
   });
 
   /* ------------------------------------------------------------------ */

@@ -168,14 +168,15 @@ try {
     body: { label: 'No pin', addressLine: '12 Somewhere Road', city: 'Bengaluru', pincode: '560001' }
   }, customer.token);
   const pinlessId = pinless.json?.data?.address?.id ?? pinless.json?.data?.id;
-  const shortClaim = await place('CASH_ON_DELIVERY', { deliveryAddressId: pinlessId, distanceKm: 0.1 });
+  // Paid online: since 18 Oct (security L7) a pinless address cannot pay cash at all.
+  const shortClaim = await place('RAZORPAY_SANDBOX', { deliveryAddressId: pinlessId, distanceKm: 0.1 });
   it('An address with no pin cannot claim a 100-metre trip', () => {
     assert.ok(pinlessId, `address not created: ${JSON.stringify(pinless.json).slice(0, 200)}`);
     const o = orderOf(shortClaim);
     assert.ok(o?.id, `order failed: ${JSON.stringify(shortClaim.json).slice(0, 200)}`);
     assert.ok(o.distanceKm >= 3.5, `priced on ${o.distanceKm} km`);
   });
-  const longClaim = orderOf(await place('CASH_ON_DELIVERY', { deliveryAddressId: pinlessId, distanceKm: 9 }));
+  const longClaim = orderOf(await place('RAZORPAY_SANDBOX', { deliveryAddressId: pinlessId, distanceKm: 9 }));
   it('Control: the app may still say the trip is LONGER', () => {
     assert.equal(longClaim.distanceKm, 9);
   });

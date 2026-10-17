@@ -23,6 +23,9 @@ was checked against. Where a map and the code disagree, the code wins: fix the m
 | What is broken or inconsistent right now? | `docs/KNOWN_ISSUES.md` |
 | What has the owner already decided? | `docs/DECISIONS.md` (money also `CLAUDE.md` §4) |
 | What could be made better (proposals, not built)? | `docs/OPTIMIZATION_BACKLOG.md` |
+| Security audit, security rules, pre-release checklist? | `docs/SECURITY.md` |
+| Code review of each commit; QA acceptance checks; operations (Railway, backups, Google Cloud keys)? | `docs/reviews/REVIEW_LOG.md`, `docs/qa/QA_PLAN.md`, `docs/ops/OPS_GUIDE.md` |
+| Design system, screen specs, motion, art brief (Stages D/E)? | `design/system/`, `design/screens/`, `design/motion/`, `design/ART_BRIEF.md` |
 | What only the owner can do? | `OWNER_ACTIONS.md` Part 0 |
 | What changed, when? | `CHANGELOG.md` |
 | Commands | `COMMANDS.md` |

@@ -34,6 +34,7 @@ import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from './orderService.ts';
 import { emitOpsAlert, emitMenuUpdated } from '../../sockets/socketServer.ts';
 import { reopenSectionsDue } from '../restaurants/menuSections.ts';
+import { pruneExpiredConfirmLinks } from '../../routes/authRouter.ts';
 import {
   notifyAdminsNoRiderFound,
   notifyAdminsRiderNoShow,
@@ -564,6 +565,7 @@ export function startOrderSweeper(): void {
       await sweepStaleOrders();
       // Menu sections switched off "until" a time come back on (B5; customers already see them on).
       for (const restaurantId of reopenSectionsDue()) emitMenuUpdated(restaurantId);
+      pruneExpiredConfirmLinks();
     } catch (error) {
       // A throw inside a setInterval callback with nothing to catch it takes
       // the whole process down. The sweeper is a safety net; it must never be

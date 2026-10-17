@@ -144,6 +144,17 @@ try {
   const onlineFar = await order('RAZORPAY_SANDBOX');
   it('...but takes online payment', () => assert.equal(onlineFar.status, 201, `status ${onlineFar.status} ${JSON.stringify(onlineFar.json).slice(0, 200)}`));
 
+  // Security L7: an address with no pin has no measured distance, so no cash.
+  const addr: any = memoryStore.addresses.get(ADDRESS);
+  const pinned = addr.coordinates;
+  delete addr.coordinates;
+  const unpinnedQuote = (await quote()).json?.data;
+  it('An address with no pin is not offered cash', () => assert.equal(unpinnedQuote?.acceptsCash, false));
+  const unpinnedCash = await order('CASH_ON_DELIVERY');
+  it('...and checkout refuses cash for it (COD_NEEDS_PIN)', () =>
+    assert.equal(unpinnedCash.json?.error?.code, 'COD_NEEDS_PIN', `status ${unpinnedCash.status}`));
+  addr.coordinates = pinned;
+
   kitchen.acceptsCash = false;
   placeKitchen(0.07);
   const noCash = (await quote()).json?.data;

@@ -6,6 +6,33 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Security M1 (phone claim) and review follow-ups R2, R3
+
+> **For the owner.** Closed a hole the security reviewer proved: any signed-in customer could put
+> someone else's mobile number on their own profile, which sent that person's sign-in codes and
+> rider calls to the wrong account. Now refused ("already on another Quick Bites account").
+> Deleting a customer now also removes their name and phone from refund cases, and expired
+> "confirm it's you" links are cleaned up automatically. Server only: no new app build.
+
+- M1 `PATCH /api/auth/me`: a phone held by another account (compared normalised, e.g.
+  `+91 98765 11223` = `9876511223`) → 409 `PHONE_IN_USE`. Changing it with a code to the new
+  number stays master plan B6. Check: `identity` +4 (mutation caught).
+- R2 `userRepository.anonymiseCustomerHistory`: one helper for `deleteAccount` and
+  `removeCustomerSide`; also strips name/phone from `refundRequests` (copied from the order by
+  `orderService`, `supportRouter`, `duplicateCapture`). Check: `launchRound` +1 (mutation caught).
+- R3 `pruneExpiredConfirmLinks` (`authRouter.ts`), run by the order sweeper: confirm links past
+  30 minutes (password hash + sign-up details) are deleted. Check: `customerAddsRole` +2.
+- Security L7: with a cash distance limit on, an address with **no map pin** cannot pay cash
+  (its distance was a nominal 3.5 km, so cash went through for any trip): quote hides cash with
+  "Pin your delivery address…", checkout refuses `COD_NEEDS_PIN`. Checks: `deliveryRadius` +2;
+  `profitGuards` pinless-distance checks now pay online.
+- Security L1 (sign-in routes): unexpected errors in `/auth/register`, `/auth/login`,
+  `/auth/me/:userId` go to the error handler (masked in production) instead of raw `error.message`.
+- Docs: `FOLDER_MAP`/`docs/README` list `docs/SECURITY.md`, `docs/reviews/`, `docs/qa/`,
+  `docs/ops/`, `design/system/`, `design/screens/`, `design/ART_BRIEF.md`.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan B4 + B3: one rider at a time (108 s), honest delivery time
 
 > **For the owner.** (1) **Trips now go to one rider at a time**, the nearest free one first. They

@@ -543,11 +543,11 @@ export const orderService = {
         distanceKm: tripDistanceKm
       } as any).minutesRemaining,
       // Old app versions read only this flag, so it already folds in the distance limit.
-      acceptsCash: acceptsCash(restaurant) && !cashTooFarReason(tripDistanceKm),
+      acceptsCash: acceptsCash(restaurant) && !cashTooFarReason(tripDistanceKm, Boolean(measured)),
       /** Why cash is not offered, in words for the customer; null when it is. */
       cashUnavailableReason: !acceptsCash(restaurant)
         ? `${restaurant.name} accepts online payment only.`
-        : cashTooFarReason(tripDistanceKm),
+        : cashTooFarReason(tripDistanceKm, Boolean(measured)),
       unavailableItems: pricedItems.filter(i => !i.isAvailable).map(i => i.name)
     };
   },
@@ -744,8 +744,8 @@ export const orderService = {
     const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
     assertDeliverable(restaurant, address.coordinates, orderItems.reduce((t, i) => t + i.totalPrice, 0));
     // Cash only on shorter trips (owner, 18 Oct 2026): the quote already hid it and said why.
-    const cashTooFar = input.paymentMethod === 'CASH_ON_DELIVERY' ? cashTooFarReason(tripDistanceKm) : null;
-    if (cashTooFar) throw new AppError(cashTooFar, 409, 'COD_TOO_FAR');
+    const cashTooFar = input.paymentMethod === 'CASH_ON_DELIVERY' ? cashTooFarReason(tripDistanceKm, Boolean(measured)) : null;
+    if (cashTooFar) throw new AppError(cashTooFar, 409, measured ? 'COD_TOO_FAR' : 'COD_NEEDS_PIN');
 
     const charges = effectiveCharges(restaurant.id, getActiveRates());
     const pricingInput = {
