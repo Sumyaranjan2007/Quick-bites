@@ -318,6 +318,8 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
   customer session could reach it. Pushes pick the app by channel (`forApp`).
   The other way (17 Oct): Partner/Rider sign-up on a Customer-app email (no password) emails a
   confirm link (`askToConfirmByEmail`, `/api/auth/confirm/:token`); only its POST changes anything.
+  Customer app on a NEW phone with an existing account's email: the emailed code signs in to that
+  account (`emailProven`; never with the shared `fixed` code). The account keeps its own phone.
 - **Never use @rnmapbox `UserLocation` (or its `locationManager`).** On the old architecture its
   location events crash the app on the first real GPS fix (v30, 16 Oct). Use `LocationPuck`, as
   `MapCanvas` does. Emulators never feed Mapbox a GPS fix, so only a real phone shows this.

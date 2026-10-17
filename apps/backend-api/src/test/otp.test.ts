@@ -388,13 +388,17 @@ async function run() {
     check('An account from before email codes keeps its orders and takes the email',
       claimed.status === 200 && claimed.json?.data?.user?.id === legacyUser.id && (await userRepository.findById(legacyUser.id))?.email === 'old.customer@example.com');
 
-    // An email already on another account cannot be reused for a second one.
+    // An email already on another account never makes a second one. Since 17 Oct
+    // the code proved that inbox, so it signs in to the account the email is on.
     const other = '9814' + String(Math.floor(100000 + Math.random() * 899999));
     mails.length = 0;
     resetAuthRateLimit();
     await api('/auth/otp/request', { method: 'POST', body: { phone: other, email: 'new.person@example.com' } });
     const dup = await api('/auth/otp/verify', { method: 'POST', body: { phone: other, code: codeIn(mails[0]?.subject || '') } });
-    check('An email already on another account is refused for a new one', dup.status === 409 && dup.json?.error?.code === 'EMAIL_IN_USE', `${dup.status} ${JSON.stringify(dup.json?.error)}`);
+    check('An email already on another account signs in to that account, not a new one',
+      dup.status === 200 && dup.json?.data?.user?.id === made.json?.data?.user?.id && dup.json?.data?.isNewAccount === false
+        && !(await userRepository.findByPhone(other)),
+      `${dup.status} ${JSON.stringify(dup.json?.error)}`);
 
     const badEmail = await api('/auth/otp/request', { method: 'POST', body: { phone: other, email: 'not-an-email' } });
     check('A malformed email is refused', badEmail.status === 400);

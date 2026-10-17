@@ -186,6 +186,61 @@ async function run() {
     });
     check('A forged Host header never reaches the link', Boolean(hostLink) && !hostLink.includes('evil.example') && hostLink.includes('quickbites.test'),
       hostLink.slice(0, 120));
+
+    console.log('\n--- Customer app: a partner signs in with their OWN mobile (not the kitchen one) ---');
+    // Real emailed codes from here: only then does knowing the code prove the inbox.
+    (config as any).OTP_PROVIDER = 'email';
+    const emailedSignIn = async (phone: string, email: string, code?: string) => {
+      const before = emails.length;
+      await call('/auth/otp/request', { method: 'POST', body: { phone, email } });
+      const mail = emails.slice(before).find(e => e.to === email.toLowerCase());
+      const sentCode = (mail?.text.match(/code is (\d{6})/) || [])[1];
+      return { mail, res: await call('/auth/otp/verify', { method: 'POST', body: { phone, code: code ?? sentCode } }) };
+    };
+    const KITCHEN_EMAIL = 'kitchen.only@example.com';
+    const made = await call('/auth/register/partner', { method: 'POST', body: kitchen('9000101010', KITCHEN_EMAIL, 'Kitchen#2029') });
+    check('PRECONDITION: a partner registered in the Partner app', made.status === 201, `status ${made.status}`);
+    const kitchenUser = (await userRepository.findByEmail(KITCHEN_EMAIL))!;
+
+    const own = await emailedSignIn('9000202020', KITCHEN_EMAIL);
+    check('The code goes to the partner account’s email', Boolean(own.mail));
+    check('A partner signs in to the Customer app with a different mobile',
+      own.res.status === 200 && own.res.json?.data?.user?.role === 'customer', `status ${own.res.status} ${own.res.json?.error?.code || ''}`);
+    check('...into the same account, not a new one',
+      own.res.json?.data?.user?.id === kitchenUser.id && own.res.json?.data?.isNewAccount === false);
+    const kitchenAfter = (await userRepository.findById(kitchenUser.id))!;
+    check('...which gains the customer side and keeps its restaurant and phone',
+      rolesOf(kitchenAfter).includes('customer') && rolesOf(kitchenAfter).includes('restaurant_owner') && kitchenAfter.phone === '9000101010',
+      JSON.stringify({ roles: rolesOf(kitchenAfter), phone: kitchenAfter.phone }));
+    check('...and no account was made for the new mobile', !(await userRepository.findByPhone('9000202020')));
+    const ownToken = own.res.json?.data?.token;
+    const earnings = await fetch(`${API}/earnings/payout-requests`, { headers: { Authorization: `Bearer ${ownToken}` } });
+    check('...the session is customer-only (kitchen money refused)', earnings.status === 403, `status ${earnings.status}`);
+    const twice = await emailedSignIn('9000202020', KITCHEN_EMAIL);
+    check('Signing in again the same way works', twice.res.status === 200 && twice.res.json?.data?.user?.id === kitchenUser.id);
+    const viaKitchenPhone = await emailedSignIn('9000101010', KITCHEN_EMAIL);
+    check('...and so does the phone on the account', viaKitchenPhone.res.json?.data?.user?.id === kitchenUser.id);
+
+    const plain = (await userRepository.findByEmail('weak.customer@example.com'))!;
+    const newPhone = await emailedSignIn('9000404040', 'weak.customer@example.com');
+    check('A customer on a new mobile reaches their own account by email',
+      newPhone.res.status === 200 && newPhone.res.json?.data?.user?.id === plain.id, `status ${newPhone.res.status}`);
+
+    const wrongCode = await emailedSignIn('9000505050', KITCHEN_EMAIL, '000000');
+    check('A wrong code gets nobody in', wrongCode.res.status === 400 && !(await userRepository.findByPhone('9000505050')),
+      `status ${wrongCode.res.status}`);
+
+    const admin = Array.from(memoryStore.users.values()).find((u: any) => rolesOf(u).includes('admin')) as any;
+    const staff = await emailedSignIn('9000606060', admin.email);
+    check('An Operations email on a new mobile is refused', staff.res.status === 403 && staff.res.json?.error?.code === 'STAFF_ACCOUNT',
+      `status ${staff.res.status} ${staff.res.json?.error?.code}`);
+    check('...and the Operations account gains nothing', !rolesOf(await userRepository.findById(admin.id)).includes('customer'));
+
+    // With the shared test code, typing someone's email proves nothing.
+    (config as any).OTP_PROVIDER = 'fixed';
+    const shared = await customerSignIn('9000707070', KITCHEN_EMAIL);
+    check('With the shared test code an email alone does not sign in to its account',
+      shared.status === 409 && shared.json?.error?.code === 'EMAIL_IN_USE', `status ${shared.status} ${shared.json?.error?.code}`);
   } finally {
     await new Promise<void>(r => server.close(() => r()));
   }

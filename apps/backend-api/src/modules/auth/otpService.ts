@@ -44,6 +44,8 @@ interface PendingCode {
   lastSentAt: number;
   /** Where an email code went. Proven by the code, so verify may file it on the account. */
   email?: string;
+  /** The code really went by email (not the shared test code or the reviewer number). */
+  emailed?: boolean;
 }
 
 /** Codes live in the same store as everything else, so they survive a restart. */
@@ -174,6 +176,8 @@ export const otpService = {
         ? (customer || partnerOrRider ? account.email : undefined)
         : (customer ? typedEmail : undefined);
     const byEmail = Boolean(email) || Boolean(typedEmail);
+    // The same choice the delivery below makes: only then does knowing the code prove the inbox.
+    const emailed = !review && driver.name !== 'fixed' && byEmail && Boolean(email);
 
     write(phone, {
       phone,
@@ -181,7 +185,8 @@ export const otpService = {
       expiresAt: now + config.OTP_TTL_MINUTES * 60 * 1000,
       attempts: 0,
       lastSentAt: now,
-      ...(email ? { email: email.trim().toLowerCase() } : {})
+      ...(email ? { email: email.trim().toLowerCase() } : {}),
+      ...(emailed ? { emailed: true } : {})
     });
 
     // The store reviewers' number is answered with its known code, no message.
@@ -219,7 +224,7 @@ export const otpService = {
    * an unknown number it means "create the account", which is Zomato's flow and
    * is why there is no separate sign-up.
    */
-  async verify(rawPhone: string, submittedCode: string): Promise<{ ok: boolean; reason?: string; email?: string }> {
+  async verify(rawPhone: string, submittedCode: string): Promise<{ ok: boolean; reason?: string; email?: string; emailProven?: boolean }> {
     const phone = normalizeIndianPhone(rawPhone);
     const misconfigured = this.configurationError();
     if (misconfigured) return { ok: false, reason: misconfigured };
@@ -272,7 +277,7 @@ export const otpService = {
 
     // Consumed before the caller issues anything, so a code cannot be replayed.
     clear(phone);
-    return { ok: true, email: pending.email };
+    return { ok: true, email: pending.email, emailProven: pending.emailed === true };
   },
 
   /** Test seam: forget any pending code for a number. */

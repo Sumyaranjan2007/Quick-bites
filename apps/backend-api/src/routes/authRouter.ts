@@ -1187,6 +1187,18 @@ authRouter.post(
       const email = result.email;
 
       /*
+       * A NEW number with the email of an existing account (owner, 17 Oct 2026):
+       * a partner or rider typing their own mobile, not the one on the kitchen or
+       * rider account. The code went to that account's own inbox, the proof every
+       * sign-in here rests on, so it is that account. Its phone stays; this number
+       * finds it again by email next time. Never with the shared test code or the
+       * reviewer number (emailProven), where knowing an email would be enough.
+       */
+      if (!user && email && result.emailProven) {
+        user = await userRepository.findByEmail(email);
+      }
+
+      /*
        * A restaurant owner or rider may also order food (owner, 17 Oct 2026):
        * the same account gains the customer role, and the session is
        * customer-only (generateToken scope). Proof is the code emailed to the
@@ -1199,7 +1211,7 @@ authRouter.post(
           throw new AppError(
             partnerOrRider
               ? 'Sign in with the email address on your partner or rider account.'
-              : 'This number belongs to a Quick Bites staff account. Use a different number.',
+              : 'This belongs to a Quick Bites staff account. Use a different number and email.',
             403,
             'STAFF_ACCOUNT'
           );

@@ -6,6 +6,26 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-17] -- Claude Opus 5.5 -- Customer app: partners and riders sign in with their own mobile
+
+> **For the owner.** A partner or rider who typed their own mobile (not the one on the
+> kitchen/rider account) with their partner email was refused in the Customer app ("Sign in
+> with the mobile number on that account"). Now the code goes to that email, and entering it
+> signs them in to the same account as a customer. Customers who changed their number reach
+> their account the same way. Server change only.
+
+- `otp/verify` (authRouter): no account on the typed phone + a code really emailed to an
+  existing account's address → that account (partners/riders gain `customer` as before;
+  Operations still `STAFF_ACCOUNT`). The account keeps its own phone; no account is made for
+  the new number.
+- `otpService` marks a pending code `emailed` only when it went through Brevo (not the shared
+  `fixed` code, not the reviewer number) and `verify` returns `emailProven`. With the shared
+  code an email alone still proves nothing (`EMAIL_IN_USE`, unchanged).
+- `customerAddsRole` +13 checks (4 guards mutation-checked, each caught); `otp` check updated:
+  an existing email on a new phone signs in to that account instead of being refused.
+
+---
+
 ## [2026-10-17] -- Claude Opus 5.5 -- A customer can open a restaurant or ride with the same email
 
 > **For the owner.** Partner/Rider "Create account" refused an email already used in the
