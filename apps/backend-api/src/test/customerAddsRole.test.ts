@@ -90,6 +90,9 @@ async function run() {
     const first = await call('/auth/register/partner', { method: 'POST', body: kitchen('9000022222', EMAIL, 'Kitchen#2026') });
     check('Sign-up answers: confirm by email', first.status === 409 && first.json?.error?.code === 'CONFIRM_BY_EMAIL',
       `status ${first.status} ${first.json?.error?.code}`);
+    check('...and the app message lists the next steps',
+      /Open the email we just sent to asha\.customer@example\.com/.test(first.json?.error?.message) && /tap Sign in/.test(first.json?.error?.message),
+      first.json?.error?.message);
     check('...one email, to the account itself', emails.length === 1 && emails[0].to === EMAIL, JSON.stringify(emails.map(e => e.to)));
     const link = linkIn(emails[0]?.text || '');
     check('...carrying a link on the configured address', Boolean(link), emails[0]?.text);
@@ -108,7 +111,8 @@ async function run() {
       !rolesOf(await userRepository.findById(customer.id)).includes('restaurant_owner'));
 
     const confirmed = await call(pathOf(link), { method: 'POST' });
-    check('Confirm adds the restaurant', confirmed.status === 200 && /Done/.test(confirmed.text), `status ${confirmed.status}`);
+    check('Confirm adds the restaurant', confirmed.status === 200 && /Confirmed/.test(confirmed.text), `status ${confirmed.status}`);
+    check('...and the page says what to do next', /Sign in/.test(confirmed.text) && /Quick Bites Partner/.test(confirmed.text));
     const after = (await userRepository.findById(customer.id))!;
     check('...the same account now holds both roles',
       rolesOf(after).includes('customer') && rolesOf(after).includes('restaurant_owner'), JSON.stringify(rolesOf(after)));
@@ -142,7 +146,29 @@ async function run() {
     check('Rider sign-up on a customer email asks to confirm by email', riderAsk.json?.error?.code === 'CONFIRM_BY_EMAIL',
       `status ${riderAsk.status} ${riderAsk.json?.error?.code}`);
     const riderLink = linkIn(emails[emails.length - 1]?.text || '');
-    await call(pathOf(riderLink), { method: 'POST' });
+    const riderPage = await fetch(`${API}${pathOf(riderLink)}`);
+    check("The confirm page shares its address with our own site only (not 'no-referrer')",
+      riderPage.headers.get('referrer-policy') === 'same-origin', String(riderPage.headers.get('referrer-policy')));
+    /*
+     * What a phone did on live (17 Oct 2026): the Confirm button sent
+     * `Origin: null`, and the live server's origin check answered 500. Run with
+     * the live server's rules, and check an ordinary API call is still refused.
+     */
+    (config as any).IS_PRODUCTION = true;
+    let nullOriginConfirm: Response, nullOriginApi: Response;
+    try {
+      resetAuthRateLimit();
+      nullOriginConfirm = await fetch(`${API}${pathOf(riderLink)}`, { method: 'POST', headers: { Origin: 'null' } });
+      nullOriginApi = await fetch(`${API}/auth/login`, {
+        method: 'POST', headers: { Origin: 'null', 'Content-Type': 'application/json' }, body: '{}'
+      });
+    } finally {
+      (config as any).IS_PRODUCTION = false;
+    }
+    check('Confirm works when the browser sends Origin: null (live server rules)', nullOriginConfirm.status === 200,
+      `status ${nullOriginConfirm.status}`);
+    check('...while the rest of the API still refuses that origin', nullOriginApi.status >= 400 && nullOriginApi.status !== 404,
+      `status ${nullOriginApi.status}`);
     const ravi = (await userRepository.findByEmail(RIDER_EMAIL))!;
     check('...after Confirm, a rider record exists',
       Array.from(memoryStore.riders.values()).some((r: any) => r.userId === ravi.id) && rolesOf(ravi).includes('rider'));

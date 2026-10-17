@@ -320,6 +320,9 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
   confirm link (`askToConfirmByEmail`, `/api/auth/confirm/:token`); only its POST changes anything.
   Customer app on a NEW phone with an existing account's email: the emailed code signs in to that
   account (`emailProven`; never with the shared `fixed` code). The account keeps its own phone.
+- **A page with a form must not send `Referrer-Policy: no-referrer`.** Browsers then send
+  `Origin: null`, and production's origin check (`cors.ts`, off in dev/QA) answers 500. Test a
+  browser POST under production rules (`config.IS_PRODUCTION = true`), not only on the QA server.
 - **Never use @rnmapbox `UserLocation` (or its `locationManager`).** On the old architecture its
   location events crash the app on the first real GPS fix (v30, 16 Oct). Use `LocationPuck`, as
   `MapCanvas` does. Emulators never feed Mapbox a GPS fix, so only a real phone shows this.

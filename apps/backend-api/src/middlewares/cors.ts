@@ -36,7 +36,11 @@ export function corsDecision(origin: string | undefined, host: string | undefine
 }
 
 export const corsMiddleware = cors((req: any, callback) => {
-  callback(corsDecision(req.headers.origin, req.headers.host), {
+  // The emailed confirm page (authRouter /auth/confirm/:token) is a plain HTML
+  // form whose only key is the secret link. Some browsers send `Origin: null`
+  // for its Confirm button, which this check turned into a 500 (17 Oct 2026).
+  const confirmPage = String(req.path || '').includes('/auth/confirm/');
+  callback(confirmPage ? null : corsDecision(req.headers.origin, req.headers.host), {
     origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

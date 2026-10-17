@@ -725,9 +725,23 @@ function publicBaseUrl(): string {
 }
 
 const ROLE_WORDS = {
-  restaurant_owner: { thing: 'a restaurant', app: 'Quick Bites Partner' },
-  rider: { thing: 'delivery (Rider)', app: 'Quick Bites Rider' }
+  restaurant_owner: {
+    app: 'Quick Bites Partner', title: 'Confirm your restaurant',
+    after: 'Upload your documents in the app. We check them before you can take orders.'
+  },
+  rider: {
+    app: 'Quick Bites Rider', title: 'Confirm you as a rider',
+    after: 'Upload your documents in the app. We check them before you can go on shift.'
+  }
 } as const;
+
+/** What is being added, in words, for the email and pages. */
+const whatIsAdded = (role: PendingRole['role'], body: Record<string, any>) =>
+  role === 'restaurant_owner' ? `your restaurant "${String(body.restaurantName)}"` : 'you as a delivery rider';
+
+/** The confirm flow's button and numbered steps, readable on a phone. */
+const BUTTON = 'display:inline-block;font-size:18px;font-weight:600;padding:14px 32px;border-radius:12px;border:0;background:#6e0f1e;color:#fff;text-decoration:none';
+const steps = (items: string[]) => `<ol style="padding-left:22px">${items.map(i => `<li style="margin:6px 0">${i}</li>`).join('')}</ol>`;
 
 async function askToConfirmByEmail(user: { id: string; email: string }, role: PendingRole['role'], body: Record<string, any>): Promise<never> {
   const { password, ...rest } = body;
@@ -736,9 +750,13 @@ async function askToConfirmByEmail(user: { id: string; email: string }, role: Pe
     if (now - p.createdAt > CONFIRM_TTL_MS) pendingRoles.delete(key);
   }
   const words = ROLE_WORDS[role];
+  // Shown in the app's message box under the sign-up form: it must say what to do next.
   const sentMessage =
-    `This email already has a Quick Bites account. To add ${words.thing} to it, we emailed a link to ${user.email}. ` +
-    `Open it and tap Confirm, then come back and sign in with this email and the password you just chose.`;
+    `Almost done. You already have a Quick Bites account with this email, so we need to check it is you.\n\n` +
+    `1. Open the email we just sent to ${user.email} (look in Spam too).\n` +
+    `2. Tap the link in it, then tap Confirm.\n` +
+    `3. Come back here, tap Sign in, and use this email and the password you just typed.\n\n` +
+    `The link works for 30 minutes.`;
 
   enforceNewPasswordStrength(password);
   const passwordHash = await bcrypt.hash(password, 10);
@@ -756,12 +774,22 @@ async function askToConfirmByEmail(user: { id: string; email: string }, role: Pe
   pendingRoles.set(hashToken(token), { userId: user.id, role, passwordHash, body: rest, createdAt: now });
 
   const link = `${publicBaseUrl()}/api/auth/confirm/${token}`;
-  const what = role === 'restaurant_owner' ? `the restaurant "${String(rest.restaurantName)}"` : 'delivery (Rider)';
+  const what = whatIsAdded(role, rest);
   const sent = await sendEmail(
     user.email,
-    `Confirm: add ${words.thing} to your Quick Bites account`,
-    `Someone asked to add ${what} to your Quick Bites account. If it was you, open this link and tap Confirm (valid for 30 minutes): ${link}\n\nIf it was not you, ignore this email. Nothing changes.`,
-    `<p>Someone asked to add ${escape(what)} to your Quick Bites account.</p><p>If it was you, open this link and tap <strong>Confirm</strong> (valid for 30 minutes):</p><p><a href="${link}">${link}</a></p><p>If it was not you, ignore this email. Nothing changes.</p>`
+    `${words.title} on Quick Bites`,
+    `Hello,\n\nYou asked to add ${what} to your Quick Bites account (${user.email}).\n\n` +
+      `1. Open this link: ${link}\n2. Tap Confirm.\n3. Open the ${words.app} app, tap Sign in, and use this email and the password you chose.\n\n` +
+      `The link works once, for 30 minutes. If you did not ask for this, ignore this email. Nothing changes.\n\nQuick Bites`,
+    `<p>Hello,</p><p>You asked to add <strong>${escape(what)}</strong> to your Quick Bites account (${escape(user.email)}).</p>` +
+      `<p><a href="${link}" style="${BUTTON}">Open and confirm</a></p>` +
+      steps([
+        'Tap the button above.',
+        'Tap <strong>Confirm</strong> on the page that opens.',
+        `Open the <strong>${escape(words.app)}</strong> app, tap <strong>Sign in</strong>, and use this email and the password you chose.`
+      ]) +
+      `<p style="color:#6b5d60">The link works once, for 30 minutes. If you did not ask for this, ignore this email. Nothing changes.</p>` +
+      `<p style="color:#6b5d60;font-size:13px">Button not working? Copy this address into your browser:<br>${link}</p><p>Quick Bites</p>`
   );
   if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'ROLE_CONFIRM_LINK', link }));
   // Off production the logged link stands in for the email (QA server).
@@ -1010,21 +1038,30 @@ function pendingFor(token: string): PendingRole | null {
 }
 
 const expiredPage = () =>
-  page('Link expired', '<h1>This link has expired</h1><p>Links work once, for 30 minutes. Register again in the app to get a new one.</p>');
+  page(
+    'Link expired',
+    `<h1>This link has expired or was already used</h1>
+<p>A confirm link works once, for 30 minutes.</p>
+${steps([
+  '<strong>Already tapped Confirm?</strong> You are done. Open the app and tap <strong>Sign in</strong> with your email and the password you chose.',
+  '<strong>Not yet?</strong> Open the Partner or Rider app, tap <strong>Create account</strong> and fill it in again. We will email you a new link.'
+])}`
+  );
 
 authRouter.get('/confirm/:token', (req, res) => {
   const pending = pendingFor(req.params.token);
-  res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'no-referrer');
+  // 'same-origin', never 'no-referrer': with no-referrer the browser sends
+  // `Origin: null` on the Confirm button, which the live server refused (500).
+  res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'same-origin');
   if (!pending) return res.status(404).type('html').send(expiredPage());
   const words = ROLE_WORDS[pending.role];
-  const what = pending.role === 'restaurant_owner' ? `the restaurant "${escape(String(pending.body.restaurantName))}"` : 'delivery (Rider)';
   res.type('html').send(
     page(
-      'Confirm',
-      `<h1>Add ${escape(words.thing)} to your account?</h1>
-<p>This adds ${what} to your Quick Bites account. Your orders and addresses stay as they are.</p>
-<form method="post"><button type="submit" style="font-size:18px;padding:12px 28px;border-radius:12px;border:0;background:#6e0f1e;color:#fff">Confirm</button></form>
-<p>Not you? Close this page. Nothing changes.</p>`
+      words.title,
+      `<h1>${escape(words.title)}</h1>
+<p>Tap <strong>Confirm</strong> to add <strong>${escape(whatIsAdded(pending.role, pending.body))}</strong> to your Quick Bites account. Your orders, addresses and the Customer app stay as they are.</p>
+<form method="post"><button type="submit" style="${BUTTON}">Confirm</button></form>
+<p style="color:#6b5d60">Did not ask for this? Close this page. Nothing changes.</p>`
     )
   );
 });
@@ -1033,12 +1070,14 @@ authRouter.post('/confirm/:token', requireFeature('registrations'), async (req, 
   try {
     const key = hashToken(String(req.params.token));
     const pending = pendingFor(req.params.token);
-    res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'no-referrer');
+    res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'same-origin');
     if (!pending) return res.status(404).type('html').send(expiredPage());
     pendingRoles.delete(key); // once only, whatever happens next
 
     const fail = (message: string) =>
-      res.status(409).type('html').send(page('Not added', `<h1>Not added</h1><p>${escape(message)}</p>`));
+      res.status(409).type('html').send(
+        page('Not added', `<h1>Not added</h1><p>${escape(message)}</p><p>Need help? Email officalquickbites@gmail.com.</p>`)
+      );
     let user = await userRepository.findById(pending.userId);
     if (!user) return fail('This account no longer exists.');
     if (user.isBlocked) return fail('This account has been blocked. Contact Quick Bites support.');
@@ -1063,7 +1102,15 @@ authRouter.post('/confirm/:token', requireFeature('registrations'), async (req, 
     res.type('html').send(
       page(
         'Confirmed',
-        `<h1>Done</h1><p>Open the <strong>${escape(words.app)}</strong> app, tap <strong>Sign in</strong>, and use ${escape(user.email)} with the password you chose. An administrator reviews your documents before you can start.</p>`
+        `<h1>Confirmed &#10003;</h1>
+<p>We added <strong>${escape(whatIsAdded(pending.role, pending.body))}</strong> to your Quick Bites account. What to do now:</p>
+${steps([
+  `Open the <strong>${escape(words.app)}</strong> app.`,
+  'Tap <strong>Sign in</strong> (not Create account).',
+  `Email: <strong>${escape(user.email)}</strong>. Password: the one you typed when you signed up.`,
+  escape(words.after)
+])}
+<p style="color:#6b5d60">You can close this page.</p>`
       )
     );
   } catch (err) {

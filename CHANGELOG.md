@@ -6,6 +6,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-17] -- Claude Opus 5.5 -- Confirm link fixed on live; every step of it now says what to do next
+
+> **For the owner.** Tapping **Confirm** on the emailed page showed "INTERNAL_SERVER_ERROR" on
+> the live site. Nothing was created by those taps; register again to get a new link. Fixed,
+> and the app message, the email, and the confirm / done / expired pages now list the next
+> steps (open the email, tap Confirm, come back and Sign in with this email and password).
+
+- Cause: the page sent `Referrer-Policy: no-referrer`, so browsers send `Origin: null` on the
+  form's POST; production's origin check (`middlewares/cors.ts`) throws on a malformed origin
+  and the error handler answers 500. Local and QA servers allow every origin, so tests and
+  the browser check passed. Now `same-origin`, and `/auth/confirm/` is exempt from the origin
+  check (a plain HTML form whose key is the secret link); the rest of the API is unchanged.
+- `customerAddsRole` +5 checks, including Confirm with `Origin: null` under production rules
+  (fails with 500 on the old code) and the API still refusing that origin.
+
+---
+
 ## [2026-10-17] -- Claude Opus 5.5 -- Customer app: partners and riders sign in with their own mobile
 
 > **For the owner.** A partner or rider who typed their own mobile (not the one on the
