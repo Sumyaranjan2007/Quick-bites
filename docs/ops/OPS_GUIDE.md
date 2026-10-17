@@ -51,6 +51,22 @@ dispatch timers also live in that one process. So:
    Same for Postgres: disk above 70% of the volume.
 7. **Replicas:** backend service → Settings → **Scale**: confirm it shows **1 replica, 1 region**.
 
+### 2.1a Deadline: `railway.json` stops being read after 1 Dec 2026
+
+Railway has deprecated "config as code" (`railway.json`); existing files keep working for legacy
+services **until 2026-12-01**. Ours sets the Dockerfile path, start command, healthcheck path and
+timeout, and restart policy. If it silently stops being read, the next deploy could build or start
+wrongly. Two ways, decide before 15 Nov:
+
+- **Simplest (recommended):** put the same values in the dashboard and delete the file. Backend →
+  Settings → Build: Dockerfile path `apps/backend-api/Dockerfile`; Deploy: start command
+  `node --experimental-strip-types apps/backend-api/src/server.ts`, healthcheck path `/health`, timeout 30,
+  restart policy On failure (5 retries), draining 30, overlap 0. Then the main session removes
+  `railway.json` (and its mentions in `CLAUDE.md`, `docs/FOLDER_MAP.md`), pushes, and checks the deploy.
+  Railway's docs imply that without a file the dashboard values apply; confirm on that deploy's logs.
+- **Infrastructure as code:** `.railway/railway.ts` managed with `railway config pull/plan/apply`
+  (or `railway config migrate`). More moving parts; only worth it if the project grows more services.
+
 ### 2.2 Restore test (do once now, then every 3 months)
 
 A backup nobody has restored is a hope, not a backup.
@@ -177,6 +193,8 @@ Events worth a look, all logged as JSON with `event` (`grep -rn "event: '" apps/
 5. External uptime monitor on `/health`.
 6. One restore test (§2.2) and the first off-site `pg_dump` (§4).
 7. Before master plan B2: Google Cloud two projects, three keys, budget, daily caps (§5).
+8. **Before 15 Nov 2026:** copy the `railway.json` settings into the backend's dashboard settings (§2.1a),
+   so the main session can retire the file before Railway stops reading it on 1 Dec.
 
 ## 8. Log
 
@@ -191,6 +209,7 @@ Events worth a look, all logged as JSON with `event` (`grep -rn "event: '" apps/
 - Backups: https://docs.railway.com/reference/backups; Postgres backups, PITR, pg_dump: https://docs.railway.com/guides/postgres-backups-restores
 - Static outbound IPs: https://docs.railway.com/reference/static-outbound-ips
 - Usage limits: https://docs.railway.com/reference/usage-limits
+- Config as code deprecation (1 Dec 2026), keys `drainingSeconds`/`overlapSeconds`: https://docs.railway.com/reference/config-as-code; migration: https://docs.railway.com/infrastructure-as-code
 - Healthchecks: https://docs.railway.com/reference/healthchecks; deploy teardown, overlap, draining: https://docs.railway.com/deployments/deployment-teardown, https://docs.railway.com/reference/deployments
 - Monitoring: https://railway.com/changelog/2025-06-20-monitoring-beta
 - Google Maps key security: https://developers.google.com/maps/api-security-best-practices
