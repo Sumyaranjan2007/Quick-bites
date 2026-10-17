@@ -46,7 +46,7 @@ on live, not only in the file-based test. The follow-ups below are real, none bl
 
 ---
 
-## Waiting for review
+## Builder's notes for the commits below (all reviewed 18 Oct — verdicts in the next sections)
 
 - **`1078afb`** (18 Oct) master plan B1: one 35 km radius (`deliveryRadiusKm`), rider per-km slide ₹12→₹8 (`riderPerKmAt`), cash only up to 15 road km (`COD_TOO_FAR`, quote `cashUnavailableReason`), closed kitchens after open ones in every sort. Money path: rider pay. Gate green (only Windows `fssaiBadge`), 8 mutations caught. Pushed 18 Oct with the owner's go-ahead (numbers confirmed); live since the deploy at ~02:05 IST. Full notes: `CHANGELOG.md` top, master plan "Built" under Stage B.
 - **B5** (18 Oct, commit below in `git log`): kitchen type + admin-only Pure Veg seal, menu section switch (`menuSections.ts`, read by menu/quote/checkout/reorder/search), recommended restaurants + no-location list. Review D9 applied (read-time rule + sweeper). 15 mutations caught. Pushed with the owner's standing go-ahead for gated work.
@@ -55,3 +55,33 @@ on live, not only in the file-based test. The follow-ups below are real, none bl
 - **B7** (18 Oct, commit below in `git log`): one record per person, `routes/admin/recordRoutes.ts`. Look hardest at: the per-part permissions (`can(...)` → `null`), that a document is only served through the person who owns it, the 302 to a stored link (links were validated `https?:` at upload, `kycRouter.ts`), and that downloads are audit-logged. 11 mutations caught. **Not pushed.**
 - **Stage F (L2, L4, R6)** (18 Oct, commit below in `git log`): socket tokens pinned to HS256, CORS only the same host or `CORS_WHITELIST` (no more `*.vercel.app` / `*.railway.app`), 4xx logged at WARN. Look hardest at: whether any real site of ours relied on a `*.railway.app` origin other than the API's own host. 3 mutations caught. **Not pushed.**
 - **B4 + B3** (18 Oct, main session): one-rider dispatch and honest ETA. Review D2 (no Routes call per GPS tick: straight line between status changes), D3 (timer per offer, sweeper backstop), D4 (one offer per rider), D5 (old Rider apps: list shows only own offer, claim gated) applied. D1 (no live Snap to Roads) is for B11/B2. 19 mutations caught.
+
+---
+
+## 18 Oct 2026 — second round: `1078afb` B1, `5638b6c` B5, `a4b19c9` B8, `ec41f10` B10, `420d2b3` B7, `c449965` Stage F, `251372a` B4+B3 (+ docs `a9a131d`)
+
+| Commit | Verdict |
+|---|---|
+| `1078afb` B1 radius, sliding rider pay, cash ≤ 15 km | **Approve** (2 low) |
+| `5638b6c` B5 kitchen type, Pure Veg seal, section switch, recommended | **Approve** |
+| `a4b19c9` B8 help chat | **Approve** |
+| `ec41f10` B10 kitchen ticket | **Approve** |
+| `420d2b3` B7 person record | **Approve** (2 efficiency) |
+| `c449965` Stage F L2/L4/R6 | **Approve** (also closes R6) |
+| `251372a` B4+B3 dispatch + ETA | **Changes needed** (S1) |
+
+Checked and fine (no finding): every cash-on-delivery refusal is in one place (`orderService.ts:606`, `:748`) and `COD_TOO_FAR` throws before any side effect (coupon redemption is later); rider pay has one formula (`riderPayFor`/`riderPerKmAt`), the old base+km formula in `tripPayout.ts:28-34` only prices orders frozen before 1 Oct; the section switch is read by menu, quote, checkout, reorder and both search paths, and the search index refreshes on every menu change (`syncService.ts:161`); partner sign-up can no longer set the seal (`authRouter.ts:855`); a customer-scope session holds only `customer` (`middlewares/auth.ts:217`), so `isPartyTo` and the kitchen-ticket owner check cannot be reached by a Customer-app session; documents in B7 are served only through their own person; the stricter CORS rule still allows our business site, because `www.quickbitesresturants.in` is served by this same server (`webApps.ts:48`, same host); D3/D4/D5 are applied as designed (timer per offer, `ridersHoldingAnOffer`, broadcast filtered to the rider's own live offer, claim gated by `OFFER_NOT_YOURS`/`OFFER_EXPIRED`); D2 holds (ETA on each GPS tick is straight-line, no paid call).
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| S1 | **Medium-high** | `modules/orders/tripOffers.ts:151-170` | **Race: one trip offered twice, or one rider offered two trips.** `offerTripToNearbyRiders` checks `liveOffer(order)` and builds `ridersHoldingAnOffer` *before* `await eligibleRidersFor(...)`, which yields once per rider (`await orderRepository.listByRiderId`, `tripOffers.ts:~70`). Nothing re-checks after the await. Five callers run it without coordination (`orderService.ts:1386` ready, `orderSweeper.ts:209` every 30 s, expiry timer `:136`, decline `:245`, `opsRescue.ts:112`, `riderRouter.ts:1310`). Example: a decline at second 29 and the sweep at second 30 both pass the check; the first offers rider A and pushes, the second overwrites `riderOffer` with rider B: A's tap then gets `OFFER_NOT_YOURS`, `round` jumps by 2 (operations alerted after fewer real riders). Two kitchens marking food ready at the same moment can both pick the same nearest rider, breaking one-offer-per-rider (D4). | After the await and before writing `riderOffer`, in one synchronous block: re-check `liveOffer(order)` and recompute `ridersHoldingAnOffer` and drop the chosen rider if now holding (take the next). Or a module-level `Set` of order ids in flight. One check: call it twice concurrently (`Promise.all`) and assert one push and `round === 1`; mutation-check. | open |
+| S2 | Low | `tripOffers.ts` (round counter) + alert detail | `round` counts offers, not riders: with one rider online the same rider is re-offered every 108 s and after 5 cycles operations reads "5 riders asked". | Alert on `offeredToRiderIds.length >= limit` (distinct riders) or reword the detail to "offered 5 times". | open |
+| S3 | Low | `tripOffers.ts` `tripsToday` | "Today" starts at server midnight; Railway runs UTC, so the tie-break resets at 05:30 IST. | Midnight in `Asia/Kolkata`. | open |
+| S4 | Low (efficiency) | `tripOffers.ts` `ridersHoldingAnOffer`, `tripsToday`; `eta.ts` `kitchenPrepMinutes` | Each scans every order ever stored; dispatch runs per pending order every sweep, and every quote calls `kitchenPrepMinutes`. Fine today, grows with `orders` (OPTIMIZATION O14). | Scan only non-terminal orders for offers; keep a per-kitchen rolling prep list updated on READY (the `seniordev:` note already names it). | open |
+| S5 | Low | `orderService.ts:~855` | `promisedArrivalAt` is frozen at checkout while an online order is still `PAYMENT_PENDING`; a customer who pays minutes later gets a promise that is already stale, so "ahead of time" rarely shows. | Freeze (or re-freeze) the promise when payment is confirmed / the order becomes `ORDER_PLACED`. | open |
+| B1-1 | Low | `packages/pricing-engine/src/index.ts:47-56` | The slide is admin-editable; values like 12 → 2 between 4 and 10 km make a longer trip pay less in total (4 km ₹48, 10 km ₹20). The comment says "with the defaults". | Refuse a rate version where `km × riderPerKmAt(km)` falls between `riderFullRateKm` and `riderFarRateKm` (check the end points; the curve is a parabola), or show the warning in the Rates examples. | open |
+| B1-2 | Low | `db/repositories/restaurantRepository.ts:47` | `findNearby` still caps at 15 km, but nothing outside `test/db.test.ts` calls it: dead code edited by B1. | Remove it with its test, or leave a note; not a live bug. | open |
+| B7-1 | Low (efficiency) | `routes/admin/recordRoutes.ts` `personFor` (restaurant photos) | Every dish photo is returned inline; dish `imageUrl` may be a data URL up to 200 000 chars (`catalogRoutes.ts:908`), so a 100-dish kitchen's record can be ~20 MB of JSON on a phone. | Return dish photos as count + paths (like documents' `downloadPath`), not the data. | open |
+| B7-2 | Low (efficiency) | `recordRoutes.ts` history | `auditRepository.list({ limit: MAX_SAFE_INTEGER })` loads the whole audit log on each record view, then filters. | Filter by entity ids inside the repository, newest first, stop at 200. | open |
+
+R6 (first round) is fixed by `c449965` (4xx logged at WARN). R1–R5, R7 and D1, D6, D8 stay open.
