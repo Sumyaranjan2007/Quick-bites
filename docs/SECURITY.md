@@ -51,6 +51,38 @@ the exact code path.
 
 ---
 
+## 1b. Audit, round 2 — 18 Oct 2026, commits `1078afb`…`251372a`
+
+**For the owner.** The new features (35 km radius, Pure Veg seal, menu sections, recommended
+list, help chat, kitchen ticket, person records, one-rider dispatch, honest ETA) add no
+serious hole. A rider cannot take or pass on a trip offered to someone else; only the kitchen
+that has an order can print its ticket; a person's documents need the right staff permission.
+Two small items below.
+
+Reviewed: `1078afb` (B1), `5638b6c` (B5), `a4b19c9` (B8), `ec41f10` (B10), `420d2b3` (B7),
+`c449965` (Stage F fixes), `251372a` (B4 + B3). Uncommitted B11 files skipped.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| L7 | Low | `apps/backend-api/src/modules/orders/orderService.ts:737-748` (`tripDistanceFrom`, `assertDeliverable`, `cashTooFarReason`) | While the `unpinned_addresses` switch is on (default), an address with no map pin has no measured distance: the 35 km radius is not checked and the **15 km cash limit uses the nominal 3.5 km**, so cash on delivery is accepted for a trip of any length. The app cannot lower the distance below 3.5 km, so fees and rider pay cannot be pushed down. | Refuse cash when the distance was not measured (no pin), or require a pin for cash; or switch `unpinned_addresses` off once the location-first screen (D3) ships. | open |
+| L8 | Low | `routes/admin/recordRoutes.ts` (document file route, `kind === 'link'` → `res.redirect(302, doc.fileUrl)`; ZIP `index.txt` lists the link) | Same root as **L5**: a partner/rider can store any `https://` link as a document; the admin's download is redirected to that stranger's server (the admin's sign-in is not forwarded: browsers and OkHttp drop `Authorization` on a cross-host redirect). | Fixed by L5 (accept only image data); until then do not redirect, return the link as text with a warning. | open |
+
+Checked and holding in this round:
+
+| Area | Evidence |
+|---|---|
+| B4 claim | An unassigned trip can be claimed only by the rider holding its **live** offer (`OFFER_NOT_YOURS`, `OFFER_EXPIRED`, `riderRouter.ts` claim route); `assignRider` refuses a second taker. The offer list shows a rider only their own offer. |
+| B4 decline / expiry | `moveOfferOnAfterDecline` moves the offer only when the decliner holds it (`tripOffers.ts:240`); expiry is time-based (`liveOffer`), saved durably. A claim racing the sweeper ends with exactly one rider assigned. |
+| B3 ETA | Computed on the server from stored data; sent only to the order room and admins; straight line, no paid map call per GPS point. |
+| B5 | Pure Veg seal changeable only with `catalog.restaurants.pureVegSeal` or super admin (`peopleRoutes.ts:650`); partner sign-up and profile edits set `cuisineType` only. Section switch: `authMiddleware('restaurant_owner')` + `assertOwnsRestaurant`. Recommended list: `catalog.restaurants.recommend`. |
+| B8 | Help answers and tickets refuse anyone else's order (`helpChat.ts` `isPartyTo`, rider matched by rider record); customer-scope sessions see only customer orders; answers carry no phone/address/bank data; 5 tickets/hour and double-tap guard. |
+| B10 | Ticket only for the owning kitchen (`roles` from the store, so a Customer-app session of a partner is refused) or staff with `orders.detail.view`; only after Accept; no prices, customer first name only; PDF text escaped (`utils/simplePdf.ts:44`). |
+| B7 | Record needs the per-kind view permission; documents need `documents.view`, tickets `support.tickets.view`, history `admin.audit.view`; Aadhaar masked; downloads audited. No ZIP-slip: every upload route restricts `documentType` to a fixed list and names are sanitised. Files served as `attachment` with `no-store`. |
+| B1 | Radius and cash limit computed on the server from stored coordinates (L7 is the unpinned gap). |
+| Stage F fixes | L2 (socket `HS256`) and L4 (CORS exact host) verified in code and by their checks. **Still open from round 1: M1 (fix in progress), L1, L3, L5, L6.** |
+
+---
+
 ## 2. Rules every change must follow
 
 ### Server
