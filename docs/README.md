@@ -28,7 +28,7 @@ was checked against. Where a map and the code disagree, the code wins: fix the m
 | Commands | `COMMANDS.md` |
 | The 17 Oct reorganisation (what moved, what was kept) | `docs/ORGANIZATION_PLAN.md` |
 | Old documents (true when written, not current) | `docs/history/README.md`, and the 15 HISTORICAL files at the root (`docs/FOLDER_MAP.md` §3) |
-| Plans | `docs/plans/` (paused, next up: `k1-k3-fixes-2026-10-17.md`; ready to start on the owner's word: `new-architecture-and-animations-2026-10-17.md` (modern animations); newest finished: `menu-ai-maps-money-2026-10-01.md`, `cod-menus-payouts-playstore-2026-10-02.md`) |
+| Plans | **`docs/plans/master-plan-2026-10-18.md` — the one plan to follow (tracker of every item)**; `docs/plans/` (paused, next up: `k1-k3-fixes-2026-10-17.md`; ready to start on the owner's word: `new-architecture-and-animations-2026-10-17.md` (modern animations), then `customer-app-feel-2026-10-17.md` (polish, Lexend Deca, haptics, photos; motion spec in `design/motion/`); newest finished: `menu-ai-maps-money-2026-10-01.md`, `cod-menus-payouts-playstore-2026-10-02.md`) |
 | Downloads and installing the APKs | `docs/DOWNLOAD.md` |
 
 Regenerate the generated files after changing a route: `node scripts/docs/route-inventory.mjs`.

@@ -6,6 +6,32 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan agreed; three server fixes (K1–K3); motion spec
+
+> **For the owner.** Riders' "Call customer" button now has the customer's number on every new
+> order (and on orders already running), shown only while the trip is live, as before. A website
+> sending a bad address header now gets "not allowed" instead of a server error. A partner/rider
+> who signed up just before a deploy no longer loses the emailed Confirm link. Server only: no
+> new app build. Your 23 changes, Google Maps, the moving bike, the new feel and the security
+> pass are in one plan with a tracker: `docs/plans/master-plan-2026-10-18.md` (your answers of
+> 18 Oct recorded at its top; masked calls on hold).
+
+- K1 `orderService` stores `customerPhone` from the account; `riderRouter.shapeTripForRider`
+  falls back to the account phone for older orders (not for `deleted_user`). Account deletion
+  already strips it from past orders. **Only the rider who has the trip** gets it: open offers
+  (sent to several riders) carry no phone; the full gate caught this (`pipeline`, new check).
+- K2 `cors.ts` refuses with `AppError(403, 'ORIGIN_NOT_ALLOWED')` (was a plain Error → 500).
+- K3 confirm links in the new store collection `pendingRoleConfirmations` (hash of the token,
+  30 min, `persistDurably` before the email and after the one-time use; wiped by the platform reset).
+- Checks: `platform` +3 (K1), `customerAddsRole` +2 and one tightened to `=== 403` (K3, K2),
+  `anonymousAccess` +2 (K2). Each guard mutation-checked: all 4 mutations caught.
+- Docs: new `docs/plans/master-plan-2026-10-18.md` (the one plan), `customer-app-feel-2026-10-17.md`,
+  `design/motion/` (motion spec per screen, our brand), `KNOWN_ISSUES`, `DATA_MODEL` (32
+  collections), `AUTH_AND_ROLES`, `RUNBOOK`, `OPTIMIZATION_BACKLOG`, `FOLDER_MAP` (private study
+  folder outside the repo; `design/motion/`).
+
+---
+
 ## [2026-10-17] -- Claude Opus 5.5 -- Folders organised; the whole project mapped in docs/
 
 > **For the owner.** Nothing about the apps or the server changed: no code, setting or build.
