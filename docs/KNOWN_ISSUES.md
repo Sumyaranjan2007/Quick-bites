@@ -8,6 +8,9 @@ commit that fixes it.
 
 ## Behaviour
 
+**K1–K3: fix written but paused (17 Oct 2026), not tested or committed** — plan and status in
+`docs/plans/k1-k3-fixes-2026-10-17.md`.
+
 | # | Problem | Evidence | Cost / risk | Fix needs |
 |---|---|---|---|---|
 | K1 | **Orders never store the customer's phone**, so the Rider app's "Call customer" button has no number | Order built at `apps/backend-api/src/modules/orders/orderService.ts:780-800` without `customerPhone`; no code sets it later (`grep -rn "customerPhone" apps/backend-api/src` shows only reads, e.g. `modules/orders/contactVisibility.ts:128`); the button calls `trip.customerPhone` (`apps/delivery-mobile/src/screens/TripScreen.tsx:348`). The same empty field reaches refunds (`modules/payments/refunds.ts:234-241`) and admin views (`routes/admin/financeRoutes.ts:317`) | riders cannot call a customer they cannot find; support calls cost time | server only: set it from the customer account when the order is created (no app build) |
