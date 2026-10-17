@@ -164,7 +164,7 @@ export async function offerTripToNearbyRiders(passed: Order): Promise<string[]> 
     // once. So the checks are repeated here, with no await between them and
     // writing the offer: a second caller then sees the first one's offer, and a
     // rider who picked up another trip's offer meanwhile is skipped.
-    if (order.riderId || liveOffer(order, now)) return [];
+    if (order.riderId || !offerableNow(order) || liveOffer(order, now)) return [];
     const holding = ridersHoldingAnOffer(now);
     const rider = candidates.find(r => !holding.has(r.id));
     if (!rider) return [];

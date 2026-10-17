@@ -37,6 +37,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   written. Checks: `riderTripPush` +2 (two calls at once → one push, round 1; two trips → two
   riders); both fail on the old code.
 - Not done, owner decision: review B1-1 (see master plan F-12).
+- Review S6 (follow-up commit): the same re-check also skips an order cancelled during the
+  ranking. Check: `riderTripPush` +1 (mutation caught).
 
 ---
 

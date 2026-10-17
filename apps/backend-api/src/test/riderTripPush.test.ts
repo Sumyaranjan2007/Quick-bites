@@ -469,7 +469,15 @@ try {
     assert.equal(rb.length, 1);
     assert.notEqual(ra[0], rb[0]);
   });
-  for (const id of [raceOrder.id, raceA.id, raceB.id]) memoryStore.orders.delete(id);
+  // Review S6: an order cancelled while riders are being ranked gets no offer.
+  clearOffers();
+  const cancelMid: any = { ...onlineOrder, id: 'ord_cancel_mid', orderNumber: 'QB-CM', offeredToRiderIds: [], declinedByRiderIds: [] };
+  memoryStore.orders.set(cancelMid.id, cancelMid);
+  const pending = offerTripToNearbyRiders(cancelMid);
+  cancelMid.status = 'CANCELLED';
+  const afterCancel = await pending;
+  it('An order cancelled during the ranking is not offered (review S6)', () => assert.deepEqual(afterCancel, []));
+  for (const id of [raceOrder.id, raceA.id, raceB.id, cancelMid.id]) memoryStore.orders.delete(id);
   (memoryStore.orders.get(waveOrder.id) as any).riderOffer = savedWaveOffer;
 
   expire(waveOrder.id);
