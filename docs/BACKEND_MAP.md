@@ -36,7 +36,7 @@ All paths answer under `/api/...` and `/api/v1/...` (`src/app.ts:73-74`). Respon
 | `/api/places` | `routes/placesRouter.ts` | signed in | 4 | address search / reverse geocode (Mapbox) |
 | `/api/customers` | `routes/customerRouter.ts` | per route | 4 | favourites, profile photo |
 | `/api/restaurants` | `routes/restaurantRouter.ts` | per route | 24 | public listing and detail; partner's own kitchen, menu requests, profile edits, hours |
-| `/api/orders` | `routes/orderRouter.ts` | per route | 14 | quote, create, list, detail, confirm payment, cancel, rating, chat |
+| `/api/orders` | `routes/orderRouter.ts` | per route | 15 | quote, create, list, detail, confirm payment, cancel, rating, chat, kitchen ticket PDF (B10) |
 | `/api/search` | `routes/searchRouter.ts` | public reads; reindex admin-only | 3 | search, suggestions |
 | site root | `routes/publicPages.ts` | public | 8 | `/`, `/privacy`, `/terms`, `/delete-account`, logo, robots, sitemap |
 | `/partner`, `/admin` | `routes/webApps.ts` | the app's own sign-in | – | the websites (static build in `apps/backend-api/web/`) |
@@ -54,7 +54,7 @@ Permissions are defined in `modules/admin/permissions.ts`; types `AdminPermissio
 | Folder | Holds |
 |---|---|
 | `modules/auth/` | `otpService.ts` (codes: request `:110+`, verify `:227`), `otpDrivers.ts` (email/Brevo `:126-166`, MSG91 `:87`, 2Factor `:205`, fixed `:60`, `activeDriver` `:235`) |
-| `modules/orders/` | `orderService.ts` (quote and create; order built at `:780`), `orderStateMachine.ts`, `orderSweeper.ts` (timers), `dishOptions.ts` (option checks), `tripOffers.ts`, `riderTrip.ts`, `deliveryCompletion.ts`, `opsRescue.ts`, `contactVisibility.ts` (who sees which phone), `cancellationFee.ts`, `couponService.ts`, `eta.ts` |
+| `modules/orders/` | `orderService.ts` (quote and create; order built at `:780`), `kitchenTicket.ts` (B10 receipt PDF, no prices), `orderStateMachine.ts`, `orderSweeper.ts` (timers), `dishOptions.ts` (option checks), `tripOffers.ts`, `riderTrip.ts`, `deliveryCompletion.ts`, `opsRescue.ts`, `contactVisibility.ts` (who sees which phone), `cancellationFee.ts`, `couponService.ts`, `eta.ts` |
 | `modules/payments/` | `ledger.ts` (double entry, `post` `:149`), `earnings.ts` (splits an order into ledger lines), `payouts.ts` (dues `:178`, draft/approve/pay `:364-593`), `statements.ts` + `statementPdf.ts` (invoices), `pricingConfig.ts` (rate versions), `riderCityRates.ts`, `refunds.ts`, `cashDeposits.ts`, `payeeAccounts.ts`, Razorpay adapters, reconciliation |
 | `modules/restaurants/` | opening hours, profile edits, documents, imagery, location, offers, insights |
 | `modules/riders/` | metrics, policies, `tripPayout.ts` |

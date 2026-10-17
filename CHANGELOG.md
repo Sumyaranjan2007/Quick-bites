@@ -6,6 +6,37 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan B10: kitchen ticket to print, no prices (server)
+
+> **For the owner.** The server can now make the kitchen ticket you asked for (#2): a slip for the
+> kitchen's receipt printer (80 mm rolls, or 58 mm) showing the order number in big letters, each
+> dish with how many and the options chosen, the item count, the customer's first name and the pickup
+> code the rider gives at the counter. It never shows a price, total, payment method, phone number,
+> address or the customer's delivery code, because the slip sits on a counter where anyone walking past
+> can read it. Only the kitchen that has the order can print it, and only after it has accepted the
+> order (Quick Bites staff can print it too); a cancelled order prints with "CANCELLED". Nothing changes
+> on phones yet: the "Print ticket" button comes with the Partner app and website work (Stage E).
+> Left out for now: our logo picture and a QR code on the slip (the order number is printed big instead).
+
+- New `modules/orders/kitchenTicket.ts` `renderKitchenTicket(order, 80|58)`: lays the rows out first,
+  then draws them on one page exactly as tall as the ticket. Sizes per the spec
+  (`design/screens/partner-kitchen-ticket.md`): margins 4/3 mm, body 10/9 pt, dishes 12/11 pt bold,
+  order number 26/22 pt. Option names come from the order (`dishOptions.ts` froze them at checkout),
+  so a later menu edit cannot change a ticket.
+- `GET /api/orders/:id/kitchen-ticket?width=80|58` (`orderRouter.ts`), `inline` PDF named
+  `QuickBites-ticket-<order number>.pdf`. Kitchen = `roles` includes `restaurant_owner` and owns the
+  order's restaurant (a customer-app session holds only `customer`); staff = `orders.detail.view`
+  (or super admin; a disabled role has no permissions). 409 `NOT_ACCEPTED` before Accept; 400 for any
+  other width.
+- `utils/simplePdf.ts`: the constructor takes a page width and height (A4 by default, so statement PDFs
+  are unchanged).
+- Checks: new suite `kitchenTicket` (22; runner now 91 suites). 9 mutations (owner, customer scope,
+  staff permission, after-Accept, width, a price line, full name, CANCELLED, options), all caught.
+- Not done: logo image, QR, Lexend font, cutlery/note lines (no such fields on an order); the Partner
+  app/website button and the 80/58 setting (Stage E).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan B8: help chat that answers first, then a person (server)
 
 > **For the owner.** The server can now run the help chat you asked for (#16). Each app gets its own

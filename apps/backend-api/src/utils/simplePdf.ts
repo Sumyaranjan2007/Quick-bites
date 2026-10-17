@@ -54,12 +54,15 @@ export interface TextOptions {
 }
 
 export class SimplePdf {
-  readonly width = 595.28;
-  readonly height = 841.89;
+  readonly width: number;
+  readonly height: number;
   private pages: string[][] = [];
   private target = -1;
 
-  constructor() {
+  /** A4 unless told otherwise (a receipt roll is narrow and as tall as its content). */
+  constructor(width = 595.28, height = 841.89) {
+    this.width = width;
+    this.height = height;
     this.addPage();
   }
 

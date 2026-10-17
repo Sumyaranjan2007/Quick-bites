@@ -19,6 +19,9 @@ import type { LanguageCode } from '@quick-bites/shared-types';
 import { visibleContact, shapeOrderForViewer, viewerFor } from '../modules/orders/contactVisibility.ts';
 import { isCallMaskingConfigured, placeMaskedCall } from '../modules/orders/callMasking.ts';
 import { isContactable } from '../modules/orders/contactVisibility.ts';
+import { renderKitchenTicket } from '../modules/orders/kitchenTicket.ts';
+import { resolveAccess } from '../modules/admin/permissions.ts';
+import { userRepository } from '../db/repositories/userRepository.ts';
 
 export const orderRouter = Router();
 
@@ -164,6 +167,41 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * GET /api/orders/:id/kitchen-ticket?width=80|58 — the kitchen ticket PDF (B10).
+ *
+ * The kitchen that owns the order (once it has accepted) and staff with order
+ * access. `roles`, not the session role, decides "owns": a customer-app session
+ * of a partner holds only `customer` (middlewares/auth.ts). Inline, so the
+ * website's tab opens straight into the browser's print dialog.
+ */
+orderRouter.get(
+  '/:id/kitchen-ticket',
+  authMiddleware(),
+  validate({ query: z.object({ width: z.enum(['80', '58']).optional() }) }),
+  async (req, res, next) => {
+    try {
+      const order = await orderRepository.findById(req.params.id);
+      if (!order) throw new AppError('Order not found.', 404, 'NOT_FOUND');
+      const user = req.user!;
+      const restaurant = user.roles.includes('restaurant_owner') ? await restaurantRepository.findById(order.restaurantId) : null;
+      const isKitchen = restaurant?.ownerId === user.id;
+      const access = isKitchen ? null : resolveAccess(await userRepository.findById(user.id));
+      const isStaff = Boolean(access && (access.isSuperAdmin || access.permissions.includes('orders.detail.view')));
+      if (!isKitchen && !isStaff) throw new AppError('Only the kitchen that has this order can print its ticket.', 403, 'FORBIDDEN');
+      const accepted = Boolean(order.acceptedAt) || !['PAYMENT_PENDING', 'ORDER_PLACED', 'CANCELLED', 'REFUNDED'].includes(order.status);
+      if (!accepted) throw new AppError('Accept the order first; the ticket prints after Accept.', 409, 'NOT_ACCEPTED');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="QuickBites-ticket-${order.orderNumber}.pdf"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(renderKitchenTicket(order, req.query.width === '58' ? 58 : 80));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 const CreateOrderSchema = z.object({
   restaurantId: z.string().min(1, 'Restaurant ID is required'),
