@@ -153,6 +153,14 @@ try {
   const unpinnedCash = await order('CASH_ON_DELIVERY');
   it('...and checkout refuses cash for it (COD_NEEDS_PIN)', () =>
     assert.equal(unpinnedCash.json?.error?.code, 'COD_NEEDS_PIN', `status ${unpinnedCash.status}`));
+  // Review T1: when the KITCHEN has no real position, the customer cannot fix that,
+  // so cash is judged as before rather than "pin your address".
+  const kitchenAt = kitchen.coordinates;
+  delete kitchen.coordinates;
+  const kitchenUnpinned = (await quote()).json?.data;
+  it('An unpinned kitchen does not ask the customer to pin their address', () =>
+    assert.notEqual(kitchenUnpinned?.cashUnavailableReason, 'Pin your delivery address on the map to pay by cash on delivery, or pay online.'));
+  kitchen.coordinates = kitchenAt;
   addr.coordinates = pinned;
 
   kitchen.acceptsCash = false;

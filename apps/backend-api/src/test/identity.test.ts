@@ -549,8 +549,15 @@ async function run() {
     normalizeIndianPhone((await userRepository.findByEmail('partner@quickbite.app'))?.phone || '') === '9876511223');
   const mine = await api('/auth/me', { method: 'PATCH', body: { phone: seededPhone } }, myToken);
   check('Saving your own number again is fine', mine.status === 200, `status ${mine.status}`);
+  // Round 2: an unused number is refused too (its real owner's codes would come here);
+  // a new number needs a code to it (B6). The account keeps its number.
   const free = await api('/auth/me', { method: 'PATCH', body: { phone: '9123400099' } }, myToken);
-  check('A number nobody holds saves', free.status === 200, `status ${free.status}`);
+  check('A different, unused number is refused without a code',
+    free.status === 409 && free.json?.error?.code === 'PHONE_CHANGE_NEEDS_CODE', `status ${free.status} ${free.json?.error?.code}`);
+  check('...and the account keeps its own number',
+    normalizeIndianPhone((await userRepository.findByEmail('customer@quickbite.app'))?.phone || '') === normalizeIndianPhone(seededPhone || ''));
+  const nameOnly = await api('/auth/me', { method: 'PATCH', body: { fullName: 'Seeded Customer' } }, myToken);
+  check('A name change without a phone still saves', nameOnly.status === 200, `status ${nameOnly.status}`);
 
   /*
    * The server is closed and the process is given a moment to finish doing it.

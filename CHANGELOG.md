@@ -6,6 +6,24 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Phone change needs a code (M1 round 2); unpinned kitchen no longer blocks cash (T1)
+
+> **For the owner.** A customer can no longer switch their profile to a different mobile
+> number from the app's profile screen (the real owner of that number would later have had
+> their sign-in codes sent to the wrong email). Until the "code to the new number" step is built
+> (plan B6), support changes a number. Saving the profile with the same number works as before.
+> Also: if a restaurant itself has no map pin, customers are no longer wrongly told to pin
+> their own address before paying cash.
+
+- `PATCH /api/auth/me`: a different phone → 409 `PHONE_CHANGE_NEEDS_CODE` (admins excepted);
+  same number re-saved is fine. Checks: `identity` +3 (mutation caught).
+- Review T1: the "pin needed" cash rule applies only when the kitchen has a real position.
+  Check: `deliveryRadius` +1 (mutation caught).
+- Review T2: confirm-link storage and pruning moved to `modules/auth/confirmLinks.ts` (the sweeper
+  no longer imports a route).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B4 race closed (review S1), alert counts riders (S2), India's midnight (S3)
 
 > **For the owner.** Fixed a rare dispatch fault the code reviewer found: if a rider passed on a

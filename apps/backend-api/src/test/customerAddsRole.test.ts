@@ -21,7 +21,7 @@ import { memoryStore, saveStoreToFile, clearStore, loadStoreFromFile } from '../
 import { config } from '../config/env.ts';
 import { userRepository, rolesOf } from '../db/repositories/userRepository.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
-import { pruneExpiredConfirmLinks } from '../routes/authRouter.ts';
+import { pruneExpiredConfirmLinks } from '../modules/auth/confirmLinks.ts';
 
 let failures = 0;
 function check(label: string, condition: boolean, detail = '') {

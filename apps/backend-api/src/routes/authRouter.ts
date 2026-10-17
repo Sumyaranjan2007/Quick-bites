@@ -6,6 +6,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { userRepository, grantRole, hasRole, rolesOf } from '../db/repositories/userRepository.ts';
 import { memoryStore, triggerAutoSave, persistDurably } from '../db/client.ts';
+import { pendingRoles, CONFIRM_TTL_MS, type PendingRole } from '../modules/auth/confirmLinks.ts';
+import { normalizeIndianPhone } from '../utils/phone.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
@@ -277,6 +279,20 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
       const holder = await userRepository.findByPhone(req.body.phone);
       if (holder && holder.id !== req.user!.id) {
         throw new AppError('That mobile number is already on another Quick Bites account.', 409, 'PHONE_IN_USE');
+      }
+      // An unused number is no safer to take without proving it (security M1, round 2):
+      // its real owner's first sign-in code would go to this account's email. A new
+      // number needs a code to it (master plan B6); until then support changes it.
+      // Saving the same number again, as the apps do on every profile save, is fine.
+      const current = (await userRepository.findById(req.user!.id))?.phone || '';
+      const changing = normalizeIndianPhone(req.body.phone) !== normalizeIndianPhone(current);
+      const isStaffAdmin = req.user!.role === 'admin' && (req.user as any).scope !== 'customer';
+      if (changing && !isStaffAdmin) {
+        throw new AppError(
+          'To change your mobile number, contact Quick Bites support from Help. A code to the new number will do this in the app soon.',
+          409,
+          'PHONE_CHANGE_NEEDS_CODE'
+        );
       }
     }
     const updated = await userRepository.updateProfile(req.user!.id, req.body);
@@ -717,34 +733,6 @@ function roleAlreadyHeld(role: UserRole): AppError {
  * anything, because mail scanners open every link in an email; a GET that
  * confirmed would let a stranger's request through without the owner.
  */
-type PendingRole = {
-  userId: string;
-  role: 'restaurant_owner' | 'rider';
-  passwordHash: string;
-  body: Record<string, any>;
-  createdAt: number;
-};
-/** Read through memoryStore each time: loading a snapshot replaces the map. */
-const pendingRoles = (): Map<string, PendingRole> => memoryStore.pendingRoleConfirmations;
-const CONFIRM_TTL_MS = 30 * 60_000;
-
-/**
- * Deletes confirm links past their 30 minutes (review R3, 18 Oct 2026). Each
- * holds a password hash and sign-up details, and since K3 they are saved, so
- * an unused one would otherwise sit in the database for ever. Run by the
- * order sweeper; returns how many went.
- */
-export function pruneExpiredConfirmLinks(now = Date.now()): number {
-  let pruned = 0;
-  for (const [key, p] of pendingRoles()) {
-    if (now - p.createdAt > CONFIRM_TTL_MS) {
-      pendingRoles().delete(key);
-      pruned++;
-    }
-  }
-  if (pruned > 0) triggerAutoSave();
-  return pruned;
-}
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
 function publicBaseUrl(): string {

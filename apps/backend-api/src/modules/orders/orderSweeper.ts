@@ -34,7 +34,7 @@ import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from './orderService.ts';
 import { emitOpsAlert, emitMenuUpdated } from '../../sockets/socketServer.ts';
 import { reopenSectionsDue } from '../restaurants/menuSections.ts';
-import { pruneExpiredConfirmLinks } from '../../routes/authRouter.ts';
+import { pruneExpiredConfirmLinks } from '../auth/confirmLinks.ts';
 import {
   notifyAdminsNoRiderFound,
   notifyAdminsRiderNoShow,
