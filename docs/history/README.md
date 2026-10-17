@@ -1,5 +1,7 @@
 # Historical documents
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
 True when written, not kept up to date. Each file carries a HISTORICAL banner. Where one of
 these disagrees with the code or with `CLAUDE.md`, the code wins. Moved here from the repo root
 on 17 October 2026 (`docs/ORGANIZATION_PLAN.md`, M1); the other historical documents stay at the

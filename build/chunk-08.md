@@ -1,5 +1,7 @@
 # Chunk 08: Real-Time Engine, WebSockets & Push Notifications
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../docs/README.md).
+
 > **HISTORICAL — not kept up to date (banner added 6 Oct 2026).** True when written; parts describe things since removed or replaced (a Cloudflare tunnel, seeded `pass123` accounts, wallets, Google Maps, the old `apps/admin-web` and `apps/restaurant-web`). For the current state read **`CLAUDE.md`** (start here), then `OWNER_ACTIONS.md` and `CHANGELOG.md`.
 
 **Goal:** Implement Socket.io real-time event distribution (room partitioning, heartbeat ping-pong, reconnection backoff) and Firebase Cloud Messaging (FCM) push notification dispatcher.  

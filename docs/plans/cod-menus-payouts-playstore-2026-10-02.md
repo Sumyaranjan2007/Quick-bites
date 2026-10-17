@@ -1,5 +1,7 @@
 # COD switch, admin menus, payouts, rider pay by city, Play Store — plan (2 Oct 2026)
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
 The owner's request of 2 Oct, the answers they gave, and the order the work is
 done in. Nothing that already works may break: the gate (80 suites) runs after
 every block, and every money change is tested by paying the same payee twice.

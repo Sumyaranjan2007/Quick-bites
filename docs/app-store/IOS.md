@@ -1,5 +1,7 @@
 # Quick Bites on iPhone — the owner's guide
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
 **Last updated:** 14 October 2026 · **App:** Quick Bites (customer) only · **iPhone bundle id:** `in.quickbites.app` (Android uses the same id since 16 Oct 2026)
 
 This is the same app as the Android customer app, built from the same code, talking to the

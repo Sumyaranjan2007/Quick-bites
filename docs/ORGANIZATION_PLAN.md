@@ -1,5 +1,7 @@
 # Organisation plan — Quick Bites folders on this PC
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](README.md).
+
 **Written:** 17 October 2026 at commit `c25685c` (before anything moved).
 **Status:** approved by the owner on 17 Oct 2026 ("Yes, all moves") and carried out the same
 day. For the leftovers the owner answered "don't remove them, just save them in a proper folder
@@ -60,10 +62,10 @@ apply), the 15 historical files pinned by `diagnostics.js`, and the tool config 
 | # | Done |
 |---|---|
 | D1 | `git worktree move` to `D:\my all projects\quick-bites-old-files\qb-sessionC-worktree-b-docs` (still registered with git, branch `b-docs` unchanged) |
-| D2 | Left in place: the desktop app manages `.claude\worktrees`; recorded in `docs/LOCAL_MACHINE.md` |
+| D2 | Left in place: the desktop app manages `.claude\worktrees`; recorded in `docs/FOLDER_MAP.md` |
 | D3 | Branch renamed `archive/2026-09-25-s10-alt-superseded` |
 | D4 | Branch renamed `archive/2026-09-25-brain-sync-b`; the GitHub branch is left as it is |
-| D5 | Left in place (removing it is the only "move"); explained in the old-files README and `docs/LOCAL_MACHINE.md` |
+| D5 | Left in place (removing it is the only "move"); explained in the old-files README and `docs/FOLDER_MAP.md` |
 | D6 | Moved to `quick-bites-old-files\scratch-doc-generators-2026-09` |
 | D7 | Left in place (scripts write new screenshots there); labelled with `build/screenshots/README.txt` |
 | D8 | Moved to `quick-bites-old-files\old-apks-from-downloads-2026-09-21` |

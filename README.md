@@ -1,5 +1,7 @@
 # Quick Bites
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
 Food delivery for Harohalli and Ramanagara, Karnataka: four Android apps, one
 backend, and two websites (the Partner and Admin apps, running in a browser).
 The customer app is also being prepared for the iPhone App Store.

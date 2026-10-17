@@ -1,5 +1,7 @@
 # Quick Bites — Android downloads
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](README.md).
+
 Four apps make up the platform. Install the customer app to order; install the
 partner and rider apps on other phones to watch an order travel end to end.
 

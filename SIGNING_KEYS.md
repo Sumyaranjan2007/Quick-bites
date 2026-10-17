@@ -1,5 +1,7 @@
 # Signing keys — where they live and why they must not be lost
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
 **Read this before running `scripts/build-apks.sh`.**
 
 An Android app is identified by its **package name plus the key that signed
@@ -11,14 +13,12 @@ base.
 So these keys are not a build detail. They are the identity of four
 applications, and there is exactly one copy of each.
 
-> **Google Play (October 2026).** When the Customer, Partner and Rider apps are
-> created in Play Console, choose **"use an existing app signing key"** and
-> upload these same keys with Google's **PEPK** tool (Play Console provides the
-> encryption public key to use). That makes Play's updates install over the
-> sideloaded copies already on phones. Do **not** let Play generate a new key
-> for an app that is already installed anywhere. The Admin app is never
-> published. Last build with these keys: 6 Oct 2026 — Customer and Rider
-> versionCode 21, Partner 22, Admin 23 (all 1.4.0).
+> **Google Play (decided 16 Oct 2026).** Play App Signing uses a **Google-managed app signing
+> key** (the default). These keystores are the **upload keys**: Play checks every bundle is signed
+> with them, and Google can reset a lost upload key. No PEPK export. Phones with sideloaded APKs
+> uninstall them once before installing from Play. The Admin app is never published. (Until
+> 16 Oct this note said to upload these keys with PEPK; that plan was dropped.) Last bundles:
+> versionCode 32 (Customer, Partner) and 33 (Rider), 16–17 Oct 2026 (`docs/RELEASE_AND_STORES.md`).
 
 ---
 

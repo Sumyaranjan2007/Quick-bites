@@ -1,6 +1,8 @@
 # Quick Bites — start here (handoff for any AI or developer)
 
-**Last updated:** 17 October 2026 (one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
+**Last updated:** 17 October 2026 (folders organised and the whole project mapped in `docs/` — start at `docs/FOLDER_MAP.md` and `docs/README.md`; one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -10,6 +12,13 @@ This file is the single starting point. Claude Code loads it automatically. Read
 > No key, password, token, phone code or personal ID goes into any tracked file — ever.
 > This file says *where* each secret lives, never its value. `node scripts/check-secrets.mjs`
 > is part of the gate and fails on a committed secret.
+
+> **Where everything is (17 Oct 2026).** Before creating, moving or saving any file, read
+> **`docs/FOLDER_MAP.md`**: every Quick Bites folder on this PC and in the repo, how they
+> connect, and where each kind of new file goes. **`docs/README.md`** lists the maps (system,
+> backend endpoints, apps screen by screen, data, sign-in and roles, money, notifications,
+> config, testing, releases, runbook, known issues, decisions, optimisation backlog), each with
+> `file:line` pointers. This file keeps the owner, the money rules (§4) and the working rules (§8).
 
 ---
 
@@ -56,7 +65,8 @@ clearly first, then do the work** (they complained when an answer was buried).
   `node --experimental-strip-types src/server.ts`. In-memory document store
   (`apps/backend-api/src/db/client.ts`) persisted to **PostgreSQL** in production
   (`DATABASE_URL`) and to `apps/backend-api/data/store.json` locally (`QB_DATA_DIR`
-  overrides). Repositories in `src/db/repositories/` are the only writers.
+  overrides). Repositories in `src/db/repositories/` hold most writes, but several routes and
+  modules write the store directly: `docs/DATA_MODEL.md` lists every writer per collection.
 - **Hosting:** Railway, project **endearing-ambition**, environment **production**: the
   backend service (Dockerfile) + a Postgres service. Pushing `main` deploys.
   **Live URL:** `https://quick-bites-production.up.railway.app` (`/health`, `/api/...`,
@@ -72,41 +82,19 @@ clearly first, then do the work** (they complained when an answer was buried).
 
 | Where | What |
 | --- | --- |
-| **Railway → backend service → Variables** | All production secrets and settings (table below). Changing one and clicking **Deploy** restarts the server. |
+| **Railway → backend service → Variables** | All production secrets and settings (names: `docs/CONFIG_AND_SECRETS.md`). Changing one and clicking **Deploy** restarts the server. |
 | **`.env` at the repo root** (gitignored, this PC only) | Local build/test values: Mapbox public + download tokens, Google Maps Android key, Razorpay **test** keys, etc. `.env.example` lists the names. |
 | **`C:\Users\priya\quickbites-keystores\`** (outside the repo) | The four Android signing keystores and their `*.keystore.properties` (passwords). Losing these = the app can never be updated. See `SIGNING_KEYS.md`. |
 | **`D:\my all projects\quick-bites-release-archive\`** | Archived signed APKs per release. |
 | **Expo (expo.dev) → project → Environment variables** | `MAPBOX_PUBLIC_TOKEN`, `MAPBOX_DOWNLOAD_TOKEN` (secret) for iPhone cloud builds (EAS). Not needed for Android. |
 | **The owner's own accounts** | Railway, GitHub, MSG91, the DLT portal (Jio TrueConnect), Razorpay, Google Play Console, Firebase, Mapbox, Groq, Apple Developer / App Store Connect, Expo. Only the owner signs in to these. |
 
-### Production variables (names; set on Railway)
+### Production variables
 
-| Variable | Purpose / state on 5 Oct 2026 |
-| --- | --- |
-| `NODE_ENV=production`, `PORT`, `DATABASE_URL`, `PGSSLMODE` | Runtime and Postgres. Production refuses to start without `DATABASE_URL`. |
-| `JWT_SECRET` | Sign-in tokens. Production refuses to start without it. |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | The one super admin, re-applied on every boot (≥ 10 chars). **The password was shared in a chat — the owner must change it.** |
-| `ALLOW_PLATFORM_RESET` | Enables the guarded wipe used by `scripts/reset-live.mjs`. **Must be `false`/absent at launch.** |
-| `SEED_DEMO_DATA`, `DEMO_MODE` | Must be off in production (production seeds nothing). |
-| `OTP_PROVIDER` | **`email` from 11 Oct** (customer app asks phone + email; code by email). Also `fixed`, `msg91`, `2factor` (SMS, old app versions only); `twilio` is a stub. |
-| `BREVO_API_KEY`, `EMAIL_FROM` (+ optional `EMAIL_FROM_NAME`) | Email codes through Brevo's HTTPS API (Railway blocks SMTP below Pro). An account with an email always gets its code there, whatever is typed; `EMAIL_IN_USE` refuses an email already on another account. Owner steps: `OWNER_ACTIONS.md` Part 0 step 0. |
-| `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID` | MSG91 **account Authkey** (NOT the OTP-widget `tokenAuth`) and the **SendOTP template id** (`6ac278e24b79348aee059012`, template "QUICK_BITES", sender `QKBTES`). |
-| `OTP_TTL_MINUTES` | Code lifetime. **Set to `10`** — the MSG91 template text says "valid for 10 minutes" (default is 5). |
-| `OTP_REVIEW_PHONE`, `OTP_REVIEW_CODE` | One number Google's reviewers sign in with; no SMS is sent to it. Values only on Railway and in Play Console → App access. |
-| `OTP_FIXED_CODE`, `OTP_ALLOW_FIXED_IN_PRODUCTION` | The shared test code. Removed on live on 4 Oct. `OTP_PROVIDER=fixed` + `OTP_ALLOW_FIXED_IN_PRODUCTION=true` + a **private** `OTP_FIXED_CODE` is the fallback while SMS is not delivering (everyone signs in with one code). Since 6 Oct production refuses it unless `OTP_FIXED_CODE` is set on purpose to six digits that are not a repeat or a run (`isPrivateCode`). Owner steps both ways: `OWNER_ACTIONS.md` Part 0 J. |
-| `OTP_MAX_ATTEMPTS`, `OTP_RESEND_COOLDOWN_SECONDS` | Limits. Within the cooldown a re-request sends no SMS and writes no log line. |
-| `TWOFACTOR_API_KEY`, `TWOFACTOR_TEMPLATE` | Unused now (2Factor driver kept as an alternative). Remove from Railway. |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Payments. **Live was still on `rzp_test_` keys on 2 Oct; the owner must add live keys.** |
-| `RAZORPAYX_KEY_ID`, `RAZORPAYX_KEY_SECRET`, `RAZORPAYX_ACCOUNT_NUMBER`, `RAZORPAYX_WEBHOOK_SECRET` | Automatic payouts (optional; admins can pay by hand with a UTR). |
-| `PAYEE_ACCOUNT_KEY` | Encrypts full bank account numbers, stored apart from the record. |
-| `PUBLIC_BASE_URL` (optional) | Address put in emailed confirm links. Unset is fine: Railway's own domain, else the live URL. |
-| `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR` | Server-side road distance (Directions for one trip, Matrix for many). |
-| `MEILISEARCH_HOST`, `MEILISEARCH_API_KEY` | Search. |
-| `FCM_SERVICE_ACCOUNT_JSON` | Push notifications (Android). |
-| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (+ `APNS_BUNDLE_ID`, default `in.quickbites.app` — the iPhone bundle id, which differs from Android's) | Push to iPhone through Apple (FCM rejects iPhone tokens). **Set 13 Oct 2026** (key `Y5SGGTTN2X`, team `SPZBSG55FZ`); the .p8 is kept outside the repo. `/health` → `services.applePush.configured`. |
-| `GROQ_API_KEY`, `GROQ_MODEL` | Menu-from-photo reader. **The Groq key was shared in a chat — rotate it.** |
-| `EXOTEL_*` | Masked calling (optional, not required for launch). |
-| Timing knobs | `ORDER_ACCEPT_TIMEOUT_MINUTES`, `RIDER_NOSHOW_*`, `RIDER_ASSIGN_ALERT_MINUTES`, `PAYMENT_*_AFTER_MINUTES`, `DEFAULT_PREP_MINUTES`, `DELIVERY_*`, `MAX_TIP_AMOUNT`, `DEFAULT_SERVICE_RADIUS_KM`, `PLACES_REGION`. |
+Every variable by **name**, where the code reads it and what breaks without it:
+**`docs/CONFIG_AND_SECRETS.md`**. Live state to remember: `OTP_PROVIDER=email` (Brevo) since
+11 Oct; `OTP_TTL_MINUTES=10`; Razorpay live still on `rzp_test_` keys (2 Oct); APNs set 13 Oct;
+`ALLOW_PLATFORM_RESET` must be false/absent at launch; `TWOFACTOR_*` unused (remove).
 
 Build-time (local `.env`, baked into APKs on purpose, protected by package + SHA-1
 restriction, not secrecy): `MAPBOX_PUBLIC_TOKEN`, `MAPBOX_DOWNLOAD_TOKEN`,
@@ -157,7 +145,7 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 ## 5. Daily commands
 
 ```bash
-node scripts/run-backend-tests.mjs                 # THE gate: 84 backend suites, ~100 s, takes a machine-wide lock
+node scripts/run-backend-tests.mjs                 # THE gate: 87 backend suites, ~110 s, takes a machine-wide lock
 node scripts/check-secrets.mjs                     # no secrets in tracked files
 npx turbo typecheck                                # all workspaces
 node scripts/check-i18n.mjs ; node scripts/check-apk-secrets.mjs
@@ -172,35 +160,14 @@ python scripts/play-store/make-graphics.py         # 512 icons + 1024x500 featur
 python scripts/play-store/compose-screenshots.py <captures-dir>   # 1080x1920 screenshots
 ```
 
-Running one suite alone: `QB_DATA_DIR=$(mktemp -d) npx tsx apps/backend-api/src/test/<name>.test.ts`
-(a suite refuses to write to the developer store otherwise). The `onboarding` suite can fail
-in the full gate on Windows with `EACCES` on port 5040 (a Windows-reserved port); it passes
-alone — environmental, not a defect. `fssaiBadge` passes every check and then crashes on exit on
-Windows (`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`), identically on the code before
-the SDK 54 upgrade — also environmental.
+`node scripts/docs/route-inventory.mjs` regenerates `docs/generated/ROUTES.md` and `APP_CALLS.md`
+after a route changes.
 
-**Private QA server** (used for every QA round): run the backend from
-`apps/backend-api` with `NODE_ENV=development PORT=7071 DEMO_MODE=true SEED_DEMO_DATA=true`,
-a throwaway `QB_DATA_DIR`, a local `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`,
-`OTP_PROVIDER=fixed OTP_FIXED_CODE=123456`, every live service variable blanked,
-`DATABASE_URL` unset, and the Razorpay **test** keys from `.env`. Point an emulator
-(AVD `qb34`, Android 14, x86_64) at `http://10.0.2.2:7071/api`. Drive it with `adb`
-(`uiautomator dump` fails during continuous animations — use `screencap` then). Each app's
-server address is behind **6 quick taps on the sign-in logo** → "Server settings".
-
-Emulator facts on this PC (16 Oct): boot with `-gpu swiftshader_indirect` (host GPU leaves the
-device "offline"); the Android 16 AVD `qb-test` never comes online; leftover `emulator`/`qemu`
-processes and `*.lock` files in `~/.android/avd/*.avd` block the next boot; Mapbox renders land
-black in software mode (fine on phones); Razorpay's payment page crashes the emulator itself.
-**The emulator never feeds Mapbox a GPS fix**, so GPS-dependent crashes only show on a phone.
-
-**Testing on the owner's phone (Vivo V2312, Android 15):** with USB debugging allowed, `adb
-reverse tcp:7071 tcp:7071` lets the phone reach the QA server at `http://localhost:7071/api`
-(cleartext is allowed for localhost). A crash the owner already hit is saved on the phone:
-`adb shell dumpsys dropbox --print data_app_crash` (native: `data_app_native_crash`). Vivo
-asks to confirm USB installs and may drop authorisation mid-install. The phone's Customer and
-Operations apps are signed in to LIVE accounts: never order or change anything with them;
-afterwards `pm clear` only the apps you pointed at the QA server and `adb reverse --remove-all`.
+Everything else about testing — one suite alone, the two known Windows failures (`fssaiBadge`
+exit crash, `onboarding` port 5040), the **private QA server** recipe (port 7071, fixed code),
+the emulator facts and testing on the owner's phone (its Customer and Operations apps are
+signed in to LIVE accounts: never order or change anything with them) — is in
+**`docs/TESTING.md`**.
 
 ---
 
@@ -214,13 +181,8 @@ afterwards `pm clear` only the apps you pointed at the QA server and `adb revers
   building, `cd apps/<app>/android && ./gradlew --stop` if a previous build left a lock
   (`EBUSY` on `classes.dex`).
 - "Make APK" from the owner triggers **only** the build; all agreed work is finished first.
-- Release history: v8 (25 Sep) → v9, v11 (26 Sep, QA rounds) → v12 (1 Oct, menu builder /
-  AI menu / per-km) → admin v16 → v17, v18 (2 Oct, COD per restaurant, Play pages, QA v17)
-  → v20 (4 Oct, 1.4.0; 4 APKs + 3 AABs) → **6 Oct: Customer and Rider v21, Partner v22,
-  Admin v23** (invoices, websites' shared fixes, expired-sign-in handling; archived in
-  `quick-bites-release-archive/v21-22-23-2026-10-06`; no new AABs). versionCode 19 was consumed
-  by a failed admin build and skipped. Builds before 6 Oct run through `D:\qb` skipped the
-  release guards silently (fixed in `c05d582`).
+- Release history, packages and store state: `docs/RELEASE_AND_STORES.md`. Archive each release
+  in `quick-bites-release-archive/vNN-<what>-YYYY-MM-DD/` (`docs/FOLDER_MAP.md` §2).
 - **Play App Signing (16 Oct, decided):** Google-managed app signing key (the default). The apps are
   distributed only through Play, so no PEPK export. Our keystores are the **upload keys**; a lost upload
   key can be reset by Google. Phones with sideloaded APKs uninstall them once before installing from Play.
@@ -344,28 +306,15 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
 
 ## 9. Map of the other documents
 
-**Living (kept current):** `CLAUDE.md` (this) · `AGENTS.md` (pointer) · `README.md` ·
-`CHANGELOG.md` (newest first) · `OWNER_ACTIONS.md` · `COMMANDS.md` · `SIGNING_KEYS.md` ·
-`docs/play-store/STORE_RELEASE.md` · `docs/DOWNLOAD.md` · `SESSION_COORDINATION.md` · `legal/*` ·
-`docs/play-store/listings.md` · `docs/app-store/IOS.md` · `docs/plans/FOUR-APP-FLOWS.md` · `docs/plans/CONNECTION-MAP.md` ·
-the two newest plans `docs/plans/menu-ai-maps-money-2026-10-01.md` and
-`docs/plans/cod-menus-payouts-playstore-2026-10-02.md`.
-
-`SESSION_COORDINATION.md`, `FOUR-APP-FLOWS.md` and `CONNECTION-MAP.md` carry a dated
-"what changed since" note at the top; the body below it is from late September.
-
-**Historical (true when written, not updated since — do not treat as current; each one carries a
-"HISTORICAL" banner at the top since 6 Oct):** at the root (kept there because
-`scripts/diagnostics.js` requires them) `PRD.md`, `TAD.md`, `APP_FLOW.md`, `DATABASE_SPEC.md`,
-`FRONTEND_SPEC.md`, `IMPLEMENTATION_PLAN.md`, `MENTAL_MODEL.md`, `FEATURE_TICKETS.md`,
-`TEAMMATE_GUIDE.md`, `OBSERVABILITY.md`, `SEO_PERFORMANCE.md`, `TESTING_STRATEGY.md`,
-`SECURITY_ACCESS.md`, `AI_RECOVERY.md`, `SLIDES.html`; in `docs/history/` (moved 17 Oct)
-`FEATURES_PLAN.md`, `MASTER_FIX_PLAN.md`, `REBUILD_PLAN.md`, `SCALE_PLAN.md`, `PAYMENTS_PLAN.md`,
-`OWNER_SETUP.md`, `FREE_DEPLOYMENT_GUIDE.md`, `QUICK_BITE_COMPLETE_RESEARCH.md`, `TEST_PLAN.md`;
-and `security/SECURITY_CHECKLIST.md`, `build/MANIFEST.md`, `build/chunk-*.md`, `design/*`
-(customer mock-ups in `design/customer-screens/`), and the older `docs/plans/*` audits. Several describe a
-Cloudflare tunnel, seeded `pass123` accounts, wallets and Google Maps — all since removed or
-replaced.
+**`docs/README.md`** answers "where do I find X" and **`docs/FOLDER_MAP.md`** "which folder holds
+what, where does a new file go". Living documents: this file, `AGENTS.md`, `README.md`,
+`CHANGELOG.md`, `OWNER_ACTIONS.md`, `COMMANDS.md`, `SIGNING_KEYS.md`, `SESSION_COORDINATION.md`
+(rules), everything in `docs/` except `docs/history/`, `docs/plans/` older than October, and
+`docs/prompts/`; `legal/*` (served live). **Historical** (true when written, not current, each
+with a HISTORICAL banner): `docs/history/*` and the 15 September files kept at the root because
+`scripts/diagnostics.js` requires them there (list in `docs/FOLDER_MAP.md` §3), plus
+`security/`, `design/`, `build/MANIFEST.md`, `build/chunk-*.md`. Several describe a Cloudflare
+tunnel, seeded `pass123` accounts, wallets and Google Maps — all since removed or replaced.
 
 ## 10. Claude skills installed on the owner's PC (user level, not in this repo)
 

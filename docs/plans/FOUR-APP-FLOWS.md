@@ -1,5 +1,12 @@
 # Four-app flows: every case, for the four people behind the apps
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
+> **17 Oct 2026:** the current maps of the code are in `docs/` (start at `docs/README.md`; folders
+> in `docs/FOLDER_MAP.md`). Since the note below: customer codes go by **email** (Brevo), one
+> account can hold several roles (`docs/AUTH_AND_ROLES.md`), packages are final
+> (`in.quickbites.app`, `in.quickbite.rider`). Where this file and the code disagree, the code wins.
+>
 > **Updated 6 Oct 2026 — what changed since this was written (25 Sep):**
 > - **Sign-in:** live sends real SMS codes through MSG91 (waiting on the DLT
 >   template). The shared test code still exists as a fallback but on live it must

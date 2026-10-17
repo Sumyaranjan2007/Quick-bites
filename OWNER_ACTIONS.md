@@ -1,5 +1,7 @@
 # What only you can do
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
 **Version:** 1.3.0
 **Date:** 5 October 2026 (Part 0 is current; Parts 1–2 are from 20 September and
 partly superseded — where they disagree, Part 0 wins)
@@ -110,10 +112,8 @@ and back again the day DLT is approved — step by step in **J** below.
    listing from `docs/play-store/listings.md`; upload the graphics from
    `build/QuickBites-PlayStore-graphics.zip` and the bundles from `build/aab/`.
    The Admin app stays **private** (APK only).
-4. **App signing:** when Play Console shows its encryption public key for "use
-   an existing key", send it to the developer so the existing keys can be
-   uploaded with Google's PEPK tool. This keeps Play updates compatible with
-   the apps already on phones.
+4. **App signing:** ~~upload the existing keys with PEPK~~ — replaced on 16 Oct 2026: Play
+   manages the app signing key; our keystores are upload keys (`docs/RELEASE_AND_STORES.md`).
 5. **App access:** give Google's reviewers the reviewer phone number and code
    (`OTP_REVIEW_PHONE` / `OTP_REVIEW_CODE` on Railway), plus the demo restaurant
    and demo rider logins from step C3.

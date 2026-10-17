@@ -1,10 +1,13 @@
 # Quick Bites — Commands
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
 **Version:** 4.1.0
-**Date:** 5 October 2026
+**Date:** 5 October 2026 (suite count and doc tools updated 17 October 2026)
 
 Copy-paste commands for humans. Everything here is run from the repository root
-unless stated otherwise. The full handoff is `CLAUDE.md`.
+unless stated otherwise. The full handoff is `CLAUDE.md`. Where files go: `docs/FOLDER_MAP.md`;
+testing detail: `docs/TESTING.md`; deploy and fixes: `docs/RUNBOOK.md`.
 
 ## The ones used every day (October 2026)
 
@@ -12,7 +15,7 @@ unless stated otherwise. The full handoff is `CLAUDE.md`.
 node scripts/run-backend-tests.mjs
 ```
 
-The gate: **81 backend suites**, about 100 seconds. It takes a machine-wide lock,
+The gate: **87 backend suites**, about 110 seconds. It takes a machine-wide lock,
 so a second run waits instead of colliding. On Windows the `onboarding` suite can
 fail inside the full run with `EACCES` on port 5040 (a port Windows reserves); it
 passes on its own.
@@ -23,6 +26,13 @@ QB_DATA_DIR=$(mktemp -d) npx tsx apps/backend-api/src/test/otp.test.ts
 
 One suite on its own. Without a throwaway `QB_DATA_DIR` a suite refuses to run,
 because it would write into the developer store.
+
+```bash
+node scripts/docs/route-inventory.mjs
+```
+
+Regenerates `docs/generated/ROUTES.md` (every endpoint, guard, caller) and
+`docs/generated/APP_CALLS.md` after a route changes. Reads files only.
 
 ```bash
 bash scripts/build-apks.sh --aab

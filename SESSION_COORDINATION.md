@@ -1,5 +1,12 @@
 # Session coordination — two Claude sessions, one repository
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
+> **17 Oct 2026:** the current maps of the code are in `docs/` (start at `docs/README.md`; folders
+> in `docs/FOLDER_MAP.md`). Since the note below: customer codes go by **email** (Brevo), one
+> account can hold several roles (`docs/AUTH_AND_ROLES.md`), packages are final
+> (`in.quickbites.app`, `in.quickbite.rider`). Where this file and the code disagree, the code wins.
+>
 > **6 Oct 2026:** the coordination *rules* below still apply whenever two
 > sessions share this folder (claim files here, stage by path, never stash).
 > The session table and the claimed-file lists are from September: the

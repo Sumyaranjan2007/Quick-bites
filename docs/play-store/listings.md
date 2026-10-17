@@ -1,5 +1,7 @@
 # Play Store listings — Quick Bites, Quick Bites Partner, Quick Bites Rider
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
 Copy each block into Play Console → *Grow users → Store presence → Main store listing*.
 Limits: app name 30 characters, short description 80, full description 4,000.
 Written to Play's metadata policy: no "best/#1/top", no prices or offers that may

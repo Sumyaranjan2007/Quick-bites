@@ -6,6 +6,42 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-17] -- Claude Opus 5.5 -- Folders organised; the whole project mapped in docs/
+
+> **For the owner.** Nothing about the apps or the server changed: no code, setting or build.
+> Old planning papers moved into `docs/history/`, the store and download guides into `docs/`,
+> the customer mock-ups into `design/customer-screens/`, and one release-archive folder was
+> renamed `v11-best-so-far-2026-09-26` (you approved all of it). Leftovers were kept, filed in
+> `D:\my all projects\quick-bites-old-files\` and labelled in its `README.txt` — nothing was deleted.
+> **`docs/FOLDER_MAP.md`** now says which folder holds what and where every new file goes, and
+> every other document points to it. Please move the Firebase private key out of Downloads
+> into your password manager (`docs/FOLDER_MAP.md` §2).
+
+- Moves (`3caa076`, `git mv`): 9 historical root docs → `docs/history/` (+ index); `STORE_RELEASE.md`
+  → `docs/play-store/`; `DOWNLOAD.md` → `docs/`; `design for customers/` → `design/customer-screens/`.
+  15 historical docs stay at the root because `scripts/diagnostics.js:39-53` (CI) requires them.
+  Plan and outcome: `docs/ORGANIZATION_PLAN.md`.
+- Outside the repo: worktree `qb-sessionC` moved with `git worktree move` into `quick-bites-old-files`;
+  `scratch/` and four September APKs from Downloads filed there; branches `builder/s10-alt`,
+  `brain-sync-b` renamed `archive/2026-09-25-*`; `build/screenshots/README.txt` labels old screenshots.
+- New maps, each with `file:line` pointers and "verified at" commit: `docs/README.md` (index),
+  `FOLDER_MAP`, `SYSTEM_MAP`, `BACKEND_MAP`, `APPS_MAP`, `DATA_MODEL`, `AUTH_AND_ROLES`, `MONEY_FLOWS`,
+  `NOTIFICATIONS_AND_TRACKING`, `CONFIG_AND_SECRETS` (names only), `TESTING` (all 87 suites),
+  `RELEASE_AND_STORES`, `RUNBOOK`, `KNOWN_ISSUES`, `DECISIONS`, `OPTIMIZATION_BACKLOG` (proposals only).
+- New read-only tool `scripts/docs/route-inventory.mjs` → `docs/generated/ROUTES.md` (285 endpoints:
+  guard, schema, app caller) and `docs/generated/APP_CALLS.md`. It reads files as text; it starts nothing.
+- `CLAUDE.md` shortened to a start-here page (money rules §4 and working rules §8 unchanged). Doc
+  fixes where the code disagreed: suites are 87 (not 84/81); repositories are not the only store
+  writers; `SIGNING_KEYS.md` and `OWNER_ACTIONS.md` no longer say PEPK (Google-managed since 16 Oct).
+- Verified open issues (not fixed here): orders never store `customerPhone` (rider "Call customer"
+  has no number); malformed `Origin` → 500 not 403; pending confirm links in memory; payee text
+  still says "weekly run". Details `docs/KNOWN_ISSUES.md`.
+- Checks before and after identical to `c25685c`: gate 1344 passed / 0 failed (`fssaiBadge`'s known
+  Windows exit crash only), typecheck, secrets, i18n, APK secrets, hardcoded URLs, diagnostics 34/34,
+  web build; the four `expo config --type introspect` outputs byte-identical.
+
+---
+
 ## [2026-10-17] -- Claude Opus 5.5 -- Confirm link fixed on live; every step of it now says what to do next
 
 > **For the owner.** Tapping **Confirm** on the emailed page showed "INTERNAL_SERVER_ERROR" on

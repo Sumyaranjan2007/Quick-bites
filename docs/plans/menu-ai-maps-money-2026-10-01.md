@@ -1,5 +1,7 @@
 # Plan — bulk menu, AI menu, document downloads, maps, delivery money (1 Oct 2026)
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
 Owner's request, in seven parts. Every item says what is wrong or missing today (found in the
 code or on the live server), what changes, and what must NOT change. Built as v12; every APK
 installs as an update over v11.

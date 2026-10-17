@@ -1,5 +1,7 @@
 # Store Release Guide — Google Play & Apple App Store
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](../README.md).
+
 Status of each app, how to build a signed release, and the steps that must be
 done by a human in Play Console / App Store Connect.
 

@@ -1,5 +1,7 @@
 # Quick Bites — getting an AI back on track
 
+> **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
+
 **Updated:** 6 October 2026 (replaces the 6 September version, whose protocol
 pointed at the old chunk plan, `MANIFEST.md` and a stack that no longer exists)
 
