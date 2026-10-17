@@ -323,3 +323,16 @@ Ponytail), `ui-ux-designer` (design library + React Native UI rules, from UI/UX 
 `less-token` (terse replies, from Caveman), `cleancode` (Karpathy guidelines). Use
 `less-token` sparingly with this owner: decisions about money, launch or settings need
 plain full sentences.
+
+Added 17 Oct 2026 (user level, so every session on this PC has them):
+- Skills: `vercel-react-native-skills` (in the skills folder); plugins `expo` (official Expo skills:
+  animation, native UI, design system, upgrade, store submission; its `eas-update` skill does not
+  apply, no OTA) and `building-react-native-apps` (Callstack: RN best practices, navigation, upgrades).
+- MCP servers (in `~/.claude.json`): **mobile-mcp** (drives the emulator or a USB phone: taps,
+  screenshots, crash logs; `ANDROID_HOME` set in its entry), **context7** (current library docs),
+  **rea** (reverse-engineer-anything; reads APKs with JADX, the pinned JAR at
+  `~/.local/share/rea/android/jadx-headless-mcp-0.7.1-all.jar`, JDK 17), and the Expo plugin's remote
+  MCP (needs an Expo sign-in the first time). New servers load in a new session.
+- APK study rule: learn behaviour and patterns, rebuild in our own code. Never copy decompiled code,
+  images, animations or branding from another app (copyright, and Google Play's impersonation policy).
+  The apps run the old React Native architecture, so Reanimated 4 is out; Reanimated 3.x works on SDK 54.
