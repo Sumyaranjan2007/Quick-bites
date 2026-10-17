@@ -99,3 +99,15 @@ R6 (first round) is fixed by `c449965` (4xx logged at WARN). R1–R5, R7 and D1,
 | T3 | Note | `db/repositories/userRepository.ts` `anonymiseCustomerHistory` | Support tickets raised by a deleted customer keep `raisedByName` and their messages (same class as R2, older than K1). | Add `supportTickets` (by `raisedByUserId`) to the same function when B6 touches deletion. | open |
 
 R2, R3 closed. R1 waits on the owner. Still open: R4, R5, R7, S1 (offer race, blocking for B4), S2–S5, B1-1, B1-2, B7-1, B7-2, D1, D6, D8.
+
+---
+
+## 18 Oct 2026 — re-review `251372a` + `5bddb01` (B4 offer race)
+
+**Verdict: approve.** S1 is closed: after the awaited ranking, `offerTripToNearbyRiders` re-checks `order.riderId` and `liveOffer`, rebuilds `ridersHoldingAnOffer` and skips a now-holding rider, with no await before `riderOffer` is written (`tripOffers.ts:~168-185`). Order updates mutate the stored object in place (`orderRepository.ts`), so the function's `order` is current and its write-back loses nothing. `riderTripPush` 35/35 on this machine, incl. "Two offers for one trip at the same instant: one rider asked, once". S2 (alert counts distinct riders) and S3 (India midnight) closed. B1-1 moved to the owner (plan F-12).
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| S6 | Low | `modules/orders/tripOffers.ts` (the S1 re-check) | The re-check after the await repeats `riderId` and `liveOffer` but not `offerableNow(order)`: an order cancelled (or otherwise moved on) while riders were being ranked still gets an offer and a push; the claim gate then refuses it, so no money moves, but a rider is woken for nothing. | Add `|| !offerableNow(order)` to the same line. | open |
+
+Still open: R4, R5, R7, S4, S5, S6, B1-2, B7-1, B7-2, T1, T2, T3, D1, D6, D8; R1 and B1-1 with the owner.
