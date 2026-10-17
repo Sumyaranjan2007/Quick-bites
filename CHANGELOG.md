@@ -6,6 +6,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B4 race closed (review S1), alert counts riders (S2), India's midnight (S3)
+
+> **For the owner.** Fixed a rare dispatch fault the code reviewer found: if a rider passed on a
+> trip at the same moment the background check ran, two riders could be offered the same trip
+> (and one rider two trips at once). Now exactly one rider is asked at a time, always. The
+> "no rider found" alert now counts different riders, not repeat offers, and "trips today" (who
+> gets the next job on a tie) resets at midnight India time, not 5:30 am.
+
+- `tripOffers.offerTripToNearbyRiders`: after the ranking (which awaits), the order's offer and
+  the riders already holding one are re-checked in one synchronous block before the offer is
+  written. Checks: `riderTripPush` +2 (two calls at once → one push, round 1; two trips → two
+  riders); both fail on the old code.
+- Not done, owner decision: review B1-1 (see master plan F-12).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Security M1 (phone claim) and review follow-ups R2, R3
 
 > **For the owner.** Closed a hole the security reviewer proved: any signed-in customer could put

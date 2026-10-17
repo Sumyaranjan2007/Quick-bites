@@ -446,6 +446,32 @@ try {
   });
   memoryStore.orders.delete(otherTrip.id);
 
+  // Review S1: two callers at the same instant (a decline and a sweep, say).
+  const savedWaveOffer = (memoryStore.orders.get(waveOrder.id) as any).riderOffer;
+  clearOffers();
+  const raceOrder: any = { ...onlineOrder, id: 'ord_race', orderNumber: 'QB-RACE', offeredToRiderIds: [], declinedByRiderIds: [] };
+  memoryStore.orders.set(raceOrder.id, raceOrder);
+  captureSends();
+  const [r1, r2] = await Promise.all([offerTripToNearbyRiders(raceOrder), offerTripToNearbyRiders(raceOrder)]);
+  it('Two offers for one trip at the same instant: one rider asked, once (review S1)', () => {
+    assert.equal(r1.length + r2.length, 1, `${JSON.stringify(r1)} ${JSON.stringify(r2)}`);
+    assert.equal(tripPushes().length, 1);
+    assert.equal((memoryStore.orders.get(raceOrder.id) as any).riderOffer.round, 1);
+  });
+  clearOffers();
+  const raceA: any = { ...onlineOrder, id: 'ord_race_a', orderNumber: 'QB-RA', offeredToRiderIds: [], declinedByRiderIds: [] };
+  const raceB: any = { ...onlineOrder, id: 'ord_race_b', orderNumber: 'QB-RB', offeredToRiderIds: [], declinedByRiderIds: [] };
+  memoryStore.orders.set(raceA.id, raceA);
+  memoryStore.orders.set(raceB.id, raceB);
+  const [ra, rb] = await Promise.all([offerTripToNearbyRiders(raceA), offerTripToNearbyRiders(raceB)]);
+  it('...and two trips ready at once go to two different riders (D4 holds)', () => {
+    assert.equal(ra.length, 1);
+    assert.equal(rb.length, 1);
+    assert.notEqual(ra[0], rb[0]);
+  });
+  for (const id of [raceOrder.id, raceA.id, raceB.id]) memoryStore.orders.delete(id);
+  (memoryStore.orders.get(waveOrder.id) as any).riderOffer = savedWaveOffer;
+
   expire(waveOrder.id);
   captureSends();
   const second = await offerTripToNearbyRiders(waveOrder);

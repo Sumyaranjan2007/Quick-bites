@@ -61,11 +61,12 @@ function ridersHoldingAnOffer(now: number): Set<string> {
 
 /** Trips each rider has taken today, for the tie-break: work goes to whoever has had less. */
 function tripsToday(): Map<string, number> {
-  const since = new Date();
-  since.setHours(0, 0, 0, 0);
+  // Today in India: the server runs on UTC, whose midnight is 05:30 here (review S3).
+  const IST_MS = 5.5 * 3_600_000;
+  const since = Math.floor((Date.now() + IST_MS) / 86_400_000) * 86_400_000 - IST_MS;
   const counts = new Map<string, number>();
   for (const o of memoryStore.orders.values() as Iterable<Order>) {
-    if (!o.riderId || !o.riderAssignedAt || Date.parse(o.riderAssignedAt) < since.getTime()) continue;
+    if (!o.riderId || !o.riderAssignedAt || Date.parse(o.riderAssignedAt) < since) continue;
     counts.set(o.riderId, (counts.get(o.riderId) || 0) + 1);
   }
   return counts;
@@ -157,9 +158,17 @@ export async function offerTripToNearbyRiders(passed: Order): Promise<string[]> 
     const now = Date.now();
     if (liveOffer(order, now)) return [];
 
-    const previous = order.riderOffer;
-    const [rider] = await eligibleRidersFor(order, now);
+    const candidates = await eligibleRidersFor(order, now);
+    // Review S1 (18 Oct 2026): the ranking above awaits, and six callers (ready,
+    // sweep, expiry timer, decline, ops rescue, a trip given back) can run at
+    // once. So the checks are repeated here, with no await between them and
+    // writing the offer: a second caller then sees the first one's offer, and a
+    // rider who picked up another trip's offer meanwhile is skipped.
+    if (order.riderId || liveOffer(order, now)) return [];
+    const holding = ridersHoldingAnOffer(now);
+    const rider = candidates.find(r => !holding.has(r.id));
     if (!rider) return [];
+    const previous = order.riderOffer;
 
     const rates = getActiveRates();
     const seconds = Number(rates.riderOfferSeconds) || 108;
@@ -199,8 +208,11 @@ export async function offerTripToNearbyRiders(passed: Order): Promise<string[]> 
       await riderRepository.recordOffer(rider.id);
     }
 
-    // After N riders, operations hears about it once; offers keep cycling (owner Q6).
-    if (round >= (Number(rates.riderOffersBeforeAlert) || 5) && !order.riderSearchAlertedAt) {
+    // After N different riders, operations hears about it once; offers keep cycling
+    // (owner Q6). Counted in riders, not offers (review S2): one rider asked five
+    // times is not five riders.
+    const ridersAsked = new Set([...(order.offeredToRiderIds || []), rider.id]).size;
+    if (ridersAsked >= (Number(rates.riderOffersBeforeAlert) || 5) && !order.riderSearchAlertedAt) {
       const raisedAt = new Date().toISOString();
       await orderRepository.markRiderSearchAlerted(order.id, raisedAt);
       emitOpsAlert({
@@ -209,7 +221,7 @@ export async function offerTripToNearbyRiders(passed: Order): Promise<string[]> 
         orderNumber: order.orderNumber,
         restaurantId: order.restaurantId,
         restaurantName: order.restaurantName,
-        detail: `${round} riders asked; still offering. Assign one by hand if needed.`,
+        detail: `${ridersAsked} riders asked; still offering. Assign one by hand if needed.`,
         raisedAt
       });
       void notifyAdminsNoRiderFound({

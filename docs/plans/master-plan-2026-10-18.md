@@ -250,6 +250,8 @@ Each line: who found it, what changes, status. Full detail in the role's own fil
 |---|---|---|---|
 | F-1 | security (`docs/SECURITY.md`) | M1: a profile edit could take another account's phone → refused (`PHONE_IN_USE`) | ✅ 18 Oct (main) |
 | F-1b | security round 2 | L7: pinless address could pay cash for any trip → cash needs a pin (`COD_NEEDS_PIN`); L1 (sign-in routes) raw errors → error handler; L8 (record link redirect) goes with L5 | ✅ L7, L1-auth 18 Oct (main); L8 with L5 (parallel) |
+| F-1c | review round 2 | S1 race in B4 offers (two riders, or one rider two trips) → fixed; S2 alert counts riders; S3 "today" in India time | ✅ 18 Oct (main) |
+| F-12 | review B1-1 | With "one rate for the whole trip", a short-trip rate above about ₹15/km (₹8 at 35 km) makes a 28 km trip pay more than a 35 km one (₹20/km: 28 km ₹300, 35 km ₹280). **Owner decision**: (a) keep it and the Rates screen refuses such settings, or (b) pay each km at its own rate (₹12 for the first 4 km, then each further km a little less, down to ₹8): longer always pays more, any rate allowed; 35 km would pay about ₹358 instead of ₹280 | ⏳ owner |
 | F-2 | review R2, R3 | deletion now also strips refund cases; expired confirm links pruned by the sweeper | ✅ 18 Oct (main) |
 | F-3 | review R1 | K1 made **automatic RazorpayX refund payout links** reachable (`refunds.ts:234`; before, no phone meant the manual queue). **Owner decision**: keep automatic links, or keep refunds manual until RazorpayX is live | ⏳ owner |
 | F-4 | review D1, D2 | No Roads/Routes call per GPS fix: B11 projects the rider onto the `computeRoutes` polyline on our server (snap only if off-route); B3 recomputes road time only on status change/off-route | rule for B2/B11 |
