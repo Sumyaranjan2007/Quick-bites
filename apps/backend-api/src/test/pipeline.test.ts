@@ -16,6 +16,7 @@ import { initSocketServer, closeSocketServer } from '../sockets/socketServer.ts'
 import { seedDatabase } from '../db/seed.ts';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import crypto from 'crypto';
+import { offerTo } from './helpers/offerTo.ts';
 
 const PORT = 5187;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -210,6 +211,7 @@ async function run() {
     p => p.riderStage === 'HEADING_TO_RESTAURANT');
   const kitchenHeard = waitFor(partnerSock, 'order:status_update', 6000,
     p => p.riderStage === 'HEADING_TO_RESTAURANT');
+  offerTo(orderId, 'usr_rider_01');
   const claim = await api(`/riders/orders/${orderId}/claim`, { method: 'POST', body: {} }, rider.token);
   check('Delivery partner claims the order', claim.status === 200,
     `status ${claim.status} ${JSON.stringify(claim.json).slice(0, 200)}`);
@@ -495,6 +497,7 @@ async function run() {
   }, partner.token);
 
   // Claimed while still cooking, which the broadcast explicitly allows.
+  offerTo(earlyId, 'usr_rider_01');
   const earlyClaim = await api(`/riders/orders/${earlyId}/claim`, { method: 'POST', body: {} }, rider.token);
   check('A rider can claim an order that is still cooking', earlyClaim.status === 200,
     // The code, not just the status: three different guards return 409 here

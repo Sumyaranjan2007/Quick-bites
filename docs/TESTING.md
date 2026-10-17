@@ -28,7 +28,7 @@ node scripts/build-web.mjs           # the /partner and /admin websites build
 **Baseline on 17 Oct 2026 (`c25685c` and `3caa076`):** 1344 checks passed, 0 failed; the run
 reports `1 SUITE(S) FAILED: fssaiBadge` only because of the known Windows exit crash below.
 
-**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **92** on disk (all listed in the runner; `deliveryRadius`, `catalogueCuration`, `helpChat`, `kitchenTicket` and `personRecord` added 18 Oct).
+**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **93** on disk (all listed in the runner; `deliveryRadius`, `catalogueCuration`, `helpChat`, `kitchenTicket`, `personRecord` and `honestEta` added 18 Oct).
 
 ## Known environmental failures (Windows, not defects)
 
@@ -138,6 +138,7 @@ Description = the suite's own header line.
 | `policies` | Payment policies, and the sweep that goes looking for money gone wrong. |
 | `profileEdits` | The restaurant profile: two versions of one restaurant, and the review that |
 | `profitGuards` | Money the platform used to give back, and the controls that stop it. |
+| `honestEta` | B3: kitchen's measured cooking time (20 orders, by cart size), rider's ride to the kitchen, promise frozen at checkout, "ahead" at 3+ min, quote estimate. |
 | `catalogueCuration` | B5: kitchen type is the partner's (reviewed edit), Pure Veg seal staff-only and outranks it, section switch everywhere (menu, quote, checkout, search, back-at time), recommended list first and as the no-location list. |
 | `deliveryRadius` | One 35 km radius on the map (list and checkout), closed kitchens listed after open ones, rider pay sliding with distance, cash only up to 15 road km, the 35 km applied once (master plan B1). |
 | `helpChat` | B8: help topics per app (no customer topic for partner/rider), fixed answers from live data (order status + arrival, refund case, owed, cash, documents), own orders only (customer-app session of a partner is a customer), "Talk to us" ticket with the server-rebuilt chat, one ticket per double tap, 5 an hour, staff reply pushed, raiser's reply reopens. |

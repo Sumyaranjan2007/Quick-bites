@@ -227,6 +227,8 @@ export const orderRepository = {
      */
     order.riderStage = 'HEADING_TO_RESTAURANT';
     order.riderAssignedAt = new Date().toISOString();
+    // Taken: the one-rider offer is over, whoever assigned it (B4).
+    order.riderOffer = undefined;
     order.updatedAt = order.riderAssignedAt;
     memoryStore.orders.set(id, order);
     triggerAutoSave();

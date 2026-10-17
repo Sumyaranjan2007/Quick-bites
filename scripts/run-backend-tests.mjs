@@ -108,6 +108,7 @@ const SUITES = [
   'kitchenTicket',
   'personRecord',
   'catalogueCuration',
+  'honestEta',
   'bodyContract',
   'durableMoney',
   'duplicateCapture',

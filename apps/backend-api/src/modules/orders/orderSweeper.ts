@@ -41,7 +41,7 @@ import {
   notifyAdminsRiderWentSilent,
   notifyAdminsDeliveryOverdue
 } from '../../notifications/adminNotifier.ts';
-import { offerTripToNearbyRiders } from './tripOffers.ts';
+import { offerTripToNearbyRiders, liveOffer } from './tripOffers.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
@@ -191,48 +191,39 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
 
     // From here down: accepted, being cooked, or cooked — and no rider.
     if (order.riderId) continue;
-    if (order.riderSearchAlertedAt) continue;
 
     // Counted from acceptance rather than from when the order was placed: the
     // clock on finding a rider starts when there is something to collect.
     const waiting = minutesSince(order.acceptedAt || order.createdAt, now);
 
     /*
-     * ---------------------------------------------------------------------
-     * WIDEN THE SEARCH BEFORE GIVING UP ON IT.
-     * ---------------------------------------------------------------------
-     * `offerTripToNearbyRiders` fires once, from the two places a trip becomes
-     * available. It wakes the nearest few. If those riders are asleep, NOBODY
-     * ELSE IS EVER ASKED — rider seven never hears about it and the order waits
-     * here for NO_RIDER_FOUND while riders are still available.
+     * ONE RIDER AT A TIME (owner Q6, 18 Oct 2026; master plan B4).
      *
-     * So each sweep offers it to the next group. The riders already asked are
-     * skipped by `offeredToRiderIds`, which is what makes this widen rather than
-     * repeat.
-     *
-     * AND IT RUNS BEFORE THE ALERT. Telling the owner "no rider found" while the
-     * platform is still actively offering the trip is an alert about a problem
-     * that may not exist yet, and one they cannot do anything useful about. The
-     * alert now means what it says: everybody who could take this has been asked.
+     * `offerTripToNearbyRiders` offers the trip to the single best rider for 108 s
+     * and does nothing while that offer runs. Each offer has its own timer for the
+     * exact expiry; this sweep is the backstop after a restart (the offer is saved
+     * on the order) and the retry for a trip nobody could be offered last time.
+     * It keeps cycling after operations has been alerted.
      */
-    if (waiting >= rates.riderOfferWaveMinutes) {
-      const woken = await offerTripToNearbyRiders(order);
-      if (woken.length > 0) {
-        result.widened.push({ orderId: order.id, riders: woken.length });
-        console.log(JSON.stringify({
-          level: 'INFO',
-          timestamp: now.toISOString(),
-          event: 'RIDER_SEARCH_WIDENED',
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          riders: woken.length,
-          waitedMinutes: Math.round(waiting)
-        }));
-        // Somebody new has just been asked. Raising NO_RIDER_FOUND in the same
-        // tick would alert on a search that is still in progress.
-        continue;
-      }
+    const asked = await offerTripToNearbyRiders(order);
+    if (asked.length > 0) {
+      result.widened.push({ orderId: order.id, riders: asked.length });
+      console.log(JSON.stringify({
+        level: 'INFO',
+        timestamp: now.toISOString(),
+        event: 'RIDER_OFFER_MOVED_ON',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        riderId: asked[0],
+        waitedMinutes: Math.round(waiting)
+      }));
+      // Somebody has just been asked: the five-rider alert lives in the offer itself.
+      continue;
     }
+    // A rider is still looking at the offer.
+    if (liveOffer(memoryStore.orders.get(order.id) ?? order, now.getTime())) continue;
+    // Alerted already (by time, or after five riders): keep offering, never alert twice.
+    if (order.riderSearchAlertedAt) continue;
 
     if (waiting < config.RIDER_ASSIGN_ALERT_MINUTES) continue;
 

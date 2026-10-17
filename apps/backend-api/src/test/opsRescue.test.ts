@@ -11,6 +11,7 @@ import { resetConfigsForTesting, createVersion } from '../modules/payments/prici
 import { resetLedgerForTesting, query as ledgerQuery } from '../modules/payments/ledger.ts';
 import { lateCashCancels } from '../modules/orders/cancellationFee.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
+import { offerTo } from './helpers/offerTo.ts';
 
 const PORT = 5266;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -119,6 +120,7 @@ try {
     const o = await place();
     await status(o.id, 'ACCEPTED');
     await status(o.id, 'PREPARING');
+    offerTo(o.id, rider1.id);
     const c = await api(`/riders/orders/${o.id}/claim`, { method: 'POST', body: {} }, r1);
     if (c.status !== 200) console.log('   claim refused:', JSON.stringify(c.json).slice(0, 300));
     return o;

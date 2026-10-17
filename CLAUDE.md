@@ -2,7 +2,7 @@
 
 > **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
 
-**Last updated:** 18 October 2026 (B5 built: kitchen type + admin-only Pure Veg seal, menu section switch, recommended restaurants; B8 help chat being built by a parallel session `b8-help-chat` in this folder — check `git status` and `docs/reviews/REVIEW_LOG.md` before editing support files · earlier: master plan Stage B1 built: one 35 km radius, rider ₹/km sliding ₹12→₹8, cash only up to 15 km — `CHANGELOG.md` top; next step **B2** Google Maps on the server, waits for the owner's keys, else **B3/B4/B5**; seniordev + cleancode are the main skills, §10) · previously 17 October 2026 (folders organised and the whole project mapped in `docs/` — start at `docs/FOLDER_MAP.md` and `docs/README.md`; one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 18 October 2026 (B4 one-rider dispatch + B3 honest ETA built by the main session; B8 help chat, B10 kitchen ticket, B7 person record and Stage F L2/L4/R6 by the parallel session `b8-help-chat`; who owns which files: master plan "Who builds what" · earlier: B5 built: kitchen type + admin-only Pure Veg seal, menu section switch, recommended restaurants; B8 help chat being built by a parallel session `b8-help-chat` in this folder — check `git status` and `docs/reviews/REVIEW_LOG.md` before editing support files · earlier: master plan Stage B1 built: one 35 km radius, rider ₹/km sliding ₹12→₹8, cash only up to 15 km — `CHANGELOG.md` top; next step **B2** Google Maps on the server, waits for the owner's keys, else **B3/B4/B5**; seniordev + cleancode are the main skills, §10) · previously 17 October 2026 (folders organised and the whole project mapped in `docs/` — start at `docs/FOLDER_MAP.md` and `docs/README.md`; one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -153,7 +153,7 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 ## 5. Daily commands
 
 ```bash
-node scripts/run-backend-tests.mjs                 # THE gate: 89 backend suites, ~110 s, takes a machine-wide lock
+node scripts/run-backend-tests.mjs                 # THE gate: 93 backend suites, ~110 s, takes a machine-wide lock
 node scripts/check-secrets.mjs                     # no secrets in tracked files
 npx turbo typecheck                                # all workspaces
 node scripts/check-i18n.mjs ; node scripts/check-apk-secrets.mjs

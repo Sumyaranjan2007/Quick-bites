@@ -17,6 +17,7 @@ import {
   type SocketRole
 } from './socketAuth.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
+import { estimateArrival } from '../modules/orders/eta.ts';
 
 let ioInstance: SocketIOServer | null = null;
 
@@ -282,12 +283,15 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         return refuse('rider:location', data.orderId, decision.reason);
       }
 
+      const stored = memoryStore.orders.get(data.orderId) as Order | undefined;
       const payload = {
         orderId: data.orderId,
         lat: data.lat,
         lng: data.lng,
         bearing: Number.isFinite(data.bearing) ? data.bearing : 0,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        // Live arrival estimate (B3), straight line from this position.
+        ...(stored ? { eta: estimateArrival({ ...stored, riderCoordinates: { latitude: data.lat, longitude: data.lng } }) } : {})
       };
       // Relayed to order subscribers and admin
       socket.to(`order:${data.orderId}`).emit('rider:location_update', payload);
@@ -414,9 +418,12 @@ export function emitOrderStatusUpdate(
 ): void {
   if (!ioInstance) return;
 
+  const stored = memoryStore.orders.get(orderId) as Order | undefined;
   const payload = {
     ...data,
-    updatedAt: data.updatedAt || new Date().toISOString()
+    updatedAt: data.updatedAt || new Date().toISOString(),
+    // The arrival estimate, recomputed on every status change (B3).
+    ...(stored ? { eta: estimateArrival(stored) } : {})
   };
 
   ioInstance.to(`order:${orderId}`).emit('order:status_update', payload);
@@ -553,9 +560,12 @@ export function emitRiderLocation(
 ): void {
   if (!ioInstance) return;
 
+  const order = memoryStore.orders.get(orderId) as Order | undefined;
   const payload = {
     ...location,
-    updatedAt: location.updatedAt || new Date().toISOString()
+    updatedAt: location.updatedAt || new Date().toISOString(),
+    // The live arrival estimate with each position (B3): a straight-line figure, never a paid map call (review D2).
+    ...(order ? { eta: estimateArrival({ ...order, riderCoordinates: { latitude: location.lat, longitude: location.lng } }) } : {})
   };
 
   ioInstance.to(`order:${orderId}`).emit('rider:location_update', payload);

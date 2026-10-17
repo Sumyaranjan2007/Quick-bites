@@ -6,6 +6,36 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan B4 + B3: one rider at a time (108 s), honest delivery time
+
+> **For the owner.** (1) **Trips now go to one rider at a time**, the nearest free one first. They
+> have **108 seconds** to accept; if they pass or the time runs out, the next rider gets it at once.
+> After **5** riders, operations gets one alert and the offers keep going round. Both numbers are on
+> Admin → Rates. Rider apps on phones today keep working: they simply see only the trip offered to
+> them, and the countdown screen comes with the Rider app update (Stage E). (2) **Delivery times are
+> honest**: each kitchen's own cooking time (after its first 20 orders), plus the rider's ride to the
+> kitchen, plus the ride to the door. The time promised at checkout is kept, and tracking can say
+> **"We're ahead of time!"** when it will be 3+ minutes early (the card comes with the Customer app update).
+
+- B4 dispatch: `modules/orders/tripOffers.ts` (`offerTripToNearbyRiders` now one rider, `liveOffer`,
+  `moveOfferOnAfterDecline`, timer per offer), `Order.riderOffer`, rates `riderOfferSeconds` 108 and
+  `riderOffersBeforeAlert` 5 (`riderOfferWaveMinutes` retired); `orderSweeper` keeps offering and alerts
+  by time only when nobody can be asked; `riderRouter` claim refuses `OFFER_NOT_YOURS` / `OFFER_EXPIRED`,
+  list shows only the rider's own offer + `offerExpiresAt`, decline moves on at once; `assignRider` and ops
+  hand assignment clear the offer. A stale rider position ranks lower rather than excluding the rider
+  (today's app reports only after moving 50 m); strict once the Stage E app sends a heartbeat.
+- B3 ETA: `eta.ts` `kitchenPrepMinutes` (median of last 20 by cart size), rider-to-kitchen, `promisedArrivalAt`
+  frozen in `createOrder`, `eta.promisedAt`/`eta.ahead`; ETA added to `order:status_update` and
+  `rider:location_update`; quote `estimatedDeliveryMinutes`.
+- Checks: `riderTripPush` rewritten for one-at-a-time (33), new `honestEta` (13), test helper
+  `test/helpers/offerTo.ts` used by `flows`, `opsRescue`, `pipeline`, `regression`; 19 mutations caught
+  (11 dispatch, 8 ETA). `moneyPaths` caught a real gap (decline path did not save): fixed. Gate green except
+  the known Windows `fssaiBadge`; typecheck 7/7.
+- Pushed together with the parallel session's B8 (`a4b19c9`), B10 (`ec41f10`), B7 (`420d2b3`) and Stage F
+  (`c449965`), after this session's gate on the combined tree.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Stage F security: socket tokens pinned, browser origins narrowed, quieter error log
 
 > **For the owner.** Three small security tidy-ups from the 18 Oct audit, server only, nothing to do on

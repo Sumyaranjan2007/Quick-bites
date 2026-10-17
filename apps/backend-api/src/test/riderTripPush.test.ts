@@ -30,6 +30,11 @@
  * Writing that filter found a live defect. The offer LIST had the same mismatch
  * and nobody had noticed, because a 409 on a tap looks like bad luck rather than
  * a bug. That is V1 in the audit, and the checks for it are below.
+ *
+ * Since 18 Oct 2026 (owner Q6, master plan B4) a trip goes to ONE rider at a time,
+ * nearest first, for 108 s; a decline or expiry moves it to the next rider; after
+ * five riders operations is alerted once and the offers keep cycling; only the
+ * offered rider can accept, and only in time.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -39,7 +44,8 @@ import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
-import { offerTripToNearbyRiders, eligibleRidersFor, withdrawTripOffers } from '../modules/orders/tripOffers.ts';
+import { offerTripToNearbyRiders, eligibleRidersFor, withdrawTripOffers, moveOfferOnAfterDecline } from '../modules/orders/tripOffers.ts';
+import { offerTo } from './helpers/offerTo.ts';
 import { cashCeilingBlocks } from '../modules/orders/riderTrip.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { createVersion } from '../modules/payments/pricingConfig.ts';
@@ -294,57 +300,52 @@ try {
     );
   });
 
-  /* ---------------------------------------------------------------- *
-   *  NEAREST FIRST, AND NOT EVERYBODY                                *
-   * ---------------------------------------------------------------- */
-  console.log('\n-- Nearest to the kitchen first');
+  /** Ends every running offer, so a check about one rule is not decided by an earlier offer (B4: one per rider). */
+  const clearOffers = () => {
+    for (const o of memoryStore.orders.values() as any) delete o.riderOffer;
+  };
+  /** Makes a trip's running offer run out now, as 108 s passing would. */
+  const expire = (orderId: string) => {
+    const o: any = memoryStore.orders.get(orderId);
+    o.riderOffer = { ...o.riderOffer, expiresAt: new Date(Date.now() - 1000).toISOString() };
+  };
 
-  it('The rider 1 km from the kitchen is ordered before the one 9 km away', () => {
-    /*
-     * Nearest to the KITCHEN rather than to the customer: the rider's first job is
-     * to collect, and one three streets from the restaurant gets there while one
-     * near the delivery address is still crossing town.
-     */
-    const order = cashTargets.indexOf(near.id);
-    const later = cashTargets.indexOf(far.id);
-    assert.ok(order !== -1 && later !== -1, JSON.stringify(cashTargets));
-    assert.ok(order < later, `near was at ${order} and far at ${later}`);
+  /* ---------------------------------------------------------------- *
+   *  ONE RIDER AT A TIME, NEAREST FIRST (owner Q6, B4)               *
+   * ---------------------------------------------------------------- */
+  console.log('\n-- One rider at a time, nearest to the kitchen first');
+
+  it('A trip is offered to ONE rider, not a group', () => {
+    assert.deepEqual(cashTargets, [near.id], `offered to ${JSON.stringify(cashTargets)}`);
+    assert.equal(tripPushes().length === 0 ? 0 : 1, 1);
   });
 
-  /*
-   * A SECOND ORDER, assigned to the far rider, so they are mid-trip.
-   * Set up outside a check, because a check that only arranges state and asserts
-   * nothing is a check that cannot fail.
-   */
-  {
-    memoryStore.orders.set('ord_trip_busy', {
-      ...cashOrder,
-      id: 'ord_trip_busy',
-      orderNumber: 'QB-TRIP-BUSY',
-      riderId: far.id,
-      riderStage: 'HEADING_TO_RESTAURANT',
-      status: 'READY_FOR_PICKUP'
-    } as any);
-  }
+  clearOffers();
+  // A fresh trip: riders already asked about one rank after those who have not been.
+  const ranked = (await eligibleRidersFor({ ...cashOrder, id: 'ord_rank_probe', offeredToRiderIds: [] })).map(r => r.id);
+  it('The rider 1 km from the kitchen ranks before the one 9 km away', () => {
+    const a = ranked.indexOf(near.id);
+    const b = ranked.indexOf(far.id);
+    assert.ok(a !== -1 && b !== -1, JSON.stringify(ranked));
+    assert.ok(a < b, `near was at ${a} and far at ${b}`);
+  });
 
-  /*
-   * A FRESH ORDER, because the ones above now carry offer history.
-   *
-   * W1.2 added "never wake the same rider for the same order twice", which is what
-   * makes the waves widen. It also means any check reusing an order a rider has
-   * already been offered is asking a different question — and these two checks
-   * failed on exactly that when the skip went in, correctly.
-   */
+  // The far rider mid-trip, set up outside a check (a check that only arranges state cannot fail).
+  memoryStore.orders.set('ord_trip_busy', {
+    ...cashOrder,
+    id: 'ord_trip_busy',
+    orderNumber: 'QB-TRIP-BUSY',
+    riderId: far.id,
+    riderStage: 'HEADING_TO_RESTAURANT',
+    status: 'READY_FOR_PICKUP'
+  } as any);
   const busyProbe: any = { ...onlineOrder, id: 'ord_trip_busyprobe', orderNumber: 'QB-BUSYPROBE', offeredToRiderIds: [] };
   memoryStore.orders.set(busyProbe.id, busyProbe);
+  const busyRanked = (await eligibleRidersFor(busyProbe)).map(r => r.id);
 
-  captureSends();
-  const afterBusy = await offerTripToNearbyRiders(busyProbe);
-
-  it('and that is asserted, not just set up', () => {
-    assert.ok(!afterBusy.includes(far.id), 'a rider mid-trip was offered a second one');
-    assert.equal(pushedTo(far.userId).length, 0);
-    assert.ok(afterBusy.includes(near.id), 'the free rider stopped being offered anything');
+  it('A rider mid-trip is not offered a second one', () => {
+    assert.ok(!busyRanked.includes(far.id), 'a rider mid-trip is eligible');
+    assert.ok(busyRanked.includes(near.id), 'the free rider was dropped too, so this proves nothing');
   });
 
   /* ---------------------------------------------------------------- *
@@ -353,20 +354,15 @@ try {
   console.log('\n-- Nothing is sent for a trip nobody can take');
 
   captureSends();
-  const claimed = await offerTripToNearbyRiders({ ...onlineOrder, riderId: near.id } as any);
-
+  const claimed = await offerTripToNearbyRiders({ ...onlineOrder, id: 'ord_not_stored', riderId: near.id } as any);
   it('An order that already has a rider wakes nobody', () => {
     assert.deepEqual(claimed, []);
     assert.equal(tripPushes().length, 0, 'riders were woken for a trip that was already taken');
   });
 
   captureSends();
-  const tooEarly = await offerTripToNearbyRiders({ ...onlineOrder, status: 'ACCEPTED' } as any);
-
+  const tooEarly = await offerTripToNearbyRiders({ ...onlineOrder, id: 'ord_not_stored2', status: 'ACCEPTED' } as any);
   it('and neither does one the kitchen has not finished', () => {
-    // `offerableNow` reads the restaurant's own riderOfferAtStatus, defaulting to
-    // READY_FOR_PICKUP. A rider sent to a kitchen that has not started cooking
-    // waits on the pavement.
     assert.deepEqual(tooEarly, []);
     assert.equal(tripPushes().length, 0);
   });
@@ -376,26 +372,19 @@ try {
    * ---------------------------------------------------------------- */
   console.log('\n-- A broken push must not stop food being marked ready');
 
+  clearOffers();
   (fcmDispatcher as any).sendPushNotification = async () => {
     throw new Error('FCM is unreachable');
   };
-
   let threw: string | null = null;
-  const survived = await offerTripToNearbyRiders(onlineOrder).catch((e: any) => {
+  const survived = await offerTripToNearbyRiders(memoryStore.orders.get(onlineOrder.id) as any).catch((e: any) => {
     threw = e?.message || String(e);
     return null;
   });
-
   it('A COMPLETELY BROKEN PUSH DOES NOT THROW', () => {
-    /*
-     * The `tellTheKitchen` rule. Marking food ready must not fail because a Google
-     * credential expired — and this is called from the status route, so a throw
-     * here would 500 the kitchen's own tap.
-     */
     assert.equal(threw, null, `it threw: ${threw}`);
-    assert.deepEqual(survived, [], 'it reported riders it had not reached');
+    assert.deepEqual(survived, [], 'it reported a rider it had not reached');
   });
-
   (fcmDispatcher as any).sendPushNotification = realSend;
 
   /* ---------------------------------------------------------------- *
@@ -404,104 +393,78 @@ try {
   console.log('\n-- V1: the list no longer offers what the gate refuses');
 
   await riderRepository.update(atCeiling.id, { codCashInHand: 3000 } as any);
-  const ceilingLogin = await api('/auth/login', {
-    method: 'POST',
-    body: { email: `${atCeiling.id}@trip.test`, password: 'pass123' }
-  });
-
   it('The offer list and the claim gate use ONE eligibility function', () => {
-    /*
-     * V1 turned out to be a real defect. The claim gate refused a cash order at
-     * the ceiling; the list did not filter for it. So a rider at the limit was
-     * SHOWN cash trips, tapped one, and got a 409 — told off for accepting an
-     * offer the server had just made them. A 409 on a tap looks like bad luck
-     * rather than a bug, which is why it survived.
-     *
-     * Asserted against the source because the fixture cannot easily sign this
-     * synthetic rider in: what matters is that both paths call the same function
-     * rather than keeping two copies of the rule.
-     */
     const router = appSource('apps/backend-api/src/routes/riderRouter.ts');
     const uses = router.match(/cashCeilingBlocks\(/g) || [];
-    assert.ok(
-      uses.length >= 2,
-      `cashCeilingBlocks is called ${uses.length} time(s); the list and the gate must both use it`
-    );
-    assert.ok(
-      !router.includes('standing.canTakeCod'),
-      'the gate still has its own copy of the cash rule'
-    );
+    assert.ok(uses.length >= 2, `cashCeilingBlocks is called ${uses.length} time(s); the list and the gate must both use it`);
+    assert.ok(!router.includes('standing.canTakeCod'), 'the gate still has its own copy of the cash rule');
   });
-
   it('and the eligibility helper refuses that rider directly', () => {
-    // The behavioural half, through the function the list now filters with.
     const eligible = cashCeilingBlocks(atCeiling.id, cashOrder);
     assert.equal(eligible.blocked, true);
     assert.ok(eligible.message && /cash/i.test(eligible.message), eligible.message || 'no message');
   });
-
-  // Fresh, for the same reason as `busyProbe` above.
+  clearOffers();
   const ceilingProbe: any = { ...cashOrder, id: 'ord_trip_ceilprobe', orderNumber: 'QB-CEILPROBE', offeredToRiderIds: [] };
   memoryStore.orders.set(ceilingProbe.id, ceilingProbe);
   const eligibleForCash = await eligibleRidersFor(ceilingProbe);
-
   it('and that is asserted through the shared helper', () => {
     const ids = eligibleForCash.map(r => r.id);
     assert.ok(!ids.includes(atCeiling.id), `the ceiling rider is still eligible: ${JSON.stringify(ids)}`);
     assert.ok(ids.includes(near.id), 'the eligible rider was dropped too, so this proves nothing');
   });
 
-  void ceilingLogin;
-
   /* ---------------------------------------------------------------- *
-   *  W1.2: THE WAVES WIDEN                                           *
+   *  THE OFFER MOVES ON: 108 s, OR A DECLINE                         *
    * ---------------------------------------------------------------- */
-  console.log('\n-- W1.2: the next group, not the same group again');
+  console.log('\n-- The offer moves to the next rider when time runs out or they pass');
 
-  const waveOrder: any = {
-    ...onlineOrder,
-    id: 'ord_wave',
-    orderNumber: 'QB-WAVE',
-    offeredToRiderIds: [],
-    riderId: undefined
-  };
-  memoryStore.orders.set(waveOrder.id, waveOrder);
-
-  // Five more eligible riders, so one wave of six leaves some for the next.
+  memoryStore.orders.delete('ord_trip_busy');
+  for (const id of ['ord_trip_cash', 'ord_trip_online', 'ord_trip_busyprobe', 'ord_trip_ceilprobe']) memoryStore.orders.delete(id);
   const extra = [1, 2, 3, 4, 5].map(n => mk(`trp_w${n}`, { online: true, cash: 0, km: 3 + n }));
   await riderRepository.update(far.id, { isOnline: true } as any);
-  memoryStore.orders.delete('ord_trip_busy');
+  const waveOrder: any = { ...onlineOrder, id: 'ord_wave', orderNumber: 'QB-WAVE', offeredToRiderIds: [], declinedByRiderIds: [] };
+  memoryStore.orders.set(waveOrder.id, waveOrder);
 
   captureSends();
-  const wave1 = await offerTripToNearbyRiders(memoryStore.orders.get(waveOrder.id) as any);
-
-  it('A wave wakes at most six riders, not everybody online', () => {
-    /*
-     * Forty riders means forty alarms for one order, thirty-nine for a trip
-     * somebody else takes. A rider whose phone screams for work that evaporates
-     * turns the channel off, and then the trip that needed them arrives silently.
-     */
-    assert.ok(wave1.length > 0, 'nobody was woken at all');
-    assert.ok(wave1.length <= 6, `woke ${wave1.length} riders for one trip`);
-    assert.ok(extra.length >= 5, 'the fixture has too few riders to leave a second wave');
+  const first = await offerTripToNearbyRiders(waveOrder);
+  const firstOffer = { ...(memoryStore.orders.get(waveOrder.id) as any).riderOffer };
+  it('The nearest free rider gets it, for 108 seconds', () => {
+    assert.deepEqual(first, [near.id]);
+    const seconds = (Date.parse(firstOffer.expiresAt) - Date.parse(firstOffer.offeredAt)) / 1000;
+    assert.equal(seconds, 108);
+    assert.equal(firstOffer.round, 1);
   });
+  const again = await offerTripToNearbyRiders(waveOrder);
+  it('Asked again while that offer runs, nobody else is offered it', () => assert.deepEqual(again, []));
+  const otherTrip: any = { ...onlineOrder, id: 'ord_other', orderNumber: 'QB-OTHER', offeredToRiderIds: [], declinedByRiderIds: [] };
+  memoryStore.orders.set(otherTrip.id, otherTrip);
+  const forOther = await offerTripToNearbyRiders(otherTrip);
+  it('A rider holding one offer is not offered a second trip meanwhile (review D4)', () => {
+    assert.equal(forOther.length, 1);
+    assert.notEqual(forOther[0], near.id);
+  });
+  memoryStore.orders.delete(otherTrip.id);
 
+  expire(waveOrder.id);
   captureSends();
-  const wave2 = await offerTripToNearbyRiders(memoryStore.orders.get(waveOrder.id) as any);
-
-  it('THE SECOND WAVE ASKS DIFFERENT RIDERS', () => {
-    /*
-     * The whole point of W1.2. Without the already-offered skip, every wave wakes
-     * the same nearest riders — the ones who have already decided not to take it —
-     * while rider seven is never asked and the order waits for NO_RIDER_FOUND
-     * with riders still available.
-     */
-    const overlap = wave2.filter(id => wave1.includes(id));
-    assert.deepEqual(overlap, [], `the same riders were woken twice: ${JSON.stringify(overlap)}`);
+  const second = await offerTripToNearbyRiders(waveOrder);
+  it('When the 108 s run out it goes to the NEXT rider', () => {
+    assert.equal(second.length, 1);
+    assert.notEqual(second[0], near.id, 'the same rider was asked again while others had not been');
+    assert.equal((memoryStore.orders.get(waveOrder.id) as any).riderOffer.round, 2);
+  });
+  it('...and the rider whose time ran out is told it is gone, silently (data only)', () => {
+    const gone = sent.filter(s => s.data?.type === 'RIDER_TRIP_WITHDRAWN' && s.userId === near.userId);
+    assert.equal(gone.length, 1);
+    assert.equal((gone[0] as any).dataOnly, true);
   });
 
-  it('and the second wave is not empty, or the check above passes by waking nobody', () => {
-    assert.ok(wave2.length > 0, 'the second wave woke nobody, so widening cannot be observed');
+  await (await import('../db/repositories/orderRepository.ts')).orderRepository.declineByRider(waveOrder.id, second[0]);
+  const third = await moveOfferOnAfterDecline(waveOrder.id, second[0]);
+  it('A decline moves it on at once, not after 108 s', () => {
+    assert.equal(third.length, 1);
+    assert.ok(![near.id, second[0]].includes(third[0]), JSON.stringify(third));
   });
 
   /* ---------------------------------------------------------------- *
@@ -511,49 +474,32 @@ try {
 
   const offeredNow = ((memoryStore.orders.get(waveOrder.id) as any).offeredToRiderIds || []) as string[];
   if (offeredNow.length < 2) {
-    throw new Error(
-      `PRECONDITION: only ${offeredNow.length} rider(s) were offered this trip, so "everybody except the winner is told" cannot fail.`
-    );
+    throw new Error(`PRECONDITION: only ${offeredNow.length} rider(s) were offered this trip, so "everybody except the winner is told" cannot fail.`);
   }
-
   const winner = offeredNow[0];
   captureSends();
   const told = await withdrawTripOffers(memoryStore.orders.get(waveOrder.id) as any, winner);
-
   it('EVERY OTHER RIDER OFFERED THE TRIP IS TOLD IT IS GONE', () => {
     assert.equal(told.length, offeredNow.length - 1, `told ${told.length} of ${offeredNow.length - 1}`);
     assert.ok(!told.includes(winner), 'the rider who took it was told they had lost it');
   });
-
   it('and the withdrawal is DATA ONLY, so it cannot ring the alarm again', () => {
-    /*
-     * Channel importance and sound are fixed when the app creates the channel, so
-     * a visible "that trip is gone" on the rider's alarm channel would play the
-     * looping sound AGAIN — worse than the stale entry it was clearing. The only
-     * way to remove an entry is to tell the app in a message Android does not
-     * draw.
-     */
     const withdrawals = sent.filter(s => s.data?.type === 'RIDER_TRIP_WITHDRAWN');
     assert.ok(withdrawals.length > 0, 'no withdrawal was sent');
-    for (const w of withdrawals) {
-      assert.equal((w as any).dataOnly, true, 'a withdrawal would have been drawn by Android');
-    }
+    for (const w of withdrawals) assert.equal((w as any).dataOnly, true, 'a withdrawal would have been drawn by Android');
   });
 
   /* ---------------------------------------------------------------- *
-   *  THE SWEEPER WIDENS BEFORE IT GIVES UP                           *
+   *  AFTER FIVE RIDERS, OPERATIONS IS TOLD ONCE; OFFERS KEEP CYCLING *
    * ---------------------------------------------------------------- */
-  console.log('\n-- The alert means everybody has been asked, not "we tried once"');
+  console.log('\n-- Five riders asked: one alert, and the offers keep going');
 
-  /*
-   * A fresh waiting order the sweeper will pick up. `listAwaitingAction` returns
-   * READY_FOR_PICKUP orders with no rider, which is what this is.
-   */
+  clearOffers();
+  memoryStore.orders.delete(waveOrder.id);
   const stuck: any = {
     ...onlineOrder,
     id: 'ord_stuck',
     orderNumber: 'QB-STUCK',
-    status: 'READY_FOR_PICKUP',
     riderId: undefined,
     riderSearchAlertedAt: undefined,
     offeredToRiderIds: [],
@@ -561,76 +507,78 @@ try {
     acceptedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString()
   };
   memoryStore.orders.set(stuck.id, stuck);
-
-  // Everybody free, so there is somebody to widen to.
-  memoryStore.orders.delete('ord_trip_busy');
   for (const id of ['trp_near', 'trp_far', 'trp_w1', 'trp_w2', 'trp_w3', 'trp_w4', 'trp_w5']) {
     await riderRepository.update(id, { isOnline: true } as any);
   }
 
-  captureSends();
-  const sweep1 = await sweepStaleOrders(new Date());
-
-  it('A SWEEP WIDENS THE SEARCH INSTEAD OF ESCALATING', () => {
-    /*
-     * The order has been waiting an hour, well past the alert threshold. Before
-     * W1.2 this sweep would have raised NO_RIDER_FOUND — an alert about a trip
-     * that had been offered to six riders once and to nobody since.
-     *
-     * Now it asks the next group first, and says so.
-     */
-    const widened = sweep1.widened.find(w => w.orderId === stuck.id);
-    assert.ok(widened, `nothing widened: ${JSON.stringify(sweep1.widened)}`);
-    assert.ok(widened!.riders > 0, 'widened to nobody');
-    assert.ok(
-      !sweep1.alerted.includes(stuck.id),
-      'the owner was told "no rider found" while the platform was still asking riders'
-    );
-  });
-
-  const sweeps: Array<{ widened: number; alerted: boolean }> = [];
-  for (let i = 0; i < 6; i++) {
+  const rounds: Array<{ asked: number; alertedAfter: boolean }> = [];
+  for (let i = 0; i < 7; i++) {
     const s = await sweepStaleOrders(new Date());
-    sweeps.push({
-      widened: s.widened.find(w => w.orderId === stuck.id)?.riders || 0,
-      alerted: s.alerted.includes(stuck.id)
-    });
+    const now: any = memoryStore.orders.get(stuck.id);
+    rounds.push({ asked: s.widened.find(w => w.orderId === stuck.id)?.riders || 0, alertedAfter: Boolean(now.riderSearchAlertedAt) });
+    expire(stuck.id);
   }
-
-  it('THE ALERT FIRES ONLY ONCE NOBODY IS LEFT TO ASK', () => {
-    /*
-     * The sequencing B asked for. An alert raised while the search is still
-     * running is an alert about a problem that may not exist, and one the reader
-     * cannot act on — so NO_RIDER_FOUND now means what it says: everybody who
-     * could take this has been asked and none of them took it.
-     */
-    const firstAlert = sweeps.findIndex(s => s.alerted);
-    assert.notEqual(firstAlert, -1, `no alert after six more sweeps: ${JSON.stringify(sweeps)}`);
-    assert.equal(
-      sweeps[firstAlert].widened,
-      0,
-      'the alert fired on a sweep that had just woken more riders'
-    );
+  it('Each sweep (or expiry) asks exactly one new rider', () =>
+    assert.deepEqual(rounds.map(r => r.asked), [1, 1, 1, 1, 1, 1, 1], JSON.stringify(rounds)));
+  it('Operations is alerted after the fifth rider, not before (waited an hour, yet no early alert)', () =>
+    assert.deepEqual(rounds.map(r => r.alertedAfter), [false, false, false, false, true, true, true], JSON.stringify(rounds)));
+  it('...and the alert stayed at one while offers kept cycling', () => {
+    const order: any = memoryStore.orders.get(stuck.id);
+    assert.equal(order.riderOffer.round, 7);
   });
 
-  it('and every sweep before it had woken somebody new', () => {
-    const firstAlert = sweeps.findIndex(s => s.alerted);
-    for (let i = 0; i < firstAlert; i++) {
-      assert.ok(sweeps[i].widened > 0, `sweep ${i} neither widened nor alerted, so the order just sat there`);
-    }
-  });
+  // Nobody left to ask: every online rider has passed on it.
+  clearOffers();
+  const nobody: any = { ...stuck, id: 'ord_nobody', orderNumber: 'QB-NOBODY', riderSearchAlertedAt: undefined, offeredToRiderIds: [],
+    declinedByRiderIds: Array.from(memoryStore.riders.keys()) };
+  memoryStore.orders.set(nobody.id, nobody);
+  const lonely = await sweepStaleOrders(new Date());
+  it('With nobody left to ask, the time-based alert still fires', () => assert.ok(lonely.alerted.includes(nobody.id)));
+  memoryStore.orders.delete(nobody.id);
 
-  it('and the offer carries a tag, so repeated waves REPLACE rather than stack', () => {
-    /*
-     * The half that works on the APK riders already have. Four identical alarms
-     * for one trip is how a rider learns to clear the whole channel.
-     */
+  it('and the offer carries a tag, so repeated offers REPLACE rather than stack', () => {
     const offers = sentEver.filter(s => s.data?.type === 'RIDER_TRIP_AVAILABLE');
     assert.ok(offers.length > 0, 'no offer was captured, so this proves nothing');
-    for (const o of offers) {
-      assert.equal((o as any).androidTag, `trip:${o.data.orderId}`, 'an offer carried no tag');
-    }
+    for (const o of offers) assert.equal((o as any).androidTag, `trip:${o.data.orderId}`, 'an offer carried no tag');
   });
+
+  /* ---------------------------------------------------------------- *
+   *  THE APP'S LIST AND THE CLAIM GATE (review D5)                   *
+   * ---------------------------------------------------------------- */
+  console.log('\n-- The rider app: only the offered rider sees it and can accept, before it runs out');
+
+  clearOffers();
+  memoryStore.orders.delete(stuck.id);
+  const loginRes = await api('/auth/login', { method: 'POST', body: { email: 'rider@quickbite.app', password: 'pass123' } });
+  const riderToken = loginRes.json?.data?.token as string;
+  const seededRider: any = Array.from(memoryStore.riders.values() as any).find((r: any) => r.userId === 'usr_rider_01');
+  await api('/riders/shift', { method: 'POST', body: { isOnline: true } }, riderToken);
+  const appTrip: any = { ...onlineOrder, id: 'ord_app_trip', orderNumber: 'QB-APP', offeredToRiderIds: [], declinedByRiderIds: [] };
+  memoryStore.orders.set(appTrip.id, appTrip);
+
+  offerTo(appTrip.id, near.id);
+  const notMineList = (await api('/riders/orders/broadcast', {}, riderToken)).json?.data?.broadcasts || [];
+  const notMine = await api(`/riders/orders/${appTrip.id}/claim`, { method: 'POST', body: {} }, riderToken);
+  it('A trip offered to another rider is not in this rider\'s list', () => assert.ok(!notMineList.some((o: any) => o.id === appTrip.id)));
+  it('...and accepting it is refused', () => assert.equal(notMine.json?.error?.code, 'OFFER_NOT_YOURS', `status ${notMine.status}`));
+
+  offerTo(appTrip.id, seededRider.id);
+  const mineList = (await api('/riders/orders/broadcast', {}, riderToken)).json?.data?.broadcasts || [];
+  it('Offered to this rider: it is in their list with its countdown', () => {
+    const row = mineList.find((o: any) => o.id === appTrip.id);
+    assert.ok(row, JSON.stringify(mineList).slice(0, 200));
+    assert.ok(Date.parse(row.offerExpiresAt) > Date.now());
+  });
+  expire(appTrip.id);
+  const late = await api(`/riders/orders/${appTrip.id}/claim`, { method: 'POST', body: {} }, riderToken);
+  it('Accepting after the 108 s is refused', () => assert.equal(late.json?.error?.code, 'OFFER_EXPIRED', `status ${late.status}`));
+  offerTo(appTrip.id, seededRider.id);
+  const ok = await api(`/riders/orders/${appTrip.id}/claim`, { method: 'POST', body: {} }, riderToken);
+  it('Accepting in time works, and the offer is over', () => {
+    assert.equal(ok.status, 200, JSON.stringify(ok.json).slice(0, 200));
+    assert.equal((memoryStore.orders.get(appTrip.id) as any).riderOffer, undefined);
+  });
+  void extra;
 } catch (err: any) {
   failed++;
   console.log(`[FAIL] the suite itself threw: ${err?.stack || err}`);

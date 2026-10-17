@@ -671,6 +671,11 @@ export interface Order {
   razorpayPaymentId?: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The arrival time promised at checkout, frozen (master plan B3). Tracking compares
+   * the live estimate with it and says "We're ahead of time!" when it is 3+ min early.
+   */
+  promisedArrivalAt?: string;
   deliveredAt?: string;
   /** Customer's rating of the completed order, 1-5, set once after delivery. */
   rating?: number;
@@ -701,6 +706,12 @@ export interface Order {
    * alerts, which is worse than having none.
    */
   riderSearchAlertedAt?: string;
+  /**
+   * The trip offered to ONE rider at a time (owner Q6, 18 Oct 2026; master plan B4):
+   * who has it, until when, and how many riders have been asked so far. Saved with
+   * the order, so a deploy mid-offer carries on. Cleared on accept, decline or expiry.
+   */
+  riderOffer?: { riderId: string; offeredAt: string; expiresAt: string; round: number };
   /**
    * When the customer was told the kitchen had taken this order on.
    *
@@ -1585,6 +1596,10 @@ export interface PricingRates {
    * to sleep.
    */
   riderOfferWaveMinutes: number;
+  /** Seconds one rider has to accept a trip before it moves to the next (owner Q6: 108). */
+  riderOfferSeconds: number;
+  /** After this many riders have been asked, operations is alerted once; offers keep cycling (owner Q6: 5). */
+  riderOffersBeforeAlert: number;
   /**
    * How long a rider carrying food may go without sending a position before
    * operations are alerted.
@@ -1963,6 +1978,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   codCashCeiling: 3000,
   /** Minutes before a waiting trip is offered to the next group of riders. */
   riderOfferWaveMinutes: 3,
+  riderOfferSeconds: 108,
+  riderOffersBeforeAlert: 5,
   /** Minutes of silence from a rider carrying food before operations are alerted. */
   riderLocationSilentMinutes: 10,
   /** Minutes a rider may be carrying food before the delivery is flagged late. */

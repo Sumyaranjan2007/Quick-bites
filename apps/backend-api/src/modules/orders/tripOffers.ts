@@ -31,29 +31,60 @@
  * mismatch and nobody had noticed, because a 409 on a tap looks like bad luck.
  */
 import type { Order, DeliveryRider } from '@quick-bites/shared-types';
-import { memoryStore, calculateDistanceKm } from '../../db/client.ts';
+import { memoryStore, calculateDistanceKm, persistDurably, triggerAutoSave } from '../../db/client.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { hasActiveTrip, cashCeilingBlocks, offerableNow } from './riderTrip.ts';
+import { getActiveRates } from '../payments/pricingConfig.ts';
+import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import { notifyAdminsNoRiderFound } from '../../notifications/adminNotifier.ts';
+
+/** A rider whose last position is younger than this ranks ahead of riders with an older one (plan B4: 2 min). */
+const FRESH_FIX_MS = 2 * 60 * 1000;
+
+/** The offer on this order while it is still running; null once it has expired or there is none. */
+export function liveOffer(order: Pick<Order, 'riderOffer'>, now = Date.now()) {
+  const offer = order.riderOffer;
+  return offer && Date.parse(offer.expiresAt) > now ? offer : null;
+}
+
+/** Riders holding a running offer on some trip: one offer per rider at a time (review D4). */
+function ridersHoldingAnOffer(now: number): Set<string> {
+  const holding = new Set<string>();
+  for (const o of memoryStore.orders.values() as Iterable<Order>) {
+    const offer = !o.riderId && liveOffer(o, now);
+    if (offer) holding.add(offer.riderId);
+  }
+  return holding;
+}
+
+/** Trips each rider has taken today, for the tie-break: work goes to whoever has had less. */
+function tripsToday(): Map<string, number> {
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  const counts = new Map<string, number>();
+  for (const o of memoryStore.orders.values() as Iterable<Order>) {
+    if (!o.riderId || !o.riderAssignedAt || Date.parse(o.riderAssignedAt) < since.getTime()) continue;
+    counts.set(o.riderId, (counts.get(o.riderId) || 0) + 1);
+  }
+  return counts;
+}
 
 /**
- * How many riders are woken for one trip.
+ * Riders who could take this trip right now, best first (owner Q6, 18 Oct 2026):
+ * not yet asked about this trip, then a recent position, then nearest the kitchen,
+ * then fewer trips today. Every filter is the one the claim gate enforces.
  *
- * NOT everybody online. A city with forty riders means forty alarms for one
- * order, thirty-nine of which are for a trip somebody else takes — and a rider
- * whose phone screams four times an hour for work that evaporates turns the
- * channel off. Then the one trip that needed them arrives silently.
- *
- * Six is enough that somebody answers and few enough that the alarm keeps
- * meaning something. The socket still reaches everyone with the app open, so this
- * is a ceiling on who is WOKEN, not on who may accept.
+ * seniordev: a stale position ranks a rider lower instead of excluding them. The
+ * Rider app on phones today sends a position only after moving 50 m, so a rider
+ * waiting outside a restaurant goes quiet; excluding them would starve dispatch.
+ * Make freshness a hard filter once the Stage E app sends a heartbeat. Distance is
+ * straight line; switch to Routes API road time with B2.
  */
-const MAX_RIDERS_WOKEN = 6;
-
-/** A rider who could accept this order right now, nearest to the kitchen first. */
-export async function eligibleRidersFor(order: Order): Promise<DeliveryRider[]> {
+export async function eligibleRidersFor(order: Order, now = Date.now()): Promise<DeliveryRider[]> {
   const riders = Array.from(memoryStore.riders.values()) as DeliveryRider[];
+  const holding = ridersHoldingAnOffer(now);
 
   const candidates: DeliveryRider[] = [];
   for (const rider of riders) {
@@ -61,142 +92,157 @@ export async function eligibleRidersFor(order: Order): Promise<DeliveryRider[]> 
     if (!rider.userId) continue;
     // A rider who is also a customer is never offered their own order.
     if (rider.userId === order.customerId) continue;
-
-    // Already declined it. Offering it again is how a rider learns to ignore the
-    // alarm, and the list already respects this.
+    // Passed on it (or gave it back): never offered it again.
     if ((order.declinedByRiderIds || []).includes(rider.id)) continue;
-
-    /*
-     * ALREADY SHOWN THIS TRIP. This is what makes the waves WIDEN rather than
-     * repeat.
-     *
-     * Dispatch offers a trip to the nearest few, waits, then offers it to the
-     * next few. Without this, every wave wakes the same nearest riders again —
-     * the ones who have already decided not to take it — while rider seven is
-     * never asked at all, and the order waits for NO_RIDER_FOUND with riders
-     * still available.
-     *
-     * `offeredToRiderIds` is the field the offer LIST already writes, so a rider
-     * who has seen the trip on their screen is not then woken about it. Two marks
-     * for one fact would drift, and the drift would be invisible.
-     */
-    if ((order.offeredToRiderIds || []).includes(rider.id)) continue;
-
-    // On a job. The gate refuses a second trip, so waking them for one is noise
-    // arriving while they are riding.
+    // Already looking at another trip's offer.
+    if (holding.has(rider.id)) continue;
+    // On a job. The gate refuses a second trip.
     const theirs = await orderRepository.listByRiderId(rider.id);
     if (theirs.some(o => hasActiveTrip(o))) continue;
-
     // At the cash ceiling, for a cash trip. The same function the gate uses.
     if (cashCeilingBlocks(rider.id, order).blocked) continue;
-
     candidates.push(rider);
   }
 
   const kitchen = (order as any).restaurantCoordinates;
-  if (!kitchen || !Number.isFinite(kitchen.latitude) || !Number.isFinite(kitchen.longitude)) {
-    return candidates;
-  }
-
-  /*
-   * Nearest to the KITCHEN, not to the customer. The rider's first job is to
-   * collect, and a rider three streets from the restaurant gets there while one
-   * near the delivery address is still crossing town.
-   *
-   * A rider with no recorded position sorts last rather than first, which is
-   * where a NaN comparison would have silently left them.
-   */
-  const distanceOf = (rider: DeliveryRider) =>
-    rider.currentCoordinates
-      ? calculateDistanceKm(
-          rider.currentCoordinates.latitude,
-          rider.currentCoordinates.longitude,
-          kitchen.latitude,
-          kitchen.longitude
-        )
+  const hasKitchen = kitchen && Number.isFinite(kitchen.latitude) && Number.isFinite(kitchen.longitude);
+  const asked = new Set(order.offeredToRiderIds || []);
+  const trips = tripsToday();
+  const fresh = (r: DeliveryRider) =>
+    Boolean(r.currentCoordinates && r.lastPingAt && now - Date.parse(r.lastPingAt) < FRESH_FIX_MS);
+  // No position sorts last rather than first, which is where a NaN comparison would leave it.
+  const distanceOf = (r: DeliveryRider) =>
+    hasKitchen && r.currentCoordinates
+      ? calculateDistanceKm(r.currentCoordinates.latitude, r.currentCoordinates.longitude, kitchen.latitude, kitchen.longitude)
       : Number.MAX_SAFE_INTEGER;
 
-  return candidates.sort((a, b) => distanceOf(a) - distanceOf(b));
+  return candidates.sort(
+    (a, b) =>
+      Number(asked.has(a.id)) - Number(asked.has(b.id)) ||
+      Number(fresh(b)) - Number(fresh(a)) ||
+      distanceOf(a) - distanceOf(b) ||
+      (trips.get(a.id) || 0) - (trips.get(b.id) || 0)
+  );
+}
+
+/** One timer per running offer, for the exact expiry (review D3); the sweeper is the restart backstop. */
+const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleExpiry(orderId: string, ms: number): void {
+  clearTimeout(expiryTimers.get(orderId));
+  const timer = setTimeout(() => {
+    expiryTimers.delete(orderId);
+    const order = memoryStore.orders.get(orderId) as Order | undefined;
+    if (order) void offerTripToNearbyRiders(order);
+  }, ms + 250);
+  timer.unref?.();
+  expiryTimers.set(orderId, timer);
 }
 
 /**
- * Pushes this trip to the nearest eligible riders.
+ * Offers this trip to the ONE best rider for `riderOfferSeconds` (owner Q6: 108 s).
+ * Called when food becomes ready, when a trip is given back, by ops rescue, by the
+ * expiry timer and by every sweep; it does nothing while an offer is still running,
+ * so repeated calls never offer one trip to two riders.
  *
- * Returns the rider ids it addressed, which is what a check asserts on: proving
- * "a rider was notified" passes when every rider in the city was notified, and
- * that is the failure this module is shaped to avoid.
- *
- * NEVER THROWS. A trip becoming available must not fail because a push service is
- * slow or a credential expired — the same rule as `tellTheKitchen`. Callers use
- * `void`.
+ * Returns the rider id it offered to (or none). NEVER THROWS: a trip becoming
+ * available must not fail because a push service is slow. Callers use `void`.
  */
-export async function offerTripToNearbyRiders(order: Order): Promise<string[]> {
+export async function offerTripToNearbyRiders(passed: Order): Promise<string[]> {
   try {
-    /*
-     * Re-checked here rather than trusted from the caller.
-     *
-     * Both call sites fire alongside `emitOrderAvailableForPickup`, and both are
-     * correct today. But this function wakes people up, and "is this trip
-     * actually on offer" is cheap to ask and expensive to get wrong: a rider
-     * woken for an order that has already been claimed, or for one whose kitchen
-     * has not started cooking, is the alarm losing its meaning.
-     */
+    // Callers sometimes hold a copy; the stored order is the one that carries the offer.
+    const order = (memoryStore.orders.get(passed.id) as Order | undefined) ?? passed;
     if (order.riderId) return [];
     if (!offerableNow(order)) return [];
+    const now = Date.now();
+    if (liveOffer(order, now)) return [];
 
-    const riders = (await eligibleRidersFor(order)).slice(0, MAX_RIDERS_WOKEN);
-    if (riders.length === 0) return [];
+    const previous = order.riderOffer;
+    const [rider] = await eligibleRidersFor(order, now);
+    if (!rider) return [];
 
-    const kitchen = (order as any).restaurantCoordinates;
-    const restaurantName = order.restaurantName || 'the restaurant';
+    const rates = getActiveRates();
+    const seconds = Number(rates.riderOfferSeconds) || 108;
+    const round = (previous?.round || 0) + 1;
+    order.riderOffer = {
+      riderId: rider.id,
+      offeredAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + seconds * 1000).toISOString(),
+      round
+    };
+    order.updatedAt = order.riderOffer.offeredAt;
+    memoryStore.orders.set(order.id, order);
+    // Saved before anyone is told, so a deploy mid-offer carries on (plan B4).
+    await persistDurably();
+    scheduleExpiry(order.id, seconds * 1000);
 
-    for (const rider of riders) {
-      const km =
-        kitchen && rider.currentCoordinates
-          ? calculateDistanceKm(
-              rider.currentCoordinates.latitude,
-              rider.currentCoordinates.longitude,
-              kitchen.latitude,
-              kitchen.longitude
-            )
-          : null;
-
-      await fcmDispatcher.notifyRiderTripAvailable(
-        rider.userId!,
-        order.id,
-        order.orderNumber,
-        restaurantName,
-        km === null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
-      );
-
-      /*
-       * Recorded AFTER the push, so a rider the push failed to reach is tried
-       * again on the next wave rather than being marked as asked.
-       *
-       * The mark is what makes the next wave widen instead of repeating, and it
-       * is the same field the offer list writes — one record of "this rider has
-       * seen this trip", whichever way they saw it.
-       */
-      // Counted as received, like an offer seen in the list (QA v11). The push
-      // used to mark the offer and never count it, so pushed offers were missing
-      // from every rider's acceptance rate.
-      if (await orderRepository.markOfferedToRider(order.id, rider.id)) {
-        await riderRepository.recordOffer(rider.id);
-      }
+    // The rider whose time ran out loses it from their tray.
+    const before = previous ? (memoryStore.riders.get(previous.riderId) as DeliveryRider | undefined) : undefined;
+    if (before?.userId && before.id !== rider.id) {
+      await fcmDispatcher.notifyRiderTripWithdrawn(before.userId, order.id, order.orderNumber);
     }
 
-    return riders.map(r => r.id);
+    const kitchen = (order as any).restaurantCoordinates;
+    const km =
+      kitchen && rider.currentCoordinates
+        ? calculateDistanceKm(rider.currentCoordinates.latitude, rider.currentCoordinates.longitude, kitchen.latitude, kitchen.longitude)
+        : null;
+    await fcmDispatcher.notifyRiderTripAvailable(
+      rider.userId!,
+      order.id,
+      order.orderNumber,
+      order.restaurantName || 'the restaurant',
+      km === null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
+    );
+    // Counted once per rider and trip (QA v11), however many times the offer cycles back to them.
+    if (await orderRepository.markOfferedToRider(order.id, rider.id)) {
+      await riderRepository.recordOffer(rider.id);
+    }
+
+    // After N riders, operations hears about it once; offers keep cycling (owner Q6).
+    if (round >= (Number(rates.riderOffersBeforeAlert) || 5) && !order.riderSearchAlertedAt) {
+      const raisedAt = new Date().toISOString();
+      await orderRepository.markRiderSearchAlerted(order.id, raisedAt);
+      emitOpsAlert({
+        kind: 'NO_RIDER_FOUND',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurantId: order.restaurantId,
+        restaurantName: order.restaurantName,
+        detail: `${round} riders asked; still offering. Assign one by hand if needed.`,
+        raisedAt
+      });
+      void notifyAdminsNoRiderFound({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurantName: order.restaurantName,
+        waitingMinutes: Math.round((now - Date.parse(order.acceptedAt || order.createdAt)) / 60000)
+      });
+    }
+
+    return [rider.id];
   } catch (err: any) {
     console.error(
       JSON.stringify({
         level: 'ERROR',
         event: 'RIDER_TRIP_PUSH_FAILED',
-        orderId: order?.id,
+        orderId: passed?.id,
         message: err?.message
       })
     );
     return [];
   }
+}
+
+/** The offered rider passed: the trip moves to the next rider at once (they are in `declinedByRiderIds`). */
+export async function moveOfferOnAfterDecline(orderId: string, riderId: string): Promise<string[]> {
+  const order = memoryStore.orders.get(orderId) as Order | undefined;
+  if (!order?.riderOffer || order.riderOffer.riderId !== riderId) return [];
+  order.riderOffer = { ...order.riderOffer, expiresAt: new Date().toISOString() };
+  memoryStore.orders.set(order.id, order);
+  // Saved even when nobody else is free to take it, so the ended offer survives a restart.
+  triggerAutoSave();
+  return offerTripToNearbyRiders(order);
 }
 
 /**

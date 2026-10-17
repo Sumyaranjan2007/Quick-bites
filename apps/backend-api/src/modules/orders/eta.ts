@@ -21,7 +21,7 @@
  * obvious later improvement. What matters is that the number is derived from
  * this order rather than invented, and that it moves.
  */
-import { calculateDistanceKm } from '../../db/client.ts';
+import { calculateDistanceKm, memoryStore } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
 import type { Coordinates, Order, OrderStatus } from '@quick-bites/shared-types';
 
@@ -34,6 +34,50 @@ export interface EtaEstimate {
   basis: 'PREP_AND_TRAVEL' | 'KITCHEN_ESTIMATE' | 'AWAITING_PICKUP' | 'RIDER_EN_ROUTE' | 'ARRIVED' | 'NONE';
   /** Kilometres the estimate was computed over, for the tracking screen and for debugging. */
   distanceKm: number | null;
+  /** The arrival promised at checkout (frozen), when there is one. */
+  promisedAt: string | null;
+  /** True when the live estimate beats the promise by 3 minutes or more: "We're ahead of time!" (B3). */
+  ahead: boolean;
+}
+
+/** How early counts as "ahead of time" (plan B3). */
+const AHEAD_BY_MS = 3 * 60_000;
+/** Orders a kitchen needs before its own cooking time replaces the platform default (plan B3). */
+const MEASURED_ORDERS = 20;
+
+const itemCount = (order: Pick<Order, 'items'>) =>
+  (order.items || []).reduce((n, i: any) => n + (Number(i.quantity) || 1), 0);
+/** Small, medium and large carts cook differently. */
+const cartSize = (items: number) => (items <= 2 ? 'S' : items <= 5 ? 'M' : 'L');
+
+/**
+ * The kitchen's OWN cooking time for a cart this size (plan B3): the median of its
+ * last 20 orders of that size, accepted to ready. The platform default until it has 20.
+ *
+ * seniordev: scans every order on each call. Fine at today's volume; keep a per-kitchen
+ * rolling list updated on READY_FOR_PICKUP if the store grows large.
+ */
+export function kitchenPrepMinutes(restaurantId: string, items: number): number {
+  const size = cartSize(items);
+  const measured: Array<{ at: number; minutes: number }> = [];
+  for (const o of memoryStore.orders.values() as Iterable<Order>) {
+    if (o.restaurantId !== restaurantId || !o.acceptedAt || !o.readyAt) continue;
+    if (cartSize(itemCount(o)) !== size) continue;
+    const minutes = (Date.parse(o.readyAt) - Date.parse(o.acceptedAt)) / 60_000;
+    if (minutes > 0 && minutes < 180) measured.push({ at: Date.parse(o.readyAt), minutes });
+  }
+  if (measured.length < MEASURED_ORDERS) return config.DEFAULT_PREP_MINUTES;
+  const last = measured.sort((a, b) => b.at - a.at).slice(0, MEASURED_ORDERS).map(m => m.minutes).sort((a, b) => a - b);
+  return (last[MEASURED_ORDERS / 2 - 1] + last[MEASURED_ORDERS / 2]) / 2;
+}
+
+/** Minutes for the rider (assigned, or the one holding the offer) to reach the kitchen; 0 when unknown. */
+function riderToKitchenMinutes(order: Order): number {
+  const riderId = order.riderId || order.riderOffer?.riderId;
+  const rider: any = riderId ? memoryStore.riders.get(riderId) : undefined;
+  const at = order.riderId && order.riderCoordinates ? order.riderCoordinates : rider?.currentCoordinates;
+  const km = distanceBetween(at, order.restaurantCoordinates);
+  return km === null ? 0 : (km / config.DELIVERY_SPEED_KMPH) * 60;
 }
 
 const TERMINAL: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
@@ -58,7 +102,8 @@ function distanceBetween(from?: Coordinates | null, to?: Coordinates | null): nu
  * earlier the later it got.
  */
 function prepRemainingMinutes(order: Order, now: number): number {
-  const promised = Number(order.preparationMinutes) || config.DEFAULT_PREP_MINUTES;
+  // The time the kitchen typed for THIS order, else what it usually takes.
+  const promised = Number(order.preparationMinutes) || kitchenPrepMinutes(order.restaurantId, itemCount(order));
   const startedAt = order.acceptedAt || order.createdAt;
   const elapsed = startedAt ? (now - new Date(startedAt).getTime()) / 60_000 : 0;
   return Math.max(0, promised - Math.max(0, elapsed));
@@ -66,7 +111,8 @@ function prepRemainingMinutes(order: Order, now: number): number {
 
 export function estimateArrival(order: Order, now: Date = new Date()): EtaEstimate {
   const nowMs = now.getTime();
-  const none: EtaEstimate = { minutesRemaining: null, arrivingAt: null, basis: 'NONE', distanceKm: null };
+  const promisedAt = order.promisedArrivalAt ?? null;
+  const none: EtaEstimate = { minutesRemaining: null, arrivingAt: null, basis: 'NONE', distanceKm: null, promisedAt, ahead: false };
 
   if (TERMINAL.includes(order.status)) {
     return order.status === 'DELIVERED' ? { ...none, basis: 'ARRIVED' } : none;
@@ -106,12 +152,13 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
   switch (order.status) {
     case 'PAYMENT_PENDING':
     case 'ORDER_PLACED':
-      minutes = config.DEFAULT_PREP_MINUTES + travel;
+      minutes = kitchenPrepMinutes(order.restaurantId, itemCount(order)) + travel;
       basis = 'PREP_AND_TRAVEL';
       break;
     case 'ACCEPTED':
     case 'PREPARING':
-      minutes = prepRemainingMinutes(order, nowMs) + travel;
+      // Cooking and the rider's ride to the kitchen happen at the same time: whichever is longer.
+      minutes = Math.max(prepRemainingMinutes(order, nowMs), riderToKitchenMinutes(order)) + travel;
       basis = 'KITCHEN_ESTIMATE';
       break;
     case 'READY_FOR_PICKUP':
@@ -123,7 +170,8 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
       // confirmed they have the bag, so the journey has not started and
       // quoting travel time alone would promise an arrival from a point
       // nobody has left.
-      minutes = config.DELIVERY_HANDLING_MINUTES + travel;
+      // Food is made: the wait is the rider reaching the kitchen (B3), at least the handover.
+      minutes = Math.max(config.DELIVERY_HANDLING_MINUTES, riderToKitchenMinutes(order)) + travel;
       basis = 'AWAITING_PICKUP';
       break;
     case 'OUT_FOR_DELIVERY':
@@ -139,10 +187,13 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
   // riding.
   const minutesRemaining = Math.max(1, Math.ceil(minutes));
 
+  const arrivingAt = nowMs + minutesRemaining * 60_000;
   return {
     minutesRemaining,
-    arrivingAt: new Date(nowMs + minutesRemaining * 60_000).toISOString(),
+    arrivingAt: new Date(arrivingAt).toISOString(),
     basis,
-    distanceKm: Math.round(distanceKm * 100) / 100
+    distanceKm: Math.round(distanceKm * 100) / 100,
+    promisedAt,
+    ahead: promisedAt !== null && Date.parse(promisedAt) - arrivingAt >= AHEAD_BY_MS
   };
 }

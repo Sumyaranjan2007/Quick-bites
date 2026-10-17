@@ -17,6 +17,7 @@ import { memoryStore } from '../db/client.ts';
 import { resetAuthRateLimit, resetRequestRateLimit } from '../middlewares/rateLimiter.ts';
 import crypto from 'crypto';
 import { createVersion } from '../modules/payments/pricingConfig.ts';
+import { offerTo } from './helpers/offerTo.ts';
 
 const PORT = 5193;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -436,6 +437,7 @@ async function run() {
   const wentOnline = await api('/riders/shift', { method: 'POST', body: { isOnline: true } }, riderSelf.token);
   check('A rider can go on shift', wentOnline.status === 200, String(wentOnline.status));
 
+  offerTo(chatOrderId, 'usr_rider_01');
   const claimed = await api(`/riders/orders/${chatOrderId}/claim`, { method: 'POST' }, riderSelf.token);
   check('and claim the delivery', claimed.status === 200, `${claimed.status} ${JSON.stringify(claimed.json?.error || '')}`);
 

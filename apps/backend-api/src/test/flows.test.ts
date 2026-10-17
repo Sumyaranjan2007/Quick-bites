@@ -27,6 +27,7 @@ import { seedDatabase } from '../db/seed.ts';
 import { VALID_TRANSITIONS } from '../modules/orders/orderStateMachine.ts';
 import type { OrderStatus } from '@quick-bites/shared-types';
 import { memoryStore as memoryStoreRef } from '../db/client.ts';
+import { offerTo } from './helpers/offerTo.ts';
 
 const PORT = 5191;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -250,6 +251,7 @@ async function run() {
     await api('/riders/shift', { method: 'POST', body: { isOnline: true } }, rider.token);
 
     const beforeClaim = String(await statusOf());
+    offerTo(orderId, 'usr_rider_01');
     const claim = await api(`/riders/orders/${orderId}/claim`, { method: 'POST', body: {} }, rider.token);
     check('A rider can claim the trip', claim.status === 200,
       `status ${claim.status} ${JSON.stringify(claim.json).slice(0, 200)}`);
@@ -349,6 +351,7 @@ async function run() {
         body: { status: next, preparationMinutes: 20 }
       }, partner.token);
     }
+    offerTo(forgotId, 'usr_rider_01');
     await api(`/riders/orders/${forgotId}/claim`, { method: 'POST', body: {} }, rider.token);
 
     const forgotView = await partnerView(forgotId);
@@ -535,6 +538,8 @@ async function run() {
     await api(`/orders/${cooking.id}/status`, {
       method: 'PUT', body: { status: 'ACCEPTED', preparationMinutes: 20 }
     }, partner.token);
+    // The offer is this rider's (B4); whether it is SHOWN still depends on the kitchen's setting.
+    offerTo(cooking.id, 'usr_rider_01');
 
     check('An order still being cooked is NOT offered by default',
       !(await riderSees(cooking.id)),
@@ -578,6 +583,7 @@ async function run() {
      * status assertion cannot tell them apart - which is the defect itself,
      * one level up.
      */
+    offerTo(cooking.id, 'usr_rider_01');
     const claimEarly = await api(`/riders/orders/${cooking.id}/claim`, { method: 'POST', body: {} }, rider.token);
     check('A rider can claim a trip the restaurant offers early', claimEarly.status === 200,
       `status ${claimEarly.status} ${JSON.stringify(claimEarly.json).slice(0, 160)}`);

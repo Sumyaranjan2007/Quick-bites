@@ -41,7 +41,7 @@ import type { DeliveryRider, Order, SosAlert } from '@quick-bites/shared-types';
 import { requireFeature } from '../middlewares/featureGate.ts';
 import { visibleContact } from '../modules/orders/contactVisibility.ts';
 import { hasActiveTrip, cashCeilingBlocks } from '../modules/orders/riderTrip.ts';
-import { offerTripToNearbyRiders, withdrawTripOffers } from '../modules/orders/tripOffers.ts';
+import { offerTripToNearbyRiders, withdrawTripOffers, liveOffer, moveOfferOnAfterDecline } from '../modules/orders/tripOffers.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
 
 export const riderRouter = Router();
@@ -798,8 +798,15 @@ riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (r
       await orderRepository.listAvailableBroadcasts(rider.id, rider.currentCoordinates)
     ).filter(o => !cashCeilingBlocks(rider.id, o).blocked);
 
-    const broadcasts = offerable;
-    const shaped = await Promise.all(broadcasts.map(o => shapeTripForRider(withoutDeliveryOtp(o) as Order)));
+    // One rider at a time (owner Q6, B4): a rider sees only the trip offered to them, with
+    // its countdown. Apps on phones read the same list, so they cannot jump the queue (review D5).
+    const broadcasts = offerable.filter(o => liveOffer(o)?.riderId === rider.id);
+    const shaped = await Promise.all(
+      broadcasts.map(async o => ({
+        ...(await shapeTripForRider(withoutDeliveryOtp(o) as Order)),
+        offerExpiresAt: o.riderOffer!.expiresAt
+      }))
+    );
 
     for (const order of broadcasts) {
       const isNew = await orderRepository.markOfferedToRider(order.id, rider.id);
@@ -864,6 +871,16 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
 
     const target = await orderRepository.findById(req.params.id);
     if (!target) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+
+    // One rider at a time (owner Q6, B4): the trip is this rider's only while their offer runs.
+    if (!target.riderId) {
+      if (target.riderOffer?.riderId !== self.id) {
+        throw new AppError('This trip is being offered to another rider.', 409, 'OFFER_NOT_YOURS');
+      }
+      if (!liveOffer(target)) {
+        throw new AppError('Your time to accept this trip ran out. It has gone to the next rider.', 409, 'OFFER_EXPIRED');
+      }
+    }
 
     /*
      * A rider at the cash ceiling is not offered more cash.
@@ -994,6 +1011,8 @@ riderRouter.post('/orders/:id/decline', async (req, res, next) => {
       await riderRepository.recordOffer(self.id);
     }
     await orderRepository.declineByRider(order.id, self.id);
+    // Passing on the offer moves it to the next rider at once (B4), not when the 108 s run out.
+    void moveOfferOnAfterDecline(order.id, self.id);
 
     res.json({ success: true, message: 'Trip passed. It has been offered to other riders.' });
   } catch (err) {

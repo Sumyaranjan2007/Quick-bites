@@ -122,7 +122,9 @@ export const RATE_BOUNDS: RateBound[] = [
    * any key not listed here, so a rate added without this line is editable,
    * displayed and read by nothing.
    */
-  { key: 'riderOfferWaveMinutes', label: 'Widen rider search after', help: 'Minutes to wait before offering a waiting trip to the next group of riders.', unit: 'MINUTES', min: 1, max: 60, affectsCustomerBill: false },
+  { key: 'riderOfferWaveMinutes', label: 'Widen rider search after', help: 'Minutes to wait before offering a waiting trip to the next group of riders.', unit: 'MINUTES', min: 1, max: 60, affectsCustomerBill: false, retired: true },
+  { key: 'riderOfferSeconds', label: 'Seconds to accept a trip', help: 'A trip is offered to one rider at a time, nearest first. They have this long to accept before it moves to the next rider.', unit: 'COUNT', min: 30, max: 600, affectsCustomerBill: false },
+  { key: 'riderOffersBeforeAlert', label: 'Alert operations after', help: 'Riders asked for one trip before operations is alerted (once). Offers keep moving to the next rider.', unit: 'COUNT', min: 1, max: 50, affectsCustomerBill: false },
   /*
    * The two numbers that decide when a rider carrying food is in trouble.
    *

@@ -178,6 +178,7 @@ export async function reassignTrip(
   order.riderName = target.fullName;
   order.riderPhone = target.phone;
   order.riderAssignedAt = at;
+  order.riderOffer = undefined; // a hand assignment ends the one-rider offer (B4)
   // Before pickup the new rider starts from the restaurant. After pickup the
   // trip stage is left where it was: the food is on the road.
   if (!afterPickup) order.riderStage = 'HEADING_TO_RESTAURANT';
