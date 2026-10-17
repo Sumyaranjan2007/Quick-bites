@@ -1362,6 +1362,10 @@ export interface SupportTicket {
   category: 'ORDER' | 'PAYMENT' | 'DELIVERY' | 'ACCOUNT' | 'RESTAURANT' | 'OTHER';
   message: string;
   attachments?: string[];
+  /** Help chat (B8): what the person asked and the fixed answers the server gave, rebuilt at "Talk to us". */
+  helpChat?: Array<{ topic: string; question: string; answer: string }>;
+  appVersion?: string;
+  platform?: 'android' | 'ios' | 'web';
   status: SupportTicketStatus;
   priority: 'LOW' | 'NORMAL' | 'HIGH';
   replies: Array<{ at: string; byUserId: string; byName: string; byRole: string; body: string }>;

@@ -12,6 +12,7 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { shapeOrderDetail } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
+import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 
 export const supportRoutes = Router();
 
@@ -63,6 +64,15 @@ supportRoutes.post(
         req.body.body
       );
       if (!ticket) throw new AppError('Support ticket not found.', 404, 'TICKET_NOT_FOUND');
+      // The reply lands in the person's help thread; tell them it is there. The
+      // body stays out of the push: a lock screen is not the place for it.
+      void fcmDispatcher.sendPushNotification({
+        userId: ticket.raisedByUserId,
+        title: 'Quick Bites support replied',
+        body: `About "${ticket.subject}". Open Help to read it.`,
+        androidChannelId: ticket.raisedByRole === 'customer' ? 'order-updates' : undefined,
+        data: { type: 'SUPPORT_REPLY', ticketId: ticket.id }
+      });
       recordAudit(req, {
         action: 'TICKET_REPLIED',
         entityType: 'SUPPORT_TICKET',

@@ -54,10 +54,12 @@ export const supportRepository = {
     if (!ticket) return null;
     const now = new Date().toISOString();
     ticket.replies = [...ticket.replies, { at: now, byUserId: author.userId, byName: author.name, byRole: author.role, body }];
-    // A staff reply is the moment a ticket stops being untouched; a customer
-    // reply on a resolved ticket reopens it rather than disappearing.
-    if (ticket.status === 'OPEN' && author.role !== 'customer') ticket.status = 'IN_PROGRESS';
-    else if (ticket.status === 'RESOLVED' && author.role === 'customer') ticket.status = 'IN_PROGRESS';
+    // A staff reply is the moment a ticket stops being untouched; the person's
+    // own reply on a resolved ticket reopens it rather than disappearing. Judged
+    // by who raised it, not by role: a rider or partner is not staff either.
+    const byRaiser = author.userId === ticket.raisedByUserId;
+    if (ticket.status === 'OPEN' && !byRaiser) ticket.status = 'IN_PROGRESS';
+    else if (ticket.status === 'RESOLVED' && byRaiser) ticket.status = 'IN_PROGRESS';
     ticket.updatedAt = now;
     memoryStore.supportTickets.set(id, ticket);
     triggerAutoSave();

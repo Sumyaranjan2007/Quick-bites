@@ -6,6 +6,48 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan B8: help chat that answers first, then a person (server)
+
+> **For the owner.** The server can now run the help chat you asked for (#16). Each app gets its own
+> questions (customers: late order, missing item, refund status, payment, change address, cancel,
+> account; partners: payouts, menu changes, orders, documents; riders: payouts, cash deposit, trip,
+> documents). Each answer is a fixed sentence from our own policies, filled in with the person's real
+> order status and arrival time, refund state, money owed or cash carried. No AI writes anything
+> (your decision Q3). "Talk to us" opens one support ticket with the order and the whole chat attached,
+> so staff see exactly what we already told the person; a staff reply now sends them a notification.
+> A double tap no longer makes two tickets, and one person can open at most 5 tickets an hour.
+> Two old faults fixed on the way: riders and partners could not attach their own trip or kitchen
+> order to a ticket, and their own reply made a ticket look handled by staff. Nothing changes on
+> phones yet: the chat screens come with the app work (Stages D and E); old apps keep working.
+
+- New `modules/support/helpChat.ts`: topics per app (`audience` from the session role: `restaurant_owner`
+  → partner, `rider` → rider, else customer), `answerFor` (fixed sentences + live data: `estimateArrival`,
+  `refundRepository`, `duesFor` blockers + last PAID payout, `cashStanding`, KYC state, `menuRequests`),
+  `isPartyTo` (customer by account, rider by rider record, partner by owned kitchen, from `roles`, so a
+  customer-app session of a partner is a customer only), `helpChatFor` (rebuilds the chat for a ticket).
+  Wording follows `paymentPolicies.ts` (refund timing, bank holds, cancellation charge) and
+  `orderRouter.ts` (cannot cancel once handed to the rider).
+- Routes (`supportRouter.ts`): `GET /api/support/help?orderId=` → `{ audience, greeting, order, topics[{id,label,category}] }`;
+  `GET /api/support/help/:topic?orderId=` → `{ topic, answer, order }`; a topic from another app is
+  404 `TOPIC_NOT_FOUND`, someone else's order 403 `NOT_YOUR_ORDER`. Without `orderId` the latest live
+  order (customer) or trip (rider) is used.
+- `POST /api/support/tickets`: new optional `helpTopics` (ids only; unknown for this app → 400
+  `UNKNOWN_TOPIC`), `appVersion`, `platform`. The server rebuilds `helpChat` and attaches the order in
+  question; the same message + order within 2 minutes returns the existing ticket (200); a 6th ticket in
+  an hour → 429 `TOO_MANY_TICKETS` (counted from the store, so it survives a restart). Order ownership now
+  uses `isPartyTo` (before: `order.riderId === user.id`, never true, so riders and partners were refused).
+- `supportRepository.reply`: status judged by who raised the ticket, not by `role === 'customer'`.
+  `routes/admin/supportRoutes.ts` reply pushes the raiser (`SUPPORT_REPLY`, `ticketId`; no reply text on
+  the lock screen; customer → `order-updates` channel, others the default channel).
+- `SupportTicket` (shared-types): optional `helpChat`, `appVersion`, `platform`. No new collection.
+- Checks: new suite `helpChat` (46; runner now 90 suites). 13 mutations (each ownership rule, customer
+  scope, topic per app on both routes, ticket order ownership, per-hour limit, double tap, both reply
+  status rules, the push, server-rebuilt chat), all caught; harness reads stdout and stderr.
+- Not done here: the chat screens (Customer Stage D6, Partner/Rider Stage E), the admin Support screen
+  showing `helpChat` and the app version (Stage E, Operations), offline "Not sent · Retry" (app side).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan B5: kitchen type and Pure Veg seal, switch off a whole menu section, recommended restaurants
 
 > **For the owner.** Three server changes, live on push; the screens for them come with the app work

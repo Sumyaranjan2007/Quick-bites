@@ -31,7 +31,7 @@ All paths answer under `/api/...` and `/api/v1/...` (`src/app.ts:73-74`). Respon
 | `/api/earnings` | `routes/earningsRouter.ts` | per route (customer scope refused) | 7 | statement, invoices (PDF/ZIP), ask to be paid |
 | `/api/invoices` | `routes/invoiceRouter.ts` | per route | 2 | customer receipt, refund status |
 | `/api/policies` | `routes/policyRouter.ts` | public | 3 | payment policies |
-| `/api/support` | `routes/supportRouter.ts` | per route | 5 | tickets and refund requests from apps |
+| `/api/support` | `routes/supportRouter.ts` | per route | 7 | help chat topics and fixed answers (B8, `modules/support/helpChat.ts`), tickets and refund requests from apps |
 | `/api/addresses` | `routes/addressRouter.ts` | signed in | 4 | customer address book |
 | `/api/places` | `routes/placesRouter.ts` | signed in | 4 | address search / reverse geocode (Mapbox) |
 | `/api/customers` | `routes/customerRouter.ts` | per route | 4 | favourites, profile photo |

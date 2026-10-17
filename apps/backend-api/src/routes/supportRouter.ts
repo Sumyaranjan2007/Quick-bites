@@ -18,6 +18,7 @@ import { userRepository } from '../db/repositories/userRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { notifyAdminsSupportTicketOpened, notifyAdminsRefundRaised } from '../notifications/adminNotifier.ts';
 import { refundableRemaining } from '../modules/payments/refundCap.ts';
+import { askerFor, isPartyTo, topicsFor, topicFor, orderInQuestion, orderCard, answerFor, helpChatFor } from '../modules/support/helpChat.ts';
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const supportRouter = Router();
@@ -29,29 +30,88 @@ const TicketSchema = z.object({
   category: z.enum(['ORDER', 'PAYMENT', 'DELIVERY', 'ACCOUNT', 'RESTAURANT', 'OTHER']),
   message: z.string().trim().min(10, 'Describe the problem so support can act on it.').max(2000),
   orderId: z.string().optional(),
-  attachments: z.array(z.string().max(400000)).max(4).optional()
+  attachments: z.array(z.string().max(400000)).max(4).optional(),
+  // Help chat (B8): the topics the person went through before "Talk to us".
+  // Only the ids: the answers are rebuilt here, never taken from the app.
+  helpTopics: z.array(z.string().max(40)).max(10).optional(),
+  appVersion: z.string().trim().max(40).optional(),
+  platform: z.enum(['android', 'ios', 'web']).optional()
 });
+
+const HelpQuerySchema = z.object({ orderId: z.string().max(80).optional() });
+
+/** GET /api/support/help — this app's help topics, with the order it was opened from. */
+supportRouter.get('/help', validate({ query: HelpQuerySchema }), async (req, res, next) => {
+  try {
+    const asker = await askerFor(req.user!);
+    const order = req.query.orderId ? await orderInQuestion(asker, String(req.query.orderId)) : null;
+    const firstName = String(req.user!.fullName || '').trim().split(/\s+/)[0] || 'there';
+    res.json({
+      success: true,
+      data: { audience: asker.audience, greeting: `Hi ${firstName}, what's this about?`, order: orderCard(order), topics: topicsFor(asker.audience) }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /api/support/help/:topic — the fixed answer, filled with the person's live data (Q3: no AI). */
+supportRouter.get(
+  '/help/:topic',
+  validate({ params: z.object({ topic: z.string().max(40) }), query: HelpQuerySchema }),
+  async (req, res, next) => {
+    try {
+      const asker = await askerFor(req.user!);
+      const topic = topicFor(asker.audience, req.params.topic);
+      const order = await orderInQuestion(asker, req.query.orderId ? String(req.query.orderId) : undefined);
+      res.json({ success: true, data: { topic, answer: await answerFor(topic.id, asker, order), order: orderCard(order) } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const TICKETS_PER_HOUR = 5;
+const DOUBLE_TAP_MS = 2 * 60_000;
 
 /** POST /api/support/tickets — raise a complaint from any of the apps. */
 supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res, next) => {
   try {
     const user = await userRepository.findById(req.user!.id);
-    let orderNumber: string | undefined;
+    const asker = await askerFor(req.user!);
+    let order = null;
 
     if (req.body.orderId) {
-      const order = await orderRepository.findById(req.body.orderId);
+      order = await orderRepository.findById(req.body.orderId);
       if (!order) throw new AppError('That order could not be found.', 404, 'ORDER_NOT_FOUND');
       // A ticket can only be attached to an order the person was part of,
       // otherwise an order id guessed from a URL exposes someone else's order
-      // number and restaurant to a stranger's complaint thread.
-      const involved =
-        order.customerId === req.user!.id ||
-        order.riderId === req.user!.id ||
-        (await orderRepository.listByRiderId(req.user!.id)).some(o => o.id === order.id);
-      if (!involved && req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+      // number and restaurant to a stranger's complaint thread. Riders are
+      // matched by their rider record and partners by the kitchens they own
+      // (`isPartyTo`); comparing the user id refused every rider's own trip.
+      if (!isPartyTo(order, asker) && req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
         throw new AppError('You can only raise a ticket about your own order.', 403, 'NOT_YOUR_ORDER');
       }
-      orderNumber = order.orderNumber;
+    }
+    // The help chat was about the person's latest order when the app named none.
+    if (req.body.helpTopics?.length && !order) order = await orderInQuestion(asker);
+    const helpChat = req.body.helpTopics?.length ? await helpChatFor(req.body.helpTopics, asker, order) : undefined;
+
+    const mine = await supportRepository.listByUser(req.user!.id);
+    // A double tap on "Talk to us" is one question, not two tickets.
+    const repeat = mine.find(t =>
+      t.message === req.body.message && t.orderId === order?.id &&
+      Date.now() - new Date(t.createdAt).getTime() < DOUBLE_TAP_MS);
+    if (repeat) {
+      res.json({ success: true, data: { ticket: repeat }, message: 'Our support team has your request and will reply shortly.' });
+      return;
+    }
+    if (mine.filter(t => Date.now() - new Date(t.createdAt).getTime() < 3_600_000).length >= TICKETS_PER_HOUR) {
+      throw new AppError(
+        'You have raised several requests in the last hour. We will reply on those; you can add to one by replying.',
+        429,
+        'TOO_MANY_TICKETS'
+      );
     }
 
     const ticket = await supportRepository.create({
@@ -59,8 +119,11 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
       raisedByRole: req.user!.role,
       raisedByName: user?.fullName || req.user!.fullName,
       contactPhone: user?.phone,
-      orderId: req.body.orderId,
-      orderNumber,
+      orderId: order?.id,
+      orderNumber: order?.orderNumber,
+      helpChat,
+      appVersion: req.body.appVersion,
+      platform: req.body.platform,
       subject: req.body.subject,
       category: req.body.category,
       message: req.body.message,

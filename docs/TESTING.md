@@ -28,7 +28,7 @@ node scripts/build-web.mjs           # the /partner and /admin websites build
 **Baseline on 17 Oct 2026 (`c25685c` and `3caa076`):** 1344 checks passed, 0 failed; the run
 reports `1 SUITE(S) FAILED: fssaiBadge` only because of the known Windows exit crash below.
 
-**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **89** on disk (all listed in the runner; `deliveryRadius` and `catalogueCuration` added 18 Oct).
+**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **90** on disk (all listed in the runner; `deliveryRadius`, `catalogueCuration` and `helpChat` added 18 Oct).
 
 ## Known environmental failures (Windows, not defects)
 
@@ -140,6 +140,7 @@ Description = the suite's own header line.
 | `profitGuards` | Money the platform used to give back, and the controls that stop it. |
 | `catalogueCuration` | B5: kitchen type is the partner's (reviewed edit), Pure Veg seal staff-only and outranks it, section switch everywhere (menu, quote, checkout, search, back-at time), recommended list first and as the no-location list. |
 | `deliveryRadius` | One 35 km radius on the map (list and checkout), closed kitchens listed after open ones, rider pay sliding with distance, cash only up to 15 road km, the 35 km applied once (master plan B1). |
+| `helpChat` | B8: help topics per app (no customer topic for partner/rider), fixed answers from live data (order status + arrival, refund case, owed, cash, documents), own orders only (customer-app session of a partner is a customer), "Talk to us" ticket with the server-rebuilt chat, one ticket per double tap, 5 an hour, staff reply pushed, raiser's reply reopens. |
 | `qaAppText` | The owner's QA pass on v8 (26 Sep), app half: #9 to #15. |
 | `qaRound1` | v9 QA round 1 (26 Sep), server fixes: V9-16, V9-8, V9-2, V9-3. |
 | `rateLimitPerUser` | The request limit is per account, not per address (N15 / S4). |

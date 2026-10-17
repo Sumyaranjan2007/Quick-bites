@@ -49,7 +49,7 @@ says repositories are the only writers; in the code many routes and modules writ
 | `payeeAccounts` | – | where a partner/rider is paid; no full account number (encrypted apart with `PAYEE_ACCOUNT_KEY`) | `modules/payments/payeeAccounts.ts` |
 | `cashDeposits` | – | COD cash a rider brings in | `modules/payments/cashDeposits.ts` |
 | `refundRequests` | `RefundRequest` :1285 | orderId, reasonCode, requested/approvedAmount, status, timeline | `refundRepository.ts` |
-| `supportTickets` | `SupportTicket` :1328 | raisedBy, subject, message, status, replies | `supportRepository.ts`, `routes/admin/supportRoutes.ts` |
+| `supportTickets` | `SupportTicket` :1328 | raisedBy, subject, message, status, replies; B8: `helpChat` (server-rebuilt answers), `appVersion`, `platform` | `supportRepository.ts`, `routes/supportRouter.ts`, `routes/admin/supportRoutes.ts` |
 | `sosAlerts` | `SosAlert` :933 | riderId, orderId, coordinates, status | `routes/riderRouter.ts`, `routes/admin/supportRoutes.ts` |
 | `riderIncentives` | – | milestones already paid | `modules/riders/riderMetrics.ts` |
 | `wallets`, `walletTransactions` | `Wallet` :976, `WalletTransaction` :984 | legacy wallet | `walletRepository.ts`, `userRepository.ts` |
