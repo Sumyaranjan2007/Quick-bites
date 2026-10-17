@@ -15,6 +15,7 @@
 import type { Order, OrderStatus, Restaurant, DeliveryRider } from '@quick-bites/shared-types';
 import { tripTakeHome } from '../riders/tripPayout.ts';
 import { memoryStore } from '../../db/client.ts';
+import { hasRole } from '../../db/repositories/userRepository.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 
 const IST_OFFSET_MINUTES = 330;
@@ -211,7 +212,7 @@ export function buildDashboard(): DashboardSnapshot {
     round(rows.reduce((total, row) => total + (row[key] as number), 0));
 
   const gmv = sum(earning, 'gross');
-  const customers = users.filter(u => u.role === 'customer');
+  const customers = users.filter(u => hasRole(u, 'customer'));
 
   const refundRequests = Array.from(memoryStore.refundRequests.values());
   const supportTickets = Array.from(memoryStore.supportTickets.values());

@@ -101,6 +101,36 @@ export const userRepository = {
    * restaurant's financial and tax records must survive the customer deleting
    * their profile.
    */
+  /**
+   * Deletes only the customer side of an account that is also a partner or
+   * rider (owner, 17 Oct 2026): their addresses and favourites go, and their
+   * past orders lose their name and address, as in deleteAccount. The kitchen
+   * or rider account, its money and its sign-in are untouched.
+   */
+  async removeCustomerSide(userId: string): Promise<UserRecord | null> {
+    const user = memoryStore.users.get(userId);
+    if (!user) return null;
+    for (const [id, addr] of memoryStore.addresses.entries()) {
+      if (addr.userId === userId) memoryStore.addresses.delete(id);
+    }
+    for (const order of memoryStore.orders.values()) {
+      if (order.customerId === userId) {
+        order.customerId = 'deleted_user';
+        order.customerName = 'Deleted account';
+        delete order.customerPhone;
+        delete order.deliveryAddressText;
+        memoryStore.orders.set(order.id, order);
+      }
+    }
+    const roles = rolesOf(user).filter(r => r !== 'customer');
+    user.roles = roles;
+    if (user.role === 'customer') user.role = roles[0];
+    user.favouriteRestaurantIds = [];
+    memoryStore.users.set(userId, user);
+    triggerAutoSave();
+    return user;
+  },
+
   async deleteAccount(userId: string): Promise<boolean> {
     const user = memoryStore.users.get(userId);
     if (!user) return false;

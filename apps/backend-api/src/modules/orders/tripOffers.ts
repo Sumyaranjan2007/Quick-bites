@@ -59,6 +59,8 @@ export async function eligibleRidersFor(order: Order): Promise<DeliveryRider[]> 
   for (const rider of riders) {
     if (!rider.isOnline) continue;
     if (!rider.userId) continue;
+    // A rider who is also a customer is never offered their own order.
+    if (rider.userId === order.customerId) continue;
 
     // Already declined it. Offering it again is how a rider learns to ignore the
     // alarm, and the list already respects this.

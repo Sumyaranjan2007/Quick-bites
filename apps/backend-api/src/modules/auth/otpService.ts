@@ -33,7 +33,7 @@ import crypto from 'crypto';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
 import { activeDriver, maskPhone, sendCodeByEmail, isRealEmail } from './otpDrivers.ts';
-import { userRepository } from '../../db/repositories/userRepository.ts';
+import { userRepository, hasRole, rolesOf } from '../../db/repositories/userRepository.ts';
 import { normalizeIndianPhone } from '../../utils/phone.ts';
 
 interface PendingCode {
@@ -161,12 +161,18 @@ export const otpService = {
     // Email codes (11 Oct 2026). An account that already has an address gets the
     // code THERE, whatever was typed: otherwise anyone typing a customer's phone
     // with their own email would receive the code to that customer's account.
-    // A staff number gets nothing (verify refuses it anyway). Old app versions
-    // send no email; an account without an address then stays on SMS.
+    // A partner or rider number gets it at the account's own address, so they
+    // can order food too (owner, 17 Oct 2026); Operations numbers get nothing
+    // (verify refuses them). Old app versions send no email; an account
+    // without an address then stays on SMS.
     const account = await userRepository.findByPhone(phone);
-    const email = account
-      ? (account.role !== 'customer' ? undefined : isRealEmail(account.email) ? account.email : typedEmail)
-      : typedEmail;
+    const customer = !account || hasRole(account, 'customer');
+    const partnerOrRider = !customer && rolesOf(account).every(r => r === 'restaurant_owner' || r === 'rider');
+    const email = !account
+      ? typedEmail
+      : isRealEmail(account.email)
+        ? (customer || partnerOrRider ? account.email : undefined)
+        : (customer ? typedEmail : undefined);
     const byEmail = Boolean(email) || Boolean(typedEmail);
 
     write(phone, {

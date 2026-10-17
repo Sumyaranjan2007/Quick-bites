@@ -161,10 +161,16 @@ async function run() {
       method: 'POST',
       body: { phone: partner.phone, code: FIXED }
     });
+    // Since 17 Oct 2026 a partner may also order food: phone sign-in now
+    // succeeds, but as a CUSTOMER-only session that the kitchen's routes refuse.
+    const partnerToken = staffAttempt.json?.data?.token;
+    const kitchen = partnerToken
+      ? await fetch(`${API}/earnings/payout-requests`, { headers: { Authorization: `Bearer ${partnerToken}` } })
+      : { status: 0 };
     check(
       "A staff member's number does not hand out a staff token through phone sign-in",
-      staffAttempt.status === 403,
-      `status ${staffAttempt.status} role ${staffAttempt.json?.data?.user?.role}`
+      staffAttempt.status === 200 && staffAttempt.json?.data?.user?.role === 'customer' && kitchen.status === 403,
+      `status ${staffAttempt.status} role ${staffAttempt.json?.data?.user?.role} kitchen ${kitchen.status}`
     );
   } else {
     check('Seeded partner has a phone number to test against', false, 'no phone on partner account');

@@ -197,7 +197,35 @@ export function authMiddleware(requiredRole?: string) {
        * `rolesOf` falls back to `[role]`, so every account created before this
        * existed is judged exactly as it always was.
        */
-      const held = rolesOf(stored);
+      let held = rolesOf(stored);
+
+      /*
+       * A customer-app sign-in (phone + emailed code) is customer-only, even on
+       * an account that also owns a kitchen or rides (owner, 17 Oct 2026). The
+       * kitchen's money, menu and bank details stay behind the Partner/Rider
+       * app password. Earnings, payee accounts and KYC check ownership rather
+       * than role, so their mounts are refused here by path.
+       */
+      if (payload.scope === 'customer') {
+        if (!heldNow.includes('customer')) {
+          res.status(401).json({
+            success: false,
+            error: { code: 'SESSION_REVOKED', message: 'This customer account was deleted. Sign in again.' },
+            meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+          });
+          return;
+        }
+        req.user.role = 'customer' as UserRole;
+        held = ['customer'];
+        if (/\/(earnings|payee-accounts|kyc)$/.test(req.baseUrl || '')) {
+          res.status(403).json({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'Sign in from the Partner or Rider app for this.' },
+            meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
+          });
+          return;
+        }
+      }
       req.user.roles = held as UserRole[];
       if (requiredRole) {
         const isAdmin = held.includes('admin') || held.includes('super_admin');

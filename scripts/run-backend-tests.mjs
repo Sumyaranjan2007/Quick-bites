@@ -72,6 +72,7 @@ const SUITES = [
   'adminPush',
   'apnsPush',
   'fssaiBadge',
+  'multiRoleCustomer',
   'webApps',
   'orderMap',
   'riderTripPush',

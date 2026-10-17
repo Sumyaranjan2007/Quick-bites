@@ -31,7 +31,7 @@ export const authRouter = Router();
  * when the account was first a customer. Only a role the account holds is
  * accepted; anything else falls back to the primary role.
  */
-export function generateToken(user: any, actingRole?: string): string {
+export function generateToken(user: any, actingRole?: string, scope?: 'customer'): string {
   const held = rolesOf(user);
   const role = actingRole && held.includes(actingRole) ? actingRole : user.role;
   return jwt.sign(
@@ -39,6 +39,8 @@ export function generateToken(user: any, actingRole?: string): string {
       sub: user.id,
       email: user.email,
       role,
+      // 'customer': a customer-app session, limited to customer features (middlewares/auth.ts).
+      ...(scope ? { scope } : {}),
       is_gold: user.isGold,
       user_metadata: { name: user.fullName },
       // Token version: bumped on a password change or reset to retire older tokens.
@@ -337,7 +339,28 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
 
     // A partner or rider: closed now, deleted by an administrator once nothing
     // is owed either way (owner, 2 Oct 2026). See staffDeletion.ts.
-    if (isStaffRole(user.role)) {
+    // From the Customer app, an account that is also a partner or rider loses
+    // only its customer side; the kitchen or rider account is closed only
+    // from its own app (owner, 17 Oct 2026).
+    if (req.user!.role === 'customer' && rolesOf(user).some(r => isStaffRole(r))) {
+      const live = (Array.from(memoryStore.orders.values()) as any[]).find(
+        o => o.customerId === userId && !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(o.status)
+      );
+      if (live) {
+        throw new AppError(
+          `Order #${live.orderNumber} is still in progress. You can delete your account once it is delivered or cancelled.`,
+          409,
+          'ORDER_IN_PROGRESS'
+        );
+      }
+      await userRepository.removeCustomerSide(userId);
+      return res.json({
+        success: true,
+        data: { deleted: true },
+        message: 'Your customer account and its data have been deleted. Your partner or rider account is unchanged.'
+      });
+    }
+    if (isStaffRole(user.role) || isStaffRole(req.user!.role)) {
       await requestStaffDeletion(userId);
       void notifyAdminsDeletionRequested({
         userId,
@@ -762,7 +785,7 @@ authRouter.post(
         data: {
           user: { id: user.id, email: user.email, fullName: user.fullName, phone: user.phone, role: user.role },
           restaurant: { id: restaurant.id, name: restaurant.name, status: restaurant.status },
-          token: generateToken(user),
+          token: generateToken(user, 'restaurant_owner'),
           awaitingApproval: true
         },
         message: 'Your restaurant has been registered. Upload your documents — an administrator reviews them before you can take orders.'
@@ -852,7 +875,7 @@ authRouter.post(
         data: {
           user: { id: user.id, email: user.email, fullName: user.fullName, phone: user.phone, role: user.role },
           rider: { id: rider.id, driverCode: rider.driverCode, kycStatus: rider.kycStatus },
-          token: generateToken(user),
+          token: generateToken(user, 'rider'),
           awaitingApproval: true
         },
         message: 'You are registered. Upload your documents — an administrator reviews them before you can go on shift.'
@@ -978,20 +1001,33 @@ authRouter.post(
       // The address the code was emailed to: receiving it proves the customer holds it.
       const email = result.email;
 
-      if (user && user.role !== 'customer') {
-        // A staff member's number reaching this endpoint must not hand out a
-        // staff token. They sign in with their credentials, in their own app.
-        throw new AppError(
-          'This number belongs to a partner account. Sign in from the partner app with your email and password.',
-          403,
-          'STAFF_ACCOUNT'
-        );
+      /*
+       * A restaurant owner or rider may also order food (owner, 17 Oct 2026):
+       * the same account gains the customer role, and the session is
+       * customer-only (generateToken scope). Proof is the code emailed to the
+       * address ALREADY on their account (otpService), never a typed one or an
+       * SMS to a number nobody verified. Operations accounts stay out.
+       */
+      if (user && !hasRole(user, 'customer')) {
+        const partnerOrRider = rolesOf(user).every(r => r === 'restaurant_owner' || r === 'rider');
+        if (!partnerOrRider || !email || !isRealEmail(user.email) || email !== user.email.toLowerCase()) {
+          throw new AppError(
+            partnerOrRider
+              ? 'Sign in with the email address on your partner or rider account.'
+              : 'This number belongs to a Quick Bites staff account. Use a different number.',
+            403,
+            'STAFF_ACCOUNT'
+          );
+        }
+        user = (await grantRole(user.id, 'customer'))!;
       }
       if (email) {
         const holder = await userRepository.findByEmail(email);
         if (holder && holder.id !== user?.id) {
           throw new AppError(
-            'This email is already used by another Quick Bites account. Use a different email.',
+            hasRole(holder, 'customer')
+              ? 'This email is already used by another Quick Bites account. Use a different email.'
+              : 'This email belongs to a partner or rider account. Sign in with the mobile number on that account.',
             409,
             'EMAIL_IN_USE'
           );
@@ -1039,14 +1075,14 @@ authRouter.post(
             email: user.email,
             fullName: user.fullName,
             phone: user.phone,
-            role: user.role,
+            role: 'customer',
             isGold: user.isGold,
             avatarUrl: user.avatarUrl,
             favouriteRestaurantIds: user.favouriteRestaurantIds || [],
             // So the app asks a phone-only customer for a code, not a password.
             hasPassword: Boolean((user as any).passwordHash)
           },
-          token: generateToken(user)
+          token: generateToken(user, 'customer', 'customer')
         },
         message: created ? 'Welcome to Quick Bites.' : 'Signed in.'
       });

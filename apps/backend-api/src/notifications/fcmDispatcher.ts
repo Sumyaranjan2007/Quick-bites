@@ -72,6 +72,25 @@ const CHANNEL = {
   DEFAULT: 'default'
 } as const;
 
+/*
+ * One person can be a customer and a partner or rider (owner, 17 Oct 2026),
+ * with one app for each role. Each device is registered with the role its app
+ * signed in as, and each channel belongs to one app, so a kitchen alarm rings
+ * only the Partner app and "your food is on its way" only the Customer app.
+ * If none of their devices matches, all of them are used: never lose an alert.
+ */
+const CHANNEL_ROLE: Record<string, string> = {
+  [CHANNEL.KITCHEN]: 'restaurant_owner',
+  [CHANNEL.RIDER]: 'rider',
+  [CHANNEL.ORDER_UPDATES]: 'customer'
+};
+
+export function forApp<T extends { role?: string }>(devices: T[], channelId?: string): T[] {
+  const role = channelId ? CHANNEL_ROLE[channelId] : undefined;
+  const matching = role ? devices.filter(d => d.role === role) : devices;
+  return matching.length > 0 ? matching : devices;
+}
+
 class FcmNotificationDispatcher {
   private dispatchHistory: PushNotificationPayload[] = [];
 
@@ -127,7 +146,7 @@ class FcmNotificationDispatcher {
    */
   private async deliver(record: PushNotificationPayload): Promise<void> {
     try {
-      const devices = await deviceTokenRepository.listForUser(record.userId);
+      const devices = forApp(await deviceTokenRepository.listForUser(record.userId), record.androidChannelId);
       if (devices.length === 0) return;
 
       const message: PushMessage = {

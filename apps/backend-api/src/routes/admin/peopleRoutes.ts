@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
-import { userRepository, rolesOf } from '../../db/repositories/userRepository.ts';
+import { userRepository, rolesOf, hasRole } from '../../db/repositories/userRepository.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { MANDATORY_RIDER_DOCUMENTS } from '../../db/repositories/riderRepository.ts';
@@ -130,7 +130,7 @@ peopleRoutes.get('/customers', requirePermission('users.customers.view'), async 
     const orders = (await orderRepository.listAll()) as Order[];
 
     let customers = (await userRepository.list())
-      .filter(u => u.role === 'customer')
+      .filter(u => hasRole(u, 'customer'))
       .map(user => {
         const own = orders.filter(o => o.customerId === user.id);
         const delivered = own.filter(o => o.status === 'DELIVERED');

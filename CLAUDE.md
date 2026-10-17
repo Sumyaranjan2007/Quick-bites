@@ -310,6 +310,11 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
   designing around its absence.
 - Scope: four phone apps only, no extra features, no OTA, finish before build.
 - A worktree with junctioned `node_modules` runs main's `@quick-bites/*` packages.
+- **One account, several roles.** A partner or rider may also be a customer (17 Oct): the
+  Customer app's phone-code sign-in grants `customer` and issues a `scope: 'customer'` token
+  that `middlewares/auth.ts` limits to customer features. Any new staff route that checks
+  ownership instead of `authMiddleware('<role>')` must be added to the mount list there, or a
+  customer session could reach it. Pushes pick the app by channel (`forApp`).
 - **Never use @rnmapbox `UserLocation` (or its `locationManager`).** On the old architecture its
   location events crash the app on the first real GPS fix (v30, 16 Oct). Use `LocationPuck`, as
   `MapCanvas` does. Emulators never feed Mapbox a GPS fix, so only a real phone shows this.

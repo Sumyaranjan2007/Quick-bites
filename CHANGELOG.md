@@ -6,6 +6,38 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-17] -- Claude Opus 5.5 -- One person, several apps: partners and riders can also order food
+
+> **For the owner.** A restaurant owner or rider can now sign in to the **Customer** app with
+> the phone number on their partner/rider account and order food from other kitchens. The
+> code goes to the email already on their account. Their kitchen's money, menu and bank
+> details still need the Partner/Rider app password. Server change only: no new APK or
+> bundle, and nothing changes for anyone who uses one app.
+
+- Customer sign-in (`/auth/otp/verify`): a partner or rider account gains the `customer`
+  role (same account, `grantRole`); proof is the code emailed to the account's OWN address
+  (`otpService` sends it there; verify checks it). Operations accounts and staff accounts
+  without a real email are still refused (`STAFF_ACCOUNT`). A different phone with a
+  partner's email is refused with a clearer message (`EMAIL_IN_USE`).
+- Customer-app tokens carry `scope: 'customer'` (`generateToken`). `middlewares/auth.ts`
+  then acts as customer only (roles `['customer']`, no admin bypass), refuses the
+  ownership-checked staff mounts `/earnings`, `/payee-accounts`, `/kyc`, and ends the
+  session (`SESSION_REVOKED`) once the customer side is deleted.
+- Pushes go to the app the channel belongs to (`forApp` in `fcmDispatcher.ts`:
+  kitchen-orders → Partner, new-orders → Rider, order-updates → Customer), falling back to
+  every device when none matches, so no alert is lost.
+- "Delete account" in the Customer app on a partner/rider account removes only the customer
+  side (`userRepository.removeCustomerSide`: addresses, favourites, name/address on past
+  orders); the kitchen or rider account stays. Deleting from the Partner/Rider app still
+  closes the whole account (now also when the account's primary role is customer).
+- Guards: no order from your own restaurant (`OWN_RESTAURANT`); a rider is never offered
+  their own order. Partner/Rider registration tokens now carry their own role.
+- Admin customer list and analytics count customers who are also partners/riders.
+- New suite `multiRoleCustomer` (mutation-checked: 9 guards, each caught); `otp` suite updated
+  (the partner's phone now signs in as a customer-only session, refused by the kitchen's routes).
+
+---
+
 ## [2026-10-17] -- Claude Opus 5.5 -- Play Console setup: Customer in review, Rider is in.quickbite.rider (versionCode 33)
 
 > **For the owner.** The Customer app was sent to Google for its first review on 16 Oct

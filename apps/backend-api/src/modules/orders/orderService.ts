@@ -570,6 +570,11 @@ export const orderService = {
     if (restaurant.status !== 'ACTIVE') {
       throw new AppError('Restaurant is currently not accepting orders.', 409, 'RESTAURANT_INACTIVE');
     }
+    // An owner who is also a customer cannot order from their own kitchen:
+    // that is how fake orders, ratings and cash-on-delivery games are made.
+    if (restaurant.ownerId === input.customerId) {
+      throw new AppError('You cannot order from your own restaurant.', 409, 'OWN_RESTAURANT');
+    }
     // Cash on delivery, per restaurant (owner, 2 Oct 2026): some kitchens do not
     // want cash orders, and only an administrator can switch it.
     if (input.paymentMethod === 'CASH_ON_DELIVERY' && !acceptsCash(restaurant)) {
