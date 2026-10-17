@@ -85,3 +85,17 @@ Checked and fine (no finding): every cash-on-delivery refusal is in one place (`
 | B7-2 | Low (efficiency) | `recordRoutes.ts` history | `auditRepository.list({ limit: MAX_SAFE_INTEGER })` loads the whole audit log on each record view, then filters. | Filter by entity ids inside the repository, newest first, stop at 200. | open |
 
 R6 (first round) is fixed by `c449965` (4xx logged at WARN). R1–R5, R7 and D1, D6, D8 stay open.
+
+---
+
+## 18 Oct 2026 — `0a33e95` fix(security): M1, L7, L1 + review R2, R3
+
+**Verdict: approve** (2 low, 1 note). R2 and R3 are fixed: `anonymiseCustomerHistory` (`userRepository.ts:35`) is the one place both deletion paths call, and it now clears refund cases too (check in `launchRound`); `pruneExpiredConfirmLinks` runs every sweep (check in `customerAddsRole`). M1 matches numbers through `normalizeIndianPhone` (`userRepository.ts:85`), so `+91 98765 43210` cannot take `9876543210`. L7: `measured` is the `roadDistance` result, which falls back to a straight-line estimate instead of `undefined` (`routingService.ts:54`), so a map outage does not block cash for a pinned address. No import cycle (`authRouter.ts` imports nothing from `modules/orders`).
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| T1 | Low | `modules/orders/orderService.ts:748`, `pricingConfig.ts:268` | `measured` is also `undefined` when the **kitchen** has no real location (`hasRealLocation(restaurant)` false): cash is then refused with `COD_NEEDS_PIN` and "Pin your delivery address", although the customer's address is pinned. The customer cannot fix it. | Pass why it is unmeasured: kitchen not pinned → say "this restaurant's location is being confirmed, please pay online" (or allow cash, as before L7, since the trip distance is unknown for everyone). | open |
+| T2 | Low | `modules/orders/orderSweeper.ts:37` | A module now imports from a router (`routes/authRouter.ts`) to reach the confirm-link store. Works, but the next router import can create a cycle. | Move `pendingRoles` / `pruneExpiredConfirmLinks` into a small `modules/auth/confirmLinks.ts` used by both. | open |
+| T3 | Note | `db/repositories/userRepository.ts` `anonymiseCustomerHistory` | Support tickets raised by a deleted customer keep `raisedByName` and their messages (same class as R2, older than K1). | Add `supportTickets` (by `raisedByUserId`) to the same function when B6 touches deletion. | open |
+
+R2, R3 closed. R1 waits on the owner. Still open: R4, R5, R7, S1 (offer race, blocking for B4), S2–S5, B1-1, B1-2, B7-1, B7-2, D1, D6, D8.
