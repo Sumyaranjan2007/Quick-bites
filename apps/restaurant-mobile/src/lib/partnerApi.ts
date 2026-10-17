@@ -203,8 +203,6 @@ export function createAccount(input: {
   /** The pin the owner placed on the map. */
   latitude?: number;
   longitude?: number;
-  /** How far this kitchen delivers. Absent uses the platform default. */
-  serviceRadiusKm?: number;
 }) {
   return request<{ token: string; user: any; restaurant: any; awaitingApproval: boolean }>(
     '/auth/register/partner',
@@ -228,8 +226,7 @@ export function createAccount(input: {
         // a quietly nudged coordinate would not be.
         ...(input.latitude !== undefined && input.longitude !== undefined
           ? { latitude: input.latitude, longitude: input.longitude }
-          : {}),
-        ...(input.serviceRadiusKm ? { serviceRadiusKm: input.serviceRadiusKm } : {})
+          : {})
       })
     },
     'We could not register your restaurant.'

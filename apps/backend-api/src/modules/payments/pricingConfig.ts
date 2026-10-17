@@ -92,6 +92,9 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'riderBaseFeePerTrip', label: 'Rider base fee', help: 'Earned per trip before distance is counted.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false, retired: true },
   { key: 'riderBaseKm', label: 'Rider base distance', help: 'Distance covered by the base fee.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: false, retired: true },
   { key: 'riderPerKmFee', label: 'Rider pay per km', help: 'Road km from restaurant to customer x this is what the rider earns. The customer delivery fee is this plus the delivery markup.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: false },
+  { key: 'riderFullRateKm', label: 'Full rider rate up to', help: 'Trips up to this many road km pay the full rider pay per km.', unit: 'KM', min: 0, max: 100, affectsCustomerBill: false },
+  { key: 'riderFarPerKmFee', label: 'Rider pay per km, far trips', help: 'Beyond the full-rate distance the per-km rate slides down to this, reached at the far distance below. Set it equal to the full rate for one flat rate.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: false },
+  { key: 'riderFarRateKm', label: 'Far rate reached at', help: 'Trip length (road km) at which the far per-km rate applies; longer trips stay at it.', unit: 'KM', min: 1, max: 200, affectsCustomerBill: false },
   { key: 'riderMinEarningPerTrip', label: 'Rider minimum per trip', help: 'No trip pays the rider less than this, however short.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false },
   {
     key: 'riderDeliveryMarkupPercent',
@@ -156,7 +159,8 @@ export const RATE_BOUNDS: RateBound[] = [
    * Day-one profit and abuse controls. All start at 0, which means off, so
    * they arrive changing nothing until the owner decides a number.
    */
-  { key: 'maxDeliveryKm', label: 'Furthest delivery', help: 'Customers further than this from the kitchen, by road, cannot order from it. 0 = no limit.', unit: 'KM', min: 0, max: 50, affectsCustomerBill: true },
+  { key: 'maxDeliveryKm', label: 'Delivery radius', help: 'A circle on the map around every kitchen (straight line). Customers outside it do not see the kitchen and cannot order. Kitchens no longer set their own. 0 = no limit.', unit: 'KM', min: 0, max: 100, affectsCustomerBill: true },
+  { key: 'codMaxDistanceKm', label: 'Cash on delivery up to', help: 'Cash on delivery is offered only for trips up to this many road km; further trips pay online, and the customer is told why. 0 = no limit.', unit: 'KM', min: 0, max: 100, affectsCustomerBill: true },
   { key: 'minOrderValue', label: 'Minimum order', help: 'Smallest food total accepted at checkout. 0 = no minimum.', unit: 'RUPEES', min: 0, max: 2000, affectsCustomerBill: true },
   { key: 'cancelFeePercentAfterAccept', label: 'Cancel fee after kitchen accepts', help: 'Share of the bill kept when a customer cancels after the kitchen accepted. Pays the kitchen for food it started. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
   { key: 'cancelFeePercentAfterReady', label: 'Cancel fee once food is ready', help: 'Share of the bill kept when a customer cancels once the food is ready or on its way. 0 = free.', unit: 'PERCENT', min: 0, max: 100, affectsCustomerBill: true },
@@ -242,6 +246,23 @@ export function getActiveConfig(): PricingConfig {
 /** The rates in force, which is all most callers want. */
 export function getActiveRates(): PricingRates {
   return getActiveConfig().rates;
+}
+
+/**
+ * The delivery radius on the map, km (straight line). One rule for the
+ * restaurant list and for checkout, so a kitchen a customer can see is one they
+ * can order from. Infinity when the owner set no limit (0).
+ */
+export function deliveryRadiusKm(): number {
+  const km = Number(getActiveRates().maxDeliveryKm);
+  return km > 0 ? km : Infinity;
+}
+
+/** Why cash is not offered on a long trip; shown to the customer before they choose. */
+export function cashTooFarReason(tripKm: number): string | null {
+  const limit = Number(getActiveRates().codMaxDistanceKm);
+  if (!(limit > 0) || !(tripKm > limit)) return null;
+  return `Cash on delivery is available only up to ${limit} km. This restaurant is ${tripKm.toFixed(1)} km away, so please pay online.`;
 }
 
 /** Newest version first. */
@@ -389,3 +410,23 @@ export function applyOwnerDecisions20261002(): boolean {
   return true;
 }
 
+/**
+ * The owner's decisions of 18 Oct 2026, applied once to the live rates: the
+ * delivery radius is 35 km on the map for every kitchen (was 0 = no limit).
+ * The new rider pay curve and the 15 km cash limit are new rates, so their
+ * defaults apply without a version. Guarded by a flag so a later change on the
+ * Rates screen is never undone by a restart.
+ */
+export function applyOwnerDecisions20261018(): boolean {
+  const FLAG = 'rates:radius-35-2026-10-18';
+  if (memoryStore.meta.get(FLAG)) return false;
+  if (!(Number(getActiveRates().maxDeliveryKm) > 0)) {
+    createVersion(
+      { maxDeliveryKm: 35 },
+      { userId: 'system' },
+      "Owner's decision 18 Oct 2026: every kitchen is shown and delivers within a 35 km radius on the map."
+    );
+  }
+  memoryStore.meta.set(FLAG, new Date().toISOString());
+  return true;
+}

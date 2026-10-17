@@ -8,6 +8,7 @@ import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { settlementRepository } from '../db/repositories/settlementRepository.ts';
 import { calculateDistanceKm, memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
+import { deliveryRadiusKm } from '../modules/payments/pricingConfig.ts';
 import { estimateByRoad } from '../modules/places/routingService.ts';
 import { hasRealLocation } from '../modules/restaurants/restaurantLocation.ts';
 import { emitKitchenStatus, emitMenuUpdated, emitMenuRequestSubmitted } from '../sockets/socketServer.ts';
@@ -231,16 +232,14 @@ restaurantRouter.get('/', async (req, res) => {
         r.coordinates.longitude
       );
       const road = estimateByRoad(origin, r.coordinates);
-      const serviceRadius = Number(r.serviceRadiusKm) || config.DEFAULT_SERVICE_RADIUS_KM;
 
       return {
         ...r,
         distanceKm: road.distanceKm,
-        // Each restaurant against its own delivery area, not one platform-wide
-        // 10 km circle: a kitchen with one rider covers two kilometres and a
-        // chain covers eight, and pretending otherwise promised deliveries that
-        // would be declined.
-        isWithinServiceArea: straightLine <= serviceRadius,
+        // One radius on the map for every kitchen, set by admins (owner, 18 Oct
+        // 2026: 35 km; kitchens no longer choose their own). Checkout applies
+        // the same rule, so a kitchen shown here is one the customer can order from.
+        isWithinServiceArea: straightLine <= deliveryRadiusKm(),
         locationPending: false,
         // Prep plus travel at the configured speed, both settable without a
         // release, instead of a slope invented in this line.
@@ -338,6 +337,9 @@ restaurantRouter.get('/', async (req, res) => {
             byRating(a, b)
         );
     }
+    // Whatever the sort, "Not delivering currently" kitchens come after open ones (master plan B1).
+    // Array sort is stable, so the chosen order holds inside each group.
+    annotated.sort((a, b) => Number(isKitchenServing(b)) - Number(isKitchenServing(a)));
 
     return res.json({
       success: true,

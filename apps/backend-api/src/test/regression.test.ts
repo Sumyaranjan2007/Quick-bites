@@ -250,9 +250,10 @@ async function run() {
       body: {
         label: 'Home',
         addressLine: '12 Test Street, Ground Floor',
-        city: 'Bengaluru',
-        pincode: '560001',
-        coordinates: { latitude: 12.9611, longitude: 77.6387 }
+        city: 'Harohalli',
+        pincode: '562112',
+        // ~3 km from the seeded kitchen: inside the 35 km delivery radius (owner, 18 Oct 2026).
+        coordinates: { latitude: 12.7000, longitude: 77.4900 }
       }
     },
     plainToken

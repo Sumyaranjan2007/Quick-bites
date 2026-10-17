@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { calculateDistanceKm } from '../../db/client.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { ratesForRestaurant } from '../payments/riderCityRates.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
@@ -6,7 +7,7 @@ import { menuRepository } from '../../db/repositories/menuRepository.ts';
 import { userRepository } from '../../db/repositories/userRepository.ts';
 import { addressRepository } from '../../db/repositories/addressRepository.ts';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
-import { getActiveRates } from '../payments/pricingConfig.ts';
+import { getActiveRates, deliveryRadiusKm, cashTooFarReason } from '../payments/pricingConfig.ts';
 import { bookCapture } from '../payments/capture.ts';
 import { sendRefund } from '../payments/refunds.ts';
 import { refundDuplicateCapture } from '../payments/duplicateCapture.ts';
@@ -43,7 +44,7 @@ import { config } from '../../config/env.ts';
 import { findCancellationReason, actorForRole } from './cancellationReasons.ts';
 import { assertEnabled } from '../platform/featureFlags.ts';
 import { AppError } from '../../utils/AppError.ts';
-import type { Order, OrderStatus, PaymentMethod, UserRole } from '@quick-bites/shared-types';
+import type { Order, OrderStatus, PaymentMethod, Restaurant, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
 import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor, codOverrideFor } from './cancellationFee.ts';
@@ -186,19 +187,28 @@ function tripDistanceFrom(measuredKm: number | undefined, claimedKm: number | un
 }
 
 /**
- * The owner's minimum order and furthest delivery. Both are 0 (off) by default.
- * The radius is enforced only on a MEASURED distance: refusing on a guess would
- * turn away customers whose address simply has no pin.
+ * The owner's delivery radius and minimum order.
+ * The radius is the circle on the map the restaurant list uses (straight line,
+ * `deliveryRadiusKm`), so a kitchen the customer could see is one they can order
+ * from. Enforced only when both ends have a real position: refusing on a guess
+ * would turn away customers whose address simply has no pin.
  */
-function assertDeliverable(restaurantName: string, distanceKm: number, measured: boolean, foodTotal: number): void {
+function assertDeliverable(
+  restaurant: Restaurant,
+  to: { latitude: number; longitude: number } | undefined,
+  foodTotal: number
+): void {
   const rates = getActiveRates();
-  const maxKm = Number(rates.maxDeliveryKm) || 0;
-  if (maxKm > 0 && measured && distanceKm > maxKm) {
-    throw new AppError(
-      `${restaurantName} does not deliver this far (${distanceKm.toFixed(1)} km; the limit is ${maxKm} km).`,
-      409,
-      'OUT_OF_DELIVERY_RANGE'
-    );
+  const radius = deliveryRadiusKm();
+  if (to && hasRealLocation(restaurant) && Number.isFinite(radius)) {
+    const straight = calculateDistanceKm(restaurant.coordinates.latitude, restaurant.coordinates.longitude, to.latitude, to.longitude);
+    if (straight > radius) {
+      throw new AppError(
+        `${restaurant.name} does not deliver this far (${straight.toFixed(1)} km; the limit is ${radius} km).`,
+        409,
+        'OUT_OF_DELIVERY_RANGE'
+      );
+    }
   }
   const minOrder = Number(rates.minOrderValue) || 0;
   if (minOrder > 0 && foodTotal < minOrder) {
@@ -444,7 +454,7 @@ export const orderService = {
         ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
     const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
-    assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), pricedItems.reduce((t, i) => t + i.totalPrice, 0));
+    assertDeliverable(restaurant, address?.coordinates, pricedItems.reduce((t, i) => t + i.totalPrice, 0));
 
     let validatedCoupon = undefined;
     let couponError: string | undefined;
@@ -525,7 +535,12 @@ export const orderService = {
       appliedCouponCode: appliedCode,
       couponError,
       restaurantIsOpen: isKitchenServing(restaurant) && restaurant.status === 'ACTIVE',
-      acceptsCash: acceptsCash(restaurant),
+      // Old app versions read only this flag, so it already folds in the distance limit.
+      acceptsCash: acceptsCash(restaurant) && !cashTooFarReason(tripDistanceKm),
+      /** Why cash is not offered, in words for the customer; null when it is. */
+      cashUnavailableReason: !acceptsCash(restaurant)
+        ? `${restaurant.name} accepts online payment only.`
+        : cashTooFarReason(tripDistanceKm),
       unavailableItems: pricedItems.filter(i => !i.isAvailable).map(i => i.name)
     };
   },
@@ -724,7 +739,10 @@ export const orderService = {
         ? await roadDistance(restaurant.coordinates, address.coordinates)
         : undefined;
     const tripDistanceKm = tripDistanceFrom(measured?.distanceKm, input.distanceKm);
-    assertDeliverable(restaurant.name, tripDistanceKm, Boolean(measured), orderItems.reduce((t, i) => t + i.totalPrice, 0));
+    assertDeliverable(restaurant, address.coordinates, orderItems.reduce((t, i) => t + i.totalPrice, 0));
+    // Cash only on shorter trips (owner, 18 Oct 2026): the quote already hid it and said why.
+    const cashTooFar = input.paymentMethod === 'CASH_ON_DELIVERY' ? cashTooFarReason(tripDistanceKm) : null;
+    if (cashTooFar) throw new AppError(cashTooFar, 409, 'COD_TOO_FAR');
 
     const charges = effectiveCharges(restaurant.id, getActiveRates());
     const pricingInput = {

@@ -103,6 +103,7 @@ const SUITES = [
   'regression',
   'abuseGuards',
   'profitGuards',
+  'deliveryRadius',
   'bodyContract',
   'durableMoney',
   'duplicateCapture',

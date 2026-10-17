@@ -490,6 +490,7 @@ const PartnerRegistrationSchema = z.object({
    * that reaches nobody and reads as a typo, and beyond 25 km is further than
    * food survives on a two-wheeler. Absent means the platform default applies.
    */
+  /** Ignored since 18 Oct 2026 (admins set one radius); accepted so older Partner apps still sign up. */
   serviceRadiusKm: z.number().min(1).max(25).optional(),
   isPureVeg: z.boolean().optional()
 });
@@ -837,9 +838,6 @@ async function openRestaurant(user: { id: string }, body: Record<string, any>) {
       latitude: body.latitude ?? UNSET_COORDINATES.latitude,
       longitude: body.longitude ?? UNSET_COORDINATES.longitude
     },
-    // Absent is meaningful: the listing falls back to the platform default
-    // rather than storing a number nobody chose.
-    ...(body.serviceRadiusKm ? { serviceRadiusKm: body.serviceRadiusKm } : {}),
     fssaiLicenseNumber: body.fssaiLicenseNumber,
     isPureVeg: Boolean(body.isPureVeg),
     packagingFee: 0,

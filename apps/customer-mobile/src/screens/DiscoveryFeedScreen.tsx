@@ -780,7 +780,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                 {r.isServing === false && (
                   <View style={styles.closedVeil}>
                     <View style={styles.closedPill}>
-                      <Text style={styles.closedPillText}>Unavailable</Text>
+                      <Text style={styles.closedPillText}>Not delivering currently</Text>
                     </View>
                     {!!r.opensAt && <Text style={styles.closedWhen}>Opens at {r.opensAt}</Text>}
                   </View>

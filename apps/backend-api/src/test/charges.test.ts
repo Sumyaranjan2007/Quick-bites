@@ -899,7 +899,8 @@ async function run() {
     assert.equal(rates.riderPerKmFee, 12);
 
     assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 38, '3.2 km at Rs 12 = 38.4, rounded');
-    assert.equal(calculateTripPayout({ distanceKm: 5.5 }), 66);
+    // Past 4 km the rate slides towards Rs 8 at 35 km (owner, 18 Oct 2026): 5.5 km at Rs 11.81 = 64.9.
+    assert.equal(calculateTripPayout({ distanceKm: 5.5 }), 65);
     assert.equal(calculateTripPayout({ distanceKm: 0.5 }), rates.riderMinEarningPerTrip, 'the minimum was not applied');
 
     assert.equal(

@@ -136,6 +136,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   // Cash on delivery is per restaurant, set by Quick Bites (owner, 2 Oct
   // 2026). Read from the server's quote; until it arrives, assume yes.
   const cashAccepted = quote?.acceptsCash !== false;
+  // The server says why in words (a kitchen that takes no cash, or a trip past the cash distance);
+  // an older server sends no reason.
+  const cashReason: string = quote?.cashUnavailableReason || 'This restaurant accepts online payment only.';
   const cannotPay = !cashAccepted && !onlineAvailable;
   useEffect(() => {
     if (!cashAccepted && onlineAvailable && paymentMethod === 'CASH_ON_DELIVERY') setPaymentMethod('RAZORPAY_SANDBOX');
@@ -880,7 +883,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           {onlineAvailable ? (
             <View style={styles.methodList}>
               {!cashAccepted ? (
-                <Text style={styles.methodHint}>This restaurant accepts online payment only.</Text>
+                <Text style={styles.methodHint}>{cashReason}</Text>
               ) : null}
               {([
                 { key: 'RAZORPAY_SANDBOX', label: 'Pay now', hint: 'UPI, cards, netbanking or wallet' },
@@ -908,7 +911,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
           ) : (
             <Text style={styles.methodHint}>
               {!cashAccepted
-                ? 'This restaurant accepts online payment only, and online payment is not available right now, so this order cannot be placed. Please try another restaurant.'
+                ? `${cashReason} Online payment is not available right now, so this order cannot be placed. Please try another restaurant.`
                 : razorpayAvailable
                 ? 'Online payment is not switched on for this server yet, so this order is cash on delivery.'
                 : 'This build cannot open the payment sheet, so this order is cash on delivery.'}

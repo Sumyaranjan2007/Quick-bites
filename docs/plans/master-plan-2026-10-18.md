@@ -48,14 +48,14 @@ Status: ⬜ not started · 🟨 exists partly today · ✅ built in this plan.
 | K1 | Rider "Call customer" has no number | fix written, uncommitted (`orderService.ts`, `riderRouter.ts`) | A1 | ✅ 18 Oct |
 | K2 | Bad `Origin` → 500 | fix written, uncommitted (`cors.ts`) | A1 | ✅ 18 Oct |
 | K3 | Confirm links lost on deploy | fix written, uncommitted (`authRouter.ts`, `client.ts`) | A1 | ✅ 18 Oct |
-| 1a | Restaurants within **35 km** | each kitchen has `serviceRadiusKm` (default 8, `config/env.ts:244`), list capped at 15 km (`restaurantRepository.ts:53`) | B1 | 🟨 |
+| 1a | Restaurants within **35 km** | one admin radius `maxDeliveryKm` = 35 (owner, 18 Oct: kitchens no longer choose), list and checkout same circle (`deliveryRadiusKm`, `pricingConfig.ts`) | B1 | ✅ 18 Oct |
 | 1b | Offer trip to **one** rider at a time, nearest free online first, **108 s** to accept, then next | today: up to 6 riders woken at once, first tap wins (`modules/orders/tripOffers.ts:52`) | B4 | 🟨 |
 | 2 | Kitchen ticket (receipt) to print, no prices, after Accept | invoices with prices exist (`modules/payments/statementPdf.ts`); no kitchen ticket | B10 | ⬜ |
-| 3 | Offline kitchen shows "Not delivering currently"; list by customer's location | list already by location (`restaurantRepository.ts:41-84`); wording/visibility of closed kitchens to change | B1 | 🟨 |
+| 3 | Offline kitchen shows "Not delivering currently"; list by customer's location | server ✅: closed kitchens listed, after open ones in every sort; Customer app label changed (reaches phones with the next build) | B1 | ✅ 18 Oct (app at G) |
 | 4 | Admin: **Remove** or **Block** a restaurant/rider (Q1), by role permission | account blocking exists (`accountBlocking` suite); no identifier ban; roles exist (`modules/admin/permissions.ts`) | B6 | 🟨 |
 | 5 | Kitchen type veg / non-veg / both on profile; **Pure Veg seal** only admins give | `isPureVeg` exists, admin-set (`peopleRoutes.ts:604`); no kitchen type, no seal look | B5 | 🟨 |
 | 6 | Rider calls customer without seeing the number | **built but switched off**: Exotel masked call (`modules/orders/callMasking.ts`, route in `orderRouter.ts:~780`); Rider app still dials the number. **On hold (owner, 18 Oct)** | B9 | ⏸ |
-| 7 | Customer: choose location / save address **first**, then restaurants; without address → our recommended list | address book exists (`AddressBookScreen.tsx`), not first | B1 + D3 | 🟨 |
+| 7 | Customer: choose location / save address **first**, then restaurants; without address → our recommended list | address book exists (`AddressBookScreen.tsx`), not first; the "no location → recommended" server part moved to B5 (needs the recommended list) | B5 + D3 | 🟨 |
 | 8 | Admin "Create": build a whole restaurant / rider / partner account, verify and upload for them | no admin-create; KYC approve exists | B6 | ⬜ |
 | 9 | Partner switches off a **whole menu section** (e.g. dosa after 7 pm) | dish-by-dish only (`restaurantRouter.ts:600-635`) | B5 | ⬜ |
 | 10 | Every Admin/Partner app feature also on the websites | **automatic**: the websites are the same app code (`scripts/build-web.mjs`); each stage checks the web build | all | ✅ (by design) |
@@ -147,7 +147,7 @@ Server makes a **thermal receipt PDF** (80 mm wide; 58 mm option in partner sett
 ### B11 — Live tracking data path (#21, #22 server)
 Rider position every ~4 s while carrying (8 s while going to the kitchen), sent over the socket with REST fallback (exists); server keeps the last fix + heading + speed, snaps a batch to roads (B2), relays to the order room; stale (> 30 s) is shown as "updating…". Only riders on a live trip are relayed (exists, `contactVisibility.ts`).
 
-**Built:** –
+**Built:** B1 (18 Oct): one delivery radius on the map, 35 km, admin-set (`maxDeliveryKm`; kitchens' own `serviceRadiusKm` is now ignored, still accepted from old Partner apps), same circle for the list and checkout (`deliveryRadiusKm`); applied once to live rates (`applyOwnerDecisions20261018`, flag `rates:radius-35-2026-10-18`). Owner's extra decisions the same day: rider ₹/km slides ₹12 (to 4 km) → ₹8 (at 35 km) (`riderPerKmAt`), cash on delivery only up to 15 road km (`codMaxDistanceKm`, `COD_TOO_FAR`, quote `cashUnavailableReason`; `acceptsCash` folds it in for old apps). Closed kitchens stay listed, after open ones in every sort. Admin Rates shows all new knobs and worked examples from `riderPayFor`. Partner sign-up no longer asks a radius. Suite `deliveryRadius` (20 checks); `charges`, `ledger`, `membership`, `regression` updated to the new rule; 8 mutations caught. **Moved to B5:** no-location → recommended list + flag. Review D7 answered by the owner's decision (one radius; the sliding rate makes 35 km cost ₹280, not ₹420).
 
 ## Stage C — App engine (all four apps) · ~1 week
 1. New Architecture + Reanimated 4 + Gesture Handler + expo-image + FlashList + Lottie + expo-haptics, exactly as `new-architecture-and-animations-2026-10-17.md` steps 1–5 (phone checklist must pass).

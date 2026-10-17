@@ -6,6 +6,44 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Master plan B1: one 35 km radius, rider pay that slides with distance, cash only up to 15 km
+
+> **For the owner.** Every kitchen is now shown to, and can deliver to, customers within **35 km**
+> on the map; kitchens no longer pick their own distance. Rider pay is ₹12/km up to 4 km, then the
+> per-km rate slides down to ₹8/km at 35 km (a 10 km trip pays about ₹111, a 35 km trip ₹280),
+> never below ₹30. Cash on delivery is offered only up to **15 km by road**: further away, checkout
+> shows "please pay online" and says why. Closed kitchens stay in the list as "Not delivering
+> currently", below the open ones. All of these numbers are on Admin → Money → Inflation → Rider pay
+> & defaults, with worked examples. The server change goes live on push; the new wording in the
+> Customer app and the Partner sign-up without a distance field reach phones with the next build.
+> Older apps keep working (they read the same "cash accepted" flag, which already includes the 15 km rule).
+
+- Rates (`shared-types` `DEFAULT_PRICING_RATES`): `maxDeliveryKm` 0 → **35** (now the radius on the
+  map, straight line), new `codMaxDistanceKm` 15, `riderFullRateKm` 4, `riderFarPerKmFee` 8,
+  `riderFarRateKm` 35. Live rates get 35 km once (`applyOwnerDecisions20261018`, flag
+  `rates:radius-35-2026-10-18`); a later admin change survives restarts.
+- `pricing-engine`: `riderPerKmAt` (the slide); `riderPayFor` uses it. Orders keep the pay frozen on
+  their bill; rates frozen before 18 Oct (no far rate) stay flat; a city ₹/km below ₹8 stays flat.
+- `pricingConfig.ts`: `deliveryRadiusKm()` (one rule for the list in `restaurantRouter.ts` /
+  `restaurantRepository.ts` and checkout `assertDeliverable` in `orderService.ts`), `cashTooFarReason()`.
+  Quote: `acceptsCash` folds in the distance, new `cashUnavailableReason`; checkout refuses `COD_TOO_FAR`.
+- Restaurant list: closed kitchens after open ones in **every** sort (stable sort), not only the default.
+- Removed `DEFAULT_SERVICE_RADIUS_KM` (env, `.env.example`, `CONFIG_AND_SECRETS`). `serviceRadiusKm`
+  stays accepted from old Partner apps and is ignored.
+- Apps (next build): Customer checkout shows the server's reason; card label "Not delivering currently";
+  Partner sign-up drops "How far do you deliver?"; Admin Rates lists the new keys, examples at 2/5/10/20/35 km
+  computed by `riderPayFor`.
+- Checks: new suite `deliveryRadius` (20; runner now 88 suites); pricing Test 7; `charges`, `ledger`,
+  `membership` (basket pinned flat), `regression` (test address moved inside 35 km) updated to the new
+  rule. 8 mutations, all caught. Gate green except the known Windows `fssaiBadge` exit crash; typecheck 7/7;
+  secrets, i18n, web build pass.
+- Moved to B5: "no location → recommended list" (needs the recommended list). Review D7 answered in
+  `docs/reviews/REVIEW_LOG.md`. Tracker updated in the master plan.
+- Working rule from the owner (18 Oct): **seniordev + cleancode are the main skills** for every coding
+  session on this project (`CLAUDE.md` §10).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Master plan agreed; three server fixes (K1–K3); motion spec
 
 > **For the owner.** Riders' "Call customer" button now has the customer's number on every new

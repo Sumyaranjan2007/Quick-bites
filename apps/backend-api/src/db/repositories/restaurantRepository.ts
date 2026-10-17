@@ -1,5 +1,5 @@
 import { memoryStore, calculateDistanceKm, triggerAutoSave } from '../client.ts';
-import { config } from '../../config/env.ts';
+import { deliveryRadiusKm } from '../../modules/payments/pricingConfig.ts';
 import { estimateByRoad } from '../../modules/places/routingService.ts';
 import { hasRealLocation } from '../../modules/restaurants/restaurantLocation.ts';
 import {
@@ -31,16 +31,10 @@ export const restaurantRepository = {
   /**
    * The restaurants that will actually deliver to where this customer is.
    *
-   * This used to be one platform-wide 15 km circle drawn around the customer,
-   * which got the question backwards. Whether a kitchen delivers to a doorstep
-   * is a fact about the kitchen: a single-rider place covers a couple of
-   * kilometres, a chain covers eight. Listing on one shared radius showed people
-   * restaurants that would decline their order, and hid ones a street away from
-   * anybody standing just past the edge.
-   *
-   * Each restaurant is now measured against its OWN `serviceRadiusKm`, with the
-   * caller's radius kept as an outer ceiling so a client can still ask for a
-   * narrower list than the restaurants themselves would allow.
+   * Every kitchen is measured against the one delivery radius admins set on
+   * the Rates screen (`deliveryRadiusKm`, owner 18 Oct 2026: 35 km; kitchens no
+   * longer choose their own), with the caller's radius kept as an outer ceiling
+   * so a client can still ask for a narrower list.
    *
    * The distance returned is a road ESTIMATE, not a measurement. A real road
    * distance for every restaurant on the home screen would be a paid Google
@@ -80,8 +74,8 @@ export const restaurantRepository = {
         restaurant.coordinates.longitude
       );
 
-      const serviceRadius = Number(restaurant.serviceRadiusKm) || config.DEFAULT_SERVICE_RADIUS_KM;
-      if (straightLine > Math.min(serviceRadius, ceiling)) continue;
+      // Same radius as the restaurant list and checkout (owner, 18 Oct 2026).
+      if (straightLine > Math.min(deliveryRadiusKm(), ceiling)) continue;
 
       results.push({
         ...restaurant,

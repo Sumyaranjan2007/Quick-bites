@@ -37,9 +37,25 @@ import type { PricingRates } from '@quick-bites/shared-types';
  */
 export function riderPayFor(distanceKm: number | undefined, rates: PricingRates = DEFAULT_PRICING_RATES): number {
   const km = Math.max(0, Number(distanceKm) || 0);
-  const perKm = Math.max(0, Number(rates.riderPerKmFee) || 0);
   const minimum = Math.max(0, Number(rates.riderMinEarningPerTrip) || 0);
-  return Math.max(minimum, Math.round(km * perKm));
+  return Math.max(minimum, Math.round(km * riderPerKmAt(km, rates)));
+}
+
+/**
+ * The per-km rate for a trip of this length (owner, 18 Oct 2026): the full rate
+ * up to `riderFullRateKm`, then a straight slide down to `riderFarPerKmFee` at
+ * `riderFarRateKm`, flat after. The rate applies to the whole trip. With the
+ * defaults (12 → 8 between 4 and 35 km) a longer trip always pays more in total.
+ * Rates frozen on orders before this have no far rate and stay flat.
+ */
+export function riderPerKmAt(km: number, rates: PricingRates = DEFAULT_PRICING_RATES): number {
+  const near = Math.max(0, Number(rates.riderPerKmFee) || 0);
+  const far = Number(rates.riderFarPerKmFee);
+  const fullKm = Math.max(0, Number(rates.riderFullRateKm) || 0);
+  const farKm = Number(rates.riderFarRateKm);
+  if (!Number.isFinite(far) || far < 0 || far >= near || !(farKm > fullKm) || km <= fullKm) return near;
+  if (km >= farKm) return far;
+  return near - ((near - far) * (km - fullKm)) / (farKm - fullKm);
 }
 
 export interface PricingInput {

@@ -234,16 +234,6 @@ export const config = {
   ROAD_DISTANCE_FACTOR: numberFromEnv(process.env.ROAD_DISTANCE_FACTOR, 1.3, 1, 3),
 
   /**
-   * The delivery radius assumed for a restaurant that has not set its own.
-   *
-   * Applies to kitchens onboarded before `serviceRadiusKm` existed. Eight
-   * kilometres is a little over half the old platform-wide 15 km ceiling: far
-   * enough that no existing restaurant loses most of its customers overnight,
-   * close enough that the listing stops promising deliveries nobody will ride.
-   */
-  DEFAULT_SERVICE_RADIUS_KM: numberFromEnv(process.env.DEFAULT_SERVICE_RADIUS_KM, 8, 1, 50),
-
-  /**
    * Whether this deployment will allow its data to be deleted wholesale.
    *
    * Off unless switched on deliberately, and meant to be switched off again

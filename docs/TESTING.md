@@ -28,7 +28,7 @@ node scripts/build-web.mjs           # the /partner and /admin websites build
 **Baseline on 17 Oct 2026 (`c25685c` and `3caa076`):** 1344 checks passed, 0 failed; the run
 reports `1 SUITE(S) FAILED: fssaiBadge` only because of the known Windows exit crash below.
 
-**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **87** on disk (all listed in the runner).
+**Code vs `CLAUDE.md`:** `CLAUDE.md` said 84 suites; there are **88** on disk (all listed in the runner; `deliveryRadius` added 18 Oct).
 
 ## Known environmental failures (Windows, not defects)
 
@@ -138,6 +138,7 @@ Description = the suite's own header line.
 | `policies` | Payment policies, and the sweep that goes looking for money gone wrong. |
 | `profileEdits` | The restaurant profile: two versions of one restaurant, and the review that |
 | `profitGuards` | Money the platform used to give back, and the controls that stop it. |
+| `deliveryRadius` | One 35 km radius on the map (list and checkout), closed kitchens listed after open ones, rider pay sliding with distance, cash only up to 15 road km, the 35 km applied once (master plan B1). |
 | `qaAppText` | The owner's QA pass on v8 (26 Sep), app half: #9 to #15. |
 | `qaRound1` | v9 QA round 1 (26 Sep), server fixes: V9-16, V9-8, V9-2, V9-3. |
 | `rateLimitPerUser` | The request limit is per account, not per address (N15 / S4). |

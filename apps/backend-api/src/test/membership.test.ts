@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert';
 import { calculateOrderPricing } from '@quick-bites/pricing-engine';
+import { DEFAULT_PRICING_RATES } from '@quick-bites/shared-types';
 import { memoryStore } from '../db/client.ts';
 import {
   isGoldActive,
@@ -133,7 +134,9 @@ check('A member with no recorded plan gets no extra discount', () => {
 const basket = {
   items: [{ unitPrice: 500, quantity: 1, addonsTotal: 0 }],
   packagingFee: 20,
-  distanceKm: 6
+  distanceKm: 6,
+  // A flat Rs 12 a km (no slide past 4 km, owner 18 Oct 2026), so the discounts below read in round numbers.
+  rates: { ...DEFAULT_PRICING_RATES, riderFullRateKm: 1000 }
 };
 
 /*

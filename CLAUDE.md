@@ -2,7 +2,7 @@
 
 > **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
 
-**Last updated:** 17 October 2026 (folders organised and the whole project mapped in `docs/` — start at `docs/FOLDER_MAP.md` and `docs/README.md`; one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 18 October 2026 (master plan Stage B1 built: one 35 km radius, rider ₹/km sliding ₹12→₹8, cash only up to 15 km — `CHANGELOG.md` top; next step **B2** Google Maps on the server, waits for the owner's keys, else **B3/B4/B5**; seniordev + cleancode are the main skills, §10) · previously 17 October 2026 (folders organised and the whole project mapped in `docs/` — start at `docs/FOLDER_MAP.md` and `docs/README.md`; one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -108,9 +108,17 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 
 ## 4. Money rules (owner decisions — settled, do not re-ask)
 
-- **Rider pay** = road km (restaurant → customer) × **₹12/km**, never below **₹30** per
-  trip, frozen on the bill. ₹/km editable globally and **per city** (Admin → Rates → Rider
-  pay by city); minimum and markup stay global.
+- **Rider pay** (owner, 18 Oct 2026) = road km (restaurant → customer) × a per-km rate that
+  **falls with distance**: **₹12/km up to 4 km**, then sliding in a straight line to **₹8/km at
+  35 km** (flat after), never below **₹30** per trip, frozen on the bill. One function:
+  `riderPayFor` / `riderPerKmAt` (`packages/pricing-engine`). All four numbers editable (Admin →
+  Money → Inflation → Rider pay & defaults); the ₹12 is also settable **per city**; minimum and
+  markup stay global.
+- **Delivery radius** (18 Oct): one circle on the map, **35 km** by default, set by admins
+  (`maxDeliveryKm`); kitchens no longer choose their own. The restaurant list and checkout use
+  the same rule. Closed kitchens stay listed as "Not delivering currently".
+- **Cash on delivery only up to 15 road km** (18 Oct, `codMaxDistanceKm`, admin-editable): the
+  quote hides cash and says why; checkout refuses it (`COD_TOO_FAR`).
 - **Delivery fee** = rider pay + delivery markup %. **Platform fee** shows GST only with a
   GSTIN (the business has none yet, so no GST is charged on the platform's own fees).
 - **Payouts:** no hold period (0 days for partners and riders), **₹100 minimum**. Admin pays
@@ -145,7 +153,7 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 ## 5. Daily commands
 
 ```bash
-node scripts/run-backend-tests.mjs                 # THE gate: 87 backend suites, ~110 s, takes a machine-wide lock
+node scripts/run-backend-tests.mjs                 # THE gate: 88 backend suites, ~110 s, takes a machine-wide lock
 node scripts/check-secrets.mjs                     # no secrets in tracked files
 npx turbo typecheck                                # all workspaces
 node scripts/check-i18n.mjs ; node scripts/check-apk-secrets.mjs
@@ -317,6 +325,10 @@ with a HISTORICAL banner): `docs/history/*` and the 15 September files kept at t
 tunnel, seeded `pass123` accounts, wallets and Google Maps — all since removed or replaced.
 
 ## 10. Claude skills installed on the owner's PC (user level, not in this repo)
+
+**Main skills (owner, 18 Oct 2026): every coding session on this project invokes `seniordev` and
+`cleancode` first** (Skill tool) and follows them: shortest working diff, reuse before writing,
+surgical changes, one runnable check per non-trivial logic.
 
 In `C:\Users\priya\.claude\skills\`: `seniordev` (minimal-code "lazy senior dev", from
 Ponytail), `ui-ux-designer` (design library + React Native UI rules, from UI/UX Pro Max),

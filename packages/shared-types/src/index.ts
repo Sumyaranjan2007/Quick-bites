@@ -1519,7 +1519,17 @@ export interface PricingRates {
   /** What a rider earns for a trip before distance is counted. */
   riderBaseFeePerTrip: number;
   riderBaseKm: number;
+  /** Rider pay per km for short trips (the full rate; a city may set its own). */
   riderPerKmFee: number;
+  /**
+   * Rider pay per km falls with distance (owner, 18 Oct 2026): the full rate up to
+   * `riderFullRateKm`, then sliding in a straight line down to `riderFarPerKmFee` at
+   * `riderFarRateKm` and staying there. A far rate missing or not below the full
+   * rate means a flat rate (how every order before 18 Oct was priced).
+   */
+  riderFullRateKm: number;
+  riderFarPerKmFee: number;
+  riderFarRateKm: number;
   /** No trip pays a rider less than this, whatever the distance. */
   riderMinEarningPerTrip: number;
   /**
@@ -1602,8 +1612,14 @@ export interface PricingRates {
    * them defaults to "off", so adding them changes nobody's bill until the
    * owner sets a number.
    */
-  /** Furthest a customer may be from the kitchen, by road. 0 = no limit. */
+  /**
+   * The delivery radius on the map (straight line, km) around each kitchen
+   * (owner, 18 Oct 2026: 35 km, set by admins; kitchens no longer choose their own).
+   * Customers outside it neither see the kitchen nor can order. 0 = no limit.
+   */
   maxDeliveryKm: number;
+  /** Cash on delivery only for trips up to this many road km (owner, 18 Oct 2026). 0 = no limit. */
+  codMaxDistanceKm: number;
   /** Smallest food total the platform accepts. 0 = no minimum. */
   minOrderValue: number;
   /** Share of the bill kept when a customer cancels after the kitchen accepted. */
@@ -1906,6 +1922,9 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   riderBaseFeePerTrip: 0,
   riderBaseKm: 0,
   riderPerKmFee: 12,
+  riderFullRateKm: 4,
+  riderFarPerKmFee: 8,
+  riderFarRateKm: 35,
   riderMinEarningPerTrip: 30,
   // Starts at zero, so this lands changing nothing until somebody sets it.
   riderDeliveryMarkupPercent: 0,
@@ -1932,7 +1951,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   // Razorpay closes a single-use QR at two hours whatever we ask for.
   doorQrExpiryMinutes: 15,
 
-  maxDeliveryKm: 0,
+  maxDeliveryKm: 35,
+  codMaxDistanceKm: 15,
   minOrderValue: 0,
   cancelFeePercentAfterAccept: 0,
   cancelFeePercentAfterReady: 0,

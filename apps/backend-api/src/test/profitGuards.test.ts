@@ -127,7 +127,7 @@ try {
   delete latest.rates.maxDeliveryKm;
   it('A stored version missing newer rates still reads them, from the defaults', () => {
     assert.equal(typeof getActiveRates().riderOfferWaveMinutes, 'number');
-    assert.equal(getActiveRates().maxDeliveryKm, 0);
+    assert.equal(getActiveRates().maxDeliveryKm, 35); // the default radius (owner, 18 Oct 2026)
   });
   const saved = await setRates({ packagingFeeDefault: 20 });
   it('and the admin app’s own request shape ({ changes }) saves a rate', () => {

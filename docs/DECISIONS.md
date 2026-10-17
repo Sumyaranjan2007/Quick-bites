@@ -18,6 +18,7 @@ when the owner decides something; money rules also go in `CLAUDE.md` §4.
 
 | Date | Decision | Source |
 |---|---|---|
+| 18 Oct 2026 | Rider pay ₹12/km up to 4 km, sliding to ₹8/km at 35 km (flat after), min ₹30; delivery radius 35 km on the map set by admins (kitchens no longer choose); cash on delivery only up to 15 road km, customer told why | `CLAUDE.md` §4, master plan B1 |
 | 6 Oct 2026 | Restaurant invoices: PDF per period/order + ZIP; "Not a GST tax invoice"; 5% food GST booked to `TAX_GST_PAYABLE` | `CLAUDE.md` §4 |
 | 2 Oct 2026 | Rider pay ₹12/km (raised from ₹10), minimum ₹30/trip, frozen on the bill; ₹/km also per city | memory `owner-money-and-launch-decisions`, `CLAUDE.md` §4 |
 | 2 Oct 2026 | Delivery fee = rider pay + markup %; platform fee GST only with a GSTIN | same |

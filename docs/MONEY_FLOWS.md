@@ -11,7 +11,8 @@ place that sets the same state (`CLAUDE.md` §8, "Money paths have copies").
 | Step | Where |
 |---|---|
 | Default rates (all editable by admins, versioned) | `DEFAULT_PRICING_RATES`, `packages/shared-types/src/index.ts:1875`; versions in `pricingConfigs` (`modules/payments/pricingConfig.ts`) |
-| Rider pay = road km × ₹/km, never below the minimum | `riderPayFor`, `packages/pricing-engine/src/index.ts:38` (defaults `riderPerKmFee: 12`, `riderMinEarningPerTrip: 30`, shared-types `:1908-1909`) |
+| Rider pay = road km × ₹/km, never below the minimum; the ₹/km falls with distance (18 Oct: ₹12 up to 4 km → ₹8 at 35 km) | `riderPayFor` + `riderPerKmAt`, `packages/pricing-engine/src/index.ts:38-60` (rates `riderPerKmFee`, `riderFullRateKm`, `riderFarPerKmFee`, `riderFarRateKm`, `riderMinEarningPerTrip` in shared-types `DEFAULT_PRICING_RATES`) |
+| Delivery radius (straight line on the map) and cash-on-delivery distance | `deliveryRadiusKm`, `cashTooFarReason` in `modules/payments/pricingConfig.ts`; used by `routes/restaurantRouter.ts` (list) and `modules/orders/orderService.ts` (`assertDeliverable`, quote `acceptsCash`/`cashUnavailableReason`, `COD_TOO_FAR`) |
 | ₹/km per city (minimum and markup stay global) | `modules/payments/riderCityRates.ts` (`cityRateFor` `:40`, `ratesForRestaurant` `:78`); Admin → Rates |
 | Delivery fee = rider pay + delivery markup % | `packages/pricing-engine/src/index.ts:283-285` (`riderDeliveryMarkupPercent`, default 0) |
 | Platform fee GST only with a GSTIN (none yet) | `platformFeeGstFor`, `modules/orders/orderService.ts:330` |

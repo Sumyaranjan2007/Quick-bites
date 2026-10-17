@@ -1,4 +1,4 @@
-import { calculateOrderPricing, riderPayFor } from './index.ts';
+import { calculateOrderPricing, riderPayFor, riderPerKmAt } from './index.ts';
 import { DEFAULT_PRICING_RATES } from '@quick-bites/shared-types';
 
 console.log('Running Pricing Engine Unit Tests...');
@@ -45,7 +45,8 @@ if (bill3.couponDiscount !== 100.00) throw new Error('Coupon discount should be 
 console.log('[PASS] Test 3: Percentage Coupon with Cap');
 
 // Test 4: rider pay = km x rate, rounded, never below the minimum (owner, 1 Oct 2026).
-const r = { ...DEFAULT_PRICING_RATES, riderPerKmFee: 10, riderMinEarningPerTrip: 30 };
+// riderFullRateKm 1000 = the full rate on every trip (flat), what these checks were written for.
+const r = { ...DEFAULT_PRICING_RATES, riderPerKmFee: 10, riderMinEarningPerTrip: 30, riderFullRateKm: 1000 };
 if (riderPayFor(1.2, r) !== 30) throw new Error('A short trip must pay the minimum: ' + riderPayFor(1.2, r));
 if (riderPayFor(3.47, r) !== 35) throw new Error('3.47 km at Rs 10 should round to Rs 35: ' + riderPayFor(3.47, r));
 if (riderPayFor(8, { ...r, riderPerKmFee: 12 }) !== 96) throw new Error('The per-km rate must move pay');
@@ -65,5 +66,21 @@ if (noGst.platformFee !== 10) throw new Error('Rs 10 set must be Rs 10 billed wi
 const withGst = calculateOrderPricing({ items: [{ unitPrice: 300, quantity: 1 }], platformFeeBase: 10, platformFeeGstPercent: 18 });
 if (withGst.platformFee !== 11.8) throw new Error('With a GSTIN at 18%, Rs 10 is Rs 11.80: ' + withGst.platformFee);
 console.log('[PASS] Test 6: Platform fee GST only with a GSTIN');
+
+// Test 7: the per-km rate falls with distance (owner, 18 Oct 2026): Rs 12 up to 4 km, sliding to Rs 8 at 35 km.
+const d = DEFAULT_PRICING_RATES;
+if (riderPerKmAt(3, d) !== 12 || riderPerKmAt(4, d) !== 12) throw new Error('Up to 4 km is the full Rs 12');
+if (riderPerKmAt(35, d) !== 8 || riderPerKmAt(50, d) !== 8) throw new Error('From 35 km it is Rs 8');
+if (Math.abs(riderPerKmAt(19.5, d) - 10) > 1e-9) throw new Error('Halfway (19.5 km) is Rs 10: ' + riderPerKmAt(19.5, d));
+if (riderPayFor(4, d) !== 48) throw new Error('4 km pays Rs 48: ' + riderPayFor(4, d));
+if (riderPayFor(15, d) !== 159) throw new Error('15 km pays Rs 159 (Rs 10.58/km): ' + riderPayFor(15, d));
+if (riderPayFor(35, d) !== 280) throw new Error('35 km pays Rs 280: ' + riderPayFor(35, d));
+for (let km = 0.5; km <= 60; km += 0.5) {
+  if (riderPayFor(km, d) < riderPayFor(km - 0.5, d)) throw new Error('A longer trip must never pay less: ' + km);
+}
+const oldRates = { ...d, riderFarPerKmFee: undefined as unknown as number };
+if (riderPayFor(20, oldRates) !== 240) throw new Error('Rates frozen before 18 Oct (no far rate) stay flat');
+if (riderPayFor(20, { ...d, riderPerKmFee: 7 }) !== 140) throw new Error('A city rate below the far rate stays flat');
+console.log('[PASS] Test 7: Rider pay per km falls with distance');
 
 console.log('All pricing tests passed successfully!');

@@ -18,6 +18,7 @@ import { tokens } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { MenuPricingTab } from './MenuPricingTab';
+import { riderPayFor } from '@quick-bites/pricing-engine';
 
 const c = tokens.colors;
 
@@ -102,7 +103,7 @@ const INCENTIVE_LABEL: Record<string, string> = {
  */
 
 /** Rider pay per km, the minimum and the delivery markup lead the list. */
-const RIDER_KEYS = ['riderPerKmFee', 'riderMinEarningPerTrip', 'riderDeliveryMarkupPercent'];
+const RIDER_KEYS = ['riderPerKmFee', 'riderFullRateKm', 'riderFarPerKmFee', 'riderFarRateKm', 'riderMinEarningPerTrip', 'riderDeliveryMarkupPercent', 'maxDeliveryKm', 'codMaxDistanceKm'];
 const riderFirst = (key: string) => {
   const at = RIDER_KEYS.indexOf(key);
   return at === -1 ? RIDER_KEYS.length : at;
@@ -433,24 +434,19 @@ export const RatesScreen: React.FC = () => {
                 following them when you change one.
               </Text>
               <Text style={s.explainerBody}>
-                Rider pay = road kilometres from the restaurant to the customer × "Rider pay per km", never
-                less than "Rider minimum per trip". The customer's delivery fee = rider pay + "Delivery
-                markup" %. The difference is yours, on every trip.
+                Rider pay = road kilometres from the restaurant to the customer × the per-km rate, never
+                less than "Rider minimum per trip". The rate is "Rider pay per km" up to "Full rider rate up
+                to", then slides down to "Rider pay per km, far trips" at "Far rate reached at". The
+                customer's delivery fee = rider pay + "Delivery markup" %. The difference is yours.
               </Text>
               {platform.data?.config?.rates ? (
-                <DeliveryExamples
-                  perKm={Number(platformEdits.riderPerKmFee ?? platform.data.config.rates.riderPerKmFee) || 0}
-                  minimum={Number(platformEdits.riderMinEarningPerTrip ?? platform.data.config.rates.riderMinEarningPerTrip) || 0}
-                  markup={Number(platformEdits.riderDeliveryMarkupPercent ?? platform.data.config.rates.riderDeliveryMarkupPercent) || 0}
-                />
+                <DeliveryExamples rates={{ ...platform.data.config.rates, ...numeric(platformEdits) }} />
               ) : null}
             </Card>
 
             {platform.data?.config?.rates ? (
               <CityRatesCard
-                globalPerKm={Number(platform.data.config.rates.riderPerKmFee) || 0}
-                minimum={Number(platform.data.config.rates.riderMinEarningPerTrip) || 0}
-                markup={Number(platform.data.config.rates.riderDeliveryMarkupPercent) || 0}
+                rates={platform.data.config.rates}
                 canEdit={can('finance.config.edit')}
               />
             ) : null}
@@ -1084,13 +1080,12 @@ export default RatesScreen;
  * in that city pay riders this rate; every other city uses the global rate.
  * The minimum per trip and the delivery markup stay global.
  */
-const CityRatesCard: React.FC<{ globalPerKm: number; minimum: number; markup: number; canEdit: boolean }> = ({
-  globalPerKm,
-  minimum,
-  markup,
+const CityRatesCard: React.FC<{ rates: any; canEdit: boolean }> = ({
+  rates,
   canEdit
 }) => {
   const { api } = useSession();
+  const globalPerKm = Number(rates.riderPerKmFee) || 0;
   const resource = useResource(() => api.get<any>('/admin/pricing/rider-city-rates'), []);
   const [city, setCity] = useState('');
   const [perKm, setPerKm] = useState('');
@@ -1146,7 +1141,7 @@ const CityRatesCard: React.FC<{ globalPerKm: number; minimum: number; markup: nu
               />
             ) : null}
           </View>
-          <DeliveryExamples perKm={r.perKm} minimum={minimum} markup={markup} />
+          <DeliveryExamples rates={{ ...rates, riderPerKmFee: r.perKm }} />
         </View>
       ))}
 
@@ -1196,10 +1191,16 @@ const CityRatesCard: React.FC<{ globalPerKm: number; minimum: number; markup: nu
   );
 };
 
-const DeliveryExamples: React.FC<{ perKm: number; minimum: number; markup: number }> = ({ perKm, minimum, markup }) => (
+/** Unsaved edits arrive as text from the inputs; the pay formula wants numbers. */
+const numeric = (edits: Record<string, any>) =>
+  Object.fromEntries(Object.entries(edits).map(([k, v]) => [k, Number(v)]).filter(([, v]) => Number.isFinite(v)));
+
+/** Worked examples from the same function the server pays riders with. */
+const DeliveryExamples: React.FC<{ rates: any }> = ({ rates }) => (
   <View style={{ marginTop: 10, gap: 4 }}>
-    {[2, 5, 8].map(km => {
-      const pay = Math.max(minimum, Math.round(km * perKm));
+    {[2, 5, 10, 20, 35].map(km => {
+      const pay = riderPayFor(km, rates);
+      const markup = Number(rates.riderDeliveryMarkupPercent) || 0;
       const fee = Math.round(pay * (1 + markup / 100) * 100) / 100;
       return (
         <Text key={km} style={s.explainerBody}>

@@ -46,9 +46,6 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [fssai, setFssai] = useState('');
   const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
-  // Six kilometres, which is a little under the platform default. A number the
-  // owner can change, rather than a decision made for them.
-  const [serviceRadius, setServiceRadius] = useState('6');
 
   const [busy, setBusy] = useState(false);
 
@@ -96,10 +93,6 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
     // which makes it invisible to its real neighbours and offers it to people
     // thirty kilometres away. Required here rather than chased later.
     if (!pin) errs.pin = 'Place your kitchen on the map so nearby customers can find you.';
-    const radius = Number(serviceRadius);
-    if (!Number.isFinite(radius) || radius < 1 || radius > 25) {
-      errs.serviceRadius = 'Enter how far you deliver, between 1 and 25 km.';
-    }
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -137,8 +130,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
       city,
       pincode,
       fssaiLicenseNumber: fssai,
-      ...(pin ? { latitude: pin.latitude, longitude: pin.longitude } : {}),
-      serviceRadiusKm: Number(serviceRadius)
+      ...(pin ? { latitude: pin.latitude, longitude: pin.longitude } : {})
     });
     setBusy(false);
 
@@ -291,16 +283,6 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
               </Text>
             </TouchableOpacity>
             {!!fieldErrors.pin && <Text style={styles.pinError}>{fieldErrors.pin}</Text>}
-
-            <Field
-              label="How far do you deliver?"
-              value={serviceRadius}
-              onChangeText={v => setServiceRadius(v.replace(/[^0-9.]/g, '').slice(0, 4))}
-              placeholder="6"
-              keyboardType="decimal-pad"
-              error={fieldErrors.serviceRadius}
-              hint="Kilometres from your kitchen. Customers outside this will not see you, so set it to what your riders can actually manage."
-            />
           </>
         )}
 
