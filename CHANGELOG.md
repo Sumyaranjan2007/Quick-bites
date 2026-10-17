@@ -34,6 +34,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   seal outranks type, sign-up tick, type validation, section in checkout/menu/search, back-at both ways,
   ownership, recommend permission, unknown id, no-location list, recommended first, search not limited).
   Gate green except the known Windows `fssaiBadge`; typecheck 7/7; secrets; web build.
+- **Live (18 Oct, `5638b6c`), observed on production:** `/health` healthy; with no recommended kitchens chosen
+  the list is unchanged (all 6, `listKind: 'all'`, `needsLocation: true`); with a location `listKind: 'nearby'`;
+  the new section and recommended routes answer 401 without a sign-in. Not observed live (needs staff/partner
+  sign-in): the seal, section switch and recommended list themselves; covered by `catalogueCuration`.
 - Parallel work: session `b8-help-chat` is building master plan B8 (help chat) in this folder at the same
   time (owner's request). It does not push; this session pushes after its own gate.
 
