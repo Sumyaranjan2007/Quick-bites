@@ -336,3 +336,8 @@ Added 17 Oct 2026 (user level, so every session on this PC has them):
 - APK study rule: learn behaviour and patterns, rebuild in our own code. Never copy decompiled code,
   images, animations or branding from another app (copyright, and Google Play's impersonation policy).
   The apps run the old React Native architecture, so Reanimated 4 is out; Reanimated 3.x works on SDK 54.
+- Also installed 17 Oct: plugins `testing-react-native-apps` (Callstack), `superpowers`, `frontend-design`,
+  `skills@swmansion` (Software Mansion, Reanimated authors); **hermes-dec** (reads a React Native app's
+  compiled JS bundle; `C:\Users\priya\AppData\Roaming\Python\Python312\Scripts\hbc-decompiler.exe`).
+- **Modern animations / New Architecture:** fully planned, not started:
+  `docs/plans/new-architecture-and-animations-2026-10-17.md` (audit, versions, steps, phone checklist).

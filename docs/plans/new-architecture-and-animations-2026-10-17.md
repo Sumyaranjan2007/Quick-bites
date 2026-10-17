@@ -69,8 +69,9 @@ Every Expo plugin added to an `app.json` must also be a dependency of that app (
 2. **Switch the architecture.** Set `"newArchEnabled": true` in all four `app.json`; upgrade
    `react-native-razorpay` to 3.0.0 (Customer only). `npx expo-doctor` must pass in all four apps.
 3. **Add the libraries** above with `npx expo install` (Customer first, then Partner, Rider, Operations as
-   screens need them). Reanimated 4's Babel plugin comes with `babel-preset-expo` on SDK 54: check each
-   app's `babel.config.js` does not add an old `react-native-reanimated/plugin` line.
+   screens need them). Reanimated 4's Babel plugin comes with `babel-preset-expo` on SDK 54, and no app has its
+   own `babel.config.js` (checked 17 Oct), so nothing to add; if one is created later, do not add the old
+   `react-native-reanimated/plugin` line.
 4. **Prebuild and run on the emulator** (AVD `qb34`) and then on the owner's Vivo phone against the
    private QA server (`docs/TESTING.md`). Claude can drive both with **mobile-mcp**.
 5. **Phone test checklist (must all pass):** Customer sign-in by email code; browse, search, restaurant,
