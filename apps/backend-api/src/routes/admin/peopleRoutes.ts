@@ -2,11 +2,8 @@
  * The people on the platform: customers, delivery partners, restaurant partners,
  * and the documents that qualify the last two to trade.
  */
-import crypto from 'crypto';
-import { config } from '../../config/env.ts';
-import { sendEmail } from '../../modules/auth/otpDrivers.ts';
 import { assertNotBanned } from '../../modules/platform/blockedIdentifiers.ts';
-import { PartnerRegistrationSchema, RiderRegistrationSchema, openRestaurant, openRiderRecord } from '../authRouter.ts';
+import { PartnerRegistrationSchema, RiderRegistrationSchema, openRestaurant, openRiderRecord, issuePasswordCode } from '../authRouter.ts';
 import { banAccount, unbanAccount } from '../../modules/platform/blockedIdentifiers.ts';
 import { cashSwitchedOffFor, lateCashCancels } from '../../modules/orders/cancellationFee.ts';
 import { listDeletionRequests, completeStaffDeletion, cancelStaffDeletion, removeAccount } from '../../modules/platform/staffDeletion.ts';
@@ -992,8 +989,8 @@ peopleRoutes.post(
  *
  * Operations builds a partner's (kitchen) or rider's account for them, with the
  * same fields and the same record builders as self sign-up (no second path).
- * A temporary password is generated and emailed to the person, never shown on
- * screen (design spec); they change it after signing in, or use Forgot password.
+ * No password is set or emailed (security L11): the person gets a 24-hour code
+ * by email and sets their own password with "Forgot password" (same reset flow).
  * Documents are then uploaded with the existing /api/kyc/submit (admins may
  * submit for anyone) and approved with the existing review, so verification
  * stays one flow. Needs the "manage" permission for that kind of account.
@@ -1025,14 +1022,12 @@ peopleRoutes.post(
         throw new AppError('That mobile number already has a Quick Bites account.', 409, 'PHONE_IN_USE');
       }
 
-      // 12 characters from a 54-letter alphabet without look-alikes (0/O, 1/l/I).
-      const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-      const temporary = Array.from(crypto.randomBytes(12), b => alphabet[b % alphabet.length]).join('');
+      // No password is set or emailed (security L11): the person chooses their own with
+      // a 24-hour code sent to their email (the same reset flow as "Forgot password").
       const role = kitchen ? 'restaurant_owner' : 'rider';
       const user = await userRepository.create({
         id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         email,
-        passwordHash: await bcrypt.hash(temporary, 10),
         fullName: body.fullName,
         phone: body.phone,
         role,
@@ -1041,15 +1036,7 @@ peopleRoutes.post(
       } as any);
       const record = kitchen ? await openRestaurant(user, body) : await openRiderRecord(user, body);
 
-      const app = kitchen ? 'Quick Bites Partner' : 'Quick Bites Rider';
-      const text =
-        `Quick Bites has set up your ${kitchen ? 'restaurant' : 'rider'} account. Sign in to the ${app} app with ` +
-        `${email} and this temporary password: ${temporary} . Then change it in your profile. ` +
-        'If you did not expect this, reply to this email.';
-      const sent = await sendEmail(email, 'Your Quick Bites account is ready', text, `<p>${text}</p>`);
-      if (config.NODE_ENV !== 'production') {
-        console.log(JSON.stringify({ level: 'INFO', event: 'ADMIN_CREATED_ACCOUNT_PASSWORD', email, temporary }));
-      }
+      const emailed = await issuePasswordCode(user, true);
       recordAudit(req, {
         action: 'ACCOUNT_CREATED_BY_ADMIN',
         entityType: kitchen ? 'RESTAURANT_PARTNER' : 'RIDER',
@@ -1061,10 +1048,10 @@ peopleRoutes.post(
         data: {
           userId: user.id,
           [kitchen ? 'restaurantId' : 'riderId']: (record as any).id,
-          passwordEmailed: Boolean(sent.accepted)
+          setPasswordCodeEmailed: emailed
         },
-        message: sent.accepted
-          ? 'Account created and the temporary password emailed to them. Next: upload their documents and approve them.'
+        message: emailed
+          ? 'Account created. They got an email with a code to set their own password (24 hours). Next: upload their documents and approve them.'
           : 'Account created, but the email did not go out. Ask them to use "Forgot password" with this email.'
       });
     } catch (err) {

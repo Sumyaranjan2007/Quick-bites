@@ -44,8 +44,8 @@ Suite `removeAndBlock`.
 
 **Create (owner item 8):** `POST /api/admin/accounts/create` `{ kind: 'restaurant' | 'rider', …the sign-up
 fields without a password }` builds the account with the sign-up's own record builders (`openRestaurant`,
-`openRiderRecord`), checks the ban list and existing email/phone, emails a generated temporary password
-(never in the response) and audit-logs it; the kitchen/rider then waits for review. Documents: existing
+`openRiderRecord`), checks the ban list and existing email/phone, sets **no** password and emails a 24-hour code
+(`issuePasswordCode`) the person uses with Forgot password to choose their own; audit-logged; the kitchen/rider then waits for review. Documents: existing
 `POST /api/kyc/submit` (admins may submit for anyone); approval: existing review. Permission per kind.
 Suite `adminCreate`.
 
@@ -67,7 +67,8 @@ changed by operations only (`REVIEWED_FIELD_LOCKED`). Suite `contactChange`.
 Partners, riders and staff: `POST /api/auth/password/forgot` `{ email }` → the same reply for every
 email; for an account with a password (not the `ADMIN_EMAIL` super admin, not blocked) a 6-digit code
 is emailed (Brevo), stored only as a hash on the user (`passwordReset`), 10 minutes, 5 tries, one email
-a minute. `POST /api/auth/password/reset` `{ email, code, newPassword }` sets the password and raises
+a minute, and per account at most 5 codes and 10 wrong guesses per 24 h (then the same reply, no code). The reply
+is sent before any work (same timing for every email). `POST /api/auth/password/reset` `{ email, code, newPassword }` sets the password, emails "your password was changed" and raises
 `tokenVersion` (every other device signed out). Wrong/expired/used code → 400 `INVALID_RESET_CODE`.
 `passwordReset` is stripped from every user response along with `passwordHash`. Suite `passwordReset`.
 Customers keep signing in with a code; the apps' "forgot" screens move onto this in Stage E.

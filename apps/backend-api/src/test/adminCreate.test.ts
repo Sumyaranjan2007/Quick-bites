@@ -1,8 +1,8 @@
 /**
  * Operations creates a partner's or rider's account for them (owner item 8,
- * master plan B6, 18 Oct 2026). Same records as self sign-up, a temporary
- * password emailed and never shown, documents through the existing upload,
- * approval through the existing review.
+ * master plan B6, 18 Oct 2026). Same records as self sign-up; no password is
+ * set or emailed: the person sets their own with a 24-hour code (security L11);
+ * documents through the existing upload, approval through the existing review.
  */
 import assert from 'node:assert/strict';
 import { createApp } from '../app.ts';
@@ -39,14 +39,14 @@ async function api(pathname: string, init: any = {}, token?: string) {
 const login = async (email: string, password = 'pass123') =>
   (await api('/auth/login', { method: 'POST', body: { email, password } })).json?.data?.token as string;
 
-/** Off production the server logs the temporary password instead of needing an inbox. */
-const temporary = new Map<string, string>();
+/** Off production the server logs the set-password code instead of needing an inbox. */
+const setCodes = new Map<string, string>();
 const log = console.log;
 console.log = (...args: any[]) => {
   const line = String(args[0] ?? '');
-  if (line.includes('"ADMIN_CREATED_ACCOUNT_PASSWORD"')) {
+  if (line.includes('"PASSWORD_RESET_CODE"')) {
     const e = JSON.parse(line);
-    temporary.set(e.email, e.temporary);
+    setCodes.set(e.email, e.code);
   }
   log(...args);
 };
@@ -80,13 +80,19 @@ try {
     assert.equal(kitchen?.status, 'PENDING_APPROVAL');
     assert.equal(kitchen?.ownerId, made.json?.data?.userId);
   });
-  it('...and the temporary password is never in the response', () => {
-    const pw = temporary.get('meena@example.com') || 'missing';
-    assert.ok(pw !== 'missing', 'no password generated');
-    assert.ok(!JSON.stringify(made.json).includes(pw));
+  it('...no password is set (none travels by email)', () => {
+    assert.equal((memoryStore.users.get(made.json?.data?.userId) as any)?.passwordHash, undefined);
+    assert.ok(setCodes.get('meena@example.com'), 'no set-password code was issued');
+    assert.ok(!JSON.stringify(made.json).includes(String(setCodes.get('meena@example.com'))));
   });
-  const meena = await login('meena@example.com', temporary.get('meena@example.com'));
-  it('...but signs them in (it was emailed to them)', () => assert.ok(meena, 'temporary password does not work'));
+  const set = await api('/auth/password/reset', {
+    method: 'POST', body: { email: 'meena@example.com', code: setCodes.get('meena@example.com'), newPassword: 'MeenaMess#2026' }
+  });
+  const meena = await login('meena@example.com', 'MeenaMess#2026');
+  it('...they set their own password with the emailed code, and sign in', () => {
+    assert.equal(set.status, 200, JSON.stringify(set.json).slice(0, 200));
+    assert.ok(meena, 'their chosen password does not work');
+  });
 
   const again = await api('/admin/accounts/create', { method: 'POST', body: kitchenBody('MEENA@example.com', '9100000002') }, admin);
   it('An email that already has an account is refused', () => assert.equal(again.json?.error?.code, 'EMAIL_IN_USE'));

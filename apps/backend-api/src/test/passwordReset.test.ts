@@ -49,7 +49,25 @@ console.log = (...args: any[]) => {
   log(...args);
 };
 const userOf = (email: string): any => Array.from(memoryStore.users.values()).find((u: any) => u.email === email);
-const forgot = (email: string) => api('/auth/password/forgot', { method: 'POST', body: { email } });
+/** The reply comes first and the code is made after it (same timing for every email): wait for it. */
+const forgot = async (email: string) => {
+  const r = await api('/auth/password/forgot', { method: 'POST', body: { email } });
+  await new Promise(done => setTimeout(done, 300));
+  return r;
+};
+/** Emails the server sends (Brevo is answered here, never called). */
+const emails: Array<{ to: string; text: string }> = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = (async (url: any, init?: any) => {
+  if (String(url).includes('api.brevo.com')) {
+    const body = JSON.parse(init.body);
+    emails.push({ to: body.to[0].email, text: body.textContent });
+    return new Response(JSON.stringify({ messageId: `m${emails.length}` }), { status: 201 });
+  }
+  return realFetch(url, init);
+}) as any;
+process.env.BREVO_API_KEY = 'test-key';
+process.env.EMAIL_FROM = 'noreply@example.com';
 const reset = (email: string, code: string, newPassword = 'NewKitchen#2026') =>
   api('/auth/password/reset', { method: 'POST', body: { email, code, newPassword } });
 
@@ -104,6 +122,22 @@ try {
     assert.equal(oldSession.json?.error?.code, 'SESSION_REVOKED', `status ${oldSession.status}`));
   const reused = await reset(PARTNER, codes[2], 'Another#2026');
   it('The code works once', () => assert.equal(reused.json?.error?.code, 'INVALID_RESET_CODE'));
+  it('The owner is emailed that the password changed (review P3)', () =>
+    assert.ok(emails.some(e => e.to === PARTNER && /was just changed/.test(e.text)), JSON.stringify(emails.map(e => e.to))));
+
+  console.log('\n-- A daily limit on codes and guesses (review P1)');
+  const SUNITA = 'sunita.partner@quickbite.app';
+  const wrongFor = (code: string) => (code === '000000' ? '111111' : '000000');
+  for (let round = 0; round < 2; round++) {
+    if (userOf(SUNITA).passwordReset) userOf(SUNITA).passwordReset.sentAt = new Date(Date.now() - 120_000).toISOString();
+    await forgot(SUNITA);
+    for (let i = 0; i < 5; i++) await reset(SUNITA, wrongFor(codes[codes.length - 1]));
+  }
+  const issuedBefore = codes.length;
+  await forgot(SUNITA);
+  it('After 10 wrong guesses in a day, no new code is sent', () => assert.equal(codes.length, issuedBefore));
+  const capped = await forgot(SUNITA);
+  it('...and the reply is still the standard one', () => assert.deepEqual(capped.json, known.json));
 
   console.log('\n-- Accounts this is not for');
   // A Customer-app account signs in with a phone code and has no password.

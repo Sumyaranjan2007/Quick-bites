@@ -1451,41 +1451,81 @@ const ResetPasswordSchema = z.object({
   newPassword: z.string().min(8, 'Choose a password of at least 8 characters.').max(128)
 });
 
-/** The accounts this flow is for: has a password, and is not the super admin re-applied from ADMIN_EMAIL at every boot. */
+/**
+ * The accounts this flow is for: partners, riders and staff (a password, or an
+ * account operations created that is waiting for its first one), not blocked,
+ * and not the super admin re-applied from ADMIN_EMAIL at every boot.
+ * Customer-app accounts sign in with a code and have no password to reset.
+ */
 function resettable(user: any): boolean {
-  if (!user?.passwordHash || user.isBlocked) return false;
+  if (!user || user.isBlocked) return false;
+  const staffRole = rolesOf(user).some(r => r === 'restaurant_owner' || r === 'rider');
+  if (!user.passwordHash && !staffRole) return false;
   return !(config.ADMIN_EMAIL && user.email?.toLowerCase() === config.ADMIN_EMAIL.toLowerCase());
 }
 
-/** POST /api/auth/password/forgot — emails a reset code; same answer for every email. */
-authRouter.post('/password/forgot', authRateLimiterMiddleware, validate({ body: ForgotPasswordSchema }), async (req, res, next) => {
-  try {
-    const user: any = await userRepository.findByEmail(req.body.email);
-    const now = Date.now();
-    const recent = user?.passwordReset && now - Date.parse(user.passwordReset.sentAt) < 60_000;
-    if (resettable(user) && !recent) {
-      const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-      await userRepository.update(user.id, {
-        passwordReset: {
-          codeHash: resetHash(user.id, code),
-          sentAt: new Date(now).toISOString(),
-          expiresAt: new Date(now + RESET_TTL_MS).toISOString(),
-          triesLeft: RESET_TRIES
-        }
-      } as any);
-      await persistDurably();
-      const text = `Your Quick Bites password reset code is ${code}. It works for 10 minutes. If you did not ask for it, ignore this email: your password has not changed.`;
-      const sent = await sendEmail(user.email, 'Your Quick Bites password reset code', text, `<p>${text}</p>`);
-      // Off production the logged code stands in for the email (QA server), as for confirm links.
-      if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'PASSWORD_RESET_CODE', email: user.email, code }));
-      if (!sent.accepted && config.NODE_ENV === 'production') {
-        console.error(JSON.stringify({ level: 'ERROR', event: 'PASSWORD_RESET_EMAIL_FAILED', userId: user.id, error: sent.error }));
-      }
-    }
-    res.json({ success: true, data: { sent: true }, message: FORGOT_REPLY });
-  } catch (err) {
-    next(err);
+/*
+ * Per account, per 24 hours (review P1 / security L10): at most 5 codes and 10
+ * wrong guesses. Past either, the same reply but no new code until the window
+ * ends, so guessing over time from many addresses stays below one in 10,000.
+ */
+const RESET_CODES_PER_DAY = 5;
+const RESET_WRONG_PER_DAY = 10;
+const DAY_MS = 24 * 3_600_000;
+function resetQuota(user: any, now = Date.now()) {
+  const q = user.resetQuota;
+  return q && now - Date.parse(q.since) < DAY_MS ? { ...q } : { since: new Date(now).toISOString(), codes: 0, wrong: 0 };
+}
+
+/**
+ * Puts a fresh reset code on the account and emails it. `forFirstPassword`: an
+ * account operations created gets 24 hours and "set your password" wording;
+ * nobody ever receives a password by email (security L11). Returns false when
+ * the daily limit stops it.
+ */
+export async function issuePasswordCode(user: any, forFirstPassword = false): Promise<boolean> {
+  const now = Date.now();
+  const quota = resetQuota(user, now);
+  if (quota.codes >= RESET_CODES_PER_DAY || quota.wrong >= RESET_WRONG_PER_DAY) return false;
+  quota.codes += 1;
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  const ttl = forFirstPassword ? DAY_MS : RESET_TTL_MS;
+  await userRepository.update(user.id, {
+    passwordReset: {
+      codeHash: resetHash(user.id, code),
+      sentAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + ttl).toISOString(),
+      triesLeft: RESET_TRIES
+    },
+    resetQuota: quota
+  } as any);
+  await persistDurably();
+  const text = forFirstPassword
+    ? `Quick Bites has set up your account. To choose your password, open the app, tap "Forgot password", enter ${user.email} and this code: ${code}. It works for 24 hours.`
+    : `Your Quick Bites password reset code is ${code}. It works for 10 minutes. If you did not ask for it, ignore this email: your password has not changed.`;
+  const sent = await sendEmail(user.email, forFirstPassword ? 'Set your Quick Bites password' : 'Your Quick Bites password reset code', text, `<p>${text}</p>`);
+  // Off production the logged code stands in for the email (QA server), as for confirm links.
+  if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'PASSWORD_RESET_CODE', email: user.email, code }));
+  if (!sent.accepted && config.NODE_ENV === 'production') {
+    console.error(JSON.stringify({ level: 'ERROR', event: 'PASSWORD_RESET_EMAIL_FAILED', userId: user.id, error: sent.error }));
   }
+  return Boolean(sent.accepted);
+}
+
+/** POST /api/auth/password/forgot — emails a reset code; same answer, same speed, for every email. */
+authRouter.post('/password/forgot', authRateLimiterMiddleware, validate({ body: ForgotPasswordSchema }), (req, res) => {
+  // Answered before any work (security L9): a known email used to wait for the
+  // database and the mail provider, and that delay told which emails are ours.
+  res.json({ success: true, data: { sent: true }, message: FORGOT_REPLY });
+  void (async () => {
+    try {
+      const user: any = await userRepository.findByEmail(req.body.email);
+      const recent = user?.passwordReset && Date.now() - Date.parse(user.passwordReset.sentAt) < 60_000;
+      if (resettable(user) && !recent) await issuePasswordCode(user);
+    } catch (err: any) {
+      console.error(JSON.stringify({ level: 'ERROR', event: 'PASSWORD_RESET_ISSUE_FAILED', message: err?.message }));
+    }
+  })();
 });
 
 /** POST /api/auth/password/reset — the code from the email and a new password. */
@@ -1501,8 +1541,11 @@ authRouter.post('/password/reset', authRateLimiterMiddleware, validate({ body: R
     const given = Buffer.from(resetHash(user.id, req.body.code));
     const expected = Buffer.from(pending.codeHash);
     if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      const quota = resetQuota(user);
+      quota.wrong += 1;
       const triesLeft = pending.triesLeft - 1;
-      await userRepository.update(user.id, { passwordReset: triesLeft > 0 ? { ...pending, triesLeft } : undefined } as any);
+      const keep = triesLeft > 0 && quota.wrong < RESET_WRONG_PER_DAY;
+      await userRepository.update(user.id, { passwordReset: keep ? { ...pending, triesLeft } : undefined, resetQuota: quota } as any);
       await persistDurably();
       throw BAD_RESET();
     }
@@ -1512,6 +1555,9 @@ authRouter.post('/password/reset', authRateLimiterMiddleware, validate({ body: R
       passwordReset: undefined
     } as any);
     await persistDurably();
+    // Review P3: the owner hears about it, wherever the change came from.
+    const notice = 'The password on your Quick Bites account was just changed. If this was not you, contact Quick Bites support now.';
+    void sendEmail(user.email, 'Your Quick Bites password was changed', notice, `<p>${notice}</p>`);
     res.json({ success: true, data: { reset: true }, message: 'Your password has been changed. Sign in with the new one.' });
   } catch (err) {
     next(err);

@@ -6,6 +6,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Password codes: daily limit, same timing, change notice; Create sends no password
+
+> **For the owner.** Hardening from the reviewers. Password reset codes now have a daily limit
+> per account (5 codes, 10 wrong guesses), so nobody can keep guessing; the reply comes at the same
+> speed for every email, so it cannot reveal who has an account; and after a reset the person is
+> emailed "your password was changed". Accounts that operations creates no longer get a password
+> by email at all: they get a code (valid 24 hours) to choose their own.
+
+- `authRouter.ts`: `issuePasswordCode` (one helper), `resetQuota` (24 h window), `/password/forgot`
+  answers first and issues in the background, `/password/reset` counts wrong guesses and emails a
+  notice; `resettable` also covers partner/rider accounts waiting for a first password.
+- `POST /api/admin/accounts/create`: no `passwordHash`; `issuePasswordCode(user, true)`.
+- Checks: `passwordReset` +3, `adminCreate` reworked; 3 guards mutation-checked.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Email change needs two proofs; mobile numbers by support until SMS; rider profile locks
 
 > **For the owner.** The reviewers found that changing a mobile number with a code sent to your
