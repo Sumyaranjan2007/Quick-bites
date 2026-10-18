@@ -108,6 +108,32 @@ in a response or a production log. `passwordReset` is stripped wherever a user r
 response that includes a person (login, sign-up, admin customers/riders/restaurants, order detail
 `routes/admin/shared.ts`, person record) builds an explicit field list, so the new field cannot leak.
 
+## 1d. Audit, round 4 — 18 Oct 2026, `146c41d` (Block ban list, Remove account)
+
+**For the owner.** Remove works as you asked: the account is closed everywhere at once, admins
+cannot be removed this way, it waits for live orders to finish, and a person who registers again
+gets a brand-new empty account (nothing of the old one). Block has one real gap: it bans the
+email, phone and the licence numbers typed **at sign-up**, but a blocked person who signs up
+again with a new email and phone can add their old FSSAI/licence number **afterwards** as a
+document, and that is not checked.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| M2 | **Medium** | `apps/backend-api/src/routes/restaurantRouter.ts:1074` (`POST /restaurants/:id/documents`), `routes/riderRouter.ts:424` (`POST /riders/documents`); `modules/platform/blockedIdentifiers.ts` `banAccount` | A blocked person registers again with a new email and phone and no FSSAI (it is optional at sign-up, `authRouter.ts:505`), then uploads their banned FSSAI (or, as a rider, their banned driving-licence number) as a document. **Proven:** an unbanned partner uploaded a blocked partner's FSSAI number → `201` accepted. Also, `banAccount` takes numbers only from the restaurant/rider records, never from the person's KYC documents, so a PAN, or an FSSAI/licence that exists only on a document, is never banned. | (1) `banAccount`: also ban every `documentNumber` on the person's KYC documents (FSSAI, GSTIN, PAN, DRIVING_LICENSE → kinds fssai/gstin/pan/license; add `pan`). (2) Call `assertNotBanned` in both document upload routes (by `documentType`) and when an admin approves a document. (3) Repeat `assertNotBanned` on the confirm-link POST (`authRouter.ts` `/confirm/:token`) for `pending.body` (phone, email, FSSAI, GSTIN, licence): today a ban applied during the 30-minute window is not re-checked. | open |
+
+Checked and holding:
+
+| Area | Evidence |
+|---|---|
+| Ban check on sign-up | `resolveIdentity` (customer `/auth/register`, partner and rider sign-up), partner FSSAI/GSTIN and rider licence at sign-up, and the first phone-code sign-in all call `assertNotBanned`; phone changes are refused anyway (M1). Profile edits cannot change FSSAI (`INVALID_PROFILE_CHANGES`, proven). Canonical forms: Indian phone normalised, email lower-cased with `+tag` dropped and Gmail dots removed, numbers upper-cased alphanumeric; stored as `sha256(kind:value)`. |
+| Remove | Needs the manage permission for **every** kind of account the person has; admin accounts refused; typed name; refused while any order of theirs (as customer, kitchen or rider) is unfinished; sets `isBlocked`, which ends HTTP sessions and closes open sockets at once (`userRepository.update` → `revokeLiveAccess`); kitchens closed, rider off shift; email/phone freed. |
+| Freed identity → no takeover | A new sign-up with the freed email/phone creates a new user id; orders, kitchens, rider record, payee accounts, tickets and confirm links are keyed by the old user id; the customer email-code path looks up by the (now changed) email; the old confirm links refuse a blocked account. |
+| Staff accounts | Created only by a super admin (`rbacRoutes.ts` `POST /admins`), not ban-checked: trusted, by design. |
+
+Note, no action needed: if an admin later **un-blocks** a removed account, it works again under its
+placeholder email (`removed-<id>@removed.quickbite.app`) with its old password. Treat un-block of a
+removed account as restoring it.
+
 ---
 
 ## 2. Rules every change must follow
