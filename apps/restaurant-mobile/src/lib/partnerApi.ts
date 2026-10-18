@@ -323,6 +323,15 @@ export function setDishStock(restaurantId: string, dishId: string, isAvailable: 
   );
 }
 
+/** A whole menu section off (optionally until `backAt`) or on (B5). Dishes keep their own switches. */
+export function setSectionAvailability(restaurantId: string, categoryId: string, isAvailable: boolean, backAt?: string) {
+  return request<{ section: { id: string; isAvailable: boolean; backAt: string | null } }>(
+    `/restaurants/${restaurantId}/menu/sections/${encodeURIComponent(categoryId)}/availability`,
+    { method: 'POST', body: JSON.stringify({ isAvailable, ...(backAt ? { backAt } : {}) }) },
+    'Could not switch that section.'
+  );
+}
+
 export function submitMenuRequest(
   restaurantId: string,
   input: {
@@ -384,7 +393,22 @@ export function uploadDocument(
 // Support
 // ---------------------------------------------------------------------------
 
-export function raiseSupportTicket(input: { subject: string; category: string; message: string }) {
+/** Help chat (B8): this app's topics, and one topic's fixed answer filled with live data. */
+export function fetchHelpTopics() {
+  return request<{ greeting: string; topics: Array<{ id: string; label: string; category: string }> }>('/support/help', {}, 'Help could not be loaded.');
+}
+
+export function fetchHelpAnswer(topicId: string) {
+  return request<{ answer: string }>(`/support/help/${encodeURIComponent(topicId)}`, {}, 'That answer could not be loaded.');
+}
+
+export function raiseSupportTicket(input: {
+  subject: string;
+  category: string;
+  message: string;
+  helpTopics?: string[];
+  platform?: 'android' | 'ios' | 'web';
+}) {
   return request<{ ticket: any }>(
     '/support/tickets',
     { method: 'POST', body: JSON.stringify(input) },
@@ -412,7 +436,20 @@ export function fetchSupportTickets() {
  * did it. changePassword below still applies once they are signed in.
  */
 export const PASSWORD_RECOVERY_GUIDANCE =
-  'Call Quick Bites operations and an administrator will set a temporary password for you. Change it from Settings once you are back in.';
+  'Enter your email and we will send a 6-digit code to set a new password. No email? Call Quick Bites operations and an administrator will set a temporary one.';
+
+/** Forgot password (B6): a 6-digit code by email, 10 minutes (24 h for an account Operations created). */
+export function forgotPassword(email: string) {
+  return request<unknown>('/auth/password/forgot', { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) }, 'Could not send the code.');
+}
+
+export function resetPassword(email: string, code: string, newPassword: string) {
+  return request<unknown>(
+    '/auth/password/reset',
+    { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim(), newPassword }) },
+    'That code did not work. Check it, or ask for a new one.'
+  );
+}
 
 export function changePassword(currentPassword: string, newPassword: string) {
   // `token` replaces this device's: the change retires every older one (U2).
@@ -421,6 +458,11 @@ export function changePassword(currentPassword: string, newPassword: string) {
     { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
     'Your password could not be changed.'
   );
+}
+
+/** The signed-in account, e.g. whether a deletion was requested (owner Q2: sign-in is kept). */
+export function fetchMyAccount(userId: string) {
+  return request<{ user: { deletionRequestedAt?: string } }>(`/auth/me/${encodeURIComponent(userId)}`, {}, 'Could not load your account.');
 }
 
 export function updateProfile(changes: { fullName?: string; phone?: string }) {
@@ -538,6 +580,7 @@ export interface EditableProfileView {
   openingHours?: OpeningHoursView;
   fssaiLicenseNumber?: string;
   gstin?: string;
+  cuisineType?: 'VEG' | 'NON_VEG' | 'BOTH';
 }
 
 export interface ProfileRules {
@@ -567,6 +610,7 @@ export interface ProfileResponse {
     withinDeclaredHours: boolean | null;
     forceOpenUntil: string | null;
     canGoOnline: boolean;
+    pureVegSeal?: boolean;
   };
   rules: ProfileRules;
 }
@@ -699,6 +743,14 @@ export function invoiceRequest(range: { from?: string; to?: string; orderId?: st
   const query = params.toString();
   return {
     url: `${apiUrl}/earnings/${each ? 'invoices.zip' : 'statement.pdf'}${query ? `?${query}` : ''}`,
+    headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
+  };
+}
+
+/** The kitchen ticket (B10): the order to print for the kitchen, no prices, 80 or 58 mm roll. */
+export function kitchenTicketRequest(orderId: string, width: 80 | 58) {
+  return {
+    url: `${apiUrl}/orders/${encodeURIComponent(orderId)}/kitchen-ticket?width=${width}`,
     headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
   };
 }

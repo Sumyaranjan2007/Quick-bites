@@ -252,7 +252,16 @@ Recipe: `customer-app-feel-2026-10-17.md` phases 1–4 and `design/motion/`.
 | Operations | Create (B6), Record per person (B7), deletion review (B6), delete restaurant (B6), Pure Veg seal + recommended list (B5), max distance setting (B1), help chat shown on the Support ticket (B8 `helpChat`, app version), Record per person screen on `/admin/records` (B7), dispatch monitor (B4), roles for the new permissions, base feel |
 | Websites | nothing separate: built from the Partner/Operations code; each step runs `node scripts/build-web.mjs` and checks the feature in a browser; the web keeps its simple Glass Kitchen look |
 
-**Built:** –
+**Order note (18 Oct):** Stage E's feature screens were built before Stage C (they need no engine
+change and reach the websites at once); the base feel (D1 pieces) and Google maps in E wait for C.
+
+**Built (part 1, 18 Oct):** Operations: Create (B6), Remove (B6), Listing card with Pure Veg seal + recommended (B5),
+deletion rows with kitchen/trips/last active/documents (B6), help chat on tickets (B8), Record per person
+(B7, `PersonDocuments`). Partner: forgot password (B6), kitchen ticket print 80/58 (B10), section switch (B5),
+kitchen type + seal shown (B5), help chat (B8), deletion status (B6). Rider: forgot password, help chat,
+108 s countdown from the server (B4), location consent (#22), deletion status. **Left in E:** dispatch
+monitor screen, rider GPS status chip, masked Call (B9 on hold), base feel and Google map (after C).
+Decision: no "Allow all the time" location: the shift's foreground service already covers background use.
 
 ## Stage F — Security (#23) · ~1 week, plus checks inside every stage
 

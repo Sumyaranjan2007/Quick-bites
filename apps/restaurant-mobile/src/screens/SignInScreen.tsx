@@ -8,6 +8,8 @@ import {
   login,
   createAccount,
   PASSWORD_RECOVERY_GUIDANCE,
+  forgotPassword,
+  resetPassword,
   configureApi,
   currentApiUrl,
 } from '../lib/partnerApi';
@@ -35,6 +37,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [code, setCode] = useState('');
 
   // The restaurant itself, not just the person signing up. Registration creates
   // both: an owner login is worthless without the kitchen it manages, and the
@@ -113,6 +116,46 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
       return;
     }
     onSignedIn(res.data.token, res.data.user);
+  };
+
+  const doForgot = async () => {
+    setFormError(null);
+    if (!email.trim()) {
+      setFormError('Enter the email you signed up with.');
+      return;
+    }
+    setBusy(true);
+    const res = await forgotPassword(email);
+    setBusy(false);
+    if (!res.ok) {
+      setFormError(res.message || 'Could not send the code.');
+      return;
+    }
+    setNotice('If that email has a partner account, a 6-digit code is on its way. It works for 10 minutes.');
+    setMode('reset');
+  };
+
+  const doReset = async () => {
+    setFormError(null);
+    if (!/^\d{6}$/.test(code.trim())) {
+      setFormError('Enter the 6-digit code from the email.');
+      return;
+    }
+    if (password.length < 8) {
+      setFormError('Choose a password of at least 8 characters.');
+      return;
+    }
+    setBusy(true);
+    const res = await resetPassword(email, code, password);
+    setBusy(false);
+    if (!res.ok) {
+      setFormError(res.message || 'That code did not work.');
+      return;
+    }
+    setCode('');
+    setPassword('');
+    setNotice('Password changed. Sign in with the new one.');
+    setMode('signin');
   };
 
   const doCreate = async () => {
@@ -308,8 +351,19 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
           />
         )}
 
-        {(mode === 'forgot' || mode === 'reset') && (
-          <Text style={styles.subtitle}>{PASSWORD_RECOVERY_GUIDANCE}</Text>
+        {mode === 'forgot' && <Text style={styles.subtitle}>{PASSWORD_RECOVERY_GUIDANCE}</Text>}
+
+        {mode === 'reset' && (
+          <>
+            <Field
+              label="Code from the email"
+              value={code}
+              onChangeText={v => setCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+              placeholder="6 digits"
+              keyboardType="number-pad"
+            />
+            <PasswordField label="New password" value={password} onChangeText={setPassword} placeholder="At least 8 characters" />
+          </>
         )}
 
         {mode === 'create' && (
@@ -328,10 +382,12 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
               ? 'Sign in'
               : mode === 'create'
                 ? 'Create account'
-                : 'Back to sign in'
+                : mode === 'forgot'
+                  ? 'Email me a code'
+                  : 'Set new password'
           }
           onPress={
-            mode === 'signin' ? doSignIn : mode === 'create' ? doCreate : () => setMode('signin')
+            mode === 'signin' ? doSignIn : mode === 'create' ? doCreate : mode === 'forgot' ? doForgot : doReset
           }
           busy={busy}
           style={{ marginTop: spacing.sm }}

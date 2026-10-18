@@ -6,7 +6,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
-import { invoiceRequest } from './partnerApi';
+import { invoiceRequest, kitchenTicketRequest } from './partnerApi';
 
 /**
  * Said once, before Android's folder picker: on Android 11+ the picker opens on
@@ -42,7 +42,15 @@ export async function downloadInvoice(
   range: { from?: string; to?: string; orderId?: string },
   each = false
 ): Promise<string> {
-  const { url, headers } = invoiceRequest(range, each);
+  return savePdf(invoiceRequest(range, each), each);
+}
+
+/** The kitchen ticket, saved like an invoice; printing straight from the app comes with expo-print (plan C3). */
+export async function openKitchenTicket(orderId: string, width: 80 | 58): Promise<string> {
+  return savePdf(kitchenTicketRequest(orderId, width));
+}
+
+async function savePdf({ url, headers }: { url: string; headers: Record<string, string> }, each = false): Promise<string> {
   const temp = `${FileSystem.cacheDirectory}invoice-${Date.now()}`;
   let result: FileSystem.FileSystemDownloadResult;
   try {

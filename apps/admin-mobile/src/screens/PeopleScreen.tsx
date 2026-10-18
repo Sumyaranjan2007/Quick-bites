@@ -1,4 +1,5 @@
 import { PersonDocuments } from '../components/PersonDocuments';
+import { CreateAccountSheet, RemoveAccountCard } from '../components/AccountTools';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Users, Bike, Store } from 'lucide-react-native';
@@ -12,6 +13,7 @@ import {
   Sheet,
   KeyValue,
   Divider,
+  ResourceError,
   Loading,
   EmptyState,
   NoAccess,
@@ -400,6 +402,7 @@ const CustomerSheet: React.FC<{ id: string | null; onClose: () => void; onChange
         </Card>
       ) : null}
 
+      {resource.data && canManage && customer?.id ? <RemoveAccountCard userId={customer.id} name={customer.fullName || ''} onRemoved={() => { close(); onChanged(); }} /> : null}
     </Sheet>
   );
 };
@@ -411,6 +414,7 @@ const DriversTab: React.FC = () => {
   const [search, setSearch] = useState('');
   const [submitted, setSubmitted] = useState('');
   const [status, setStatus] = useState('ALL');
+  const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const list = useResource(() => api.get<any>(`/admin/drivers${query({ q: submitted, status })}`), [submitted, status]);
@@ -419,6 +423,7 @@ const DriversTab: React.FC = () => {
   return (
     <View style={{ flex: 1 }}>
       <View style={s.controls}>
+        {can('users.drivers.manage') ? <Button label="+ Create a delivery partner" variant="secondary" size="sm" onPress={() => setCreating(true)} /> : null}
         <SearchBar value={search} onChangeText={setSearch} placeholder="Name, partner ID or phone" onSubmit={() => setSubmitted(search.trim())} />
         <Segmented
           options={[
@@ -439,6 +444,7 @@ const DriversTab: React.FC = () => {
         <EmptyState title="No delivery partners match" message={list.error || 'Try a different filter.'} icon={<Bike size={34} color={c.text.muted} />} />
       ) : null}
 
+      <CreateAccountSheet kind={creating ? 'rider' : null} onClose={() => setCreating(false)} onCreated={list.reload} />
       <ScrollView
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
@@ -808,6 +814,7 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
           ) : null}
         </>
       ) : null}
+      {resource.data && canManage && driver?.userId ? <RemoveAccountCard userId={driver.userId} name={driver.fullName || ''} onRemoved={() => { onClose(); onChanged(); }} /> : null}
     </Sheet>
   );
 };
@@ -819,6 +826,7 @@ const RestaurantsTab: React.FC = () => {
   const [search, setSearch] = useState('');
   const [submitted, setSubmitted] = useState('');
   const [status, setStatus] = useState('ALL');
+  const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [uploadFor, setUploadFor] = useState<{ id: string; name: string } | null>(null);
@@ -829,6 +837,7 @@ const RestaurantsTab: React.FC = () => {
   return (
     <View style={{ flex: 1 }}>
       <View style={s.controls}>
+        {can('users.restaurants.manage') ? <Button label="+ Create a restaurant" variant="secondary" size="sm" onPress={() => setCreating(true)} /> : null}
         <SearchBar value={search} onChangeText={setSearch} placeholder="Name, city or phone" onSubmit={() => setSubmitted(search.trim())} />
         <Segmented
           options={[
@@ -849,6 +858,7 @@ const RestaurantsTab: React.FC = () => {
         <EmptyState title="No restaurants match" message={list.error || 'Try a different filter.'} icon={<Store size={34} color={c.text.muted} />} />
       ) : null}
 
+      <CreateAccountSheet kind={creating ? 'restaurant' : null} onClose={() => setCreating(false)} onCreated={list.reload} />
       <ScrollView
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
@@ -921,6 +931,7 @@ const RestaurantsTab: React.FC = () => {
 const DeletionRequestsTab: React.FC = () => {
   const { api } = useSession();
   const list = useResource(() => api.get<any>('/admin/deletion-requests'), []);
+  const [docsFor, setDocsFor] = useState<{ kind: 'rider' | 'restaurant'; id: string; name: string } | null>(null);
   const rows: any[] = list.data?.requests || [];
   const act = (row: any, action: 'complete' | 'cancel') =>
     Alert.alert(
@@ -961,15 +972,30 @@ const DeletionRequestsTab: React.FC = () => {
           <KeyValue label="Name" value={row.name} tone="strong" />
           <KeyValue label="Email" value={row.email} />
           <KeyValue label="Asked" value={formatDateTime(row.requestedAt)} />
+          {row.kitchens?.length ? <KeyValue label="Kitchen" value={row.kitchens.map((k: any) => k.name || k).join(', ')} /> : null}
+          {row.lastActiveAt ? <KeyValue label="Last active" value={formatDateTime(row.lastActiveAt)} /> : null}
+          {row.ordersTotal !== undefined ? <KeyValue label={row.role === 'rider' ? 'Trips' : 'Orders'} value={String(row.ordersTotal)} /> : null}
+          {row.ordersInProgress ? <KeyValue label="In progress now" value={String(row.ordersInProgress)} tone="strong" /> : null}
           <KeyValue label="We owe them" value={formatMoney(row.owedToThem)} />
           {row.cashTheyHold > 0 ? <KeyValue label="Cash they hold" value={formatMoney(row.cashTheyHold)} tone="strong" /> : null}
           {row.waitingFor ? <Text style={s.muted}>{row.waitingFor}</Text> : null}
+          {row.riderId || row.kitchens?.[0]?.id ? (
+            <Button
+              label="See their documents"
+              variant="secondary"
+              size="sm"
+              onPress={() => setDocsFor(row.riderId ? { kind: 'rider', id: row.riderId, name: row.name } : { kind: 'restaurant', id: row.kitchens[0].id, name: row.name })}
+            />
+          ) : null}
           <View style={s.actionRow}>
             <Button label="Reopen" variant="secondary" full onPress={() => act(row, 'cancel')} />
             <Button label="Delete" variant="danger" full disabled={!row.canComplete} onPress={() => act(row, 'complete')} />
           </View>
         </Card>
       ))}
+      <Sheet visible={Boolean(docsFor)} onClose={() => setDocsFor(null)} title={docsFor?.name || ''} subtitle="Everything they uploaded">
+        {docsFor ? <PersonDocuments kind={docsFor.kind} id={docsFor.id} /> : null}
+      </Sheet>
     </ScrollView>
   );
 };
@@ -1157,6 +1183,10 @@ const RestaurantSheet: React.FC<{
             ) : null}
           </Card>
 
+          {/* Listing (B5, 18 Oct 2026): the partner's own kitchen type, the admin-only
+              Pure Veg seal, and the "Recommended by Quick Bites" list shown first. */}
+          <ListingCard restaurant={restaurant} onChanged={() => { void resource.reload(); onChanged(); }} />
+
           {canEditMenu ? (
             <Card>
               <Text style={s.cardHeading}>Menu</Text>
@@ -1254,7 +1284,61 @@ const RestaurantSheet: React.FC<{
           </View>
         </Card>
       ) : null}
+      {resource.data && canManage && resource.data.owner?.id ? <RemoveAccountCard userId={resource.data.owner.id} name={resource.data.owner.fullName || ''} onRemoved={() => { onClose(); onChanged(); }} /> : null}
     </Sheet>
+  );
+};
+
+const ListingCard: React.FC<{ restaurant: any; onChanged: () => void }> = ({ restaurant, onChanged }) => {
+  const { api, can } = useSession();
+  const canSeal = can('catalog.restaurants.pureVegSeal');
+  const canRecommend = can('catalog.restaurants.recommend');
+  const recommended = useResource(() => api.get<any>('/admin/recommended-restaurants'), [], { enabled: canRecommend });
+  const ids: string[] = (recommended.data?.restaurants || []).map((r: any) => r.id);
+  const isRecommended = ids.includes(restaurant.id);
+
+  const run = async (work: () => Promise<unknown>) => {
+    try {
+      await work();
+      onChanged();
+    } catch (err: any) {
+      Alert.alert('Not changed', err?.message || 'Nothing was changed.');
+    }
+  };
+  const setSeal = (isPureVeg: boolean) => run(() => api.patch(`/admin/restaurants/${restaurant.id}`, { isPureVeg }));
+  const setRecommended = (on: boolean) =>
+    run(async () => {
+      await api.put('/admin/recommended-restaurants', {
+        restaurantIds: on ? [...ids, restaurant.id] : ids.filter(id => id !== restaurant.id)
+      });
+      await recommended.reload();
+    });
+
+  return (
+    <Card>
+      <Text style={s.cardHeading}>Listing</Text>
+      <ResourceError resource={recommended} what="The recommended list" />
+      <KeyValue
+        label="Kitchen type (partner's own)"
+        value={{ VEG: 'Veg', NON_VEG: 'Non-veg', BOTH: 'Veg & non-veg' }[restaurant.cuisineType as string] || 'Not set'}
+      />
+      {canSeal ? (
+        <Toggle label="Pure Veg seal" value={Boolean(restaurant.isPureVeg)} onChange={setSeal} />
+      ) : (
+        <KeyValue label="Pure Veg seal" value={restaurant.isPureVeg ? 'Given' : 'No'} />
+      )}
+      <Text style={s.muted}>The seal shows customers a Pure Veg badge and puts the kitchen in the Pure Veg filter. Only staff allowed to give it can change it.</Text>
+      {canRecommend ? (
+        <>
+          <Divider />
+          <Toggle label="Recommended by Quick Bites" value={isRecommended} onChange={setRecommended} />
+          <Text style={s.muted}>
+            Recommended kitchens are shown first, and to customers who have not set a location yet
+            {isRecommended ? ` (number ${ids.indexOf(restaurant.id) + 1} of ${ids.length})` : ''}.
+          </Text>
+        </>
+      ) : null}
+    </Card>
   );
 };
 

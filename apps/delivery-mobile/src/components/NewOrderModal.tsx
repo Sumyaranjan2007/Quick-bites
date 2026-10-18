@@ -34,11 +34,14 @@ export const NewOrderModal: React.FC<{
 
   useEffect(() => {
     if (!trip) return;
-    setRemaining(OFFER_SECONDS);
+    // The server's own deadline (owner Q6: 108 s, admin-editable); the fixed
+    // count is only for an older server that does not send one.
+    const deadline = Date.parse(trip.offerExpiresAt || '') || Date.now() + OFFER_SECONDS * 1000;
+    const leftNow = () => Math.ceil((deadline - Date.now()) / 1000);
+    setRemaining(leftNow());
 
-    const started = Date.now();
     const timer = setInterval(() => {
-      const left = OFFER_SECONDS - Math.floor((Date.now() - started) / 1000);
+      const left = leftNow();
       setRemaining(left);
       if (left <= 0) {
         clearInterval(timer);

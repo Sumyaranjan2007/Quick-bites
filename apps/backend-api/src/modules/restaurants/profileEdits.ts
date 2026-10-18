@@ -335,6 +335,7 @@ export function readEditableProfile(
     bannerUrl: restaurant.bannerUrl ?? '',
     galleryUrls: restaurant.galleryUrls ?? [],
     openingHours: restaurant.openingHours,
+    ...(restaurant.cuisineType ? { cuisineType: restaurant.cuisineType } : {}),
     fssaiLicenseNumber: restaurant.fssaiLicenseNumber ?? '',
     gstin: restaurant.gstin ?? ''
   };

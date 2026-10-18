@@ -4,7 +4,7 @@ import { Modal } from '../components/Modal';
 import { Plus, Clock3, CheckCircle2, XCircle, Camera, Image as ImageIcon, X } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
-import { fetchMenu, setDishStock, submitMenuRequest, fetchMenuRequests, readMenuPhoto, sendMenuBatch } from '../lib/partnerApi';
+import { fetchMenu, setDishStock, setSectionAvailability, submitMenuRequest, fetchMenuRequests, readMenuPhoto, sendMenuBatch } from '../lib/partnerApi';
 import { pickDishPhoto, pickMenuPages } from '../lib/photo';
 import { MenuBuilder } from '../components/MenuBuilder';
 
@@ -154,6 +154,27 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
         }))
       );
     }
+  };
+
+  // A whole section off, e.g. dosa after 7 pm (B5): each dish keeps its own switch underneath.
+  const switchSection = async (categoryId: string, isAvailable: boolean, backAt?: string) => {
+    const res = await setSectionAvailability(restaurantId, categoryId, isAvailable, backAt);
+    if (!res.ok) {
+      setError(res.message || 'Could not switch that section.');
+      return;
+    }
+    setCategories(prev => prev.map(cat => (cat.id === categoryId ? { ...cat, isAvailable, backAt: res.data?.section.backAt ?? undefined } : cat)));
+  };
+  const askSectionOff = (cat: any) => {
+    const tomorrowMorning = new Date();
+    tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+    tomorrowMorning.setHours(6, 0, 0, 0);
+    Alert.alert(`Turn off "${cat.name}"?`, 'Customers see every dish in it as unavailable.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'For 1 hour', onPress: () => void switchSection(cat.id, false, new Date(Date.now() + 3600_000).toISOString()) },
+      { text: 'Until 6 am tomorrow', onPress: () => void switchSection(cat.id, false, tomorrowMorning.toISOString()) },
+      { text: 'Until I turn it on', style: 'destructive', onPress: () => void switchSection(cat.id, false) }
+    ]);
   };
 
   const validate = (): boolean => {
@@ -308,7 +329,24 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
         ) : (
           categories.map(cat => (
             <Card key={cat.id || cat.name}>
-              <SectionHeading title={cat.name} sub={`${(cat.items || []).length} item${(cat.items || []).length === 1 ? '' : 's'}`} />
+              <SectionHeading
+                title={cat.name}
+                sub={
+                  cat.isAvailable === false
+                    ? `Off for customers${cat.backAt ? ` · back ${new Date(cat.backAt).toLocaleString('en-IN', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}` : ' until you switch it on'}`
+                    : `${(cat.items || []).length} item${(cat.items || []).length === 1 ? '' : 's'}`
+                }
+                right={
+                  cat.id ? (
+                    <Switch
+                      value={cat.isAvailable !== false}
+                      onValueChange={next => (next ? void switchSection(cat.id, true) : askSectionOff(cat))}
+                      trackColor={{ true: c.success, false: c.border }}
+                      thumbColor="#FFFFFF"
+                    />
+                  ) : undefined
+                }
+              />
               {(cat.items || []).map((item: any) => (
                 <View key={item.id} style={styles.dishRow}>
                   <View style={[styles.dietDot, { backgroundColor: item.isVeg ? c.veg : c.nonVeg }]} />

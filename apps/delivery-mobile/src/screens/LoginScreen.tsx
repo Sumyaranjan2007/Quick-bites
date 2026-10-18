@@ -39,8 +39,10 @@ export const LoginScreen: React.FC<{
 
   // Password recovery. A rider locked out mid-shift has no desk to walk to, so
   // the whole flow happens on this screen rather than pointing them at support.
-  const [mode, setMode] = useState<'signin' | 'forgot' | 'register' | 'registered'>('signin');
-
+  const [mode, setMode] = useState<'signin' | 'forgot' | 'reset' | 'register' | 'registered'>('signin');
+
+
+
   /**
    * Back is refused while a request is in flight. Rider registration creates an
    * account and uploads documents; backing out mid-request leaves the rider
@@ -92,6 +94,32 @@ export const LoginScreen: React.FC<{
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Forgot password (B6): code by email, then a new password.
+  const recover = async () => {
+    setRecoveryError(null);
+    setRecoveryBusy(true);
+    try {
+      if (mode === 'forgot') {
+        if (!email.trim()) throw new Error('Enter the email you signed up with.');
+        await api.forgotPassword(apiUrl, email);
+        setNotice('If that email has a rider account, a 6-digit code is on its way. It works for 10 minutes.');
+        setMode('reset');
+      } else {
+        if (!/^\d{6}$/.test(resetCode.trim())) throw new Error('Enter the 6-digit code from the email.');
+        if (newPassword.length < 8) throw new Error('Choose a password of at least 8 characters.');
+        await api.resetPassword(apiUrl, email, resetCode, newPassword);
+        setResetCode('');
+        setNewPassword('');
+        setNotice('Password changed. Sign in with the new one.');
+        setMode('signin');
+      }
+    } catch (err: any) {
+      setRecoveryError(err?.message || 'That did not work. Try again.');
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
 
   return (
     <SafeScreen style={s.screen}>
@@ -246,12 +274,33 @@ export const LoginScreen: React.FC<{
               </>
             ) : null}
 
-            {mode !== 'signin' ? (
+            {mode === 'forgot' ? (
               <Text style={s.notice}>
-                Emailed reset codes are gone. Call Quick Bites operations and an administrator
-                will set a temporary password for you — the change is recorded against their
-                name. Change it from your profile once you are back in.
+                Enter your email and we send a 6-digit code to set a new password. No email? Call Quick Bites
+                operations and an administrator will set a temporary one.
               </Text>
+            ) : null}
+            {mode === 'reset' ? (
+              <>
+                <Text style={[s.label, { marginTop: t.space[4] }]}>Code from the email</Text>
+                <TextInput
+                  style={s.input}
+                  value={resetCode}
+                  onChangeText={v => setResetCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                  keyboardType="number-pad"
+                  placeholder="6 digits"
+                  placeholderTextColor={t.color.textMuted}
+                />
+                <Text style={[s.label, { marginTop: t.space[4] }]}>New password</Text>
+                <TextInput
+                  style={s.input}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                  placeholder="At least 8 characters"
+                  placeholderTextColor={t.color.textMuted}
+                />
+              </>
             ) : null}
 
             {notice ? <Text style={s.notice}>{notice}</Text> : null}
@@ -259,12 +308,12 @@ export const LoginScreen: React.FC<{
             {recoveryError ? <Text style={s.error}>{recoveryError}</Text> : null}
 
             <Button
-              label={mode === 'signin' ? 'Sign in' : 'Back to sign in'}
+              label={mode === 'signin' ? 'Sign in' : mode === 'forgot' ? 'Email me a code' : 'Set new password'}
               size="lg"
-              loading={mode === 'signin' ? busy : false}
+              loading={mode === 'signin' ? busy : recoveryBusy}
               onPress={() => {
                 if (mode === 'signin') onSubmit(email, password);
-                else setMode('signin');
+                else void recover();
               }}
               style={{ marginTop: t.space[5] }}
             />

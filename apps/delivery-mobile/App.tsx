@@ -33,6 +33,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { t } from './src/theme';
 import { Avatar } from './src/components/ui';
 import { NewOrderModal } from './src/components/NewOrderModal';
+import { LocationConsent, hasLocationConsent } from './src/components/LocationConsent';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TripScreen } from './src/screens/TripScreen';
@@ -42,6 +43,7 @@ import { DocumentsScreen } from './src/screens/DocumentsScreen';
 import { RatingsScreen } from './src/screens/RatingsScreen';
 import { IncentivesScreen } from './src/screens/IncentivesScreen';
 import { WeeklyTripsScreen } from './src/screens/WeeklyTripsScreen';
+import { HelpScreen } from './src/screens/HelpScreen';
 import { SafetyScreen } from './src/screens/SafetyScreen';
 import { PoliciesScreen } from './src/screens/PoliciesScreen';
 import {
@@ -76,6 +78,7 @@ type SubScreen =
   | 'incentives'
   | 'weekly'
   | 'safety'
+  | 'help'
   | 'policies'
   | 'settlement'
   | 'payoutAccount'
@@ -88,6 +91,7 @@ const SUB_SCREEN_TITLE: Record<SubScreen, string> = {
   incentives: 'Incentives & bonuses',
   weekly: 'Trips',
   safety: 'Safety & SOS',
+  help: 'Help',
   policies: 'App policies',
   settlement: 'Settlement & payments',
   // A sub-screen off Earnings rather than a fifth tab: a rider opens this
@@ -149,6 +153,8 @@ function DeliveryApp() {
 
   const ctx: ApiContext = { apiUrl, token: token || undefined };
   const ctxRef = useRef(ctx);
+  // Set once loadDashboard exists below; handlers declared earlier call it through this.
+  const reloadDashboardRef = useRef<() => Promise<unknown>>(async () => undefined);
   ctxRef.current = ctx;
 
   const activeTrip = dashboard?.activeOrder || null;
@@ -251,14 +257,15 @@ function DeliveryApp() {
         Alert.alert('Account not closed', err?.message || 'Nothing was changed. Try again.');
         return false;
       }
+      // Owner Q2 (18 Oct 2026): the sign-in is kept, with no new trips, until Quick Bites settles and deletes.
       Alert.alert(
-        'Account closed',
-        'We will pay anything we owe you, then delete your account — usually within 7 days. You can no longer sign in.'
+        'Deletion requested',
+        'You can still sign in to see what we owe you, but you get no new trips. We pay anything we owe you, then delete your account — usually within 7 days.'
       );
-      await handleLogout();
+      await reloadDashboardRef.current();
       return true;
     },
-    [handleLogout]
+    []
   );
 
   /*
@@ -329,6 +336,7 @@ function DeliveryApp() {
       setLoadingDashboard(false);
     }
   }, [handleApiError]);
+  reloadDashboardRef.current = () => loadDashboard({ silent: true });
 
   useEffect(() => {
     if (token) {
@@ -510,6 +518,13 @@ function DeliveryApp() {
   };
 
   /* ------------------------------- Shift ---------------------------------- */
+
+  // The location consent comes before the first "Go online" on this phone (#22).
+  const [consentOpen, setConsentOpen] = useState(false);
+  const goOnline = async () => {
+    if (await hasLocationConsent()) await setShift(true);
+    else setConsentOpen(true);
+  };
 
   const setShift = async (next: boolean) => {
     if (shiftSaving) return;
@@ -768,7 +783,7 @@ function DeliveryApp() {
             onOpenRatings={() => setSubScreen('ratings')}
             onOpenWeekly={() => setSubScreen('weekly')}
             onCompleteProfile={() => setSubScreen('documents')}
-            onGoOnline={() => setShift(true)}
+            onGoOnline={() => void goOnline()}
           />
         );
       case 'trips':
@@ -791,7 +806,7 @@ function DeliveryApp() {
             onCancelTrip={cancelTrip}
             onAcceptOffer={acceptOffer}
             onDeclineOffer={declineOffer}
-            onGoOnline={() => setShift(true)}
+            onGoOnline={() => void goOnline()}
             onCompleteProfile={() => setSubScreen('documents')}
             onSos={() => setSubScreen('safety')}
           onOpenChat={() => setChatOpen(true)}
@@ -823,6 +838,7 @@ function DeliveryApp() {
             onOpenRatings={() => setSubScreen('ratings')}
             onOpenPolicies={() => setSubScreen('policies')}
             onOpenSafety={() => setSubScreen('safety')}
+            onOpenHelp={() => setSubScreen('help')}
             onChangePassword={handleChangePassword}
             onLogout={handleLogout}
             onDeleteAccount={handleDeleteAccount}
@@ -843,6 +859,8 @@ function DeliveryApp() {
         return <WeeklyTripsScreen ctx={ctx} />;
       case 'safety':
         return <SafetyScreen ctx={ctx} activeOrderId={activeTrip?.id} />;
+      case 'help':
+        return <HelpScreen ctx={ctx} />;
       case 'policies':
         return <PoliciesScreen ctx={ctx} />;
       case 'settlement':
@@ -960,6 +978,14 @@ function DeliveryApp() {
         selfUserId={rider?.userId}
       />
 
+      <LocationConsent
+        visible={consentOpen}
+        onAgree={() => {
+          setConsentOpen(false);
+          void setShift(true);
+        }}
+        onCancel={() => setConsentOpen(false)}
+      />
       <NewOrderModal
         trip={pendingOffer}
         busy={busy}

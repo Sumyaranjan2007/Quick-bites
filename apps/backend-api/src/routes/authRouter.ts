@@ -401,7 +401,7 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
         success: true,
         data: { deleted: false, requested: true },
         message:
-          'Your account is closed. We will pay anything we owe you, then delete it — usually within 7 days. You will not be able to sign in.'
+          'Your deletion request is sent. You can still sign in to see what we owe you, but no new orders or trips. We pay anything we owe you, then delete the account, usually within 7 days.'
       });
     }
 

@@ -1304,7 +1304,9 @@ restaurantRouter.get('/:id/profile', authMiddleware('restaurant_owner'), async (
           withinDeclaredHours: openNow,
           forceOpenUntil: restaurant.forceOpenUntil ?? null,
           /** A partner may only go online once the platform has approved them. */
-          canGoOnline: restaurant.status === 'ACTIVE'
+          canGoOnline: restaurant.status === 'ACTIVE',
+          /** The Pure Veg seal: given by Quick Bites only (B5), shown to the partner. */
+          pureVegSeal: Boolean(restaurant.isPureVeg)
         },
         rules: {
           editableFields: EDITABLE_PROFILE_FIELDS,

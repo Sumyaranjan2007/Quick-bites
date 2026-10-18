@@ -75,7 +75,8 @@ const FIELD_WORD: Record<string, string> = {
   galleryUrls: 'Photos',
   openingHours: 'Opening hours',
   fssaiLicenseNumber: 'FSSAI licence number',
-  gstin: 'GSTIN'
+  gstin: 'GSTIN',
+  cuisineType: 'What you serve'
 };
 
 interface Draft {
@@ -93,6 +94,7 @@ interface Draft {
   week: Week;
   fssai: string;
   gstin: string;
+  cuisineType: '' | 'VEG' | 'NON_VEG' | 'BOTH';
 }
 
 function toDraft(published: EditableProfileView): Draft {
@@ -110,6 +112,7 @@ function toDraft(published: EditableProfileView): Draft {
     bannerUrl: published.bannerUrl ?? '',
     galleryUrls: published.galleryUrls ?? [],
     fssai: published.fssaiLicenseNumber ?? '',
+    cuisineType: published.cuisineType ?? '',
     gstin: published.gstin ?? '',
     // An ABSENT week is not a closed one. A restaurant that has never declared
     // hours is governed entirely by its Online switch, exactly as the platform
@@ -260,6 +263,7 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
     }
     if (draft.bannerUrl) changes.bannerUrl = draft.bannerUrl;
     // Licence numbers: sent only when filled in (the server refuses a blank one).
+    if (draft.cuisineType) changes.cuisineType = draft.cuisineType;
     if (draft.fssai.trim()) changes.fssaiLicenseNumber = draft.fssai.trim();
     if (draft.gstin.trim()) changes.gstin = draft.gstin.trim();
 
@@ -437,6 +441,26 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
           hint={`Separated by commas. Up to ${rules.maxCuisineTags}. This is how customers find you.`}
           error={refusalFor('cuisineTags')}
         />
+        {/* What the kitchen serves (B5): the partner's own word; the Pure Veg seal is given by Quick Bites. */}
+        <Text style={styles.choiceLabel}>What you serve</Text>
+        <View style={styles.choiceRow}>
+          {(['VEG', 'NON_VEG', 'BOTH'] as const).map(kind => (
+            <TouchableOpacity
+              key={kind}
+              style={[styles.choice, draft.cuisineType === kind && styles.choiceOn]}
+              onPress={() => set('cuisineType', kind)}
+            >
+              <Text style={[styles.choiceText, draft.cuisineType === kind && styles.choiceTextOn]}>
+                {{ VEG: 'Veg only', NON_VEG: 'Non-veg', BOTH: 'Veg & non-veg' }[kind]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.choiceHint}>
+          {profile?.kitchen?.pureVegSeal
+            ? 'Quick Bites has given your kitchen the Pure Veg seal.'
+            : 'The Pure Veg seal is given by Quick Bites after a check; ask support if you serve only veg.'}
+        </Text>
         <Field
           label="Cost for two"
           value={draft.costForTwo}
@@ -632,6 +656,13 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
 };
 
 const styles = StyleSheet.create({
+  choiceLabel: { fontSize: 13, fontWeight: '700', color: c.text, marginBottom: spacing.xs },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  choice: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: c.border },
+  choiceOn: { borderColor: c.brand, backgroundColor: c.brandSoft },
+  choiceText: { color: c.text, fontSize: 13 },
+  choiceTextOn: { color: c.brand, fontWeight: '700' },
+  choiceHint: { color: c.textMuted, fontSize: 12, marginTop: spacing.xs, marginBottom: spacing.md },
   body: { padding: spacing.lg, gap: spacing.md },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 

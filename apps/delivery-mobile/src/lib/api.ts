@@ -128,6 +128,18 @@ export const api = {
     );
   },
 
+  /** Forgot password (B6): a 6-digit code by email; same answer for every email. */
+  forgotPassword(apiUrl: string, email: string) {
+    return request<unknown>({ apiUrl }, '/auth/password/forgot', { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }) });
+  },
+
+  resetPassword(apiUrl: string, email: string, code: string, newPassword: string) {
+    return request<unknown>({ apiUrl }, '/auth/password/reset', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim(), newPassword })
+    });
+  },
+
   me(ctx: ApiContext) {
     return request<MeResponse>(ctx, '/riders/me');
   },
@@ -351,10 +363,26 @@ export const api = {
     });
   },
 
+  /** Help chat (B8): this app's topics, and one topic's fixed answer. */
+  helpTopics(ctx: ApiContext) {
+    return request<{ greeting: string; topics: Array<{ id: string; label: string; category: string }> }>(ctx, '/support/help');
+  },
+
+  helpAnswer(ctx: ApiContext, topicId: string) {
+    return request<{ answer: string }>(ctx, `/support/help/${encodeURIComponent(topicId)}`);
+  },
+
   /** Raises a complaint from the rider's Safety or Help screen. */
   raiseSupportTicket(
     ctx: ApiContext,
-    input: { subject: string; category: string; message: string; orderId?: string }
+    input: {
+      subject: string;
+      category: string;
+      message: string;
+      orderId?: string;
+      helpTopics?: string[];
+      platform?: 'android' | 'ios' | 'web';
+    }
   ) {
     return request<{ ticket: any }>(ctx, '/support/tickets', {
       method: 'POST',
@@ -480,6 +508,8 @@ export interface Rider {
   isOnline: boolean;
   codCashInHand?: number;
   onlineSince?: string;
+  /** Set when the rider asked to delete the account (sign-in kept until Quick Bites completes it). */
+  deletionRequestedAt?: string;
 }
 
 export interface ProfileCompletion {
@@ -515,6 +545,8 @@ export interface Trip {
   assignedAt?: string;
   pickedUpAt?: string;
   deliveredAt?: string;
+  /** When this rider's offer runs out (one rider at a time, B4). */
+  offerExpiresAt?: string;
 }
 
 export interface Metrics {

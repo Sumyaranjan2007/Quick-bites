@@ -198,6 +198,20 @@ const TicketSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             </Card>
           ) : null}
 
+          {/* What they read in the help chat before asking for a person (B8). */}
+          {(ticket.helpChat || []).length > 0 || ticket.appVersion ? (
+            <Card>
+              <Text style={s.cardHeading}>Before they asked</Text>
+              {(ticket.helpChat || []).map((step: any, index: number) => (
+                <View key={index} style={s.replyRow}>
+                  <Text style={s.replyWho}>{step.question}</Text>
+                  <Text style={s.replyBody}>{step.answer}</Text>
+                </View>
+              ))}
+              {ticket.appVersion ? <KeyValue label="App version" value={ticket.appVersion} /> : null}
+            </Card>
+          ) : null}
+
           <Card>
             <Text style={s.cardHeading}>Conversation</Text>
             {(ticket.replies || []).length === 0 ? <Text style={s.muted}>No replies yet.</Text> : null}

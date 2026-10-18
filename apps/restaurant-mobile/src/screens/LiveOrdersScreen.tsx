@@ -5,6 +5,8 @@ import { Clock, CheckCircle2, Minus, Plus, BellRing, VolumeX } from 'lucide-reac
 import { c, radii, spacing } from '../theme';
 import { Card, Button, Pill, EmptyState, ErrorNote } from '../components/ui';
 import { fetchLiveOrders, updateOrderStatus, fetchCancellationReasons } from '../lib/partnerApi';
+import { openKitchenTicket } from '../lib/invoice';
+import { Alert } from 'react-native';
 import { stopOrderAlert, announceOrder, markOrdersSeen, hasTakenBaseline } from '../lib/orderAlert';
 
 /** The kitchen cannot promise faster than this, and the customer is shown the figure. */
@@ -307,6 +309,18 @@ export const LiveOrdersScreen: React.FC<Props> = ({
           </Text>
         )}
 
+        {/* Kitchen ticket (B10): once accepted, the order to print for the cooks, no prices. */}
+        {status !== 'ORDER_PLACED' && (
+          <View style={styles.ticketRow}>
+            <TouchableOpacity onPress={() => void printTicket(item.id, 80)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.ticketLink}>Print kitchen ticket</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => void printTicket(item.id, 58)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.ticketSmall}>58 mm roll</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.actions}>
           {status === 'ORDER_PLACED' && (
             <>
@@ -478,7 +492,18 @@ export const LiveOrdersScreen: React.FC<Props> = ({
   );
 };
 
+async function printTicket(orderId: string, width: 80 | 58) {
+  try {
+    Alert.alert('Kitchen ticket', await openKitchenTicket(orderId, width));
+  } catch (err: any) {
+    Alert.alert('No ticket', err?.message || 'The ticket could not be made.');
+  }
+}
+
 const styles = StyleSheet.create({
+  ticketRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginTop: spacing.sm },
+  ticketLink: { color: c.brand, fontWeight: '700' },
+  ticketSmall: { color: c.textMuted, fontSize: 12, textDecorationLine: 'underline' },
   screen: { flex: 1, backgroundColor: c.bg },
   listContent: { padding: spacing.xl, paddingBottom: 48 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },

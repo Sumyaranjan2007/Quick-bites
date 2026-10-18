@@ -4,13 +4,15 @@ import { Modal } from '../components/Modal';
 import { ChevronDown, ChevronUp, LifeBuoy, Phone, Mail, MessageSquare, LogOut } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
-import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion } from '../lib/partnerApi';
+import { HelpChat } from '../components/HelpChat';
+import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion, fetchMyAccount } from '../lib/partnerApi';
 import { PasswordField } from '../components/ui';
 
 interface Props {
   restaurantName: string;
   ownerEmail?: string;
   ownerName?: string;
+  ownerId?: string;
   onSignOut: () => void;
   /** Keeps this device signed in after a password change (U2). */
   onTokenRefreshed?: (token: string) => void;
@@ -70,7 +72,13 @@ const FAQS = [
  * to go. Answers to the common questions come first because most are answerable
  * without us; the contact routes are underneath for when they are not.
  */
-export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, onSignOut, onTokenRefreshed }) => {
+export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, ownerId, onSignOut, onTokenRefreshed }) => {
+  // A deletion request keeps the sign-in (owner Q2), so its status is shown here.
+  const [deletionAskedAt, setDeletionAskedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!ownerId) return;
+    void fetchMyAccount(ownerId).then(res => setDeletionAskedAt(res.data?.user?.deletionRequestedAt || null));
+  }, [ownerId]);
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const [contact, setContact] = useState<{ phone: string; email: string }>({ phone: '', email: '' });
@@ -228,6 +236,11 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
           </View>
         </Card>
 
+        <Card>
+          <SectionHeading title="Get help" sub="Pick a topic for a quick answer. Still stuck? Talk to us." />
+          <HelpChat onSent={() => load('refresh')} />
+        </Card>
+
         {tickets.length > 0 && (
           <Card>
             <SectionHeading title="Your messages" />
@@ -274,6 +287,12 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 
         <Card style={{ marginTop: spacing.xl }}>
           <SectionHeading title="Account" sub={ownerEmail} />
+          {!!deletionAskedAt && (
+            <Text style={styles.deletionNote}>
+              You asked to delete this account on {new Date(deletionAskedAt).toLocaleDateString('en-IN')}. Your kitchen takes no new
+              orders. Quick Bites pays anything it owes you, then deletes the account. Changed your mind? Call support.
+            </Text>
+          )}
 
           {accountMode === 'none' && (
             <>
@@ -300,7 +319,8 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
               <View style={{ height: spacing.md }} />
               <Button label="Sign out" variant="ghost" onPress={onSignOut} />
               <View style={{ height: spacing.md }} />
-              {/* Delete account, as Google Play requires (owner, 2 Oct 2026). */}
+              {/* Delete account, as Google Play requires (owner, 2 Oct 2026); hidden once asked. */}
+              {!deletionAskedAt && (
               <TouchableOpacity
                 onPress={() => {
                   setAccountMode('delete');
@@ -311,6 +331,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
               >
                 <Text style={styles.deleteLink}>Delete account</Text>
               </TouchableOpacity>
+              )}
             </>
           )}
 
@@ -351,8 +372,9 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
                             return;
                           }
                           setDeletePassword('');
-                          Alert.alert('Account closed', result.message || 'We will settle what we owe you, then delete it.');
-                          onSignOut();
+                          setDeletionAskedAt(new Date().toISOString());
+                          setAccountMode('none');
+                          Alert.alert('Deletion requested', result.message || 'We will settle what we owe you, then delete it.');
                         }
                       }
                     ]);
@@ -453,6 +475,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 };
 
 const styles = StyleSheet.create({
+  deletionNote: { color: c.warning, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
   deleteLink: { color: c.danger, fontWeight: '600' },
   deleteNote: { color: c.textSoft, marginBottom: spacing.md, lineHeight: 20 },
   accountRow: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', marginTop: spacing.sm },

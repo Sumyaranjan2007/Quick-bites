@@ -6,6 +6,31 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Stage E part 1: Operations, Partner and Rider screens for the server features
+
+> **For the owner.** The buttons for what the server already did, on the apps and the websites:
+> - **Operations:** People → Restaurants / Delivery partners → **+ Create** (we build their account; they
+>   get an email code to set their password); every person's sheet has **Remove this account** (type
+>   the name + reason); a restaurant's **Listing** card: kitchen type, **Pure Veg seal**, **Recommended
+>   by Quick Bites**; Deletion requests show kitchen, trips/orders, last active and their documents;
+>   Support tickets show what the person read in the help chat before asking.
+> - **Partner:** real **Forgot password** (email code); **Print kitchen ticket** on accepted orders
+>   (80 mm, or 58 mm roll; opens for printing on the website); **switch off a whole menu section** for
+>   1 hour / until 6 am / until switched on; "What you serve" (veg / non-veg / both) and whether you have
+>   the seal; **Help chat**; a deletion request keeps the sign-in and shows its status.
+> - **Rider:** real **Forgot password**; **Help** chat; the offer countdown now follows the server's
+>   **108 s** (the app counted 30 s and dropped offers early); a plain-words **location consent** before
+>   the first Go online; a deletion request keeps the sign-in and shows its status.
+> Checked on the /partner and /admin websites (QA server): section switch, help chat, Create, Listing.
+
+- New: `admin-mobile` `AccountTools` (Create, Remove), `ListingCard`; `restaurant-mobile` `HelpChat`,
+  kitchen-ticket helpers (`invoice.ts` / `invoice.web.ts`); `delivery-mobile` `HelpScreen`, `LocationConsent`.
+- Server: `readEditableProfile` includes `cuisineType`; profile `kitchen.pureVegSeal`; `/riders/me`
+  `rider.deletionRequestedAt`; the staff deletion message matches owner Q2 (sign-in kept).
+- Not done here: dispatch monitor screen (admins get the push alert), rider GPS status chip, masked calls (on hold).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Any document can be replaced and re-verified; Admin shows each person's uploads
 
 > **For the owner.** Partners and riders can now replace ANY document, also a verified one (a renewed

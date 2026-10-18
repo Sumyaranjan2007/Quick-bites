@@ -19,6 +19,7 @@ import {
   LogOut,
   ScrollText,
   ShieldAlert,
+  LifeBuoy,
   Star,
   TriangleAlert
 } from 'lucide-react-native';
@@ -45,6 +46,7 @@ export const ProfileScreen: React.FC<{
   onOpenRatings: () => void;
   onOpenPolicies: () => void;
   onOpenSafety: () => void;
+  onOpenHelp: () => void;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   onLogout: () => void;
   /** Delete account: closes it now; Quick Bites deletes it once nothing is owed. */
@@ -58,6 +60,7 @@ export const ProfileScreen: React.FC<{
   onOpenRatings,
   onOpenPolicies,
   onOpenSafety,
+  onOpenHelp,
   onChangePassword,
   onLogout,
   onDeleteAccount
@@ -258,6 +261,8 @@ export const ProfileScreen: React.FC<{
         <Divider />
         <LinkRow icon={<ShieldAlert size={18} color={t.color.danger} />} label="Safety & SOS" onPress={onOpenSafety} />
         <Divider />
+        <LinkRow icon={<LifeBuoy size={18} color={t.color.textSecondary} />} label="Help" onPress={onOpenHelp} />
+        <Divider />
         <LinkRow icon={<ScrollText size={18} color={t.color.textSecondary} />} label="App policies" onPress={onOpenPolicies} />
       </Card>
 
@@ -326,7 +331,17 @@ export const ProfileScreen: React.FC<{
         style={{ marginTop: t.space[6] }}
       />
 
-      <DeleteAccount onDelete={onDeleteAccount} />
+      {rider.deletionRequestedAt ? (
+        <Card style={{ marginTop: t.space[5] }}>
+          <Text style={{ color: t.color.text, fontWeight: '700', marginBottom: 6 }}>Deletion requested</Text>
+          <Text style={{ color: t.color.textMuted }}>
+            You asked on {new Date(rider.deletionRequestedAt).toLocaleDateString('en-IN')}. You get no new trips. Quick Bites
+            pays anything it owes you, then deletes the account. Changed your mind? Call support.
+          </Text>
+        </Card>
+      ) : (
+        <DeleteAccount onDelete={onDeleteAccount} />
+      )}
 
       <Text style={s.version}>Quick Bites Rider · v{Constants.expoConfig?.version || ''}</Text>
     </ScrollView>
@@ -349,8 +364,8 @@ const DeleteAccount: React.FC<{ onDelete: (password: string) => Promise<boolean>
     <Card style={{ marginTop: t.space[5] }}>
       <Text style={{ color: t.color.text, fontWeight: '700', marginBottom: 6 }}>Delete your account</Text>
       <Text style={{ color: t.color.textMuted, marginBottom: 10 }}>
-        Your account closes straight away: you stop getting trips and cannot sign in. We pay you anything we still
-        owe (and collect any cash you hold), then delete it — usually within 7 days.
+        You stop getting trips straight away, but can still sign in to see what we owe you. We pay you anything we
+        still owe (and collect any cash you hold), then delete it — usually within 7 days.
       </Text>
       <TextInput
         style={s.deleteInput}

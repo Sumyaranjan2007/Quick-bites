@@ -486,6 +486,7 @@ function PartnerApp() {
             restaurantName={restaurant.name}
             ownerEmail={user?.email}
             ownerName={user?.fullName}
+            ownerId={user?.id}
             onSignOut={signOut}
             onTokenRefreshed={next => {
               configureApi(currentApiUrl(), next);

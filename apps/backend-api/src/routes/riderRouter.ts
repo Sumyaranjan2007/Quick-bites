@@ -292,7 +292,8 @@ riderRouter.get('/me', async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        rider: { ...rider, email: user?.email },
+        // deletionRequestedAt: a deletion request keeps the sign-in (owner Q2); the app shows its status.
+        rider: { ...rider, email: user?.email, deletionRequestedAt: (user as any)?.deletionRequestedAt },
         // The balance a rider sees is what the ledger says they are owed, which
         // is the figure their payout will be drafted from.
         wallet: { ...wallet, balance: riderEarningsBalance(rider.id) },
