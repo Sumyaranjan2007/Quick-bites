@@ -6,6 +6,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- F-13: partners can change their FSSAI and GSTIN (reviewed); Google routing at the cheaper rate
+
+> **For the owner.** Partner → Profile now has FSSAI licence number and GSTIN boxes. A change goes to
+> Operations → Profile approvals like every other profile change, and a new FSSAI number shows no
+> "verified" badge until its licence photo is approved. A number belonging to a blocked account is
+> refused when sent and again when approved. Also: now that the Google key is on Railway, road
+> distance is asked at Google's basic rate (car route, no live traffic): about half the price, same
+> distance; the travel time with traffic comes back when the app shows it (review B2-1).
+
+- `EDITABLE_PROFILE_FIELDS` + `fssaiLicenseNumber`, `gstin` (shared-types); 14-digit FSSAI and the
+  GSTIN pattern checked in `validateProfileChanges`; ban check at `PUT /restaurants/:id/profile` and
+  at `POST /admin/profile-edits/:id/review` (closes review G2b). Partner ProfileEditScreen fields,
+  Admin ProfileApprovals labels. `routingService` Google calls: `DRIVE` + `TRAFFIC_UNAWARE`.
+- Checks in `profileEdits` and `removeAndBlock`; 4 mutations caught.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B11: live tracking keeps every rider position; riders can no longer follow other riders' orders
 
 > **For the owner.** Server groundwork for the moving bike on the customer's map. Every position a

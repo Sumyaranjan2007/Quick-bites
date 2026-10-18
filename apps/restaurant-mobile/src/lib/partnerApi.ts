@@ -536,6 +536,8 @@ export interface EditableProfileView {
   bannerUrl?: string;
   galleryUrls?: string[];
   openingHours?: OpeningHoursView;
+  fssaiLicenseNumber?: string;
+  gstin?: string;
 }
 
 export interface ProfileRules {

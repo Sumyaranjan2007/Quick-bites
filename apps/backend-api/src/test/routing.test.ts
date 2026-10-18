@@ -484,8 +484,8 @@ await (async () => {
     assert.equal(road.durationMinutes, 21);
     assert.ok(calls[0].url.includes('routes.googleapis.com/directions/v2:computeRoutes'), calls[0]?.url);
     assert.equal(calls[0].headers['X-Goog-Api-Key'], 'g-test-key');
-    assert.equal(calls[0].body.travelMode, 'TWO_WHEELER');
-    assert.equal(calls[0].body.routingPreference, 'TRAFFIC_AWARE');
+    assert.equal(calls[0].body.travelMode, 'DRIVE', 'Essentials rate (B2-1)');
+    assert.equal(calls[0].body.routingPreference, 'TRAFFIC_UNAWARE', 'Essentials rate (B2-1)');
     assert.ok(!calls[0].url.includes('g-test-key'), 'the key goes in a header, never the URL');
     offGoogle();
   });

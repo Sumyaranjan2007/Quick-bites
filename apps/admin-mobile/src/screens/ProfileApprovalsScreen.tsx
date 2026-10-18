@@ -48,7 +48,9 @@ const FIELD_WORD: Record<string, string> = {
   costForTwo: 'Cost for two',
   bannerUrl: 'Cover photo',
   galleryUrls: 'Photos',
-  openingHours: 'Opening hours'
+  openingHours: 'Opening hours',
+  fssaiLicenseNumber: 'FSSAI licence',
+  gstin: 'GSTIN'
 };
 
 const clock = (m: number) =>

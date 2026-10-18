@@ -352,7 +352,11 @@ export const EDITABLE_PROFILE_FIELDS = [
   'partnerPackagingFee',
   'bannerUrl',
   'galleryUrls',
-  'openingHours'
+  'openingHours',
+  // Licence numbers (F-13, 18 Oct): reviewed like the rest; a new FSSAI number shows
+  // no verified badge until its document is approved.
+  'fssaiLicenseNumber',
+  'gstin'
 ] as const;
 
 export type EditableProfileField = (typeof EDITABLE_PROFILE_FIELDS)[number];
@@ -372,6 +376,8 @@ export interface EditableProfile {
   bannerUrl: string;
   galleryUrls: string[];
   openingHours: OpeningHours;
+  fssaiLicenseNumber: string;
+  gstin: string;
 }
 
 /**

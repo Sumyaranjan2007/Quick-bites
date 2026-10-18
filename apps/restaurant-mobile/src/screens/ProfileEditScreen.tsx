@@ -73,7 +73,9 @@ const FIELD_WORD: Record<string, string> = {
   partnerPackagingFee: 'Packaging charge',
   bannerUrl: 'Cover photo',
   galleryUrls: 'Photos',
-  openingHours: 'Opening hours'
+  openingHours: 'Opening hours',
+  fssaiLicenseNumber: 'FSSAI licence number',
+  gstin: 'GSTIN'
 };
 
 interface Draft {
@@ -89,6 +91,8 @@ interface Draft {
   bannerUrl: string;
   galleryUrls: string[];
   week: Week;
+  fssai: string;
+  gstin: string;
 }
 
 function toDraft(published: EditableProfileView): Draft {
@@ -105,6 +109,8 @@ function toDraft(published: EditableProfileView): Draft {
       published.partnerPackagingFee !== undefined ? String(published.partnerPackagingFee) : '',
     bannerUrl: published.bannerUrl ?? '',
     galleryUrls: published.galleryUrls ?? [],
+    fssai: published.fssaiLicenseNumber ?? '',
+    gstin: published.gstin ?? '',
     // An ABSENT week is not a closed one. A restaurant that has never declared
     // hours is governed entirely by its Online switch, exactly as the platform
     // behaved before hours existed, and an empty object here preserves that.
@@ -253,6 +259,9 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
       changes.partnerPackagingFee = Number(draft.packagingFee);
     }
     if (draft.bannerUrl) changes.bannerUrl = draft.bannerUrl;
+    // Licence numbers: sent only when filled in (the server refuses a blank one).
+    if (draft.fssai.trim()) changes.fssaiLicenseNumber = draft.fssai.trim();
+    if (draft.gstin.trim()) changes.gstin = draft.gstin.trim();
 
     const res = await submitProfileChanges(restaurantId, changes);
     setSaving(false);
@@ -499,6 +508,21 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
           keyboardType="phone-pad"
           hint="Where customers and our team reach the kitchen."
           error={refusalFor('phone')}
+        />
+        <Field
+          label="FSSAI licence number"
+          value={draft.fssai}
+          onChangeText={v => set('fssai', v.replace(/[^0-9]/g, '').slice(0, 14))}
+          keyboardType="number-pad"
+          hint="14 digits. After a change, upload the new licence under Documents so we can verify it."
+          error={refusalFor('fssaiLicenseNumber')}
+        />
+        <Field
+          label="GSTIN (if you have one)"
+          value={draft.gstin}
+          onChangeText={v => set('gstin', v.replace(/[^0-9a-zA-Z]/g, '').toUpperCase().slice(0, 15))}
+          autoCapitalize="characters"
+          error={refusalFor('gstin')}
         />
       </Card>
 

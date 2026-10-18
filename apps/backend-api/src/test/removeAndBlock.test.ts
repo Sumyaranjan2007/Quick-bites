@@ -155,6 +155,22 @@ try {
     assert.equal(errCode(dlDoc), 'IDENTITY_BLOCKED', `status ${dlDoc.status} ${errCode(dlDoc)}`));
 
   console.log('\n-- A deletion request does not hide or lift a block');
+  // F-13: a banned licence cannot come back through a profile edit, at submit or at approval.
+  const bannedEdit = await api(`/restaurants/${ownKitchen.id}/profile`, { method: 'PUT', body: { fssaiLicenseNumber: '9988 7766 5544 33' } }, partner);
+  it('A banned FSSAI sent as a profile edit is refused (F-13)', () =>
+    assert.equal(errCode(bannedEdit), 'IDENTITY_BLOCKED', `status ${bannedEdit.status} ${errCode(bannedEdit)}`));
+  const gstEdit = await api(`/restaurants/${ownKitchen.id}/profile`, { method: 'PUT', body: { gstin: '29pqrsx6789k1z3' } }, partner);
+  it('A clean GSTIN is sent for review, upper-cased', () =>
+    assert.equal(gstEdit.json?.data?.edit?.changes?.gstin, '29PQRSX6789K1Z3', JSON.stringify(gstEdit.json).slice(0, 200)));
+  memoryStore.users.set('usr_ban_gst', { id: 'usr_ban_gst', email: 'ban.gst@example.com', role: 'restaurant_owner' } as any);
+  memoryStore.restaurants.set('rst_ban_gst', { id: 'rst_ban_gst', ownerId: 'usr_ban_gst', gstin: '29PQRSX6789K1Z3' } as any);
+  banAccount('usr_ban_gst');
+  const approveBanned = await api(`/admin/profile-edits/${gstEdit.json?.data?.edit?.id}/review`, { method: 'POST', body: { approve: ['gstin'], reject: [] } }, admin);
+  it('...and approving it after that GSTIN was blocked is refused; the kitchen keeps its old GSTIN', () => {
+    assert.equal(errCode(approveBanned), 'IDENTITY_BLOCKED', `status ${approveBanned.status} ${errCode(approveBanned)}`);
+    assert.notEqual((memoryStore.restaurants.get(ownKitchen.id) as any).gstin, '29PQRSX6789K1Z3');
+  });
+
   await customerSignIn('9000900901', 'blocked.leaver@example.com');
   const leaver: any = userByEmail('blocked.leaver@example.com');
   await api(`/admin/customers/${leaver.id}`, { method: 'PATCH', body: { isBlocked: true } }, admin);

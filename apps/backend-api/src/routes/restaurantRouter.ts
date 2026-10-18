@@ -1371,6 +1371,8 @@ restaurantRouter.put('/:id/profile', authMiddleware('restaurant_owner'), validat
 
     const current = readEditableProfile(restaurant);
     const { changes, previous, changedFields } = diffProfile(current, validated.value!);
+    // A blocked person's licence or phone does not come back through a profile edit.
+    assertNotBanned({ fssai: changes.fssaiLicenseNumber, gstin: changes.gstin, phone: changes.phone }, req.user!.id);
 
     if (changedFields.length === 0) {
       // Not an error. The partner app posts the whole form on save, so a Save

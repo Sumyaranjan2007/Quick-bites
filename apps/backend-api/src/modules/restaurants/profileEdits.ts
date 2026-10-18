@@ -154,6 +154,18 @@ export function validateProfileChanges(input: unknown): ProfileValidationResult 
     }
   }
 
+  if ('fssaiLicenseNumber' in raw) {
+    const v = typeof raw.fssaiLicenseNumber === 'string' ? raw.fssaiLicenseNumber.replace(/\s+/g, '') : '';
+    if (!/^\d{14}$/.test(v)) errors.push('The FSSAI licence number must be 14 digits.');
+    else value.fssaiLicenseNumber = v;
+  }
+
+  if ('gstin' in raw) {
+    const v = typeof raw.gstin === 'string' ? raw.gstin.replace(/\s+/g, '').toUpperCase() : '';
+    if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v)) errors.push('The GSTIN must be 15 characters, like 29ABCDE1234F1Z5.');
+    else value.gstin = v;
+  }
+
   const addressLine = str('addressLine', 200, 'The address');
   if (addressLine !== undefined) value.addressLine = addressLine;
 
@@ -322,7 +334,9 @@ export function readEditableProfile(
       (restaurant as any).partnerPackagingFee ?? restaurant.packagingFee ?? 0,
     bannerUrl: restaurant.bannerUrl ?? '',
     galleryUrls: restaurant.galleryUrls ?? [],
-    openingHours: restaurant.openingHours
+    openingHours: restaurant.openingHours,
+    fssaiLicenseNumber: restaurant.fssaiLicenseNumber ?? '',
+    gstin: restaurant.gstin ?? ''
   };
 }
 

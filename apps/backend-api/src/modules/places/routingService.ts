@@ -416,10 +416,11 @@ export function routingProvider(): 'GOOGLE' | 'MAPBOX' | 'NONE' {
 }
 
 /*
- * Google Routes API (master plan B2). Two-wheeler routes, because riders ride
- * motorbikes and India is one of the regions Google routes them in; traffic-
- * aware, because the time is shown to the customer. Called only for a quote or
- * an order, never per GPS fix (review D2), and cached like Mapbox.
+ * Google Routes API (master plan B2). Called only for a quote or an order, never
+ * per GPS fix (review D2), and cached like Mapbox. Car routes without traffic
+ * (review B2-1, 18 Oct): two-wheeler and traffic both bill at the Pro rate (about
+ * double), and only the DISTANCE is used today (pay, fee, radius; the ETA uses its
+ * own speed). Switch to TWO_WHEELER + TRAFFIC_AWARE when the road time is shown.
  */
 const GOOGLE_ROUTE = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const GOOGLE_MATRIX = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
@@ -463,8 +464,8 @@ async function callGoogleRoute(from: Coordinates, to: Coordinates): Promise<(Roa
   const body = await googlePost(GOOGLE_ROUTE, 'routes.distanceMeters,routes.duration', {
     origin: latLng(from),
     destination: latLng(to),
-    travelMode: 'TWO_WHEELER',
-    routingPreference: 'TRAFFIC_AWARE'
+    travelMode: 'DRIVE',
+    routingPreference: 'TRAFFIC_UNAWARE'
   });
   if (!body) return null;
   const route = body.routes?.[0];
@@ -476,8 +477,8 @@ async function callGoogleMatrix(from: Coordinates, destinations: Coordinates[]):
   const body = await googlePost(GOOGLE_MATRIX, 'originIndex,destinationIndex,distanceMeters,duration,condition', {
     origins: [{ waypoint: latLng(from) }],
     destinations: destinations.map(d => ({ waypoint: latLng(d) })),
-    travelMode: 'TWO_WHEELER',
-    routingPreference: 'TRAFFIC_AWARE'
+    travelMode: 'DRIVE',
+    routingPreference: 'TRAFFIC_UNAWARE'
   });
   if (!Array.isArray(body)) return null;
   const out: (RoadDistance | null)[] = destinations.map(() => null);

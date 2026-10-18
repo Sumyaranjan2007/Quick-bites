@@ -102,15 +102,23 @@ async function run() {
     'status',
     'kycStatus',
     'serviceRadiusKm',
-    'isPureVeg',
-    'fssaiLicenseNumber',
-    'gstin'
+    'isPureVeg'
   ]) {
     check(
       `"${forbidden}" is not offered to a partner as editable`,
       !rules?.editableFields?.includes(forbidden)
     );
   }
+
+  // F-13 (18 Oct): licence numbers are reviewed edits. Safe because a reviewer
+  // approves them and a changed FSSAI number loses its badge until its document is approved.
+  check('FSSAI and GSTIN are offered as reviewed edits', ['fssaiLicenseNumber', 'gstin'].every(f => rules?.editableFields?.includes(f)));
+  const badLicence = await api(`/restaurants/${RESTAURANT}/profile`, { method: 'PUT', body: { fssaiLicenseNumber: '1234', gstin: 'not-a-gstin' } }, partner.token);
+  check(
+    'A malformed FSSAI or GSTIN is refused with both reasons',
+    badLicence.status === 400 && /FSSAI/.test(badLicence.json?.error?.message) && /GSTIN/.test(badLicence.json?.error?.message),
+    `${badLicence.status} ${JSON.stringify(badLicence.json).slice(0, 200)}`
+  );
 
   check('Nothing is pending on a fresh restaurant', profile.json?.data?.pending === null);
 

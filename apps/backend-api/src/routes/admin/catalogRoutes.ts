@@ -3,6 +3,7 @@
  * and the platform-wide categories that organise it.
  */
 import { optionGroupsFromChoices } from '../../modules/orders/dishOptions.ts';
+import { assertNotBanned } from '../../modules/platform/blockedIdentifiers.ts';
 import { Router } from 'express';
 import {
   marginPreservingPrice,
@@ -1109,6 +1110,8 @@ catalogRoutes.post(
       // other order would leave a submission marked approved whose changes
       // never reached the restaurant, and nothing afterwards would retry it.
       if (outcome.approvedFields.length > 0) {
+        // Re-checked here: the number may have been blocked since it was sent.
+        assertNotBanned({ fssai: outcome.apply.fssaiLicenseNumber, gstin: outcome.apply.gstin, phone: outcome.apply.phone }, restaurant.ownerId);
         await restaurantRepository.applyProfile(restaurant.id, outcome.apply);
       }
 

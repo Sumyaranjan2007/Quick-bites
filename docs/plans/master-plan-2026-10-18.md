@@ -32,6 +32,21 @@ The owner may open a fresh session and paste only this file's path. Do this, in 
 6. **Never**: money rules changed without the owner; secrets in any tracked file (repo is PUBLIC);
    competitor names or assets in the repo; `git add -A` / stash / reset / clean; APK builds unless the
    owner says "make APK"; signing in to live with the owner's password.
+8. **Order of work (owner, 18 Oct 2026, replaces "review after each step"):**
+   (a) **Build everything first**: every remaining stage (B, C, D, E, F), each step complete with
+   all its cases, its suite and mutation checks, pushed as it is finished.
+   (b) **Then the jury reviews everything** (code-reviewer, security-reviewer, qa-engineer,
+   devops-sre, product-designer), and their findings are applied in one round.
+   (c) **Then the main session tests everything itself, end to end, in all four apps and both
+   websites**: every feature from Admin to Customer (sign-up, documents upload/re-upload/verify,
+   menus, ordering, dispatch, tracking, delivery, money, payouts, deletion, help chat), on the
+   emulator/phone (mobile-mcp) and on the live `/partner` and `/admin` pages (built-in browser),
+   never with the owner's live Customer/Operations accounts. Stage G (APK build) only after (c),
+   and only on the owner's "make APK".
+   Reviewers may still send findings while building; they are logged, and fixed in (b) unless a
+   finding is a live security hole (fix at once).
+   **Exception, done first (owner, 18 Oct):** document re-upload and re-verify for partners and
+   riders (FSSAI number editable), arranged per person in Admin, live on the websites.
 7. **Owner decisions still open** are marked ⏳ in the Findings table: build around them with
    today's behaviour, never decide them yourself.
 
@@ -113,7 +128,7 @@ Status: ⬜ not started · 🟨 exists partly today · ✅ built in this plan.
 | 17 | Admin picks **recommended** restaurants shown first | server ✅: `GET/PUT /api/admin/recommended-restaurants` (permission `catalog.restaurants.recommend`), first on the home in admins' order; Operations screen in Stage E | B5 | ✅ 18 Oct (app E) |
 | 18 | More profile fields; phone/email change only with a code | server ✅ email change with two proofs; **phone change by support until SMS** (settled with security, M1); more profile fields with #20; screens in Stage E | B6 | 🟨 (email ✅, phone at SMS) |
 | 19 | Real delivery time from cooking + distance; "We're ahead of time!" | server ✅: kitchen's measured cooking time (median of last 20 by cart size), rider's ride to the kitchen, promise frozen at checkout (`promisedArrivalAt`), `eta.ahead`; ETA on status and rider-position sockets; quote `estimatedDeliveryMinutes`. Road time with B2; card in Stage D | B3 + D | ✅ 18 Oct (server) |
-| 20 | Proper edit options in every profile | server: customer name/language + contact change ✅; rider profile (phone by code, approved licence/RC locked) ✅; partner profile edits reviewed (existing) — GSTIN/FSSAI self-edit pending F-13; screens in Stage E | B6 + E | 🟨 |
+| 20 | Proper edit options in every profile | server: customer name/language + contact change ✅; rider profile (phone by code, approved licence/RC locked) ✅; partner profile edits reviewed, incl. GSTIN/FSSAI (F-13 ✅); screens in Stage E | B6 + E | 🟨 |
 | 21 | **Google Maps** everywhere + moving bike on the customer map | server routing ✅ Google Routes API (two-wheeler, traffic) when `GOOGLE_MAPS_SERVER_KEY` is set, Mapbox until then; Places (New) + Geocoding ✅; apps in C2 + D5 | B2 + C2 + D | 🟨 (server ✅ when the key is set) |
 | 22 | Rider: clear consent for live tracking, reliable updates | server ✅ B11: every fix kept with heading/speed (socket and REST, `recordRiderFix`), "updating…" after 30 s, tracking readable only by customer, trip rider, staff; consent screen + 4 s sending in Stage E | B11 + E | 🟨 (server ✅) |
 | 23 | Full security pass + harden against reverse-engineering + a security guideline | parts exist (secrets checks, ProGuard on, server checks) | F | 🟨 |
@@ -181,7 +196,7 @@ ETA = kitchen's **own measured** cooking time (median of its last 20 orders for 
 Remove + Block with identifier ban incl. documents (`146c41d`, `0bed223`); deletion requests per Q2 with
 review data (`68c101f`); admin Create with a set-password code (`c8a7850`, `12bbc0c`); email change with two
 proofs, phone by support until SMS (`60a8188`, `b5043a4`); rider profile locks. Open in B6: partner
-GSTIN/FSSAI self-edit (F-13). Suites: `passwordReset`, `removeAndBlock`, `adminCreate`, `contactChange`.
+GSTIN/FSSAI self-edit (F-13) ✅ 18 Oct. Suites: `passwordReset`, `removeAndBlock`, `adminCreate`, `contactChange`.
 
 ### B7 — One record per person (#11)
 Admin → People → (restaurant | rider | customer) → **Record**: profile, every document grouped by type with status and date, every photo, bank (masked), orders/trips, money, tickets, audit history; each file opens and downloads; "Download all" as one ZIP. The KYC queue stays for approvals and links into the record.
@@ -294,7 +309,7 @@ Each line: who found it, what changes, status. Full detail in the role's own fil
 | F-1b | security round 2 | L7: pinless address could pay cash for any trip → cash needs a pin (`COD_NEEDS_PIN`); L1 (sign-in routes) raw errors → error handler; L8 (record link redirect) goes with L5 | ✅ L7, L1-auth 18 Oct (main); L8 with L5 (parallel) |
 | F-1c | review round 2 | S1 race in B4 offers (two riders, or one rider two trips) → fixed; S2 alert counts riders; S3 "today" in India time | ✅ 18 Oct (main) |
 | F-12 | review B1-1 | With "one rate for the whole trip", a short-trip rate above about ₹15/km (₹8 at 35 km) makes a 28 km trip pay more than a 35 km one (₹20/km: 28 km ₹300, 35 km ₹280). **Owner decision**: (a) keep it and the Rates screen refuses such settings, or (b) pay each km at its own rate (₹12 for the first 4 km, then each further km a little less, down to ₹8): longer always pays more, any rate allowed; 35 km would pay about ₹358 instead of ₹280 | ⏳ owner |
-| F-13 | main | Partner GSTIN/FSSAI as reviewed profile edits needs `EDITABLE_PROFILE_FIELDS` in `packages/shared-types` (the b8 session has uncommitted edits there): add once that file is committed | ⬜ main |
+| F-13 | main | Partner GSTIN/FSSAI as reviewed profile edits; ban-checked at submit and approval | ✅ 18 Oct (main) |
 | F-2 | review R2, R3 | deletion now also strips refund cases; expired confirm links pruned by the sweeper | ✅ 18 Oct (main) |
 | F-3 | review R1 | K1 made **automatic RazorpayX refund payout links** reachable (`refunds.ts:234`; before, no phone meant the manual queue). **Owner decision**: keep automatic links, or keep refunds manual until RazorpayX is live | ⏳ owner |
 | F-4 | review D1, D2 | No Roads/Routes call per GPS fix: B11 projects the rider onto the `computeRoutes` polyline on our server (snap only if off-route); B3 recomputes road time only on status change/off-route | rule for B2/B11 |
