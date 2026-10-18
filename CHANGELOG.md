@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Stage C3: the Partner app prints the kitchen ticket
+
+> **For the owner.** On an accepted order, Partner → Orders → **Print kitchen ticket** (or **58 mm roll**)
+> now opens the phone's print screen with the ticket (order number, dishes and options, customer's
+> first name, pickup code, no prices): any Wi-Fi/Bluetooth printer the phone knows, or Save as PDF.
+> Checked on the emulator with a test order. The website opens it in a new tab for printing.
+
+- `expo-print` in the Partner app; `openKitchenTicket` (`src/lib/invoice.ts`) downloads with the
+  partner's sign-in and calls `Print.printAsync`. The file is not deleted right away (Android's print
+  service reads it after the call returns; deleting it closed the print screen).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Stage C2: Google Maps inside the apps (Mapbox removed)
 
 > **For the owner.** The Customer, Partner and Rider apps now draw **Google Maps**, with the Android and

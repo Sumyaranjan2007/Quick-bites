@@ -4,6 +4,7 @@
  * choice is remembered). The web build uses invoice.web.ts instead.
  */
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { invoiceRequest, kitchenTicketRequest } from './partnerApi';
@@ -45,9 +46,35 @@ export async function downloadInvoice(
   return savePdf(invoiceRequest(range, each), each);
 }
 
-/** The kitchen ticket, saved like an invoice; printing straight from the app comes with expo-print (plan C3). */
+/**
+ * The kitchen ticket straight to a printer (plan C3): the PDF is fetched with the
+ * partner's sign-in and handed to the phone's print screen (any Wi-Fi or
+ * Bluetooth printer the phone knows, or "Save as PDF").
+ */
 export async function openKitchenTicket(orderId: string, width: 80 | 58): Promise<string> {
-  return savePdf(kitchenTicketRequest(orderId, width));
+  const { url, headers } = kitchenTicketRequest(orderId, width);
+  const temp = `${FileSystem.cacheDirectory}ticket-${Date.now()}.pdf`;
+  let result: FileSystem.FileSystemDownloadResult;
+  try {
+    result = await FileSystem.downloadAsync(url, temp, { headers });
+  } catch {
+    throw new Error('Could not reach Quick Bites. Check your connection and try again.');
+  }
+  if (result.status !== 200) {
+    const body = await FileSystem.readAsStringAsync(result.uri).catch(() => '');
+    await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+    let message = 'The ticket could not be made. Try again in a moment.';
+    try {
+      message = JSON.parse(body)?.error?.message || message;
+    } catch {
+      // not JSON
+    }
+    throw new Error(message);
+  }
+  // Not deleted afterwards: Android's print service reads the file after this
+  // resolves (deleting it closed the print screen at once). It is in the cache.
+  await Print.printAsync({ uri: result.uri });
+  return 'Sent to the print screen.';
 }
 
 async function savePdf({ url, headers }: { url: string; headers: Record<string, string> }, each = false): Promise<string> {

@@ -231,7 +231,7 @@ B3 (18 Oct): **honest delivery time.** `eta.ts`: `kitchenPrepMinutes` = median o
 per app; Reanimated/gesture/expo-image are added in D1 when the first screen uses them. Phone-only checks
 (payment, background GPS, push) wait for the final test round. **C2 ✅ 18 Oct:** Google Maps in the
 three apps (react-native-maps 1.20.1, same seam), Mapbox removed; tiles/drag to check on a release build
-(debug signature refused by the key restriction). **Next: C3** expo-print, then D1 (base feel).
+(debug signature refused by the key restriction). **C3 ✅ 18 Oct:** kitchen ticket prints from the Partner app (expo-print), emulator-checked. **Next: D1** (base feel).
 
 ## Stage D — Customer app (the leader's feel, our brand) · ~2 weeks
 Recipe: `customer-app-feel-2026-10-17.md` phases 1–4 and `design/motion/`.
