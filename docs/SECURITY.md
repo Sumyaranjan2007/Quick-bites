@@ -198,6 +198,27 @@ IPs (shared with other Railway customers, as the guide says) and API-restricted 
 Geocoding, Routes, Roads; budgets and per-API daily caps; app keys restricted by package + both
 SHA-1s. Matches the APIs the code calls (Roads is for B11).
 
+## 1h. Review, 18 Oct 2026 — `7542edf` (B11 live tracking: who sees positions, how long we keep them)
+
+**For the owner.** The hole is closed: until this change any rider could read the live position on
+any order; now only the customer, the rider on that trip and staff can. Positions are not stored as
+a trail: only the latest one is kept. Two clean-ups: someone taken off an order should stop
+receiving its live updates at once, and the last position should be cleared when a delivery ends.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| L15 | Low | `apps/backend-api/src/sockets/socketServer.ts` (order room `order:<id>`; joined once via `canJoinOrder`, never re-checked) | Room membership outlives access. A rider taken off a trip (released, reassigned by operations) keeps receiving that order's status changes, the **new** rider's live position and the customer–rider chat (`emitOrderMessage` → `order:<id>`) for as long as their app stays connected. Same for a kitchen after a cancellation. | When `riderId` changes or the order ends, remove the old sockets: `io.in('user:<oldRiderUserId>').socketsLeave('order:<id>')` in the assign/release paths (one helper next to `emitRiderLocation`). | open |
+| L16 | Low (privacy) | `db/repositories/orderRepository.ts` `updateRiderLocation` (order keeps `riderCoordinates`, `riderSpeed`, `riderLocationUpdatedAt`); `db/repositories/riderRepository.ts:80` (`currentCoordinates`) | No trail is kept (each fix overwrites the last), but the last position stays on every delivered order and on the rider record **for ever**, including where a rider goes offline (often home). Readable only by staff and the order's parties today; the privacy policy (`legal/PRIVACY_POLICY.md` §2) promises no retention period. | Clear `riderCoordinates`/`riderSpeed` when the order is delivered or cancelled (the proof of handover is already kept separately, `handoverPosition`); clear `currentCoordinates` when the rider goes offline. Add one retention line to the privacy policy (owner's wording). | open |
+
+Checked and holding: `GET /api/orders/:id/tracking` now allows only the customer, the rider whose
+**rider record** holds the trip, and admins (riders are no longer treated as staff); position,
+speed and the stale flag only after pickup. `POST /api/riders/location` accepts a fix only from the
+assigned rider, on shift, while `OUT_FOR_DELIVERY`; latitude, longitude and speed are bounded
+(speed 0–100 m/s, a computed speed above that is dropped). The socket path (`rider:location`) uses
+`canStreamRiderLocation` (assigned rider by rider record, trackable status only) with the same
+bounds. `canJoinOrder`: customer by id, kitchen by owner, rider by rider record (the HTTP bug's
+twin is not present here), admins. Positions are stored as the latest fix only, never a history.
+
 ---
 
 ## 2. Rules every change must follow
