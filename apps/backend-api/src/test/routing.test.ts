@@ -452,6 +452,95 @@ await (async () => {
     restore();
   });
 
+  /* ---------------- Google Routes API (master plan B2, 18 Oct 2026) ---------------- */
+  console.log('\n-- Google Routes API');
+  /** Answers Google's POSTs and records what was asked. */
+  function stubGoogle(answer: (url: string, body: any) => { status?: number; body: unknown }) {
+    const calls: Array<{ url: string; headers: any; body: any }> = [];
+    globalThis.fetch = (async (url: any, init: any) => {
+      const body = JSON.parse(init?.body || '{}');
+      calls.push({ url: String(url), headers: init?.headers || {}, body });
+      const a = answer(String(url), body);
+      return new Response(JSON.stringify(a.body), { status: a.status ?? 200 });
+    }) as any;
+    return calls;
+  }
+  const useGoogle = () => {
+    (config as any).GOOGLE_MAPS_SERVER_KEY = 'g-test-key';
+    (config as any).MAPBOX_ACCESS_TOKEN = 'test-key';
+    clearRoutingCache();
+  };
+  const offGoogle = () => {
+    (config as any).GOOGLE_MAPS_SERVER_KEY = '';
+    restore();
+  };
+
+  await check('With a Google key, one trip is measured by the Routes API on two wheelers, with traffic', async () => {
+    useGoogle();
+    const calls = stubGoogle(() => ({ body: { routes: [{ distanceMeters: 6420, duration: '1260s' }] } }));
+    const road = await roadDistance(A, B);
+    assert.equal(road.source, 'GOOGLE');
+    assert.equal(road.distanceKm, 6.42);
+    assert.equal(road.durationMinutes, 21);
+    assert.ok(calls[0].url.includes('routes.googleapis.com/directions/v2:computeRoutes'), calls[0]?.url);
+    assert.equal(calls[0].headers['X-Goog-Api-Key'], 'g-test-key');
+    assert.equal(calls[0].body.travelMode, 'TWO_WHEELER');
+    assert.equal(calls[0].body.routingPreference, 'TRAFFIC_AWARE');
+    assert.ok(!calls[0].url.includes('g-test-key'), 'the key goes in a header, never the URL');
+    offGoogle();
+  });
+
+  await check('Several trips use the matrix; answers out of order still land on the right trip', async () => {
+    useGoogle();
+    stubGoogle(() => ({
+      body: [
+        { originIndex: 0, destinationIndex: 1, distanceMeters: 9000, duration: '1500s', condition: 'ROUTE_EXISTS' },
+        { originIndex: 0, destinationIndex: 0, distanceMeters: 6000, duration: '1200s', condition: 'ROUTE_EXISTS' }
+      ]
+    }));
+    const [toB, toC] = await roadDistanceMatrix(A, [B, C]);
+    assert.equal(toB.distanceKm, 6);
+    assert.equal(toC.distanceKm, 9);
+    assert.equal(toB.source, 'GOOGLE');
+    offGoogle();
+  });
+
+  await check('A pair Google cannot route falls back to the estimate, alone', async () => {
+    useGoogle();
+    stubGoogle(() => ({
+      body: [
+        { originIndex: 0, destinationIndex: 0, distanceMeters: 6000, duration: '1200s', condition: 'ROUTE_EXISTS' },
+        { originIndex: 0, destinationIndex: 1, condition: 'ROUTE_NOT_FOUND' }
+      ]
+    }));
+    const [toB, toC] = await roadDistanceMatrix(A, [B, C]);
+    assert.equal(toB.source, 'GOOGLE');
+    assert.equal(toC.source, 'ESTIMATED');
+    offGoogle();
+  });
+
+  await check('A Google refusal never fails a quote: the estimate stands in, and it is not cached', async () => {
+    useGoogle();
+    stubGoogle(() => ({ status: 403, body: { error: { message: 'API key not valid' } } }));
+    const road = await roadDistance(A, B);
+    assert.equal(road.source, 'ESTIMATED');
+    assert.equal(routingStatus().lastRefusal?.status, 'HTTP_403');
+    const calls = stubGoogle(() => ({ body: { routes: [{ distanceMeters: 6420, duration: '1260s' }] } }));
+    const again = await roadDistance(A, B);
+    assert.equal(again.source, 'GOOGLE', 'the estimate was cached and pinned');
+    assert.equal(calls.length, 1);
+    offGoogle();
+  });
+
+  await check('Without a Google key, Mapbox is still used (live keeps working until the key is set)', () => {
+    (config as any).GOOGLE_MAPS_SERVER_KEY = '';
+    (config as any).MAPBOX_ACCESS_TOKEN = 'test-key';
+    assert.equal(routingStatus().provider, 'MAPBOX');
+    (config as any).GOOGLE_MAPS_SERVER_KEY = 'g';
+    assert.equal(routingStatus().provider, 'GOOGLE');
+    offGoogle();
+  });
+
   console.log(`\n  ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();

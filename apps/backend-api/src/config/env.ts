@@ -338,6 +338,13 @@ export const config = {
    */
   MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN || '',
   /**
+   * Google Maps Platform server key (master plan B2, owner 18 Oct 2026: Google
+   * replaces Mapbox). When set, road distance and time come from the Routes API;
+   * until then Mapbox (if its token is set), else the straight-line estimate.
+   * Restrict it to the Routes, Places (New) and Geocoding APIs in Google Cloud.
+   */
+  GOOGLE_MAPS_SERVER_KEY: process.env.GOOGLE_MAPS_SERVER_KEY || '',
+  /**
    * Reading a menu from photos (owner, 1 Oct 2026). Server-side ONLY: the key
    * is never sent to, or built into, any app. Empty = the feature says it is
    * not switched on and everything else works.

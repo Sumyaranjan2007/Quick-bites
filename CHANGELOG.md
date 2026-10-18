@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B2 step 1: road distance from Google (ready for your key)
+
+> **For the owner.** The server can now measure delivery distance and time with Google Maps:
+> routes for two-wheelers (what riders ride), with live traffic. It switches to Google the moment
+> you put the server key on Railway as `GOOGLE_MAPS_SERVER_KEY`; until then nothing changes (Mapbox
+> as today). If Google refuses or is down, orders still go through on the estimate, as before.
+> Address search moves to Google in the next step.
+
+- `routingService.ts`: `routingProvider()` (Google when its key is set, else Mapbox, else none),
+  Routes API `computeRoutes` (one trip) and `computeRouteMatrix` (several), key in a header, same
+  cache, circuit breaker and fallback; `/health` `routing.provider`.
+- `routing` suite +5 checks (Google answers simulated); 2 guards mutation-checked.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Block closes the gaps the reviewers found
 
 > **For the owner.** The security reviewer showed a blocked person could come back with a new

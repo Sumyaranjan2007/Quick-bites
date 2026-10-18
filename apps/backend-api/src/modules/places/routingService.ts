@@ -79,7 +79,7 @@ export interface RoadDistance {
    * ESTIMATED — straight line scaled by the road factor, because Mapbox was not
    * configured, not reachable, or had no route to offer.
    */
-  source: 'MAPBOX' | 'ESTIMATED';
+  source: 'GOOGLE' | 'MAPBOX' | 'ESTIMATED';
 }
 
 /* -------------------------------------------------------------------------- *
@@ -154,7 +154,7 @@ function writeCache(k: string, value: RoadDistance): void {
   // Only real measurements are worth keeping. Caching an estimate would pin the
   // fallback in place for six hours after Mapbox came back, which is how a
   // transient outage turns into an afternoon of wrong delivery fees.
-  if (value.source !== 'MAPBOX') return;
+  if (value.source === 'ESTIMATED') return;
   if (cache.size >= MAX_ENTRIES) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
@@ -217,7 +217,8 @@ export async function roadDistanceMatrix(
     if (r === undefined && valid(destinations[i])) pending.push(i);
   });
 
-  if (pending.length === 0 || !isPlacesConfigured()) {
+  const provider = routingProvider();
+  if (pending.length === 0 || provider === 'NONE') {
     return results.map((r, i) => r ?? estimateByRoad(from, destinations[i]));
   }
 
@@ -237,9 +238,13 @@ export async function roadDistanceMatrix(
   for (let start = 0; start < pending.length; start += MAX_DESTINATIONS_PER_CALL) {
     const chunk = pending.slice(start, start + MAX_DESTINATIONS_PER_CALL);
     const measured =
-      chunk.length === 1
-        ? await callDirections(from, destinations[chunk[0]])
-        : await callDistanceMatrix(from, chunk.map(i => destinations[i]));
+      provider === 'GOOGLE'
+        ? chunk.length === 1
+          ? await callGoogleRoute(from, destinations[chunk[0]])
+          : await callGoogleMatrix(from, chunk.map(i => destinations[i]))
+        : chunk.length === 1
+          ? await callDirections(from, destinations[chunk[0]])
+          : await callDistanceMatrix(from, chunk.map(i => destinations[i]));
     chunk.forEach((destIndex, chunkIndex) => {
       const value = measured?.[chunkIndex];
       if (value) {
@@ -405,9 +410,90 @@ async function callDistanceMatrix(
 }
 
 /** For the health payload, so "why is every fee an estimate" is answerable. */
+/** Google when its key is set (owner, 18 Oct 2026), else Mapbox while its token is set, else none. */
+export function routingProvider(): 'GOOGLE' | 'MAPBOX' | 'NONE' {
+  if (config.GOOGLE_MAPS_SERVER_KEY) return 'GOOGLE';
+  return isPlacesConfigured() ? 'MAPBOX' : 'NONE';
+}
+
+/*
+ * Google Routes API (master plan B2). Two-wheeler routes, because riders ride
+ * motorbikes and India is one of the regions Google routes them in; traffic-
+ * aware, because the time is shown to the customer. Called only for a quote or
+ * an order, never per GPS fix (review D2), and cached like Mapbox.
+ */
+const GOOGLE_ROUTE = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const GOOGLE_MATRIX = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
+const latLng = (c: Coordinates) => ({ location: { latLng: { latitude: c.latitude, longitude: c.longitude } } });
+const seconds = (d: unknown) => Number(String(d ?? '').replace(/s$/, ''));
+
+async function googlePost(url: string, fieldMask: string, body: unknown): Promise<any | null> {
+  try {
+    const response = await breaker.run(
+      signal =>
+        fetch(url, {
+          method: 'POST',
+          signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': config.GOOGLE_MAPS_SERVER_KEY,
+            'X-Goog-FieldMask': fieldMask
+          },
+          body: JSON.stringify(body)
+        }),
+      res => res.status >= 500
+    );
+    if (!response.ok) {
+      const errorBody: any = await response.json().catch(() => null);
+      lastRefusal = { status: `HTTP_${response.status}`, detail: errorBody?.error?.message, at: new Date().toISOString() };
+      console.log(JSON.stringify({ level: 'ERROR', timestamp: new Date().toISOString(), event: 'ROUTING_API_REFUSED', api: 'google', httpStatus: response.status, detail: errorBody?.error?.message }));
+      return null;
+    }
+    return await response.json().catch(() => null);
+  } catch {
+    return null;
+  }
+}
+
+const toRoad = (metres: number, secs: number): RoadDistance | null =>
+  Number.isFinite(metres) && Number.isFinite(secs)
+    ? { distanceKm: round2(metres / 1000), durationMinutes: Math.max(1, Math.ceil(secs / 60)), source: 'GOOGLE' }
+    : null;
+
+async function callGoogleRoute(from: Coordinates, to: Coordinates): Promise<(RoadDistance | null)[] | null> {
+  const body = await googlePost(GOOGLE_ROUTE, 'routes.distanceMeters,routes.duration', {
+    origin: latLng(from),
+    destination: latLng(to),
+    travelMode: 'TWO_WHEELER',
+    routingPreference: 'TRAFFIC_AWARE'
+  });
+  if (!body) return null;
+  const route = body.routes?.[0];
+  // No route is a real answer about this pair: fall back for it alone.
+  return [route ? toRoad(Number(route.distanceMeters), seconds(route.duration)) : null];
+}
+
+async function callGoogleMatrix(from: Coordinates, destinations: Coordinates[]): Promise<(RoadDistance | null)[] | null> {
+  const body = await googlePost(GOOGLE_MATRIX, 'originIndex,destinationIndex,distanceMeters,duration,condition', {
+    origins: [{ waypoint: latLng(from) }],
+    destinations: destinations.map(d => ({ waypoint: latLng(d) })),
+    travelMode: 'TWO_WHEELER',
+    routingPreference: 'TRAFFIC_AWARE'
+  });
+  if (!Array.isArray(body)) return null;
+  const out: (RoadDistance | null)[] = destinations.map(() => null);
+  for (const element of body) {
+    const i = Number(element?.destinationIndex);
+    if (!Number.isInteger(i) || i < 0 || i >= out.length || element.condition !== 'ROUTE_EXISTS') continue;
+    out[i] = toRoad(Number(element.distanceMeters), seconds(element.duration));
+  }
+  return out;
+}
+
 export function routingStatus() {
   return {
-    configured: isPlacesConfigured(),
+    provider: routingProvider(),
+    configured: routingProvider() !== 'NONE',
     roadFactor: config.ROAD_DISTANCE_FACTOR,
     cachedRoutes: cache.size,
     /** Absent on a healthy deployment; present, it names the fix. */

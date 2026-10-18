@@ -31,7 +31,8 @@ server). Local values: root `.env` (gitignored); names in `.env.example`. Most a
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | `config/env.ts:103-112` | no online payment; **live still on test keys (2 Oct)** |
 | `RAZORPAYX_KEY_ID`, `RAZORPAYX_KEY_SECRET`, `RAZORPAYX_ACCOUNT_NUMBER`, `RAZORPAYX_WEBHOOK_SECRET` | `config/env.ts:132-137` | no automatic payouts (pay by hand still works) |
 | `PAYEE_ACCOUNT_KEY` | `modules/payments/payeeAccountNumbers.ts:27` | full bank numbers cannot be encrypted/stored |
-| `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR`, `PLACES_REGION` | `config/env.ts:349`, `:234`, `:362` | straight-line distance fallback; address search off |
+| `GOOGLE_MAPS_SERVER_KEY` | `config/env.ts` (master plan B2, 18 Oct) | road distance/time from Google's Routes API when set (two-wheeler, traffic); without it Mapbox (if its token is set), else the estimate. Owner creates it in Google Cloud (`docs/ops/OPS_GUIDE.md`) |
+| `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR`, `PLACES_REGION` | `config/env.ts:349`, `:234`, `:362` | straight-line distance fallback; address search off (Mapbox stays until the Google key is set and the apps move in Stage C) |
 | `MEILISEARCH_HOST`, `MEILISEARCH_API_KEY` | `config/env.ts:90-91` | built-in search used instead |
 | `FCM_SERVICE_ACCOUNT_JSON` | `config/env.ts:378` | no Android push |
 | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`, `APNS_HOST` | `config/env.ts:386-390` | no iPhone push (set 13 Oct) |
