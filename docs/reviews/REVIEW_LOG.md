@@ -177,3 +177,16 @@ Still open from earlier rounds and not yet fixed in a commit: **P1** (unlimited 
 | G2b | Low | restaurant profile edit `phone` (`EDITABLE_PROFILE_FIELDS`) | Still not checked against the ban list. Admin-reviewed, so a human sees it, but nothing flags it. | `assertNotBanned({ phone })` when the edit is submitted. | open |
 
 Still open from earlier: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1; R1, B1-1 with the owner (decided between sessions where possible).
+
+---
+
+## 18 Oct 2026 — B2: `495437a` (Google Routes) and `02f88e9` (Google Places (New) + Geocoding)
+
+**Verdicts: both approve** (one cost point worth doing before the key goes on Railway). Checked: the key travels in `X-Goog-Api-Key` (Geocoding only takes it in the URL; that URL is never logged); field masks are set (`routes.distanceMeters,routes.duration`; matrix `originIndex,destinationIndex,distanceMeters,duration,condition`; details `formattedAddress,location,addressComponents`); the matrix is chunked at 9 destinations, well under the 100-element cap for traffic-aware matrices; nothing is called per GPS fix (the only callers are quote and checkout, `orderService.ts:454`, `:742`); every failure (5xx, 4xx, timeout, no route, a zero distance Google omits from JSON) returns `null` and the pair falls back to the straight-line estimate, so an order never fails on maps; results are cached 6 h at ~11 m (`routingService.ts:124-138`), refusals are not cached as answers; Places autocomplete uses the app's session token (the Customer app sends one per entry, `AddressSearchField.tsx:121`, `:153`; it is the only app calling `/places`); `routingService` no longer imports `placesService` (no cycle).
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| B2-1 | Medium (cost) | `modules/places/routingService.ts` `callGoogleRoute`/`callGoogleMatrix` | `routingPreference: 'TRAFFIC_AWARE'` (and, per Google's SKU list, `TWO_WHEELER`) bill at the Routes **Pro** rate, roughly double Essentials. What they buy is the traffic-aware duration, and **nothing reads `durationMinutes`** outside this module: pricing and the ETA use the distance (`eta.ts` uses `DELIVERY_SPEED_KMPH`). | Until B3/B11 actually use the duration: `TRAFFIC_UNAWARE` + `DRIVE` (Essentials), or keep two-wheeler for road distance only if its distances differ materially (check a few local pairs). Confirm on the Cloud pricing page for India. | open |
+| B2-2 | Low | `modules/places/placesService.ts` (autocomplete, details, reverse) | `if (!body \|\| lastRefusal?.at !== refusals)` is redundant (`callGoogle` already returns `null` on any refusal) and racy: a refusal on another, concurrent request discards a good result here. | Rely on `body === null` only. | open |
+| B2-3 | Low | `routingService.ts` `googlePost`, `placesService.ts` `callGoogle` | 4xx refusals (wrong key, API not enabled, 429 quota) neither trip the breaker nor back off, so a misconfigured key makes every quote and keystroke call Google and log an ERROR. | Count 403/429 as breaker failures (it opens for its cool-down, quotes use the estimate meanwhile). | open |
+| B2-4 | Low (cost) | `placesService.ts:488` | Reverse-geocode cache key uses 5 decimals (~1 m), so almost every drag of the map pin is a new Geocoding call. | 4 decimals (~11 m, the routing cache's precision). | open |
