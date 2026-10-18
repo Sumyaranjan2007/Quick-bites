@@ -8,6 +8,7 @@ import { userRepository, grantRole, hasRole, rolesOf } from '../db/repositories/
 import { memoryStore, triggerAutoSave, persistDurably } from '../db/client.ts';
 import { pendingRoles, CONFIRM_TTL_MS, type PendingRole } from '../modules/auth/confirmLinks.ts';
 import { normalizeIndianPhone } from '../utils/phone.ts';
+import { assertNotBanned } from '../modules/platform/blockedIdentifiers.ts';
 import { walletRepository } from '../db/repositories/walletRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
@@ -597,6 +598,8 @@ async function resolveIdentity(
   password: string,
   role: UserRole
 ): Promise<IdentityCheck> {
+  // A blocked person's email or number, however written, opens no new account (owner Q1).
+  assertNotBanned({ email, phone });
   const byPhone = await userRepository.findByPhone(phone);
   const byEmail = await userRepository.findByEmail(email);
 
@@ -945,6 +948,7 @@ authRouter.post(
     try {
       const email = String(req.body.email).trim().toLowerCase();
       const { phone, fullName, password } = req.body;
+      assertNotBanned({ fssai: req.body.fssaiLicenseNumber, gstin: req.body.gstin });
       const identity = await resolveIdentity(email, phone, password, 'restaurant_owner' as UserRole);
       if (identity.kind === 'CONFIRM_BY_EMAIL') return await askToConfirmByEmail(identity.user, 'restaurant_owner', req.body);
 
@@ -1000,6 +1004,7 @@ authRouter.post(
     try {
       const email = String(req.body.email).trim().toLowerCase();
       const { phone, fullName, password } = req.body;
+      assertNotBanned({ license: req.body.licenseNumber });
       const identity = await resolveIdentity(email, phone, password, 'rider' as UserRole);
       if (identity.kind === 'CONFIRM_BY_EMAIL') return await askToConfirmByEmail(identity.user, 'rider', req.body);
 
@@ -1309,6 +1314,7 @@ authRouter.post(
       }
 
       if (!user) {
+        assertNotBanned({ phone, email });
         // First sign-in. The role is assigned here and never read from the
         // request: phone sign-in mints customers and nothing else, so it can
         // never become a route to a staff account.

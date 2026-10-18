@@ -105,6 +105,7 @@ const SUITES = [
   'profitGuards',
   'deliveryRadius',
   'passwordReset',
+  'removeAndBlock',
   'helpChat',
   'kitchenTicket',
   'personRecord',

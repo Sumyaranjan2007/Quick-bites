@@ -33,6 +33,15 @@ Checked by `authMiddleware` (`middlewares/auth.ts`): password changed → `SESSI
 - A code counts as **email-proven** only when it really went through Brevo (not `fixed`, not the reviewer number): `emailed` set at `otpService.ts:180`, returned as `emailProven` from `verify` (`:227-280`).
 - Limits: `OTP_TTL_MINUTES` (10 on live), `OTP_MAX_ATTEMPTS`, `OTP_RESEND_COOLDOWN_SECONDS`.
 
+## Remove and Block (18 Oct 2026, owner Q1, master plan B6)
+
+| Action | Who | Effect |
+|---|---|---|
+| **Block** | People → customer/rider/restaurant (`PATCH /api/admin/{customers,drivers,restaurants}/:id` `isBlocked`), "manage" permission per kind | Account locked, sessions cut (existing); its email, phone, kitchens' FSSAI/GSTIN/phone and rider licence go on a ban list (`modules/platform/blockedIdentifiers.ts`: canonical form hashed, one `settings` record) checked by every sign-up (`resolveIdentity`, partner/rider handlers, first code sign-in) → 403 `IDENTITY_BLOCKED`. Unblock clears that account's entries. |
+| **Remove** | `POST /api/admin/accounts/:userId/remove` `{ confirmName, reason }`; "manage" permission for every kind of account the person has; never admins | `removeAccount` (`modules/platform/staffDeletion.ts`): refused while an order is in progress; kitchens closed, rider offline, account locked; data kept with `removedAt/removedReason/removedBy/removedIdentity`; email and phone freed (placeholder address) so the person may register again. Audit-logged. |
+
+Suite `removeAndBlock`.
+
 ## Forgot password (18 Oct 2026, master plan B6)
 
 Partners, riders and staff: `POST /api/auth/password/forgot` `{ email }` → the same reply for every

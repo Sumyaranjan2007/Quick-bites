@@ -2,8 +2,9 @@
  * The people on the platform: customers, delivery partners, restaurant partners,
  * and the documents that qualify the last two to trade.
  */
+import { banAccount, unbanAccount } from '../../modules/platform/blockedIdentifiers.ts';
 import { cashSwitchedOffFor, lateCashCancels } from '../../modules/orders/cancellationFee.ts';
-import { listDeletionRequests, completeStaffDeletion, cancelStaffDeletion } from '../../modules/platform/staffDeletion.ts';
+import { listDeletionRequests, completeStaffDeletion, cancelStaffDeletion, removeAccount } from '../../modules/platform/staffDeletion.ts';
 import { getActiveRates } from '../../modules/payments/pricingConfig.ts';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
@@ -120,6 +121,9 @@ async function setAccountBlocked(
     // reason given would quietly reuse the last one.
     blockReason: isBlocked ? blockReason || '' : ''
   } as any);
+  // Owner Q1: a blocked person cannot come back under another email, number or licence.
+  if (isBlocked) banAccount(userId);
+  else unbanAccount(userId);
 }
 
 /* ------------------------------- Customers ------------------------------- */
@@ -250,6 +254,9 @@ peopleRoutes.patch(
         changes.codOverrideReason = undefined;
       }
       const updated = await userRepository.update(user.id, changes);
+      // Owner Q1: the same ban list as partners and riders (setAccountBlocked).
+      if (req.body.isBlocked === true) banAccount(user.id);
+      if (req.body.isBlocked === false) unbanAccount(user.id);
 
       recordAudit(req, {
         action:
@@ -969,6 +976,57 @@ peopleRoutes.post(
         data: { document: doc, outcome },
         message: outcome?.summary
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/admin/accounts/:userId/remove (owner Q1, 18 Oct 2026)
+ *
+ * Closes a partner's, rider's or customer's account for good; they may register
+ * again from scratch. Needs the "manage" permission for that kind of account
+ * (so roles share it out), the account's name typed exactly, and a reason; it
+ * is audit-logged. Administrator accounts are managed in Roles, never here.
+ * To also stop the person coming back, Block them instead (the ban list).
+ */
+const RemoveAccountSchema = z.object({
+  confirmName: z.string().trim().min(1, 'Type the account name to confirm.'),
+  reason: z.string().trim().min(3, 'Give a reason; it is kept with the account.').max(500)
+});
+
+peopleRoutes.post(
+  '/accounts/:userId/remove',
+  requirePermission('users.drivers.manage', 'users.restaurants.manage', 'users.customers.manage'),
+  validate({ body: RemoveAccountSchema }),
+  async (req, res, next) => {
+    try {
+      const user: any = await userRepository.findById(req.params.userId);
+      if (!user) throw new AppError('No such account.', 404, 'USER_NOT_FOUND');
+      const roles = rolesOf(user);
+      if (roles.some(r => r === 'admin' || r === 'super_admin')) {
+        throw new AppError('Administrator accounts are managed in Roles.', 403, 'STAFF_NOT_REMOVABLE');
+      }
+      const access = req.adminAccess!;
+      const can = (p: string) => access.isSuperAdmin || access.permissions.includes(p as any);
+      const allowed =
+        (!roles.includes('rider') || can('users.drivers.manage')) &&
+        (!roles.includes('restaurant_owner') || can('users.restaurants.manage')) &&
+        (!roles.includes('customer') || can('users.customers.manage'));
+      if (!allowed) throw new AppError('Your role does not manage every kind of account this person has.', 403, 'FORBIDDEN');
+      if (req.body.confirmName.toLowerCase() !== String(user.fullName || '').trim().toLowerCase()) {
+        throw new AppError(`Type the account name exactly ("${user.fullName}") to confirm.`, 400, 'CONFIRM_NAME_MISMATCH');
+      }
+
+      await removeAccount(user.id, req.body.reason, req.user!.id);
+      recordAudit(req, {
+        action: 'ACCOUNT_REMOVED',
+        entityType: roles.includes('rider') ? 'RIDER' : roles.includes('restaurant_owner') ? 'RESTAURANT_PARTNER' : 'CUSTOMER',
+        entityId: user.id,
+        summary: `Removed ${user.fullName} (${user.email}): ${req.body.reason}`
+      });
+      res.json({ success: true, data: { removed: true }, message: `${user.fullName}'s account is removed. They can register again from scratch.` });
     } catch (err) {
       next(err);
     }

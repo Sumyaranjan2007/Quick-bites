@@ -6,6 +6,25 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B6 step 2: Remove and Block accounts (server)
+
+> **For the owner.** As you decided: **Block** now also stops the person coming back. A new
+> sign-up with their email (even written as a Gmail variant with dots or a "+" tag), their mobile,
+> their kitchen's FSSAI licence or GSTIN, or their driving licence is refused on every app.
+> Unblocking lifts that. **Remove** is new: it closes a customer's, partner's or rider's account
+> for good but keeps all records, and lets the person register again from scratch. Remove needs the
+> account's name typed exactly and a reason, works only for staff whose role manages that kind of
+> account, and is refused while one of their orders is still running. The Operations screens for
+> both come in the next app build (Stage E).
+
+- `modules/platform/blockedIdentifiers.ts` (canonical form + hash, one settings record; review D6);
+  checks in `resolveIdentity`, partner/rider sign-up, first code sign-in; ban/unban on every block
+  path (`setAccountBlocked`, customer PATCH).
+- `removeAccount` + `POST /api/admin/accounts/:userId/remove`.
+- New suite `removeAndBlock` (15 checks, 6 guards mutation-checked). Docs: `AUTH_AND_ROLES`.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B6 step 1: forgot password by email code (server)
 
 > **For the owner.** Partners, riders and staff can now get a 6-digit code by email to set a new

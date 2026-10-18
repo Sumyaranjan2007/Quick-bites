@@ -162,3 +162,51 @@ export async function cancelStaffDeletion(userId: string): Promise<void> {
   }
   triggerAutoSave();
 }
+
+/**
+ * Remove an account (owner Q1, 18 Oct 2026): closed for good, data kept, and
+ * the person may register again from scratch with the same email and number.
+ * Unlike Block, nothing is banned; unlike a deletion request, an admin does it.
+ * The email and phone move to `removedIdentity` and the account gets a
+ * placeholder address, so a new sign-up does not find (and refuse on) this one.
+ * Refused while one of its orders is still in progress.
+ */
+export async function removeAccount(userId: string, reason: string, byUserId: string): Promise<void> {
+  const user = (await userRepository.findById(userId)) as any;
+  if (!user) throw new AppError('Account not found.', 404, 'USER_NOT_FOUND');
+  if (user.removedAt) throw new AppError('This account is already removed.', 409, 'ALREADY_REMOVED');
+
+  const kitchens = restaurantsOf(userId);
+  const rider = riderOf(userId);
+  const live = (Array.from(memoryStore.orders.values()) as any[]).find(
+    o =>
+      !LIVE.includes(o.status) &&
+      (o.customerId === userId || kitchens.some(k => k.id === o.restaurantId) || (rider && o.riderId === rider.id))
+  );
+  if (live) {
+    throw new AppError(`Order #${live.orderNumber} is still in progress. Remove the account once it is finished.`, 409, 'ORDER_IN_PROGRESS');
+  }
+
+  for (const kitchen of kitchens) {
+    kitchen.isOpen = false;
+    kitchen.status = 'CLOSED';
+    memoryStore.restaurants.set(kitchen.id, kitchen);
+  }
+  if (rider) {
+    rider.isOnline = false;
+    memoryStore.riders.set(rider.id, rider);
+    setRiderOfferPoolMembership(userId, false);
+  }
+  await userRepository.update(userId, {
+    isBlocked: true,
+    blockReason: 'This account was removed by Quick Bites.',
+    removedAt: new Date().toISOString(),
+    removedReason: reason,
+    removedBy: byUserId,
+    removedIdentity: { email: user.email, phone: user.phone },
+    email: `removed-${userId}@removed.quickbite.app`,
+    phone: undefined,
+    deletionRequestedAt: undefined
+  } as any);
+  triggerAutoSave();
+}
