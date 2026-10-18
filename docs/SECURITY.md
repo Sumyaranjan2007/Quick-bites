@@ -134,6 +134,32 @@ Note, no action needed: if an admin later **un-blocks** a removed account, it wo
 placeholder email (`removed-<id>@removed.quickbite.app`) with its old password. Treat un-block of a
 removed account as restoring it.
 
+## 1e. Audit, round 5 — 18 Oct 2026, `68c101f` (deletion requests), `c8a7850` (admin creates accounts), item 18 design
+
+**For the owner.** A partner or rider who asks to delete can still sign in to see their money but
+gets no new orders or trips, and cancelling a request never un-blocks someone you blocked. Accounts
+created by Operations are protected by the ban list and duplicate checks; the only improvement is
+to email a "set your password" code instead of a temporary password.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| L11 | Low | `apps/backend-api/src/routes/admin/peopleRoutes.ts` `POST /admin/accounts/create` | The 12-character temporary password is sent in the email body and never expires; nothing forces a change. Anyone who later reads that inbox (or a mistyped address's owner) holds a working partner/rider password. | Create the account with no password and a `passwordReset` code (24 h), emailing "set your password with this code" through `/auth/password/reset` (allow `resettable` for a password-less account that carries an admin-issued code). No password travels by email. | open |
+
+Checked and holding:
+
+| Area | Evidence |
+|---|---|
+| Deletion request (`68c101f`) | Sign-in kept (owner Q2); kitchens set `CLOSED` (`kitchen-status` refuses going online unless `ACTIVE`, order creation refuses non-active kitchens); rider set offline and removed from the offer pool; `POST /riders/shift` online refused `DELETION_PENDING`, and a trip cannot be claimed offline; refused while an order is in progress; cancel lifts only the legacy deletion lock, never a separate block (check in the suite). |
+| Admin create (`c8a7850`) | Needs `users.restaurants.manage` or `users.drivers.manage` for the kind created; `assertNotBanned` on email, phone, FSSAI, GSTIN, licence; email and phone duplicates refused; password from `crypto.randomBytes` (≈69 bits); never in the response; logged only off production; audited. |
+
+**Item 18 (contact change) design, before build** — sent to the main session:
+- Phone change by a code to the account's *current email* would re-open M1 (an account owner
+  claims an unused number and captures its real owner's sign-in codes). Keep phone changes
+  support-only until SMS codes are live, or mark email-proven numbers `phoneVerified: false` and
+  never let an unverified number capture another person's sign-in.
+- Email change must prove the current owner as well as the new inbox (current password, or a code
+  to the old email), then sign out other sessions (`tokenVersion`) and notify the old address.
+
 ---
 
 ## 2. Rules every change must follow
