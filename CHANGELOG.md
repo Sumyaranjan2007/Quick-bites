@@ -6,6 +6,24 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Customer app: moving bike on the tracking map, photos, loading and screen motion (D1, D5)
+
+> **For the owner.** On the tracking screen the rider is now **our own bike icon** (maroon scooter, amber
+> delivery box) that **glides** from one GPS point to the next and turns with the road, instead of a
+> dot jumping; when the last position is over 30 seconds old it fades and the line says "updating…".
+> Food and restaurant photos load through a phone cache and fade in; a dish without a photo shows our
+> own drawn plate (green for veg, red for non-veg) instead of an empty box. Loading placeholders pulse
+> gently, and each screen fades in and rises slightly when opened. All of it stays still when the phone
+> is set to reduce motion. Checked on the emulator with a simulated trip (the bike itself needs the
+> real-phone check, because Google maps refuse test builds by design).
+
+- `nativeMap.ts` `MapMovingPin` (AnimatedRegion glide, flat, rotation), `components/BikeMarker.tsx`,
+  `LiveOrderMap` uses it with `riderBearing` and the 30 s stale rule; `components/FoodImage.tsx`
+  (expo-image, memory-disk cache, `PlateArt` fallback); `RestaurantPhoto` on expo-image; pulsing
+  `Skeleton`; screen enter `FadeInDown` 260 ms in `App.tsx`.
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Partners download receipts; the full invoice is for Operations only; press feel
 
 > **For the owner.** **Partner** app and website: no more invoices. Money → Statement now has
