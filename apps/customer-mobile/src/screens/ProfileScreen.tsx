@@ -1,3 +1,4 @@
+import { hapticsEnabled, setHapticsEnabled } from '../lib/haptics';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -31,8 +32,7 @@ import {
   Crown,
   Camera,
   Shield,
-  FileText
-} from 'lucide-react-native';
+  FileText, Vibrate } from 'lucide-react-native';
 import { tokens, iosLargeTitle } from '../theme/tokens';
 import { DEFAULT_API_URL } from '../config';
 import { Card, KeyboardLift } from '../components/ui';
@@ -120,6 +120,7 @@ export const ProfileScreen: React.FC<Props> = ({
   };
 
   const [editOpen, setEditOpen] = useState(false);
+  const [vibrate, setVibrate] = useState(hapticsEnabled());
   const [emailStep, setEmailStep] = useState<'idle' | 'request' | 'confirm'>('idle');
   const [newEmail, setNewEmail] = useState('');
   const [emailPassword, setEmailPassword] = useState('');
@@ -552,6 +553,23 @@ export const ProfileScreen: React.FC<Props> = ({
               // iPhone switches keep their white thumb; the brand colour fills the track.
               trackColor={{ false: c.border.strong, true: Platform.OS === 'ios' ? c.primary[500] : c.primary[300] }}
               thumbColor={Platform.OS === 'ios' ? undefined : notificationsEnabled ? c.primary[500] : '#FFFFFF'}
+            />
+          }
+        />
+        {/* Soft vibration on taps (owner, 17 Oct 2026): on by default, off here. */}
+        <Row
+          icon={<Vibrate size={18} color={c.primary[500]} />}
+          title="Vibration on taps"
+          sub="A soft tick when you add food, change a tab or place an order"
+          right={
+            <Switch
+              value={vibrate}
+              onValueChange={on => {
+                setVibrate(on);
+                setHapticsEnabled(on);
+              }}
+              trackColor={{ false: c.border.strong, true: Platform.OS === 'ios' ? c.primary[500] : c.primary[300] }}
+              thumbColor={Platform.OS === 'ios' ? undefined : vibrate ? c.primary[500] : '#FFFFFF'}
             />
           }
           last

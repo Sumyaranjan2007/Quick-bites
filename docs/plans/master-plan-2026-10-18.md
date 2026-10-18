@@ -238,7 +238,7 @@ Recipe: `customer-app-feel-2026-10-17.md` phases 1–4 and `design/motion/`.
 
 | Step | What |
 |---|---|
-| D1 | Base: tokens, Lexend Deca (✅ 19 Oct), `PressableScale`, soft haptics (Android + iPhone), `FoodImage`, skeletons, sheets |
+| D1 | Base: tokens, Lexend Deca (✅ 19 Oct), `PressableScale`, soft haptics (Android + iPhone, ✅ 19 Oct, Profile switch), `FoodImage`, skeletons, sheets |
 | D2 | Sign-in screen (Q4 artwork) + code screen |
 | D3 | **Location first** (#7): after sign-in, a full-screen "Where should we deliver?" (use my location / search / saved addresses / save this exact pin with house, floor, landmark); skipping shows "Recommended by Quick Bites" (B5) with a banner "Set your location to see every restaurant near you". Home → Favourites section (#13) above the main list when you have any. |
 | D4 | Home, search, restaurant page (section switch greys a whole section, "Not delivering currently", Pure Veg seal badge), add to cart, dish sheet, checkout |

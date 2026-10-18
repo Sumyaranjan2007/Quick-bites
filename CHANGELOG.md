@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Customer app: soft haptics on Android too, with a switch
+
+> **For the owner.** The soft tap feel (adding food, changing tabs, placing an order, a refused coupon)
+> now works on Android as well as iPhone, using Android's own gentle system effects (they follow the
+> phone's touch-vibration setting). Profile → Preferences → **Vibration on taps** turns it off.
+
+- `src/lib/haptics.ts`: `performAndroidHapticsAsync` (Segment_Tick, Context_Click, Confirm, Reject) on
+  Android; on/off kept on the phone; Profile switch.
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Kitchen ticket is a clear button; Customer app in Lexend Deca (D1 start)
 
 > **For the owner.** Partner → Orders: every accepted order now has a clear **Print kitchen ticket**
