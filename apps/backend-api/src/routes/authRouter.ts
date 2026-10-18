@@ -290,7 +290,7 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
       const isStaffAdmin = req.user!.role === 'admin' && (req.user as any).scope !== 'customer';
       if (changing && !isStaffAdmin) {
         throw new AppError(
-          'To change your mobile number, use "Change mobile number": we send a code to confirm it.',
+          'Mobile numbers are changed by Quick Bites support for now: open Help. Changing it in the app comes with SMS codes.',
           409,
           'PHONE_CHANGE_NEEDS_CODE'
         );
@@ -1519,74 +1519,102 @@ authRouter.post('/password/reset', authRateLimiterMiddleware, validate({ body: R
 });
 
 /*
- * Change your mobile number or email with a code (owner item 18, master plan B6,
- * 18 Oct 2026). Email: the code goes to the NEW address (proves it), and the old
- * one is told afterwards. Phone: the owner's rule is "every code by email until
- * SMS (MSG91) is live", so the code goes to the account's current email (proves
- * the account holder); when SMS is live it goes to the new number instead.
- * Same storage as password reset: a hash on the user record, 10 minutes, 5
- * tries, one code a minute. A number or email on another account, or on the
- * ban list, is refused before anything is sent.
+ * Change your email with a code (owner item 18, master plan B6, 18 Oct 2026).
+ *
+ * Two proofs, settled with the security reviewer: the requester owns the
+ * account (its current password, or for a password-less customer account a
+ * code to the OLD email) AND owns the new inbox (a code to the NEW email).
+ * Then every other session is signed out and the old address is told. Without
+ * the first proof a stolen session could move the account to the thief's inbox
+ * for good. Same limits as password reset: hashes on the user record, 10
+ * minutes, 5 tries, one request a minute. An email on another account or on
+ * the ban list is refused before anything is sent.
+ *
+ * Mobile numbers are changed by support until SMS codes are live: a number can
+ * only be proved by a code sent TO it, and a number taken without that proof
+ * captures its real owner's sign-in codes (security M1).
  */
-const ContactRequestSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('phone'), value: phoneSchema }),
-  z.object({ kind: z.literal('email'), value: z.string().trim().toLowerCase().email('Enter a valid email address.').max(254) })
-]);
-const ContactConfirmSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from the email.') });
+const ContactRequestSchema = z.object({
+  kind: z.enum(['email', 'phone']),
+  value: z.string().trim().max(254),
+  currentPassword: z.string().max(128).optional()
+});
+const ContactConfirmSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code sent to the new email.'),
+  ownerCode: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code sent to your current email.').optional()
+});
 const BAD_CONTACT_CODE = () => new AppError('That code is not right, or it has expired. Ask for a new one.', 400, 'INVALID_CONTACT_CODE');
+const PHONE_BY_SUPPORT = () =>
+  new AppError('Mobile numbers are changed by Quick Bites support for now: open Help. Changing it in the app comes with SMS codes.', 409, 'PHONE_CHANGE_VIA_SUPPORT');
+const sixDigits = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 
-/** POST /api/auth/contact/request — sends the code for a new phone or email. */
+/** POST /api/auth/contact/request — codes for a new email. */
 authRouter.post('/contact/request', authMiddleware(), authRateLimiterMiddleware, validate({ body: ContactRequestSchema }), async (req, res, next) => {
   try {
     const user: any = await userRepository.findById(req.user!.id);
     if (!user) throw new AppError('Account not found.', 404, 'USER_NOT_FOUND');
-    const { kind, value } = req.body as { kind: 'phone' | 'email'; value: string };
-    const label = kind === 'phone' ? 'mobile number' : 'email';
-    const holder = kind === 'phone' ? await userRepository.findByPhone(value) : await userRepository.findByEmail(value);
-    if (holder && holder.id !== user.id) {
-      throw new AppError(`That ${label} is already on another Quick Bites account.`, 409, kind === 'phone' ? 'PHONE_IN_USE' : 'EMAIL_IN_USE');
+    if (req.body.kind === 'phone') throw PHONE_BY_SUPPORT();
+    const parsed = z.string().email('Enter a valid email address.').safeParse(req.body.value);
+    if (!parsed.success) throw new AppError('Enter a valid email address.', 400, 'VALIDATION_ERROR');
+    const value = parsed.data.toLowerCase();
+
+    const holder = await userRepository.findByEmail(value);
+    if (holder && holder.id !== user.id) throw new AppError('That email is already on another Quick Bites account.', 409, 'EMAIL_IN_USE');
+    if (holder?.id === user.id) throw new AppError('That is already your email.', 400, 'CONTACT_UNCHANGED');
+    assertNotBanned({ email: value });
+
+    // Proof that this is the account's owner, not only someone holding a session.
+    const ownerByCode = !user.passwordHash;
+    if (!ownerByCode) {
+      const ok = req.body.currentPassword && (await userRepository.verifyCredentials(user.email, req.body.currentPassword));
+      if (!ok) throw new AppError('Enter your current password to change your email.', 401, 'INVALID_PASSWORD');
+    } else if (!isRealEmail(user.email)) {
+      throw new AppError('This account has no email to confirm with. Contact Quick Bites support from Help.', 409, 'NO_EMAIL_FOR_CODE');
     }
-    if (holder?.id === user.id) throw new AppError(`That is already your ${label}.`, 400, 'CONTACT_UNCHANGED');
-    assertNotBanned({ [kind]: value });
-    const sendTo = kind === 'email' ? value : user.email;
-    if (!isRealEmail(sendTo)) {
-      throw new AppError('This account has no email to send a code to. Contact Quick Bites support from Help.', 409, 'NO_EMAIL_FOR_CODE');
-    }
+
     const now = Date.now();
     if (user.contactChange && now - Date.parse(user.contactChange.sentAt) < 60_000) {
       throw new AppError('A code was sent less than a minute ago. Check your email, or try again in a minute.', 429, 'CODE_RECENTLY_SENT');
     }
-    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-    const stored = kind === 'phone' ? normalizeIndianPhone(value) : value;
+    const code = sixDigits();
+    const ownerCode = ownerByCode ? sixDigits() : null;
     await userRepository.update(user.id, {
       contactChange: {
-        kind,
-        value: stored,
+        kind: 'email',
+        value,
         codeHash: resetHash(user.id, code),
+        ...(ownerCode ? { ownerCodeHash: resetHash(user.id, `owner:${ownerCode}`) } : {}),
         sentAt: new Date(now).toISOString(),
         expiresAt: new Date(now + RESET_TTL_MS).toISOString(),
         triesLeft: RESET_TRIES
       }
     } as any);
     await persistDurably();
-    const what = kind === 'phone' ? `change your mobile number to ${maskPhone(stored)}` : 'use this email on your account';
-    const text = `Your Quick Bites code to ${what} is ${code}. It works for 10 minutes. If you did not ask for it, ignore this email: nothing has changed.`;
-    const sent = await sendEmail(sendTo, 'Your Quick Bites confirmation code', text, `<p>${text}</p>`);
-    if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'CONTACT_CHANGE_CODE', userId: user.id, code }));
+    const toNew = `Your Quick Bites code to use this email on your account is ${code}. It works for 10 minutes. If you did not ask for it, ignore this email.`;
+    const sent = await sendEmail(value, 'Your Quick Bites confirmation code', toNew, `<p>${toNew}</p>`);
+    if (ownerCode) {
+      const toOld = `Someone asked to move your Quick Bites account to ${value}. If it was you, your code is ${ownerCode}. If not, ignore this email and nothing changes.`;
+      await sendEmail(user.email, 'Confirm your Quick Bites email change', toOld, `<p>${toOld}</p>`);
+    }
+    if (config.NODE_ENV !== 'production') {
+      console.log(JSON.stringify({ level: 'INFO', event: 'CONTACT_CHANGE_CODE', userId: user.id, code, ownerCode }));
+    }
     if (!sent.accepted && config.NODE_ENV === 'production') {
       throw new AppError('We could not send the code just now. Try again in a few minutes.', 503, 'EMAIL_UNAVAILABLE');
     }
     res.json({
       success: true,
-      data: { sent: true, sentTo: kind === 'email' ? 'new' : 'current' },
-      message: `Code sent to ${kind === 'email' ? 'the new email' : 'your email'}. It works for 10 minutes.`
+      data: { sent: true, needsOwnerCode: Boolean(ownerCode) },
+      message: ownerCode
+        ? 'We sent one code to the new email and one to your current email. Enter both. They work for 10 minutes.'
+        : 'Code sent to the new email. It works for 10 minutes.'
     });
   } catch (err) {
     next(err);
   }
 });
 
-/** POST /api/auth/contact/confirm — applies the new phone or email. */
+/** POST /api/auth/contact/confirm — applies the new email. */
 authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware, validate({ body: ContactConfirmSchema }), async (req, res, next) => {
   try {
     const user: any = await userRepository.findById(req.user!.id);
@@ -1595,24 +1623,34 @@ authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware,
       if (pending) await userRepository.update(user.id, { contactChange: undefined } as any);
       throw BAD_CONTACT_CODE();
     }
-    const given = Buffer.from(resetHash(user.id, req.body.code));
-    const expected = Buffer.from(pending.codeHash);
-    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    const same = (a: string, b: string) => {
+      const x = Buffer.from(a);
+      const y = Buffer.from(b);
+      return x.length === y.length && crypto.timingSafeEqual(x, y);
+    };
+    const newOk = same(resetHash(user.id, req.body.code), pending.codeHash);
+    const ownerOk = !pending.ownerCodeHash || (req.body.ownerCode && same(resetHash(user.id, `owner:${req.body.ownerCode}`), pending.ownerCodeHash));
+    if (!newOk || !ownerOk) {
       const triesLeft = pending.triesLeft - 1;
       await userRepository.update(user.id, { contactChange: triesLeft > 0 ? { ...pending, triesLeft } : undefined } as any);
       await persistDurably();
       throw BAD_CONTACT_CODE();
     }
-    // Taken by someone else since the code was sent?
-    const holder = pending.kind === 'phone' ? await userRepository.findByPhone(pending.value) : await userRepository.findByEmail(pending.value);
+    // Taken by someone else since the codes were sent?
+    const holder = await userRepository.findByEmail(pending.value);
     if (holder && holder.id !== user.id) {
       await userRepository.update(user.id, { contactChange: undefined } as any);
-      throw new AppError('That is now on another Quick Bites account.', 409, pending.kind === 'phone' ? 'PHONE_IN_USE' : 'EMAIL_IN_USE');
+      throw new AppError('That email is now on another Quick Bites account.', 409, 'EMAIL_IN_USE');
     }
     const oldEmail = user.email;
-    await userRepository.update(user.id, { [pending.kind]: pending.value, contactChange: undefined } as any);
+    // Every other device is signed out: this device gets a fresh token below.
+    await userRepository.update(user.id, {
+      email: pending.value,
+      contactChange: undefined,
+      tokenVersion: (Number(user.tokenVersion) || 0) + 1
+    } as any);
     await persistDurably();
-    if (pending.kind === 'email' && isRealEmail(oldEmail)) {
+    if (isRealEmail(oldEmail)) {
       const notice = `The email on your Quick Bites account was changed to ${pending.value}. If this was not you, contact Quick Bites support now.`;
       await sendEmail(oldEmail, 'Your Quick Bites email was changed', notice, `<p>${notice}</p>`);
     }
@@ -1620,8 +1658,8 @@ authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware,
     const { passwordHash, passwordReset, contactChange, ...safeUser } = updated;
     res.json({
       success: true,
-      data: { user: safeUser },
-      message: pending.kind === 'phone' ? 'Your mobile number is changed.' : 'Your email is changed.'
+      data: { user: safeUser, token: generateToken(updated, req.user!.role as any) },
+      message: 'Your email is changed.'
     });
   } catch (err) {
     next(err);

@@ -1,14 +1,19 @@
 /**
- * Changing your mobile number or email with a code (owner item 18, master plan
- * B6, 18 Oct 2026). Email: code to the new address. Phone: code to the
- * account's current email until SMS is live. Same limits as password reset.
+ * Changing your email with a code (owner item 18, master plan B6, 18 Oct 2026),
+ * as settled with the security reviewer:
+ *   - proof of the account's owner (current password, or for a password-less
+ *     account a code to the OLD email) AND of the new inbox (code to the NEW email);
+ *   - every other session signed out, old address told;
+ *   - mobile numbers are changed by support until SMS codes are live (M1);
+ *   - riders: the number customers call follows the same rule, and once approved
+ *     the licence and vehicle are changed by operations only.
  */
 import assert from 'node:assert/strict';
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
+import { config } from '../config/env.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
-import { normalizeIndianPhone } from '../utils/phone.ts';
 import { banAccount } from '../modules/platform/blockedIdentifiers.ts';
 
 const PORT = 5286;
@@ -36,84 +41,111 @@ async function api(pathname: string, init: any = {}, token?: string) {
   });
   return { status: res.status, json: (await res.json().catch(() => ({}))) as any };
 }
-/** Off production the server logs the code instead of needing an inbox. */
-const codes: string[] = [];
+/** Off production the server logs the codes instead of needing an inbox. */
+const codes: Array<{ code: string; ownerCode: string | null }> = [];
 const log = console.log;
 console.log = (...args: any[]) => {
   const line = String(args[0] ?? '');
-  if (line.includes('"CONTACT_CHANGE_CODE"')) codes.push(JSON.parse(line).code);
+  if (line.includes('"CONTACT_CHANGE_CODE"')) {
+    const e = JSON.parse(line);
+    codes.push({ code: e.code, ownerCode: e.ownerCode });
+  }
   log(...args);
 };
 const request = (body: any, token: string) => api('/auth/contact/request', { method: 'POST', body }, token);
-const confirm = (code: string, token: string) => api('/auth/contact/confirm', { method: 'POST', body: { code } }, token);
-const me = () => memoryStore.users.get('usr_customer_01') as any;
-const allowResend = () => {
-  if (me().contactChange) me().contactChange.sentAt = new Date(Date.now() - 120_000).toISOString();
+const confirm = (body: any, token: string) => api('/auth/contact/confirm', { method: 'POST', body }, token);
+const user = (id: string) => memoryStore.users.get(id) as any;
+const allowResend = (id: string) => {
+  if (user(id).contactChange) user(id).contactChange.sentAt = new Date(Date.now() - 120_000).toISOString();
 };
+const last = () => codes[codes.length - 1];
 
+(config as any).OTP_PROVIDER = 'fixed';
 await seedDatabase();
 const server = createApp().listen(PORT, '127.0.0.1');
 await new Promise(r => setTimeout(r, 400));
 
 try {
   const token = (await api('/auth/login', { method: 'POST', body: { email: 'customer@quickbite.app', password: 'pass123' } })).json?.data?.token;
+  const ME = 'usr_customer_01';
 
-  console.log('\n-- Change the mobile number');
-  const taken = await request({ kind: 'phone', value: '9876511223' }, token);
-  it("Another account's number is refused before any code is sent", () => {
-    assert.equal(taken.json?.error?.code, 'PHONE_IN_USE');
+  console.log('\n-- Mobile numbers: support only until SMS');
+  const phone = await request({ kind: 'phone', value: '9123400099' }, token);
+  it('A phone change is sent to support', () => assert.equal(phone.json?.error?.code, 'PHONE_CHANGE_VIA_SUPPORT'));
+
+  console.log('\n-- Email, account with a password');
+  const noPassword = await request({ kind: 'email', value: 'new.address@example.com' }, token);
+  it('Without the current password nothing is sent', () => {
+    assert.equal(noPassword.json?.error?.code, 'INVALID_PASSWORD');
     assert.equal(codes.length, 0);
   });
-  const asked = await request({ kind: 'phone', value: '+91 91234 00099' }, token);
-  it('A free number: a code goes to the account email', () => {
+  const taken = await request({ kind: 'email', value: 'partner@quickbite.app', currentPassword: 'pass123' }, token);
+  it("Another account's email is refused", () => assert.equal(taken.json?.error?.code, 'EMAIL_IN_USE'));
+  const asked = await request({ kind: 'email', value: 'New.Address@Example.com', currentPassword: 'pass123' }, token);
+  it('With the password, a code goes to the new email only', () => {
     assert.equal(asked.status, 200, JSON.stringify(asked.json).slice(0, 200));
-    assert.equal(asked.json?.data?.sentTo, 'current');
-    assert.equal(codes.length, 1);
+    assert.equal(asked.json?.data?.needsOwnerCode, false);
   });
-  const soon = await request({ kind: 'phone', value: '9123400098' }, token);
-  it('Another code within a minute is refused', () => assert.equal(soon.status, 429));
-  // The route that returns the stored record (GET /auth/me only echoes the token's claims).
-  const accountView = await api('/auth/me/usr_customer_01', {}, token);
-  it('The pending code is never in the account view', () => assert.ok(!JSON.stringify(accountView.json).includes('contactChange')));
-  const wrong = await confirm(codes[0] === '000000' ? '111111' : '000000', token);
+  const record = await api(`/auth/me/${ME}`, {}, token);
+  it('The pending codes are never in the account record', () => assert.ok(!JSON.stringify(record.json).includes('contactChange')));
+  const wrong = await confirm({ code: last().code === '000000' ? '111111' : '000000' }, token);
   it('A wrong code changes nothing', () => {
     assert.equal(wrong.json?.error?.code, 'INVALID_CONTACT_CODE');
-    assert.notEqual(normalizeIndianPhone(me().phone), '9123400099');
+    assert.equal(user(ME).email, 'customer@quickbite.app');
   });
-  const ok = await confirm(codes[0], token);
-  it('The right code changes the number', () => {
-    assert.equal(ok.status, 200, JSON.stringify(ok.json).slice(0, 200));
-    assert.equal(normalizeIndianPhone(me().phone), '9123400099');
-  });
-  it('...and the reply carries no secrets', () => assert.ok(!/passwordHash|contactChange|codeHash/.test(JSON.stringify(ok.json))));
-  const reused = await confirm(codes[0], token);
-  it('The code works once', () => assert.equal(reused.json?.error?.code, 'INVALID_CONTACT_CODE'));
-
-  console.log('\n-- Change the email');
-  allowResend();
-  const toNew = await request({ kind: 'email', value: 'New.Address@Example.com' }, token);
-  it('A new email: the code goes to the new address', () => assert.equal(toNew.json?.data?.sentTo, 'new'));
-  allowResend();
-  me().contactChange.expiresAt = new Date(Date.now() - 1000).toISOString();
-  const late = await confirm(codes[1], token);
-  it('An expired code is refused', () => assert.equal(late.json?.error?.code, 'INVALID_CONTACT_CODE'));
-  allowResend();
-  await request({ kind: 'email', value: 'New.Address@Example.com' }, token);
-  const emailed = await confirm(codes[2], token);
+  const ok = await confirm({ code: last().code }, token);
   it('The right code changes the email (stored lower-case)', () => {
-    assert.equal(emailed.status, 200, JSON.stringify(emailed.json).slice(0, 200));
-    assert.equal(me().email, 'new.address@example.com');
+    assert.equal(ok.status, 200, JSON.stringify(ok.json).slice(0, 200));
+    assert.equal(user(ME).email, 'new.address@example.com');
+  });
+  it('...the reply carries a fresh token and no secrets', () => {
+    assert.ok(ok.json?.data?.token);
+    assert.ok(!/passwordHash|contactChange|codeHash/.test(JSON.stringify(ok.json)));
+  });
+  const oldSession = await api('/auth/me', {}, token);
+  it('...and the sessions opened before are signed out', () => assert.equal(oldSession.json?.error?.code, 'SESSION_REVOKED'));
+
+  console.log('\n-- Email, account without a password (Customer app)');
+  await api('/auth/otp/request', { method: 'POST', body: { phone: '9000444001', email: 'codeonly@example.com' } });
+  const signed = await api('/auth/otp/verify', { method: 'POST', body: { phone: '9000444001', code: config.OTP_FIXED_CODE } });
+  const codeToken = signed.json?.data?.token;
+  const codeUser: any = Array.from(memoryStore.users.values()).find((u: any) => u.email === 'codeonly@example.com');
+  const two = await request({ kind: 'email', value: 'codeonly.new@example.com' }, codeToken);
+  it('A code goes to the new email AND one to the current email', () => {
+    assert.equal(two.json?.data?.needsOwnerCode, true, JSON.stringify(two.json).slice(0, 200));
+    assert.ok(last().ownerCode);
+  });
+  const onlyNew = await confirm({ code: last().code }, codeToken);
+  it('The new-email code alone is not enough', () => {
+    assert.equal(onlyNew.json?.error?.code, 'INVALID_CONTACT_CODE');
+    assert.equal(user(codeUser.id).email, 'codeonly@example.com');
+  });
+  const both = await confirm({ code: last().code, ownerCode: last().ownerCode }, codeToken);
+  it('Both codes change it', () => {
+    assert.equal(both.status, 200, JSON.stringify(both.json).slice(0, 200));
+    assert.equal(user(codeUser.id).email, 'codeonly.new@example.com');
   });
 
   console.log('\n-- Blocked identities');
-  // A blocked person whose account no longer holds the address (e.g. removed): the ban still holds.
   memoryStore.users.set('usr_banned_tmp', { id: 'usr_banned_tmp', email: 'banned.person@gmail.com', role: 'customer' } as any);
   banAccount('usr_banned_tmp');
   memoryStore.users.delete('usr_banned_tmp');
-  allowResend();
-  const banned = await request({ kind: 'email', value: 'Banned.Person+new@gmail.com' }, token);
+  allowResend(codeUser.id);
+  const banned = await request({ kind: 'email', value: 'Banned.Person+new@gmail.com' }, both.json?.data?.token);
   it("A blocked person's email (any Gmail spelling) cannot be taken this way", () =>
     assert.equal(banned.json?.error?.code, 'IDENTITY_BLOCKED', `status ${banned.status} ${banned.json?.error?.code}`));
+
+  console.log('\n-- Riders: the number customers call, and what was reviewed');
+  const riderToken = (await api('/auth/login', { method: 'POST', body: { email: 'rider@quickbite.app', password: 'pass123' } })).json?.data?.token;
+  const riderRec: any = memoryStore.riders.get('rdr_vikram_01');
+  const directPhone = await api('/riders/me', { method: 'PATCH', body: { phone: '9123400055' } }, riderToken);
+  it('A rider cannot change their number from the profile form', () =>
+    assert.equal(directPhone.json?.error?.code, 'PHONE_CHANGE_NEEDS_CODE', `status ${directPhone.status}`));
+  const licence = await api('/riders/me', { method: 'PATCH', body: { licenseNumber: 'KA0999999999' } }, riderToken);
+  it('An approved rider cannot change their own licence number', () =>
+    assert.equal(licence.json?.error?.code, 'REVIEWED_FIELD_LOCKED', `status ${licence.status} (kyc ${riderRec.kycStatus})`));
+  const sameName = await api('/riders/me', { method: 'PATCH', body: { fullName: 'Vikram Singh' } }, riderToken);
+  it('...while ordinary fields still save', () => assert.equal(sameName.status, 200, `status ${sameName.status}`));
 } finally {
   console.log = log;
   await new Promise(r => server.close(() => r(null)));

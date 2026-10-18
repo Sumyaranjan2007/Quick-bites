@@ -6,6 +6,25 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Email change needs two proofs; mobile numbers by support until SMS; rider profile locks
+
+> **For the owner.** The reviewers found that changing a mobile number with a code sent to your
+> email would let someone take a number that is not theirs, and the real owner's sign-in codes
+> would then go to them. So, until SMS codes are switched on, **mobile numbers are changed by
+> support** (Help). Changing your **email** now needs proof that you own the account (your password,
+> or a second code sent to your old email) as well as a code to the new email; it then signs you
+> out on other phones and tells the old address. A rider can no longer change the number customers
+> call from their profile, and once approved, their licence and vehicle numbers are changed by
+> operations only, so they always match the documents you checked.
+
+- `POST /api/auth/contact/request` / `confirm` reworked (replaces the version in `60a8188`): email only,
+  owner proof + new-inbox code, `tokenVersion` raised, fresh token returned; `kind: 'phone'` →
+  `PHONE_CHANGE_VIA_SUPPORT`. `PATCH /api/riders/me`: different phone → `PHONE_CHANGE_NEEDS_CODE`,
+  approved rider licence/RC → `REVIEWED_FIELD_LOCKED`.
+- `contactChange` suite rewritten (16 checks; 3 guards mutation-checked).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B6 step 5: change mobile number or email with a code (server)
 
 > **For the owner.** Anyone can now change their mobile number or email themselves, confirmed by a

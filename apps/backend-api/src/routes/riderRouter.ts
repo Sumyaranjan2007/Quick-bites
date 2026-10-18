@@ -1,3 +1,4 @@
+import { normalizeIndianPhone } from '../utils/phone.ts';
 import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -322,6 +323,20 @@ riderRouter.patch('/me', validate({ body: ProfileUpdateSchema }), async (req, re
   try {
     const rider = await requireRiderSelf(req);
     const patch = { ...req.body } as Partial<DeliveryRider>;
+
+    // The number customers call: changed by support until SMS codes are live (security M1).
+    if (patch.phone !== undefined && normalizeIndianPhone(patch.phone) !== normalizeIndianPhone(rider.phone || '')) {
+      throw new AppError('Mobile numbers are changed by Quick Bites support for now: open Help. Changing it in the app comes with SMS codes.', 409, 'PHONE_CHANGE_NEEDS_CODE');
+    }
+    // Once approved, the licence and vehicle are what the documents were checked against:
+    // operations changes them (People → rider), so they cannot drift from the review.
+    const reviewed = rider.kycStatus === 'ACTIVE' && (
+      (patch.licenseNumber !== undefined && patch.licenseNumber !== rider.licenseNumber) ||
+      ((patch as any).vehicleRcNumber !== undefined && (patch as any).vehicleRcNumber !== (rider as any).vehicleRcNumber)
+    );
+    if (reviewed) {
+      throw new AppError('Your licence and vehicle were checked when you were approved. Ask Quick Bites support (Help) to change them.', 409, 'REVIEWED_FIELD_LOCKED');
+    }
 
     const updated = await riderRepository.update(rider.id, patch);
     if (!updated) throw new AppError('Rider profile not found.', 404, 'RIDER_NOT_FOUND');
