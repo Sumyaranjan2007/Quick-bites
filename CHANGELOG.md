@@ -6,6 +6,25 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Customer app: location first, favourites, recommended, sections, help chat, email change; L12 fixed
+
+> **For the owner.** In the Customer app: a signed-in customer with no address is asked **where to
+> deliver** first; without a location the list says **"Recommended by Quick Bites"** with a tap to set
+> one; **Your favourites** (hearted kitchens) sit above the list; a menu section the kitchen switched
+> off says **"Not available right now · back 7:00 pm"**; the **Pure Veg** seal shows on the restaurant
+> page; **Help** starts with quick answers about their latest order, then "Talk to us" with the chat
+> attached; **Change email** with a code to the new address (plus their password or a code to the old
+> one). The mobile number changes through support until SMS codes. Security fix L12: a token re-issued
+> to a partner's Customer-app session (password or email change) stays customer-only.
+> Needs a phone check in the final test round (the Customer app has no website).
+
+- `DiscoveryFeedScreen` (listKind banner, favourites row, location sheet first), `RestaurantDetailScreen`
+  (off sections, seal), `components/HelpChat`, `ProfileScreen` email change (phone no longer sent).
+- `middlewares/auth.ts` `req.user.scope`; `generateToken(..., scope)` on change-password and contact
+  confirm; check in `customerAddsRole` (mutation caught).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Stage E part 1: Operations, Partner and Rider screens for the server features
 
 > **For the owner.** The buttons for what the server already did, on the apps and the websites:

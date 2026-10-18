@@ -120,6 +120,63 @@ export const ProfileScreen: React.FC<Props> = ({
   };
 
   const [editOpen, setEditOpen] = useState(false);
+  const [emailStep, setEmailStep] = useState<'idle' | 'request' | 'confirm'>('idle');
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [ownerCode, setOwnerCode] = useState('');
+  const [needsOwnerCode, setNeedsOwnerCode] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  const contactReply = async (res: Response) => {
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(parseApiError(data, 'That did not work. Try again.').message);
+    return data.data;
+  };
+  const requestEmailChange = async () => {
+    setEmailBusy(true);
+    setEmailError(null);
+    try {
+      const data = await contactReply(
+        await apiFetch(`${apiUrl}/auth/contact/request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ kind: 'email', value: newEmail.trim(), ...(emailPassword ? { currentPassword: emailPassword } : {}) })
+        })
+      );
+      setNeedsOwnerCode(Boolean(data?.needsOwnerCode));
+      setEmailStep('confirm');
+    } catch (err: any) {
+      setEmailError(err?.message || 'The code could not be sent.');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+  const confirmEmailChange = async () => {
+    setEmailBusy(true);
+    setEmailError(null);
+    try {
+      const data = await contactReply(
+        await apiFetch(`${apiUrl}/auth/contact/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ code: emailCode, ...(needsOwnerCode ? { ownerCode } : {}) })
+        })
+      );
+      if (data?.token) onTokenRefreshed?.(data.token);
+      if (data?.user) onUserUpdated?.(data.user);
+      setEmailStep('idle');
+      setNewEmail('');
+      setEmailPassword('');
+      setEmailCode('');
+      setOwnerCode('');
+    } catch (err: any) {
+      setEmailError(err?.message || 'That code did not work.');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
   const [langOpen, setLangOpen] = useState(false);
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -285,7 +342,7 @@ export const ProfileScreen: React.FC<Props> = ({
       const res = await apiFetch(`${apiUrl}/auth/me`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ fullName: fullName.trim(), phone: phone.trim() || undefined })
+        body: JSON.stringify({ fullName: fullName.trim() })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -666,19 +723,71 @@ export const ProfileScreen: React.FC<Props> = ({
                 placeholderTextColor={c.text.muted}
               />
 
-              <Text style={styles.label}>Phone</Text>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="10-digit mobile"
-                placeholderTextColor={c.text.muted}
-                keyboardType="phone-pad"
-              />
+              {/* The mobile number changes through support until sign-in codes go by SMS (M1). */}
+              <Text style={styles.label}>Mobile</Text>
+              <Text style={styles.helper}>{user?.phone || 'Not set'} · to change it, open Help and ask support.</Text>
 
-              <Text style={styles.helper}>
-                Your email is your login, so it cannot be changed here. Customer care can move an account to a new address.
-              </Text>
+              {/* Email change (B6): a code to the new address, plus proof it is you. */}
+              <Text style={styles.label}>Email</Text>
+              {emailStep === 'idle' && (
+                <TouchableOpacity onPress={() => { setEmailStep('request'); setEmailError(null); }} activeOpacity={0.8}>
+                  <Text style={styles.helper}>
+                    {String(user?.email || '').endsWith('@phone.quickbite.app') ? 'No email yet' : user?.email} · <Text style={{ color: c.primary[600], fontWeight: '700' }}>Change</Text>
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {emailStep === 'request' && (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    value={newEmail}
+                    onChangeText={setNewEmail}
+                    placeholder="New email"
+                    placeholderTextColor={c.text.muted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  {!passwordless && (
+                    <TextInput
+                      style={styles.input}
+                      value={emailPassword}
+                      onChangeText={setEmailPassword}
+                      placeholder="Your password, to confirm it is you"
+                      placeholderTextColor={c.text.muted}
+                      secureTextEntry
+                    />
+                  )}
+                  <TouchableOpacity style={styles.secondaryInline} onPress={() => void requestEmailChange()} disabled={emailBusy}>
+                    <Text style={styles.secondaryInlineText}>{emailBusy ? 'Sending…' : 'Send the code'}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {emailStep === 'confirm' && (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    value={emailCode}
+                    onChangeText={v => setEmailCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                    placeholder={`Code sent to ${newEmail.trim()}`}
+                    placeholderTextColor={c.text.muted}
+                    keyboardType="number-pad"
+                  />
+                  {needsOwnerCode && (
+                    <TextInput
+                      style={styles.input}
+                      value={ownerCode}
+                      onChangeText={v => setOwnerCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                      placeholder="Code sent to your current email"
+                      placeholderTextColor={c.text.muted}
+                      keyboardType="number-pad"
+                    />
+                  )}
+                  <TouchableOpacity style={styles.secondaryInline} onPress={() => void confirmEmailChange()} disabled={emailBusy}>
+                    <Text style={styles.secondaryInlineText}>{emailBusy ? 'Changing…' : 'Change my email'}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {!!emailError && <Text style={styles.error}>{emailError}</Text>}
 
               {!!saveError && <Text style={styles.error}>{saveError}</Text>}
 
@@ -789,6 +898,8 @@ export const ProfileScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  secondaryInline: { paddingVertical: 10, alignItems: 'flex-start', marginBottom: 8 },
+  secondaryInlineText: { color: c.primary[600], fontWeight: '700', fontSize: 15 },
   deleteLink: { alignSelf: 'center', paddingVertical: 10, marginTop: 4 },
   deleteLinkText: { fontSize: 13, color: c.semantic.error, textDecorationLine: 'underline' },
   dangerBtn: { backgroundColor: c.semantic.error },

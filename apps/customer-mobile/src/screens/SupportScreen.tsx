@@ -1,3 +1,4 @@
+import { HelpChat } from '../components/HelpChat';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -241,6 +242,13 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
         <Text style={styles.heroTitle}>We're here to help</Text>
         <Text style={styles.heroSub}>{t('support.hours')}</Text>
       </Card>
+
+      {/* Help chat (B8): quick answers first, then a person with the chat attached. */}
+      {!!token && (
+        <Card style={styles.block}>
+          <HelpChat apiUrl={apiUrl} token={token} onSent={() => void loadTickets()} />
+        </Card>
+      )}
 
       <Card style={styles.block}>
         {rows.length === 0 && (

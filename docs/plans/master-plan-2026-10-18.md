@@ -241,7 +241,10 @@ Recipe: `customer-app-feel-2026-10-17.md` phases 1–4 and `design/motion/`.
 | D5 | **Tracking with the moving bike** (#21): Google map, our own bike icon (top-down, maroon, flat, rotates to heading); each GPS fix → marker glides from the last point to the new one over the time between fixes (Android `animateMarkerToCoordinate`, iPhone `AnimatedRegion` timing, both documented by react-native-maps), heading from the last two snapped points; camera fits kitchen + bike + home and eases, stops following while the customer drags; route line from Routes API polyline; "We're ahead of time!" card (B3) |
 | D6 | Profile edits with codes (#18, #20), help chat (#16), orders, addresses |
 
-**Built:** –
+**Built (features, 18 Oct, before C):** D3 location first (sheet opens for a signed-in customer with no
+address), "Recommended by Quick Bites" banner, Favourites row (#13); D4 off sections greyed with "back at",
+Pure Veg seal on the restaurant page; D6 help chat, email change with two proofs (phone by support).
+The look and motion of D1–D5 (Lexend, haptics, skeletons, moving bike) wait for Stage C.
 
 ## Stage E — Partner, Rider, Operations apps + websites · ~1.5 weeks
 

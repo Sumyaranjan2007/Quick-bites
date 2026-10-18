@@ -253,6 +253,17 @@ async function run() {
     const ownToken = own.res.json?.data?.token;
     const earnings = await fetch(`${API}/earnings/payout-requests`, { headers: { Authorization: `Bearer ${ownToken}` } });
     check('...the session is customer-only (kitchen money refused)', earnings.status === 403, `status ${earnings.status}`);
+    // L12: a password change from this session hands back a token just as limited.
+    const changedRes = await fetch(`${API}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownToken}` },
+      body: JSON.stringify({ currentPassword: 'Kitchen#2029', newPassword: 'Kitchen#2030x' })
+    });
+    const changed = { status: changedRes.status, json: (await changedRes.json().catch(() => ({}))) as any };
+    const reissued = changed.json?.data?.token;
+    const earningsAfter = await fetch(`${API}/earnings/payout-requests`, { headers: { Authorization: `Bearer ${reissued}` } });
+    check('...and a token re-issued to it (password change) stays customer-only (L12)',
+      Boolean(reissued) && earningsAfter.status === 403, `change ${changed.status} ${changed.json?.error?.code || ''} / earnings ${earningsAfter.status}`);
     const twice = await emailedSignIn('9000202020', KITCHEN_EMAIL);
     check('Signing in again the same way works', twice.res.status === 200 && twice.res.json?.data?.user?.id === kitchenUser.id);
     const viaKitchenPhone = await emailedSignIn('9000101010', KITCHEN_EMAIL);

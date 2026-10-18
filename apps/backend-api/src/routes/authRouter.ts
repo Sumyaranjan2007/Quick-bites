@@ -1424,7 +1424,8 @@ authRouter.post(
       const refreshed = await userRepository.findById(user.id);
       res.json({
         success: true,
-        data: { changed: true, token: refreshed ? generateToken(refreshed) : undefined },
+        // Same role and scope as the session it replaces (security L12).
+        data: { changed: true, token: refreshed ? generateToken(refreshed, req.user!.role, req.user!.scope) : undefined },
         message: 'Your password has been changed.'
       });
     } catch (err) {
@@ -1710,7 +1711,7 @@ authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware,
     const { passwordHash, passwordReset, contactChange, ...safeUser } = updated;
     res.json({
       success: true,
-      data: { user: safeUser, token: generateToken(updated, req.user!.role as any) },
+      data: { user: safeUser, token: generateToken(updated, req.user!.role as any, req.user!.scope) },
       message: 'Your email is changed.'
     });
   } catch (err) {

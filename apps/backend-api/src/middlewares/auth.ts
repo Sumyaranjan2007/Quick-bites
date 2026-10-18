@@ -18,6 +18,8 @@ export interface AuthenticatedUser {
    * rider at once and comparing the primary role says no.
    */
   roles: UserRole[];
+  /** 'customer' on a Customer-app session; carried into any token re-issued to it (security L12). */
+  scope?: 'customer';
   fullName: string;
   isGold: boolean;
 }
@@ -216,6 +218,7 @@ export function authMiddleware(requiredRole?: string) {
           return;
         }
         req.user.role = 'customer' as UserRole;
+        req.user.scope = 'customer';
         held = ['customer'];
         if (/\/(earnings|payee-accounts|kyc)$/.test(req.baseUrl || '')) {
           res.status(403).json({

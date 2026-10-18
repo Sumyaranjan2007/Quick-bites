@@ -160,6 +160,9 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     code: string;
   } | null>(null);
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
+  // 'recommended' when no location is known: the server sends Quick Bites' own picks (B5, #7).
+  const [listKind, setListKind] = useState<'recommended' | 'nearby' | 'all'>('all');
+  const askedForLocation = useRef(false);
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [refreshing, setRefreshing] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -310,6 +313,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
           }))
         );
         setPromotion(data.data?.promotion ?? null);
+        setListKind(data.data?.listKind ?? 'all');
         setState('success');
       } else {
         setState('error');
@@ -327,6 +331,12 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     (async () => {
       await loadLocality();
       load();
+      // Location first (#7): a signed-in customer with no address is asked where to deliver
+      // before browsing. Once per visit; a guest (browse-first on iPhone) is not asked.
+      if (token && !originRef.current && !askedForLocation.current) {
+        askedForLocation.current = true;
+        setLocationSheetOpen(true);
+      }
     })();
     loadFavourites();
   }, [apiUrl, token]);
@@ -744,6 +754,33 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         )
       )}
 
+      {state === 'success' && listKind === 'recommended' && (
+        <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
+          <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
+          <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Favourites (#13): the kitchens this customer hearted, above the main list. */}
+      {state === 'success' && !!token && restaurants.some(r => favourites.has(r.id)) && (
+        <View style={styles.favouritesBlock}>
+          <SectionHeader title="Your favourites" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            {restaurants
+              .filter(r => favourites.has(r.id))
+              .map(r => (
+                <TouchableOpacity key={r.id} style={styles.favouriteCard} onPress={() => onSelectRestaurant(r)} activeOpacity={0.9}>
+                  <RestaurantPhoto photos={r.photos} placeholder={r.placeholder} bannerUrl={r.bannerUrl} name={r.name} style={styles.favouritePhoto} />
+                  <Text style={styles.favouriteName} numberOfLines={1}>
+                    {r.name}
+                  </Text>
+                  {r.isServing === false && <Text style={styles.favouriteClosed}>Not delivering currently</Text>}
+                </TouchableOpacity>
+              ))}
+          </ScrollView>
+        </View>
+      )}
+
       {state === 'success' &&
         visible.map(r => (
           <TouchableOpacity key={r.id} activeOpacity={0.92} onPress={() => onSelectRestaurant(r)}>
@@ -959,6 +996,19 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  recommendBanner: {
+    backgroundColor: c.primary[50],
+    borderRadius: tokens.radii.lg,
+    padding: 14,
+    marginBottom: 14
+  },
+  recommendTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: c.primary[700] },
+  recommendBody: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4 },
+  favouritesBlock: { marginBottom: 16 },
+  favouriteCard: { width: 140 },
+  favouritePhoto: { width: 140, height: 90, borderRadius: tokens.radii.lg },
+  favouriteName: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.primary, marginTop: 6 },
+  favouriteClosed: { fontSize: tokens.font.size.xs, color: c.text.muted },
   suggestBox: {
     marginHorizontal: 16,
     marginTop: -4,

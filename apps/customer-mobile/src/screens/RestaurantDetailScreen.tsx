@@ -10,7 +10,7 @@ import {
 import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
 import { Card, DietMark, RatingBadge, Button, EmptyState, LoadingState, Skeleton } from '../components/ui';
-import { ArrowLeft, ShoppingBag, ShieldCheck, Heart, Share2, Timer, Tag } from 'lucide-react-native';
+import { ArrowLeft, ShoppingBag, ShieldCheck, Leaf, Heart, Share2, Timer, Tag } from 'lucide-react-native';
 import { RestaurantItem } from './DiscoveryFeedScreen';
 import { apiFetch } from '../lib/apiFetch';
 import { useMenuSocket } from '../lib/useOrderSocket';
@@ -132,7 +132,10 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
       if (!data.success || !data.data?.menu?.categories) throw new Error('Menu unavailable for this restaurant.');
 
       const flat: Dish[] = [];
+      // Sections the kitchen switched off (B5): greyed with when they come back.
+      const off: Record<string, string | null> = {};
       for (const cat of data.data.menu.categories) {
+        if (cat.isAvailable === false) off[cat.name] = cat.backAt || null;
         for (const item of cat.items || []) {
           flat.push({
             id: item.id,
@@ -149,6 +152,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
         }
       }
       setDishes(flat);
+      setSectionsOff(off);
       setActiveCategory(flat[0]?.categoryName ?? null);
     } catch (err: any) {
       setLoadError(err.message || 'Could not load the menu. Check your connection.');
@@ -156,6 +160,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
       setIsLoading(false);
     }
   };
+
+  const [sectionsOff, setSectionsOff] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     loadMenu();
@@ -314,6 +320,13 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             <RatingBadge value={restaurant.rating} count={restaurant.ratingCount} compact />
           </View>
           <Text style={styles.cuisine}>{restaurant.cuisine}</Text>
+          {/* The Pure Veg seal, given by Quick Bites only (B5). */}
+          {restaurant.isPureVeg && (
+            <View style={styles.fssaiRow}>
+              <Leaf size={13} color={c.dietary.veg} />
+              <Text style={styles.fssaiText}>Pure Veg kitchen</Text>
+            </View>
+          )}
           <Text style={styles.costLine}>
             {/* No platform-wide free delivery exists; the fee is quoted at checkout. */}
             ₹{restaurant.priceForTwo} for two
@@ -386,6 +399,14 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             }}
           >
             {!!group.category && <Text style={styles.sectionHeading}>{group.category}</Text>}
+            {group.category in sectionsOff && (
+              <Text style={styles.sectionOff}>
+                Not available right now
+                {sectionsOff[group.category]
+                  ? ` · back ${new Date(sectionsOff[group.category]!).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`
+                  : ''}
+              </Text>
+            )}
             {group.items.map(dish => {
             const inCart = cart.filter(x => x.dishId === dish.id).reduce((s, x) => s + x.quantity, 0);
             return (
@@ -551,6 +572,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  sectionOff: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: -4, marginBottom: 8 },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { paddingBottom: 120 },
 
