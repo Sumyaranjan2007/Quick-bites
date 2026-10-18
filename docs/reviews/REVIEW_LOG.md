@@ -111,3 +111,24 @@ R2, R3 closed. R1 waits on the owner. Still open: R4, R5, R7, S1 (offer race, bl
 | S6 | Low | `modules/orders/tripOffers.ts` (the S1 re-check) | The re-check after the await repeats `riderId` and `liveOffer` but not `offerableNow(order)`: an order cancelled (or otherwise moved on) while riders were being ranked still gets an offer and a push; the claim gate then refuses it, so no money moves, but a rider is woken for nothing. | Add `|| !offerableNow(order)` to the same line. | open |
 
 Still open: R4, R5, R7, S4, S5, S6, B1-2, B7-1, B7-2, T1, T2, T3, D1, D6, D8; R1 and B1-1 with the owner.
+
+---
+
+## 18 Oct 2026 — `55d62d5` B6 step 1 (forgot password), `08e0cfe` S6, `5e93f1b` M1 round 2 + T1 + T2
+
+| Commit | Verdict |
+|---|---|
+| `55d62d5` forgot password by email code | **Changes needed** (P1) |
+| `08e0cfe` S6 | **Approve** (S6 closed: `offerableNow` in the post-await re-check) |
+| `5e93f1b` M1 round 2, T1, T2 | **Approve** (T1, T2 closed; 1 low) |
+
+Checked and fine: the reset code is stored only as a hash and every response that returned a user record now drops `passwordReset` too (`authRouter.ts:249`, `:301`, `peopleRoutes.ts:176`, `:272`, `rbacRoutes.ts:159`, `:222`, `:277`); `/api/auth/me` in `apiRouter.ts` returns `req.user`, which never carries it. Tries cannot be raced past 5: `userRepository.update` replaces the record synchronously (`userRepository.ts:106-111`), so a parallel guess reads the decremented count. Customer-only, blocked and the boot super-admin accounts are excluded; success bumps `tokenVersion`, signing out every device. T1: an unpinned kitchen is treated as measured, so cash works as before L7 with the nominal distance.
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| P1 | **Medium** | `routes/authRouter.ts` `/password/forgot` + `/password/reset` | **Codes are unlimited over time.** Each forgot request after 60 s issues a fresh code with 5 fresh tries, and the only other limit is per IP (`authRateLimiterMiddleware`). From several IPs that is up to 5 guesses a minute, ~7,200 a day at 1-in-a-million each: about 0.7 % a day, ~20 % a month, to take over a chosen partner, rider or staff account. | Per account: at most 5 codes and 10 wrong tries per 24 h (kept on `passwordReset`), then the same reply but no new code until the next day (admin reset still works). One check: 11 wrong tries across 3 codes → no 4th code. | open |
+| P2 | Low-medium | `/password/forgot` | Same text for every email (D8), but **not the same time**: a real account awaits `persistDurably` and the Brevo send (hundreds of ms), an unknown one answers at once, so timing still tells which emails are partners/riders/staff. | Answer first and send in the background (`void`), or never `await` the email on this route. | open |
+| P3 | Low | `/password/reset` | No "your password was changed" email after a reset; the owner of a taken-over account is not told. | One `sendEmail` after the update (fire and forget). | open |
+| PH1 | Low | `routes/riderRouter.ts:307` (`PATCH /riders/me`) | M1 rounds 1–2 guard the **account** phone, but the rider **record** phone (the number customers and kitchens call, copied onto orders as `riderPhone`) is still changed freely: no code, no duplicate check, and it drifts from the account phone. Same state, second copy (`CLAUDE.md` §8). | Apply the same rule there (refuse a change until B6's code-to-new-number exists), or keep one phone: copy the account's. | open |
+
+Still open: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1, D6, P1, P2, P3, PH1; R1 and B1-1 with the owner (owner instruction 18 Oct: no questions to him; design points are settled between sessions, live money rules stay).
