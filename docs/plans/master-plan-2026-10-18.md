@@ -177,6 +177,12 @@ ETA = kitchen's **own measured** cooking time (median of its last 20 orders for 
 - **Deletion requests** (rider and partner): request → account off duty (Q2) → admin page shows everything needed: dues and cash in hand (from `payouts.ts`/`cashDeposits.ts`), open orders, documents, trip/order counts, last activity → Approve (only when dues are zero or settled) or Reject with a reason. Exists in part; the review page is the new work.
 - **Remove / Block** (Q1; permissions `accounts.remove`, `accounts.block`; super admin by default; type-the-name confirm; audit-logged): only with no open orders. **Remove** closes the account on every app (sessions revoked, kitchen hidden, rider off dispatch), keeps all data; they may register again as a new account. **Block** does the same and adds the email, phone and document numbers (FSSAI, GSTIN, PAN, licence) to a `blockedIdentifiers` list (stored hashed) that every sign-up, sign-in, contact change and admin Create checks, on all four apps and both websites. Unblock possible by permission. Extends the existing blocking (`accountBlocking` suite) rather than adding a second one.
 
+**B6 built (18 Oct, main):** forgot password by email code with daily caps (`55d62d5`, `12bbc0c`);
+Remove + Block with identifier ban incl. documents (`146c41d`, `0bed223`); deletion requests per Q2 with
+review data (`68c101f`); admin Create with a set-password code (`c8a7850`, `12bbc0c`); email change with two
+proofs, phone by support until SMS (`60a8188`, `b5043a4`); rider profile locks. Open in B6: partner
+GSTIN/FSSAI self-edit (F-13). Suites: `passwordReset`, `removeAndBlock`, `adminCreate`, `contactChange`.
+
 ### B7 — One record per person (#11)
 Admin → People → (restaurant | rider | customer) → **Record**: profile, every document grouped by type with status and date, every photo, bank (masked), orders/trips, money, tickets, audit history; each file opens and downloads; "Download all" as one ZIP. The KYC queue stays for approvals and links into the record.
 
