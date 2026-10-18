@@ -64,6 +64,56 @@ let pool: pg.Pool | null = null;
  */
 let lastLoadedFromDatabaseAt: string | null = null;
 
+let loadedAtDatabaseClock: string | null = null;
+
+/**
+ * DEPLOY OVERLAP (master plan A4, devops F-6). While Railway swaps servers, the
+ * old one keeps answering for a few seconds after the new one loaded, and what
+ * it writes then was invisible here until the next restart (and a later write
+ * of the same document here would overwrite it). So the new server re-reads
+ * documents written after its load, a few times in its first minute.
+ *
+ * A row is adopted when this server has not changed that document since its
+ * own last save (memory still equals what it last saved or loaded). When both
+ * changed it, this server's version stands and the conflict is logged.
+ */
+export function adoptRowsFromOtherServer(rows: Array<{ collection: string; id: string; data: any }>): { adopted: number; conflicts: number } {
+  let adopted = 0;
+  let conflicts = 0;
+  for (const row of rows) {
+    const target = (memoryStore as any)[row.collection] as Map<string, any> | undefined;
+    if (!target) continue;
+    const theirs = JSON.stringify(row.data);
+    const baseline = persistedFor(row.collection).get(row.id);
+    if (theirs === baseline) continue; // our own save, or nothing new
+    const ours = target.has(row.id) ? JSON.stringify(target.get(row.id)) : undefined;
+    if (ours !== baseline) {
+      conflicts++;
+      console.error(JSON.stringify({ level: 'ERROR', event: 'DEPLOY_OVERLAP_CONFLICT', collection: row.collection, id: row.id, note: 'Both servers changed it; this one kept its version.' }));
+      continue;
+    }
+    target.set(row.id, row.data);
+    // Already in the database: recorded as saved, so it is not written back.
+    persistedFor(row.collection).set(row.id, theirs);
+    adopted++;
+  }
+  return { adopted, conflicts };
+}
+
+/** Reads rows written after this server loaded (by the server it replaced) and adopts them. */
+export async function catchUpFromDatabase(): Promise<{ adopted: number; conflicts: number } | null> {
+  if (!pool || !loadedAtDatabaseClock) return null;
+  const { rows } = await pool.query<{ collection: string; id: string; data: any }>(
+    'SELECT collection, id, data FROM store_documents WHERE updated_at > $1',
+    [loadedAtDatabaseClock]
+  );
+  const result = adoptRowsFromOtherServer(rows);
+  if (result.adopted || result.conflicts) {
+    console.log(JSON.stringify({ level: 'WARN', event: 'DEPLOY_OVERLAP_CATCH_UP', ...result }));
+  }
+  return result;
+}
+
 export function storeLoadedAt(): string | null {
   return lastLoadedFromDatabaseAt;
 }
@@ -153,9 +203,11 @@ export async function initDatabase(): Promise<void> {
 export async function loadStoreFromDatabase(): Promise<boolean> {
   if (!pool) throw new Error('initDatabase() has not been called.');
 
-  const { rows } = await pool.query<{ collection: string; id: string; data: any }>(
-    'SELECT collection, id, data FROM store_documents'
+  const { rows } = await pool.query<{ collection: string; id: string; data: any; loaded_at: string }>(
+    'SELECT collection, id, data, now() AS loaded_at FROM store_documents'
   );
+  // The database's own clock, for the deploy catch-up below (A4): ours may differ.
+  loadedAtDatabaseClock = rows[0]?.loaded_at ? new Date(rows[0].loaded_at).toISOString() : null;
   if (rows.length === 0) return false;
 
   persisted.clear();

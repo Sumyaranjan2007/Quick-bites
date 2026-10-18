@@ -8,6 +8,7 @@ import {
   isDatabaseConfigured,
   initDatabase,
   loadStoreFromDatabase,
+  catchUpFromDatabase,
   saveStoreToDatabase,
   closeDatabase
 } from './db/postgresStore.ts';
@@ -140,6 +141,15 @@ if (usingDatabase) {
 }
 
 const app = createApp();
+
+// Deploy overlap (A4): pick up what the outgoing server wrote after this one loaded.
+if (usingDatabase) {
+  for (const seconds of [10, 30, 60, 120]) {
+    setTimeout(() => {
+      catchUpFromDatabase().catch(err => console.error('[ERROR] Deploy catch-up failed:', err));
+    }, seconds * 1000).unref();
+  }
+}
 
 const server = app.listen(config.PORT, '0.0.0.0', () => {
   console.log('====================================================');

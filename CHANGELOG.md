@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- A4: a deploy no longer loses what the old server wrote in its last seconds
+
+> **For the owner.** When Railway swaps to a new version, the old server keeps answering for a few
+> seconds. An order or change made in those seconds reached the database but not the new server, so
+> it looked lost until the next restart, and a later change could overwrite it. Now the new server
+> re-reads what was written after it started (at 10 s, 30 s, 60 s and 2 minutes). Deploying at lunch or
+> dinner time is no longer a data risk (it still gives a few seconds of errors while switching).
+
+- `postgresStore.ts` `adoptRowsFromOtherServer` / `catchUpFromDatabase` (database clock at load);
+  `server.ts` schedules the catch-ups. Both servers changing one document: the new one keeps its
+  version, logged as `DEPLOY_OVERLAP_CONFLICT`. Suite `deployOverlap` (5); 2 mutations caught.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Customer app: location first, favourites, recommended, sections, help chat, email change; L12 fixed
 
 > **For the owner.** In the Customer app: a signed-in customer with no address is asked **where to
