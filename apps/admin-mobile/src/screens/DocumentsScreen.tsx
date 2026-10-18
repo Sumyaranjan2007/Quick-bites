@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { DownloadButton } from '../components/DownloadButton';
 import { documentFileName } from '../lib/download';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Image } from 'react-native';
 import { FileCheck2 } from 'lucide-react-native';
-import { Card, Segmented, Badge, Button, Field, Divider, Loading, EmptyState, NoAccess, KeyValue, ResourceError } from '../components/ui';
+import { Card, Segmented, Badge, Loading, EmptyState, NoAccess, KeyValue, ResourceError, Sheet } from '../components/ui';
+import { DocumentActions, PersonDocuments } from '../components/PersonDocuments';
 import { tokens, humanise, formatDateTime } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
@@ -21,55 +22,12 @@ const c = tokens.colors;
 export const DocumentsScreen: React.FC = () => {
   const { api, can } = useSession();
   const [status, setStatus] = useState('PENDING');
-  const [rejecting, setRejecting] = useState<any | null>(null);
-  const [reason, setReason] = useState('');
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [person, setPerson] = useState<{ kind: 'restaurant' | 'rider'; id: string; name: string } | null>(null);
 
   const list = useResource(() => api.get<any>(`/admin/documents${query({ status })}`), [status]);
   const documents = list.data?.documents || [];
-  const canReview = can('documents.review');
 
   if (!can('documents.view')) return <NoAccess permission="documents.view" />;
-
-  const review = async (doc: any, action: 'APPROVE' | 'REJECT' | 'REQUEST_REUPLOAD', rejectionReason?: string) => {
-    setBusyId(doc.id);
-    try {
-      const result = await api.post<any>('/admin/documents/review', {
-        documentId: doc.id,
-        action,
-        ...(rejectionReason ? { rejectionReason } : {})
-      });
-      setRejecting(null);
-      setReason('');
-      await list.reload();
-
-      /*
-       * The server's own words, because this screen used to guess.
-       *
-       * It said "<partner> can now trade on the platform" after EVERY
-       * approval — which was true while approving any one document approved
-       * the whole partner, and is a lie now that the required set has to be
-       * complete. A reviewer who approves a bank proof and is told the
-       * restaurant is trading will not go looking for the food licence.
-       */
-      const outcome = result?.outcome;
-      Alert.alert(
-        action === 'APPROVE'
-          ? outcome?.verified === false
-            ? 'Approved — still not verified'
-            : 'Approved'
-          : 'Sent back',
-        outcome?.summary ||
-          (action === 'APPROVE'
-            ? `${doc.entityName || 'The partner'} can now trade on the platform.`
-            : 'The partner has been told what to fix and can resubmit.')
-      );
-    } catch (err: any) {
-      Alert.alert('Could not review', err?.message || 'Nothing was changed.');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -104,8 +62,13 @@ export const DocumentsScreen: React.FC = () => {
           <Card key={doc.id}>
             <View style={s.rowTop}>
               <View style={{ flex: 1, paddingRight: tokens.space[3] }}>
-                <Text style={s.title} numberOfLines={1}>
-                  {doc.entityName || 'Partner'}
+                {/* The name opens everything this person uploaded. */}
+                <Text
+                  style={[s.title, s.link]}
+                  numberOfLines={1}
+                  onPress={() => setPerson({ kind: doc.entityType === 'RIDER' ? 'rider' : 'restaurant', id: doc.entityId, name: doc.entityName || 'Partner' })}
+                >
+                  {doc.entityName || 'Partner'} ›
                 </Text>
                 <Text style={s.sub} numberOfLines={1}>
                   {humanise(doc.entityType)} · {humanise(doc.documentType)}
@@ -123,41 +86,14 @@ export const DocumentsScreen: React.FC = () => {
             <KeyValue label="Submitted" value={formatDateTime(doc.submittedAt)} />
             {doc.rejectionReason ? <KeyValue label="Rejected because" value={doc.rejectionReason} /> : null}
 
-            {doc.status === 'PENDING' && canReview ? (
-              rejecting?.id === doc.id ? (
-                <>
-                  <Divider />
-                  <Field label="What is wrong with it?" value={reason} onChangeText={setReason} placeholder="The licence photo is cut off at the expiry date." multiline />
-                  <View style={s.actionRow}>
-                    <Button label="Back" variant="secondary" full onPress={() => setRejecting(null)} />
-                    <Button
-                      label="Ask for a re-upload"
-                      variant="danger"
-                      full
-                      loading={busyId === doc.id}
-                      onPress={() => {
-                        if (!reason.trim()) {
-                          Alert.alert('A reason is required', 'The partner is shown this so they know what to fix.');
-                          return;
-                        }
-                        review(doc, 'REQUEST_REUPLOAD', reason.trim());
-                      }}
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Divider />
-                  <View style={s.actionRow}>
-                    <Button label="Reject" variant="danger" full onPress={() => setRejecting(doc)} />
-                    <Button label="Approve" variant="success" full loading={busyId === doc.id} onPress={() => review(doc, 'APPROVE')} />
-                  </View>
-                </>
-              )
-            ) : null}
+            {doc.replacesId ? <KeyValue label="Replaces" value="A verified document (it still counts until this is approved)" /> : null}
+            <DocumentActions doc={doc} onDone={() => void list.reload()} />
           </Card>
         ))}
       </ScrollView>
+      <Sheet visible={Boolean(person)} onClose={() => setPerson(null)} title={person?.name || ''} subtitle="Everything they uploaded">
+        {person ? <PersonDocuments kind={person.kind} id={person.id} onChanged={() => void list.reload()} /> : null}
+      </Sheet>
     </View>
   );
 };
@@ -167,6 +103,7 @@ const s = StyleSheet.create({
   list: { paddingHorizontal: tokens.space[5], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  link: { color: c.brand.amber },
   sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
   scan: {
     width: '100%',
@@ -175,5 +112,4 @@ const s = StyleSheet.create({
     backgroundColor: c.bg.sunken,
     marginVertical: tokens.space[3]
   },
-  actionRow: { flexDirection: 'row', gap: tokens.space[3] }
 });

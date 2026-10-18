@@ -24,7 +24,7 @@ import {
   ACCEPTED_FORMATS,
   MAX_UPLOAD_MB
 } from '../modules/restaurants/restaurantDocuments.ts';
-import { kycRepository } from '../db/repositories/kycRepository.ts';
+import { kycRepository, replacing } from '../db/repositories/kycRepository.ts';
 import { profileEditRepository } from '../db/repositories/profileEditRepository.ts';
 import { notifyAdminsMenuRequestRaised, notifyAdminsProfileEditRaised } from '../notifications/adminNotifier.ts';
 import { couponRepository } from '../db/repositories/couponRepository.ts';
@@ -1082,29 +1082,13 @@ restaurantRouter.post(
       const banKind = kindForDocument(documentType);
       if (banKind) assertNotBanned({ [banKind]: documentNumber }, restaurant.ownerId);
 
-      const existing = await kycRepository.findByEntity('RESTAURANT', restaurant.id);
-      const current = existing
-        .filter(d => d.documentType === documentType)
-        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
-
-      // Re-uploading over something already approved would quietly un-verify a
-      // trading restaurant, so it is refused rather than silently accepted.
-      if (current?.status === 'APPROVED') {
-        throw new AppError(
-          `Your ${documentType} is already verified. Contact support if it needs to change.`,
-          409,
-          'DOCUMENT_ALREADY_APPROVED'
-        );
-      }
-      if (current?.status === 'PENDING') {
-        throw new AppError(
-          `Your ${documentType} is already with our team for review.`,
-          409,
-          'DOCUMENT_UNDER_REVIEW'
-        );
-      }
+      // Any document may be replaced (owner, 18 Oct 2026): a renewed licence, a
+      // better photo. The approved one keeps standing until the new one is checked.
+      const { replacesId, dropId } = replacing(await kycRepository.findByEntity('RESTAURANT', restaurant.id), documentType);
+      if (dropId) await kycRepository.dropUnreviewed(dropId);
 
       const doc = await kycRepository.submitDocument({
+        ...(replacesId ? { replacesId } : {}),
         entityType: 'RESTAURANT',
         entityId: restaurant.id,
         entityName: restaurant.name,

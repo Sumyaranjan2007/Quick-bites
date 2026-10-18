@@ -46,7 +46,7 @@ The owner may open a fresh session and paste only this file's path. Do this, in 
    Reviewers may still send findings while building; they are logged, and fixed in (b) unless a
    finding is a live security hole (fix at once).
    **Exception, done first (owner, 18 Oct):** document re-upload and re-verify for partners and
-   riders (FSSAI number editable), arranged per person in Admin, live on the websites.
+   riders (FSSAI number editable), arranged per person in Admin, live on the websites. ✅ built 18 Oct.
 7. **Owner decisions still open** are marked ⏳ in the Findings table: build around them with
    today's behaviour, never decide them yourself.
 
@@ -119,7 +119,7 @@ Status: ⬜ not started · 🟨 exists partly today · ✅ built in this plan.
 | 8 | Admin "Create": build a whole restaurant / rider / partner account, verify and upload for them | server ✅: `POST /api/admin/accounts/create` (sign-up's own builders, temporary password emailed, per-kind permission); documents via existing `/api/kyc/submit`, approval via existing review; suite `adminCreate`; screen in Stage E | B6 | ✅ 18 Oct (app E) |
 | 9 | Partner switches off a **whole menu section** (e.g. dosa after 7 pm) | server ✅: section switch with optional "back at" time, partner + admin routes, `modules/restaurants/menuSections.ts`; switches in the apps in Stage E | B5 | ✅ 18 Oct (apps E) |
 | 10 | Every Admin/Partner app feature also on the websites | **automatic**: the websites are the same app code (`scripts/build-web.mjs`); each stage checks the web build | all | ✅ (by design) |
-| 11 | KYC and uploads arranged **per person** (restaurant, rider, customer), view and download | server ✅: `GET /api/admin/records/:kind/:id` (documents grouped, photos, tickets, history, each by permission), one file or all as ZIP (`routes/admin/recordRoutes.ts`); Record screen in Stage E | B7 | ✅ 18 Oct (app E) |
+| 11 | KYC and uploads arranged **per person** (restaurant, rider, customer), view and download | server ✅: `GET /api/admin/records/:kind/:id` (documents grouped, photos, tickets, history, each by permission), one file or all as ZIP (`routes/admin/recordRoutes.ts`); **Admin screens ✅ 18 Oct**: People sheets and KYC names show each person's uploads grouped, in force/earlier, photo, download, re-verify; every document replaceable by partners and riders (owner's "do first") | B7 | ✅ 18 Oct (app E) |
 | 12 | Forgot password with email code; admin can reset for partner/rider | server ✅: forgot/reset by email code (`/api/auth/password/forgot`, `/reset`, suite `passwordReset`); admin reset for partner/rider already existed (`/admin/staff/:id/reset-password`, per-kind permission, audit, sessions cut); app screens in Stage E | B6 | ✅ 18 Oct (app E) |
 | 13 | Customer: liked restaurants in a **Favourites** section | favourites saved (`/customers/favourites`), heart on cards; no section | D3 | 🟨 |
 | 14 | Rider delete = request; admin approves after seeing everything | server ✅: request keeps sign-in (Q2), no new trips (`DELETION_PENDING`), admin list carries dues, cash, orders, documents, last activity; review screen in Stage E | B6 | ✅ 18 Oct (app E) |

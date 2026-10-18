@@ -593,6 +593,8 @@ export interface DocumentRequirement {
   submittedAt?: string;
   reviewedAt?: string;
   canReupload: boolean;
+  /** A verified document still counts while its replacement waits or after it was refused. */
+  stillVerified?: boolean;
 }
 
 export interface RatingsResponse {

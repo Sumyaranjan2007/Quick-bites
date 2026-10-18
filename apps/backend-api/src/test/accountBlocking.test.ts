@@ -544,7 +544,33 @@ async function run() {
       { method: 'POST', body: { documentType: 'FSSAI', documentNumber: '12345678901234', fileUrl: PHOTO } },
       freshToken
     );
-    check('An approved document cannot quietly be replaced', reFssai.status === 409, `status ${reFssai.status}`);
+    // Owner, 18 Oct 2026: any document can be replaced, and the replacement is checked again.
+    check('An approved document can be replaced', reFssai.status === 201, `status ${reFssai.status}`);
+    await api(
+      '/admin/documents/review',
+      { method: 'POST', body: { documentId: reFssai.json?.data?.document?.id, action: 'REJECT', rejectionReason: 'Blurred.' } },
+      admin.token
+    );
+    check(
+      'A refused replacement leaves the approved licence standing: the kitchen keeps trading',
+      memoryStore.restaurants.get(freshId)?.status === 'ACTIVE' && memoryStore.restaurants.get(freshId)?.isOpen === true,
+      `status ${memoryStore.restaurants.get(freshId)?.status}`
+    );
+    const docsView = await api(`/restaurants/${freshId}/documents`, {}, freshToken);
+    const fssaiSlot = (docsView.json?.data?.slots || []).find((s: any) => s.documentType === 'FSSAI');
+    check(
+      'and the partner sees the refusal with the licence still verified',
+      fssaiSlot?.status === 'REJECTED' && fssaiSlot?.verified === true && docsView.json?.data?.verified === true &&
+        (docsView.json?.data?.rejected || []).length === 0,
+      JSON.stringify(fssaiSlot).slice(0, 200)
+    );
+    // A second replacement waits while the admin withdraws the approved one (below).
+    const reFssai2 = await api(
+      `/restaurants/${freshId}/documents`,
+      { method: 'POST', body: { documentType: 'FSSAI', documentNumber: '12345678901234', fileUrl: PHOTO } },
+      freshToken
+    );
+    check('A refused replacement can be sent again', reFssai2.status === 201, `status ${reFssai2.status}`);
 
     // Rejecting an optional document must not close a trading kitchen.
     const gst = await api(
@@ -633,6 +659,15 @@ async function run() {
       'and approving it puts them back in business',
       memoryStore.restaurants.get(freshId)?.status === 'ACTIVE',
       `status ${memoryStore.restaurants.get(freshId)?.status}`
+    );
+    check(
+      "and the approved licence's number becomes the kitchen's FSSAI number",
+      memoryStore.restaurants.get(freshId)?.fssaiLicenseNumber === '99999999999999',
+      `fssai ${memoryStore.restaurants.get(freshId)?.fssaiLicenseNumber}`
+    );
+    check(
+      'and only one FSSAI upload waited at a time (the earlier waiting one was replaced)',
+      [...memoryStore.kycDocuments.values()].filter((d: any) => d.entityId === freshId && d.documentType === 'FSSAI' && d.status === 'PENDING').length === 0
     );
 
     /* ================================================================== *

@@ -6,6 +6,32 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Any document can be replaced and re-verified; Admin shows each person's uploads
+
+> **For the owner.** Partners and riders can now replace ANY document, also a verified one (a renewed
+> FSSAI licence, a new driving licence, a clearer photo): Partner → More → Docs and Rider → Profile →
+> Upload documents. The new one goes to the KYC queue; until it is checked, or if it is refused, the
+> verified one keeps counting, so the kitchen stays open and the rider keeps riding. When an admin
+> approves a new FSSAI/GSTIN/licence/RC photo, its number becomes the one on the kitchen or rider.
+> In Operations (app and website), tapping a name in the KYC queue, or opening a restaurant or rider in
+> People, shows **everything they uploaded**, grouped (Licences, Tax, Identity, Bank), which one is in
+> force, the photo, a download (one or all as ZIP), and Approve / Reject / **Withdraw approval** on any
+> document, not only waiting ones. Withdrawing a required one takes the kitchen off the feed / the rider
+> off shift, as before. Checked on the /partner and /admin websites (QA server).
+
+- `documentsByType` / `replacing` (`kycRepository.ts`): the newest upload per type and the approved one
+  that stands (`replacesId`); an approval retires the link and clears an old refusal reason. Used by the
+  partner overview, FSSAI badge, rider checklist and shift gate, admin review recompute, `/kyc/submit`.
+- Uploads (`POST /restaurants/:id/documents`, `/riders/documents`) accept every status; a waiting
+  upload is replaced. Admin review: ban check at approval (security), number copied on approval.
+  Record (`/admin/records`): `current`, `standing`, `replacesId` per document; files still only via the
+  audited file route.
+- Apps: Partner/Rider Documents "Replace" buttons and "still counts" notes; Admin `PersonDocuments`
+  (People sheets, KYC queue name → sheet) and shared `DocumentActions`.
+- New suite `documentReplace` (11); checks in `accountBlocking`, `partner`, `removeAndBlock`; 8 mutations caught.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- F-13: partners can change their FSSAI and GSTIN (reviewed); Google routing at the cheaper rate
 
 > **For the owner.** Partner → Profile now has FSSAI licence number and GSTIN boxes. A change goes to

@@ -224,20 +224,34 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
               <Text style={styles.quiet}>Submitted {new Date(slot.submittedAt).toLocaleDateString('en-IN')}. Our team reviews within one working day.</Text>
             )}
 
-            {(slot.status === 'NOT_UPLOADED' || slot.status === 'REJECTED') && (
-              <Button
-                label={slot.status === 'REJECTED' ? 'Send again' : 'Submit this document'}
-                onPress={() => open(slot)}
-                style={{ marginTop: spacing.md }}
-              />
+            {/* A replacement waiting or refused: the verified one still counts (owner, 18 Oct 2026). */}
+            {slot.verified && slot.status !== 'APPROVED' && (
+              <Text style={styles.quiet}>Your verified {slot.label} still counts until we have checked the new one.</Text>
             )}
+
+            {/* Every document can be replaced: a renewed licence, a clearer photo. It is checked again. */}
+            <Button
+              label={
+                slot.status === 'REJECTED'
+                  ? 'Send again'
+                  : slot.status === 'APPROVED'
+                    ? 'Replace (renewed or changed)'
+                    : slot.status === 'PENDING'
+                      ? 'Replace this photo'
+                      : 'Submit this document'
+              }
+              variant={slot.status === 'APPROVED' || slot.status === 'PENDING' ? 'ghost' : 'primary'}
+              onPress={() => open(slot)}
+              style={{ marginTop: spacing.md }}
+            />
           </Card>
         ))}
 
         <Text style={styles.footnote}>
           Documents are reviewed by the Quick Bites operations team. Your kitchen stays hidden from customers and
-          cannot go online until the required documents are approved. Anything rejected can be photographed and
-          sent again from this screen.
+          cannot go online until the required documents are approved. Anything can be photographed and sent
+          again from this screen, including a verified document that was renewed: the new one is checked, and
+          the verified one keeps counting meanwhile.
         </Text>
       </ScrollView>
 

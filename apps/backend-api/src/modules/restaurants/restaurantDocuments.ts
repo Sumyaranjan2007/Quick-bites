@@ -1,3 +1,4 @@
+import { documentsByType } from '../../db/repositories/kycRepository.ts';
 import type { KycDocument } from '@quick-bites/shared-types';
 
 /**
@@ -92,6 +93,8 @@ export interface DocumentSlot extends DocumentRequirement {
   rejectionReason?: string;
   /** True when the partner is expected to act: nothing uploaded, or it was rejected. */
   actionNeeded: boolean;
+  /** An approved document stands for this type (maybe an earlier one, while a replacement waits). */
+  verified: boolean;
 }
 
 export interface DocumentOverview {
@@ -110,16 +113,11 @@ export interface DocumentOverview {
  * replaces the rejected one in the partner's view instead of showing both.
  */
 export function buildDocumentOverview(documents: KycDocument[]): DocumentOverview {
-  const latestByType = new Map<string, KycDocument>();
-  for (const doc of documents) {
-    const existing = latestByType.get(doc.documentType);
-    if (!existing || new Date(doc.submittedAt).getTime() > new Date(existing.submittedAt).getTime()) {
-      latestByType.set(doc.documentType, doc);
-    }
-  }
+  const byType = documentsByType(documents);
 
   const slots: DocumentSlot[] = RESTAURANT_DOCUMENT_CATALOGUE.map(requirement => {
-    const submitted = latestByType.get(requirement.documentType);
+    const submitted = byType.get(requirement.documentType)?.latest;
+    const verified = Boolean(byType.get(requirement.documentType)?.standing);
     const status: DocumentUiStatus = submitted ? submitted.status : 'NOT_UPLOADED';
 
     return {
@@ -132,7 +130,8 @@ export function buildDocumentOverview(documents: KycDocument[]): DocumentOvervie
       reviewedAt: submitted?.reviewedAt,
       rejectionReason: submitted?.rejectionReason,
       actionNeeded:
-        status === 'REJECTED' || (status === 'NOT_UPLOADED' && requirement.required)
+        status === 'REJECTED' || (status === 'NOT_UPLOADED' && requirement.required),
+      verified
     };
   });
 
@@ -140,9 +139,10 @@ export function buildDocumentOverview(documents: KycDocument[]): DocumentOvervie
 
   return {
     slots,
-    verified: mandatory.every(s => s.status === 'APPROVED'),
+    verified: mandatory.every(s => s.verified),
     outstanding: mandatory.filter(s => s.status === 'NOT_UPLOADED').map(s => s.label),
-    rejected: slots.filter(s => s.status === 'REJECTED').map(s => s.label),
+    // Refused with nothing approved standing: a refused replacement is not a problem yet.
+    rejected: slots.filter(s => s.status === 'REJECTED' && !s.verified).map(s => s.label),
     awaitingReview: slots.filter(s => s.status === 'PENDING').map(s => s.label)
   };
 }
@@ -164,12 +164,8 @@ export const FSSAI_LICENCE_NUMBER = /^\d{14}$/;
 export function isFssaiVerified(licenceNumber: unknown, documents: KycDocument[]): boolean {
   const number = typeof licenceNumber === 'string' ? licenceNumber.replace(/\s+/g, '') : '';
   if (!FSSAI_LICENCE_NUMBER.test(number)) return false;
-  let latest: KycDocument | undefined;
-  for (const doc of documents) {
-    if (doc.documentType !== 'FSSAI') continue;
-    if (!latest || new Date(doc.submittedAt).getTime() > new Date(latest.submittedAt).getTime()) latest = doc;
-  }
-  if (!latest || latest.status !== 'APPROVED') return false;
-  if (latest.documentNumber && latest.documentNumber.replace(/\s+/g, '') !== number) return false;
+  const standing = documentsByType(documents).get('FSSAI')?.standing;
+  if (!standing) return false;
+  if (standing.documentNumber && standing.documentNumber.replace(/\s+/g, '') !== number) return false;
   return true;
 }

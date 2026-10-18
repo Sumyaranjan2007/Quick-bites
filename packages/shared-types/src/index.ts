@@ -1011,6 +1011,12 @@ export interface KycDocument {
   rejectionReason?: string;
   submittedAt: string;
   reviewedAt?: string;
+  /**
+   * The approved document this upload replaces (owner, 18 Oct 2026: any document
+   * may be replaced). Until this one is approved, or if it is refused, the replaced
+   * one keeps standing unless an admin withdraws it. See `documentsByType`.
+   */
+  replacesId?: string;
 }
 
 export interface Wallet {

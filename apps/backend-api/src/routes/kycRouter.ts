@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
-import { kycRepository } from '../db/repositories/kycRepository.ts';
+import { kycRepository, replacing } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { validate } from '../middlewares/validate.ts';
@@ -95,7 +95,10 @@ kycRouter.post('/submit', validate({ body: SubmitKycSchema }), async (req, res, 
     const { entityType, entityId, entityName, documentType, fileUrl } = req.body;
     await assertControlsEntity(req, entityType, entityId);
 
+    const { replacesId, dropId } = replacing(await kycRepository.findByEntity(entityType, entityId), documentType);
+    if (dropId) await kycRepository.dropUnreviewed(dropId);
     const doc = await kycRepository.submitDocument({
+      ...(replacesId ? { replacesId } : {}),
       entityType,
       entityId,
       entityName,

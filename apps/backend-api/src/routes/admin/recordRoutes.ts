@@ -21,7 +21,7 @@ import { memoryStore } from '../../db/client.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { userRepository, rolesOf } from '../../db/repositories/userRepository.ts';
-import { kycRepository } from '../../db/repositories/kycRepository.ts';
+import { kycRepository, documentsByType } from '../../db/repositories/kycRepository.ts';
 import { supportRepository } from '../../db/repositories/supportRepository.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
@@ -108,13 +108,19 @@ recordRoutes.get('/records/:kind/:id', ...mayView, async (req, res, next) => {
   try {
     const p = await personFor(req.params.kind as Kind, req.params.id);
     const base = `/api/admin/records/${p.kind}/${p.id}`;
+    const byType = documentsByType(p.documents);
     const documents = can(req, 'documents.view')
       ? GROUPS.map(([g]) => g).concat('Other')
           .map(group => ({
             group,
-            items: p.documents.filter(d => groupOf(d.documentType) === group).map(d => ({
+            // Newest first; `current` marks the upload in force for its type, `standing` the
+            // approved one that counts (an earlier one while a replacement waits or was refused).
+            items: p.documents.filter(d => groupOf(d.documentType) === group).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)).map(d => ({
               id: d.id, documentType: d.documentType, documentNumber: shownNumber(d), status: d.status,
               rejectionReason: d.rejectionReason, submittedAt: d.submittedAt, reviewedAt: d.reviewedAt,
+              current: byType.get(d.documentType)?.latest.id === d.id,
+              standing: byType.get(d.documentType)?.standing?.id === d.id,
+              replacesId: d.replacesId,
               file: fileKind(d.fileUrl), downloadPath: `${base}/documents/${d.id}/file`
             }))
           }))

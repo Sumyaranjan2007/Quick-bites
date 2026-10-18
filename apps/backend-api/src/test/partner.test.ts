@@ -148,14 +148,19 @@ async function run() {
     partner.token
   );
   check('A document can be submitted', upload.status === 201, `status ${upload.status}`);
-  const documentId = upload.json?.data?.document?.id;
 
   const again = await api(
     `/restaurants/${RESTAURANT}/documents`,
     { method: 'POST', body: { documentType: 'BANK_PROOF', documentNumber: 'HDFC0001234', fileUrl: PHOTO } },
     partner.token
   );
-  check('A document already under review cannot be re-sent', again.status === 409, `status ${again.status}`);
+  // Owner, 18 Oct 2026: a waiting document can be replaced (a better photo); the new one replaces it in the queue.
+  check('A document waiting for review can be replaced', again.status === 201, `status ${again.status}`);
+  const documentId = again.json?.data?.document?.id;
+  check(
+    'and only the new one waits in the queue',
+    [...memoryStore.kycDocuments.values()].filter((d: any) => d.entityId === RESTAURANT && d.documentType === 'BANK_PROOF' && d.status === 'PENDING').length === 1
+  );
 
   const afterUpload = await api(`/restaurants/${RESTAURANT}/documents`, {}, partner.token);
   const bankAfter = (afterUpload.json?.data?.slots || []).find((s: any) => s.documentType === 'BANK_PROOF');

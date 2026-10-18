@@ -2,7 +2,7 @@
  * The people on the platform: customers, delivery partners, restaurant partners,
  * and the documents that qualify the last two to trade.
  */
-import { assertNotBanned } from '../../modules/platform/blockedIdentifiers.ts';
+import { assertNotBanned, kindForDocument } from '../../modules/platform/blockedIdentifiers.ts';
 import { PartnerRegistrationSchema, RiderRegistrationSchema, openRestaurant, openRiderRecord, issuePasswordCode } from '../authRouter.ts';
 import { banAccount, unbanAccount } from '../../modules/platform/blockedIdentifiers.ts';
 import { cashSwitchedOffFor, lateCashCancels } from '../../modules/orders/cancellationFee.ts';
@@ -21,14 +21,14 @@ import { MANDATORY_RIDER_DOCUMENTS } from '../../db/repositories/riderRepository
 import { buildDocumentOverview } from '../../modules/restaurants/restaurantDocuments.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
-import { kycRepository } from '../../db/repositories/kycRepository.ts';
+import { kycRepository, documentsByType } from '../../db/repositories/kycRepository.ts';
 import { payoutRepository } from '../../db/repositories/payoutRepository.ts';
 import { riderPaymentHistory, riderPaidTotal } from '../../modules/payments/riderPayoutHistory.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { setRiderOfferPoolMembership } from '../../sockets/socketServer.ts';
-import type { Order } from '@quick-bites/shared-types';
+import type { KycDocument, Order } from '@quick-bites/shared-types';
 import { CUISINE_TYPES } from '@quick-bites/shared-types';
 import { hasActiveTrip } from '../../modules/orders/riderTrip.ts';
 import { tripTakeHome } from '../../modules/riders/tripPayout.ts';
@@ -790,6 +790,20 @@ peopleRoutes.get('/documents', requirePermission('documents.view'), async (req, 
   }
 });
 
+/** The number on an approved licence becomes the one on the kitchen or rider record. */
+async function copyApprovedNumber(doc: KycDocument): Promise<void> {
+  const number = String(doc.documentNumber).replace(/\s+/g, '');
+  if (doc.entityType === 'RESTAURANT' && doc.documentType === 'FSSAI' && /^\d{14}$/.test(number)) {
+    await restaurantRepository.applyProfile(doc.entityId, { fssaiLicenseNumber: number });
+  } else if (doc.entityType === 'RESTAURANT' && doc.documentType === 'GSTIN') {
+    await restaurantRepository.applyProfile(doc.entityId, { gstin: number.toUpperCase() });
+  } else if (doc.entityType === 'RIDER' && doc.documentType === 'DRIVING_LICENSE') {
+    await riderRepository.update(doc.entityId, { licenseNumber: doc.documentNumber });
+  } else if (doc.entityType === 'RIDER' && doc.documentType === 'VEHICLE_RC') {
+    await riderRepository.update(doc.entityId, { vehicleRcNumber: doc.documentNumber });
+  }
+}
+
 const DocumentReviewSchema = z.object({
   documentId: z.string().min(1),
   action: z.enum(['APPROVE', 'REJECT', 'REQUEST_REUPLOAD']),
@@ -819,8 +833,20 @@ peopleRoutes.post(
       }
 
       const status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
-      const doc = await kycRepository.reviewDocument(documentId, status, rejectionReason);
-      if (!doc) throw new AppError('Document not found.', 404, 'DOCUMENT_NOT_FOUND');
+      const before = memoryStore.kycDocuments.get(documentId);
+      if (!before) throw new AppError('Document not found.', 404, 'DOCUMENT_NOT_FOUND');
+      // The number may have been blocked since it was uploaded (security review).
+      const ownerUserId =
+        before.entityType === 'RESTAURANT'
+          ? (await restaurantRepository.findById(before.entityId))?.ownerId
+          : (await riderRepository.findById(before.entityId))?.userId;
+      const banKind = kindForDocument(before.documentType);
+      if (status === 'APPROVED' && banKind) assertNotBanned({ [banKind]: before.documentNumber }, ownerUserId);
+
+      const doc = (await kycRepository.reviewDocument(documentId, status, rejectionReason))!;
+      // An approved licence's number becomes the one on file: replacing a renewed
+      // FSSAI or driving licence is one upload and one approval.
+      if (status === 'APPROVED' && doc.documentNumber) await copyApprovedNumber(doc);
 
       /*
        * The decision is re-derived from EVERY document, not taken from this one.
@@ -868,7 +894,11 @@ peopleRoutes.post(
           const overview = buildDocumentOverview(
             await kycRepository.findByEntity('RESTAURANT', restaurant.id)
           );
-          const mandatoryRejected = overview.slots.some(s => s.required && s.status === 'REJECTED');
+          // A required document refused with nothing approved standing, including an
+          // approved one withdrawn while its replacement still waits.
+          const mandatoryRejected = overview.slots.some(
+            s => s.required && !s.verified && (s.status === 'REJECTED' || (status === 'REJECTED' && s.documentType === doc.documentType))
+          );
 
           // Through the repository so the decision is written down. Assigning
           // the fields and calling memoryStore.set skipped triggerAutoSave, so
@@ -914,7 +944,7 @@ peopleRoutes.post(
 
           const after = await restaurantRepository.findById(restaurant.id);
           const stillNeeded = overview.slots
-            .filter(s => s.required && s.status !== 'APPROVED')
+            .filter(s => s.required && !s.verified)
             .map(s => s.label);
           outcome = {
             verified: overview.verified,
@@ -933,12 +963,12 @@ peopleRoutes.post(
         // rider on the road — but a rider whose AADHAAR was approved read as
         // ACTIVE everywhere operations looked, which is the figure a dispatcher
         // trusts.
-        const riderDocs = await kycRepository.findByEntity('RIDER', doc.entityId);
-        const approvedTypes = new Set(
-          riderDocs.filter(d => d.status === 'APPROVED').map(d => d.documentType)
-        );
-        const mandatoryRejected = riderDocs.some(
-          d => d.status === 'REJECTED' && (MANDATORY_RIDER_DOCUMENTS as readonly string[]).includes(d.documentType)
+        // The standing document per type (an earlier approval counts while its
+        // replacement waits or after the replacement was refused).
+        const byType = documentsByType(await kycRepository.findByEntity('RIDER', doc.entityId));
+        const approvedTypes = new Set([...byType].filter(([, v]) => v.standing).map(([t]) => t));
+        const mandatoryRejected = MANDATORY_RIDER_DOCUMENTS.some(
+          t => !byType.get(t)?.standing && (byType.get(t)?.latest.status === 'REJECTED' || (status === 'REJECTED' && t === doc.documentType))
         );
         const allMandatoryApproved = MANDATORY_RIDER_DOCUMENTS.every(t => approvedTypes.has(t));
 

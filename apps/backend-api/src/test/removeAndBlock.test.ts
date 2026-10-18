@@ -155,6 +155,16 @@ try {
     assert.equal(errCode(dlDoc), 'IDENTITY_BLOCKED', `status ${dlDoc.status} ${errCode(dlDoc)}`));
 
   console.log('\n-- A deletion request does not hide or lift a block');
+  // A document uploaded while its number was clean, then the number's owner is banned: approval is refused.
+  const laterBanned = await api(`/restaurants/${ownKitchen.id}/documents`, { method: 'POST', body: { documentType: 'PAN', documentNumber: 'QWERT1234Z', fileUrl: img } }, partner);
+  memoryStore.users.set('usr_ban_pan', { id: 'usr_ban_pan', email: 'ban.pan@example.com', role: 'restaurant_owner' } as any);
+  memoryStore.kycDocuments.set('kyc_ban_pan2', { id: 'kyc_ban_pan2', entityType: 'RESTAURANT', entityId: 'rst_ban_pan', documentType: 'PAN', documentNumber: 'QWERT1234Z' } as any);
+  memoryStore.restaurants.set('rst_ban_pan', { id: 'rst_ban_pan', ownerId: 'usr_ban_pan' } as any);
+  banAccount('usr_ban_pan');
+  const approveLater = await api('/admin/documents/review', { method: 'POST', body: { documentId: laterBanned.json?.data?.document?.id, action: 'APPROVE' } }, admin);
+  it('Approving a document whose number was blocked after upload is refused', () =>
+    assert.equal(errCode(approveLater), 'IDENTITY_BLOCKED', `status ${laterBanned.status}/${approveLater.status} ${errCode(approveLater)}`));
+
   // F-13: a banned licence cannot come back through a profile edit, at submit or at approval.
   const bannedEdit = await api(`/restaurants/${ownKitchen.id}/profile`, { method: 'PUT', body: { fssaiLicenseNumber: '9988 7766 5544 33' } }, partner);
   it('A banned FSSAI sent as a profile edit is refused (F-13)', () =>

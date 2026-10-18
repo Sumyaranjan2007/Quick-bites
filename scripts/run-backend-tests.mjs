@@ -110,6 +110,7 @@ const SUITES = [
   'contactChange',
   'placesGoogle',
   'liveTracking',
+  'documentReplace',
   'helpChat',
   'kitchenTicket',
   'personRecord',

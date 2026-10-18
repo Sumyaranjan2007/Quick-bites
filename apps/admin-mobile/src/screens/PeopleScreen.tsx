@@ -1,6 +1,5 @@
+import { PersonDocuments } from '../components/PersonDocuments';
 import React, { useState } from 'react';
-import { DownloadButton } from '../components/DownloadButton';
-import { documentFileName } from '../lib/download';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Users, Bike, Store } from 'lucide-react-native';
 import {
@@ -727,20 +726,9 @@ const DriverSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
 
           <PaidIntoCard destination={resource.data.payoutDestination} />
 
-          <Card>
-            <Text style={s.cardHeading}>Documents</Text>
-            {(resource.data.documents || []).map((doc: any) => (
-              <View key={doc.id} style={s.miniRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.miniTitle}>{humanise(doc.documentType)}</Text>
-                  <Text style={s.miniMeta}>{doc.documentNumber || 'No number recorded'}</Text>
-                </View>
-                <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} label="Save" />
-                <Badge label={doc.status} />
-              </View>
-            ))}
-            {(resource.data.documents || []).length === 0 ? <Text style={s.muted}>No documents on file.</Text> : null}
-          </Card>
+          {/* Their uploads, grouped, with photos and re-verify (owner, 18 Oct 2026). */}
+          <Text style={s.cardHeading}>Documents</Text>
+          <PersonDocuments kind="rider" id={id!} onChanged={() => { void resource.reload(); onChanged(); }} />
 
           <Card>
             <Text style={s.cardHeading}>Recent trips</Text>
@@ -1195,20 +1183,8 @@ const RestaurantSheet: React.FC<{
 
           <PaidIntoCard destination={resource.data.payoutDestination} />
 
-          <Card>
-            <Text style={s.cardHeading}>Documents</Text>
-            {(resource.data.documents || []).map((doc: any) => (
-              <View key={doc.id} style={s.miniRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.miniTitle}>{humanise(doc.documentType)}</Text>
-                  <Text style={s.miniMeta}>{doc.documentNumber || 'No number recorded'}</Text>
-                </View>
-                <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} label="Save" />
-                <Badge label={doc.status} />
-              </View>
-            ))}
-            {(resource.data.documents || []).length === 0 ? <Text style={s.muted}>No documents on file.</Text> : null}
-          </Card>
+          <Text style={s.cardHeading}>Documents</Text>
+          <PersonDocuments kind="restaurant" id={id!} onChanged={() => { void resource.reload(); onChanged(); }} />
 
           {canManage ? (
             <Card>

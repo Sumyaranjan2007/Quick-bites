@@ -146,18 +146,27 @@ export const DocumentsScreen: React.FC<{ ctx: ApiContext; onChanged: () => void 
           </Text>
         ) : null}
 
-        {requirement.canReupload ? (
-          <Button
-            label={requirement.status === 'REJECTED' ? 'Re-upload document' : 'Upload document'}
-            variant={requirement.status === 'REJECTED' ? 'money' : 'primary'}
-            onPress={() => openUpload(requirement)}
-            style={{ marginTop: t.space[4] }}
-          />
-        ) : requirement.status === 'PENDING' ? (
+        {requirement.status === 'PENDING' ? (
           <Text style={s.pendingNote}>Waiting for a reviewer. You will be told as soon as it is decided.</Text>
-        ) : (
-          <Text style={s.approvedNote}>Approved and locked. Contact support if this needs to change.</Text>
-        )}
+        ) : null}
+        {/* Owner, 18 Oct 2026: any document can be replaced; the verified one counts until the new one is checked. */}
+        {requirement.stillVerified ? (
+          <Text style={s.approvedNote}>Your approved {requirement.label.toLowerCase()} still counts, so you can keep riding.</Text>
+        ) : null}
+        <Button
+          label={
+            requirement.status === 'REJECTED'
+              ? 'Re-upload document'
+              : requirement.status === 'APPROVED'
+                ? 'Replace (renewed or changed)'
+                : requirement.status === 'PENDING'
+                  ? 'Replace this photo'
+                  : 'Upload document'
+          }
+          variant={requirement.status === 'REJECTED' ? 'money' : requirement.status === 'NOT_UPLOADED' ? 'primary' : 'secondary'}
+          onPress={() => openUpload(requirement)}
+          style={{ marginTop: t.space[4] }}
+        />
       </Card>
     );
   };

@@ -20,7 +20,7 @@ import { toRupees } from '../modules/payments/money.ts';
 import { getActiveRates } from '../modules/payments/pricingConfig.ts';
 import { statementFor } from '../modules/payments/statements.ts';
 import { riderPaymentHistory, riderPaidTotal } from '../modules/payments/riderPayoutHistory.ts';
-import { kycRepository } from '../db/repositories/kycRepository.ts';
+import { kycRepository, documentsByType, replacing } from '../db/repositories/kycRepository.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import {
@@ -133,9 +133,9 @@ export interface ProfileCompletion {
 
 async function assessProfile(rider: DeliveryRider): Promise<ProfileCompletion> {
   const documents = await kycRepository.findByEntity('RIDER', rider.id);
-  const approved = (type: string) =>
-    documents.find(d => d.documentType === type && d.status === 'APPROVED');
-  const submitted = (type: string) => documents.find(d => d.documentType === type);
+  const byType = documentsByType(documents);
+  const approved = (type: string) => byType.get(type)?.standing;
+  const submitted = (type: string) => byType.get(type)?.latest;
 
   const requirements = [
     {
@@ -402,10 +402,9 @@ riderRouter.get('/documents', async (req, res, next) => {
     const rider = await requireRiderSelf(req);
     const documents = await kycRepository.findByEntity('RIDER', rider.id);
 
+    const byType = documentsByType(documents);
     const checklist = RIDER_DOCUMENT_TYPES.map(type => {
-      const latest = documents
-        .filter(d => d.documentType === type)
-        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
+      const latest = byType.get(type)?.latest;
       const guide = DOCUMENT_GUIDE[type];
       return {
         documentType: type,
@@ -417,9 +416,10 @@ riderRouter.get('/documents', async (req, res, next) => {
         rejectionReason: latest?.rejectionReason,
         submittedAt: latest?.submittedAt,
         reviewedAt: latest?.reviewedAt,
-        // Rejected papers must be replaceable, otherwise a rider whose licence
-        // photo was blurred is stuck with no way back onto the road.
-        canReupload: !latest || latest.status === 'REJECTED'
+        // Every document is replaceable (owner, 18 Oct 2026); a replacement is checked again.
+        canReupload: true,
+        // An approved document still stands while its replacement waits or after it was refused.
+        stillVerified: Boolean(byType.get(type)?.standing) && latest?.status !== 'APPROVED'
       };
     });
 
@@ -446,25 +446,14 @@ riderRouter.post('/documents', validate({ body: DocumentUploadSchema }), async (
     const banKind = kindForDocument(documentType);
     if (banKind) assertNotBanned({ [banKind]: documentNumber }, rider.userId);
 
-    const existing = await kycRepository.findByEntity('RIDER', rider.id);
-    const current = existing
-      .filter(d => d.documentType === documentType)
-      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
-
-    // An approved document is not silently replaceable: a rider could otherwise
-    // pass verification on a real licence and then swap in someone else's.
-    if (current && current.status === 'APPROVED') {
-      throw new AppError(
-        'That document is already approved. Contact support to replace it.',
-        409,
-        'DOCUMENT_ALREADY_APPROVED'
-      );
-    }
-    if (current && current.status === 'PENDING') {
-      memoryStore.kycDocuments.delete(current.id);
-    }
+    // Any document may be replaced (owner, 18 Oct 2026). A replacement is checked
+    // again; the approved one stands until then, so a swapped-in licence is never
+    // trusted unseen, and its number reaches the profile only on approval.
+    const { replacesId, dropId } = replacing(await kycRepository.findByEntity('RIDER', rider.id), documentType);
+    if (dropId) await kycRepository.dropUnreviewed(dropId);
 
     const doc = await kycRepository.submitDocument({
+      ...(replacesId ? { replacesId } : {}),
       entityType: 'RIDER',
       entityId: rider.id,
       entityName: rider.fullName,
@@ -474,10 +463,11 @@ riderRouter.post('/documents', validate({ body: DocumentUploadSchema }), async (
       fileUrl
     });
 
-    // Mirror the number onto the profile so the rest of the app can show it.
-    if (documentType === 'DRIVING_LICENSE') {
+    // Mirror the number onto the profile so the rest of the app can show it
+    // (first upload only; a replacement's number is copied when it is approved).
+    if (!replacesId && documentType === 'DRIVING_LICENSE') {
       await riderRepository.update(rider.id, { licenseNumber: documentNumber });
-    } else if (documentType === 'VEHICLE_RC') {
+    } else if (!replacesId && documentType === 'VEHICLE_RC') {
       await riderRepository.update(rider.id, { vehicleRcNumber: documentNumber });
     }
 
