@@ -86,6 +86,28 @@ Note on B4 (cross-check with `docs/reviews/REVIEW_LOG.md` S1): the code review f
 correctness defect, not an access hole: accepting still requires holding the **current** live offer
 and `assignRider` refuses a second taker, so no rider can take a trip that is not theirs.
 
+## 1c. Audit, round 3 — 18 Oct 2026, `55d62d5` (forgot / reset password by email code)
+
+**For the owner.** The new "forgot password" flow is sound: the code is random, stored only as a
+fingerprint, expires in 10 minutes, allows 5 tries, signs out every other device, and the super
+admin is excluded. Two small improvements: answer every request equally fast, so nobody can tell
+which emails belong to partners; and cap how many codes one account can get per day.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| L9 | Low | `apps/backend-api/src/routes/authRouter.ts` `POST /auth/password/forgot` | The reply text is identical (proven), but for an email **with** a password the server first writes to the database and waits for Brevo (up to 10 s) before answering; an unknown email answers at once. On live that is a gap of hundreds of milliseconds, enough to tell which emails are partners, riders or staff by timing. Locally (no real email) 3.5 ms vs 1.9 ms. | Answer first, then do the work: `res.json(...)` and run the code creation + `sendEmail` in a detached `void (async () => {...})()` with its own `try/catch` and log. | open |
+| L10 | Low | same route, `/auth/password/reset` | Guessing is bounded only by the shared per-account sign-in limit (10 requests / 5 min across forgot + reset): five wrong tries clear the code, after which a new one can be asked for at once. Worst case ≈ 2,500 guesses a day on one account (≈ 0.25 % chance a day of hitting a 6-digit code), while the victim's inbox fills with codes. No email tells the person their password was changed. | Count wrong guesses per account per 24 h (e.g. 10, then no new code for 24 h), cap codes per day (e.g. 5), and email "your password was changed" after a reset. | open |
+
+Checked and holding: same reply text for every email; code `crypto.randomInt` (6 digits),
+stored only as `sha256(userId:code)`, compared with `timingSafeEqual`, 10 min expiry, 5 tries, one
+email a minute, `persistDurably` before the email; refused for blocked accounts, password-less
+(customer-only) accounts and `ADMIN_EMAIL`; success bumps `tokenVersion` (every other session
+signed out) and clears the code; both routes behind `authRateLimiterMiddleware`; the code is never
+in a response or a production log. `passwordReset` is stripped wherever a user record is spread
+(`authRouter.ts:250, :302`, `peopleRoutes.ts:180, :279`, `rbacRoutes.ts:159, :222, :277`); every other
+response that includes a person (login, sign-up, admin customers/riders/restaurants, order detail
+`routes/admin/shared.ts`, person record) builds an explicit field list, so the new field cannot leak.
+
 ---
 
 ## 2. Rules every change must follow
