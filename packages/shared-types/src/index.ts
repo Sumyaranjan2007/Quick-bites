@@ -616,6 +616,8 @@ export interface Order {
   /** Last known rider position for this trip, so the customer can follow it. */
   riderCoordinates?: Coordinates;
   riderBearing?: number;
+  /** Metres per second at the last fix (the phone's GPS, else worked out from the fix before; B11). */
+  riderSpeed?: number;
   riderLocationUpdatedAt?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;

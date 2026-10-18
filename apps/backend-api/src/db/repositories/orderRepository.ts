@@ -484,12 +484,14 @@ export const orderRepository = {
     orderId: string,
     coords: { latitude: number; longitude: number },
     bearing: number,
-    updatedAt: string
+    updatedAt: string,
+    speed: number | null = null
   ): Promise<Order | null> {
     const order = memoryStore.orders.get(orderId);
     if (!order) return null;
     order.riderCoordinates = coords;
     order.riderBearing = bearing;
+    order.riderSpeed = speed ?? undefined;
     order.riderLocationUpdatedAt = updatedAt;
     memoryStore.orders.set(orderId, order);
     triggerAutoSave();

@@ -1,3 +1,4 @@
+import { recordRiderFix, MAX_SPEED_MPS } from '../modules/riders/liveLocation.ts';
 import { assertNotBanned, kindForDocument } from '../modules/platform/blockedIdentifiers.ts';
 import { normalizeIndianPhone } from '../utils/phone.ts';
 import { durable } from '../middlewares/durable.ts';
@@ -1349,9 +1350,11 @@ riderRouter.post('/orders/:id/cancel', validate({ body: CancelSchema }), async (
 
 const TelemetrySchema = z.object({
   orderId: z.string().min(1, 'orderId is required'),
-  lat: z.number(),
-  lng: z.number(),
-  bearing: z.number().optional()
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  bearing: z.number().optional(),
+  /** Metres per second from the phone's GPS (B11); over 100 is a broken reading. */
+  speed: z.number().min(0).max(MAX_SPEED_MPS).optional()
 });
 
 const ShiftLocationSchema = z.object({
@@ -1423,22 +1426,10 @@ riderRouter.post('/telemetry', validate({ body: TelemetrySchema }), async (req, 
       );
     }
 
-    const updatedAt = new Date().toISOString();
-    const coords = { latitude: Number(lat), longitude: Number(lng) };
-
-    // Persist, so a customer who opens the app mid-trip sees the last known
-    // position instead of nothing. Previously this was emit-only: the reading
-    // was broadcast to a socket room and then thrown away.
-    await riderRepository.updateLocation(order.riderId, coords);
-    await orderRepository.updateRiderLocation(orderId, coords, bearing ? Number(bearing) : 0, updatedAt);
-
-    emitRiderLocation(orderId, {
-      orderId,
-      lat: coords.latitude,
-      lng: coords.longitude,
-      bearing: bearing ? Number(bearing) : 0,
-      updatedAt
-    });
+    // Kept and relayed through the same function as the socket path (B11).
+    const fix = await recordRiderFix(order, { lat: Number(lat), lng: Number(lng), bearing, speed: req.body.speed });
+    const updatedAt = fix.updatedAt;
+    emitRiderLocation(orderId, { orderId, ...fix });
 
     res.json({ success: true, data: { updatedAt } });
   } catch (err) {

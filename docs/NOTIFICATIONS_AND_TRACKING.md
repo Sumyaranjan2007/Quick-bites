@@ -47,6 +47,7 @@ Customer app  src/lib/useOrderSocket.ts: io(...) :60, emit 'join:order' :70, on 
               src/components/LiveOrderMap.tsx draws it; Operations sees it in admin:control_tower
 ```
 
+- Every fix is KEPT on the order and the rider with heading and speed by `recordRiderFix` (`modules/riders/liveLocation.ts`), from the socket and from `POST /api/riders/telemetry` (B11, 18 Oct); `GET /api/orders/:id/tracking` adds `riderSpeed` and `riderLocationStale` (over 30 s) and is readable only by the customer, the trip's rider and staff.
 - Who may join an order's room: `canJoinOrder` (`sockets/socketAuth.ts:60`). The rider's position is
   not shown to the customer before pickup (`orderMap` suite; `modules/orders/contactVisibility.ts`).
 - Silent rider while carrying food → operations alert after `riderLocationSilentMinutes`

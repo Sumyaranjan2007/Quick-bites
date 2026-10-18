@@ -1,3 +1,4 @@
+import { isStale } from '../modules/riders/liveLocation.ts';
 import { durable } from '../middlewares/durable.ts';
 import { quoteCancellation } from '../modules/orders/cancellationFee.ts';
 import { canTransition } from '../modules/orders/orderStateMachine.ts';
@@ -306,9 +307,12 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
     }
 
     const isCustomer = order.customerId === req.user?.id;
-    const isRider = order.riderId === req.user?.id;
-    const isStaff =
-      req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.role === 'rider';
+    // The order holds the rider RECORD's id, not the account's: compare like with like.
+    // Any rider account used to count as staff here, so every rider could follow
+    // every order's live position (found with B11, 18 Oct 2026).
+    const ownRider = order.riderId ? await riderRepository.findByUserId(req.user!.id) : null;
+    const isRider = Boolean(ownRider && ownRider.id === order.riderId);
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
 
     if (!isCustomer && !isRider && !isStaff) {
       throw new AppError('You do not have permission to track this order.', 403, 'FORBIDDEN');
@@ -353,6 +357,9 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
         riderCoordinates: order.pickedUpAt ? order.riderCoordinates ?? null : null,
         riderBearing: order.pickedUpAt ? order.riderBearing ?? 0 : 0,
         riderLocationUpdatedAt: order.pickedUpAt ? order.riderLocationUpdatedAt ?? null : null,
+        riderSpeed: order.pickedUpAt ? order.riderSpeed ?? null : null,
+        // The app shows "updating…" rather than a live dot when the last fix is over 30 s old (B11).
+        riderLocationStale: order.pickedUpAt ? isStale(order.riderLocationUpdatedAt) : null,
         destinationCoordinates: order.deliveryCoordinates ?? null,
         /*
          * WHERE THE FOOD IS BEING COOKED, for the map's first phase.

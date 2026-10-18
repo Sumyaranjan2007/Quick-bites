@@ -18,6 +18,7 @@ import {
 } from './socketAuth.ts';
 import { shapeOrderForViewer } from '../modules/orders/contactVisibility.ts';
 import { estimateArrival } from '../modules/orders/eta.ts';
+import { recordRiderFix, MAX_SPEED_MPS } from '../modules/riders/liveLocation.ts';
 
 let ioInstance: SocketIOServer | null = null;
 
@@ -271,7 +272,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     // they are before they have collected anything is not the customer's
     // business. Restricting the publisher to the assigned rider also stops
     // fabricated coordinates being pushed into a stranger's tracking screen.
-    socket.on('rider:location', async (data: { orderId: string; lat: number; lng: number; bearing?: number }) => {
+    socket.on('rider:location', async (data: { orderId: string; lat: number; lng: number; bearing?: number; speed?: number }) => {
       if (!data?.orderId) return;
 
       if (!isPlottableCoordinate(data.lat, data.lng)) {
@@ -284,14 +285,15 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
 
       const stored = memoryStore.orders.get(data.orderId) as Order | undefined;
+      if (!stored) return;
+      // Kept, not only relayed (B11): the same record the REST fallback writes.
+      const speed = Number.isFinite(data.speed) && data.speed! >= 0 && data.speed! <= MAX_SPEED_MPS ? data.speed : undefined;
+      const fix = await recordRiderFix(stored, { lat: data.lat, lng: data.lng, bearing: data.bearing, speed });
       const payload = {
         orderId: data.orderId,
-        lat: data.lat,
-        lng: data.lng,
-        bearing: Number.isFinite(data.bearing) ? data.bearing : 0,
-        updatedAt: new Date().toISOString(),
+        ...fix,
         // Live arrival estimate (B3), straight line from this position.
-        ...(stored ? { eta: estimateArrival({ ...stored, riderCoordinates: { latitude: data.lat, longitude: data.lng } }) } : {})
+        eta: estimateArrival(stored)
       };
       // Relayed to order subscribers and admin
       socket.to(`order:${data.orderId}`).emit('rider:location_update', payload);
@@ -555,6 +557,7 @@ export function emitRiderLocation(
     lat: number;
     lng: number;
     bearing?: number;
+    speed?: number | null;
     updatedAt?: string;
   }
 ): void {

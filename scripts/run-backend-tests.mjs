@@ -109,6 +109,7 @@ const SUITES = [
   'adminCreate',
   'contactChange',
   'placesGoogle',
+  'liveTracking',
   'helpChat',
   'kitchenTicket',
   'personRecord',

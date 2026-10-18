@@ -6,6 +6,24 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B11: live tracking keeps every rider position; riders can no longer follow other riders' orders
+
+> **For the owner.** Server groundwork for the moving bike on the customer's map. Every position a
+> rider's phone sends during a delivery is now kept (with direction and speed), not only passed on,
+> so a customer who opens the app mid-trip sees where the food is at once; the map says "updating…"
+> when the last position is over 30 seconds old. Fixed while doing it: any rider account could read
+> the live position of any order; now only the customer, the rider on that trip and staff can.
+
+- `modules/riders/liveLocation.ts` `recordRiderFix` (one function for the socket and
+  `POST /api/riders/telemetry`): keeps position, heading and speed (phone's, else from the previous
+  fix) on the order and the rider. Telemetry schema bounds lat/lng and speed.
+- `GET /api/orders/:id/tracking`: `riderSpeed`, `riderLocationStale`; the rider check compares the
+  rider record (was the account id) and riders are no longer staff.
+- New suite `liveTracking` (15 checks); 4 guards mutation-checked. Work started by the parallel
+  session `b8-help-chat`, finished by the main session (that session is no longer running).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B2 step 2: address search and map pins on Google (ready for your key)
 
 > **For the owner.** With the same Google key, address search in the apps (typing an address),
