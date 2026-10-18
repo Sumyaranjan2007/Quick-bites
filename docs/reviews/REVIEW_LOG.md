@@ -162,3 +162,18 @@ Note: the misleading name `LIVE` (finished statuses) predates this commit; renam
 | C1 | Low | `routes/admin/peopleRoutes.ts` `/accounts/create` (and the existing admin reset at `:1150`) | "Change it after signing in" is only advice: nothing forces it, and the temporary password stays valid for ever in the person's mailbox. | Mark the account `passwordTemporaryUntil` (e.g. 7 days); sign-in with an expired temporary password answers "use Forgot password", and the apps prompt for a new one when the flag is set (Stage E). | open |
 
 Still open from earlier rounds and not yet fixed in a commit: **P1** (unlimited reset codes, `55d62d5`) and **G1** (Block after Remove, `146c41d`); plus P2, P3, PH1, G2, G3, R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1.
+
+---
+
+## 18 Oct 2026 — re-review `12bbc0c` (P1, P2, P3, C1), `0bed223` (G1, G2, G3), `b5043a4` (PH1, item 18)
+
+**Verdicts: all three approve.** Closed: P1 (5 codes and 10 wrong tries per account per 24 h, so at most 10 guesses a day ≈ 1 in 100,000), P2 (`/password/forgot` answers before any lookup), P3 (change notice), C1 (no password is ever set or emailed; a created account gets a 24-hour set-password code through the same reset flow), G1 (`removedIdentity` banned too), G3 (`+tag`/dots folded for Gmail only), PH1 (rider phone changed by support until SMS; approved licence/RC locked). Quota updates cannot be raced (`userRepository.update` replaces synchronously). `sendEmail` never rejects (`otpDrivers.ts`, try/catch → `{accepted:false}`), so the fire-and-forget calls are safe. The email change needs proof of the account (current password, or a code to the old inbox for password-less customer accounts) and of the new inbox, then signs out every other session.
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| Q1 | Low-medium | `routes/authRouter.ts` `/contact/request` + `/contact/confirm` | The email-change codes have the P1 shape again: one request a minute, 5 tries each, no daily cap. For a password-less customer account the only barrier against a stolen session is the 6-digit code to the old inbox, so ~7,200 guesses a day would move the account to the thief's email within weeks (the victim does get flooded with notices). | Reuse `resetQuota` (same 5 codes / 10 wrong per 24 h) for contact changes. | open |
+| Q2 | Low (altitude) | 8 response sites (`authRouter.ts:250`, `:302`, `:1710`; `peopleRoutes.ts:182`, `:281`; `rbacRoutes.ts:159`, `:222`, `:277`) | Private user fields are dropped by hand at each site; this round added a third (`contactChange`), and the new `resetQuota` (counts and window) is already missed: it shows in `/auth/me` and the admin user views. | One `publicUser(user)` in `userRepository` (drop `passwordHash`, `passwordReset`, `resetQuota`, `contactChange`, `removedIdentity`) used at all 8 sites; a check that no response carries those keys. | open |
+| G4 | Low-medium | `routes/kycRouter.ts:93` (`POST /api/kyc/submit`) | The ban check now runs on the rider and partner upload routes, but not on `/api/kyc/submit`, which a partner or rider may call for their own record (ownership check at `:75`). No app calls it, but the ban is enforced server-side only, so `curl` brings a banned FSSAI/PAN/licence back. | Same `kindForDocument` + `assertNotBanned(…, ownerUserId)` there. | open |
+| G2b | Low | restaurant profile edit `phone` (`EDITABLE_PROFILE_FIELDS`) | Still not checked against the ban list. Admin-reviewed, so a human sees it, but nothing flags it. | `assertNotBanned({ phone })` when the edit is submitted. | open |
+
+Still open from earlier: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1; R1, B1-1 with the owner (decided between sessions where possible).
