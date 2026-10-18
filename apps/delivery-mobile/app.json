@@ -160,7 +160,6 @@
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",
       "../../packages/config/expo-plugins/withLegacyBackGesture",
-      "../../packages/config/expo-plugins/withMapboxToken",
       "../../packages/config/expo-plugins/withExternalAppQueries"
     ]
   }

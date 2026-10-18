@@ -67,7 +67,9 @@ const PUBLISHABLE = new Set([
   'MAPBOX_PUBLIC_TOKEN',
   // The Android Maps key was package-name and SHA-1 restricted for the same
   // reason. Retained so a build made from an older .env does not fail.
-  'GOOGLE_MAPS_ANDROID_KEY'
+  'GOOGLE_MAPS_ANDROID_KEY',
+  // The iPhone Maps key, bundle-id restricted (Google Maps in the apps since 18 Oct 2026).
+  'GOOGLE_MAPS_IOS_KEY'
 ]);
 
 function secretsFromEnv() {

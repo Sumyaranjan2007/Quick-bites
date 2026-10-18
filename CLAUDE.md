@@ -71,8 +71,9 @@ clearly first, then do the work** (they complained when an answer was buried).
   backend service (Dockerfile) + a Postgres service. Pushing `main` deploys.
   **Live URL:** `https://quick-bites-production.up.railway.app` (`/health`, `/api/...`,
   public pages `/privacy`, `/terms`, `/delete-account`, websites `/partner`, `/admin`).
-- **Services:** Razorpay (payments) + RazorpayX (payouts); Mapbox (maps, road distance,
-  Directions for a single trip); Meilisearch (search); Firebase Cloud Messaging (push);
+- **Services:** Razorpay (payments) + RazorpayX (payouts); **Google Maps** (since 18 Oct: in-app maps via
+  `react-native-maps`, server road distance/address search via `GOOGLE_MAPS_SERVER_KEY`; Mapbox remains only
+  as the server's fallback while its token is set); Meilisearch (search); Firebase Cloud Messaging (push);
   Groq vision (reads printed menus from photos — server-side key only); SMS sign-in codes
   through **MSG91** (2Factor also supported).
 
@@ -97,8 +98,8 @@ Every variable by **name**, where the code reads it and what breaks without it:
 `ALLOW_PLATFORM_RESET` must be false/absent at launch; `TWOFACTOR_*` unused (remove).
 
 Build-time (local `.env`, baked into APKs on purpose, protected by package + SHA-1
-restriction, not secrecy): `MAPBOX_PUBLIC_TOKEN`, `MAPBOX_DOWNLOAD_TOKEN`,
-`GOOGLE_MAPS_ANDROID_KEY`. `node scripts/check-apk-secrets.mjs` fails a build whose bundle
+restriction, not secrecy): `GOOGLE_MAPS_ANDROID_KEY`, `GOOGLE_MAPS_IOS_KEY` (read by each app's
+`app.config.js`; the Mapbox tokens are no longer used by the apps). `node scripts/check-apk-secrets.mjs` fails a build whose bundle
 contains a server key.
 
 **Keys exposed in chat that must be rotated:** the Groq key, the admin password, and the
@@ -293,9 +294,10 @@ before submitting; `withFmtCxx17` / `withRazorpayXcode26` may no longer be neede
 - **A page with a form must not send `Referrer-Policy: no-referrer`.** Browsers then send
   `Origin: null`, and production's origin check (`cors.ts`, off in dev/QA) answers 500. Test a
   browser POST under production rules (`config.IS_PRODUCTION = true`), not only on the QA server.
-- **Never use @rnmapbox `UserLocation` (or its `locationManager`).** On the old architecture its
-  location events crash the app on the first real GPS fix (v30, 16 Oct). Use `LocationPuck`, as
-  `MapCanvas` does. Emulators never feed Mapbox a GPS fix, so only a real phone shows this.
+- **Maps go through `src/lib/nativeMap.ts`** (Google via `react-native-maps` since 18 Oct; the Partner
+  website uses `nativeMap.web.ts`, no native map). The Android key accepts only the release/upload
+  signatures, so a debug build shows grey tiles ("Authorization failure"): test maps on a release build.
+  (History: @rnmapbox `UserLocation` crashed v30 on the old architecture; Mapbox is gone from the apps.)
 - **Modals come from `src/components/Modal`, never straight from `react-native`.** Since SDK 54
   every Android modal is drawn under the status and navigation bars; the wrapper pads them
   (Android only). A bottom sheet built on RN's Modal puts its last button behind the back key.

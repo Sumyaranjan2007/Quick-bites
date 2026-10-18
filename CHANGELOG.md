@@ -6,6 +6,24 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Stage C2: Google Maps inside the apps (Mapbox removed)
+
+> **For the owner.** The Customer, Partner and Rider apps now draw **Google Maps**, with the Android and
+> iPhone keys you put in `.env` (read at build time, never committed). Checked on the emulator: the map
+> opens and draws our pin with no crash; Google refuses the emulator's test signature (your key accepts
+> only the real app signature, as it should), so the tiles and dragging are checked on a phone with a
+> real build in the final round. If you want maps on test builds too: add this test fingerprint to the
+> Android key in Google Cloud: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` (optional).
+> The Partner website shows the simple drawn map, as before.
+
+- `src/lib/nativeMap.ts` (Customer, Partner, Rider) rewritten on `react-native-maps` 1.20.1 with the same
+  exports (`MapCanvas` fit via `fitToCoordinates`, `MapPin`, `MapRoute`); Partner `nativeMap.web.ts`.
+- `app.config.js`: `android.config.googleMaps.apiKey`, `ios.config.googleMapsApiKey`, `extra.googleMaps*`.
+- `@rnmapbox/maps`, `withMapboxToken`, `eas-mapbox-netrc.mjs` removed (kept in
+  `quick-bites-old-files/mapbox-2026-10`); `GOOGLE_MAPS_IOS_KEY` publishable in `check-apk-secrets`.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Stage C1: all four apps on React Native's New Architecture
 
 > **For the owner.** The apps now run on React Native's New Architecture, the base the smooth modern

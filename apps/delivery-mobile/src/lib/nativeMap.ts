@@ -1,182 +1,79 @@
 /**
- * The map, behind one seam, so the provider can be changed without touching a
- * single screen.
+ * The map, behind one seam, so the provider can change without touching a
+ * screen (screens use only `canRenderNativeMap`, `MapCanvas`, `MapPin`,
+ * `MapRoute`).
  *
- * This file used to load `react-native-maps` and hand callers its components
- * directly, which meant every map screen knew it was drawing a Google map:
- * `PROVIDER_GOOGLE`, `<Marker>`, `<Polyline>`, a `region` prop. Swapping
- * provider therefore meant rewriting four screens, and the next swap would
- * mean rewriting them again.
+ * Google Maps through `react-native-maps` (owner, 17 Oct 2026; master plan C2),
+ * replacing Mapbox. Android always draws Google with react-native-maps; iPhone
+ * asks for `PROVIDER_GOOGLE`, which needs the iOS key.
  *
- * So the components exported here are provider-neutral - a canvas, a pin, a
- * route - and Mapbox lives behind them. A future change is this file and
- * nothing else.
- *
- * TWO WAYS THE MAP CAN BE UNAVAILABLE, and they fail differently:
- *
- * NO TOKEN. The config plugin writes the Mapbox token into the build and
- * records on `extra` whether it found one. A build without one renders an
- * empty canvas and no error anywhere, which looks exactly like a slow network.
- * Asking `extra` turns that into a question with an answer.
- *
- * NO NATIVE MODULE. `@rnmapbox/maps` is native code. In Expo Go, in a build
- * made before the dependency existed, or in a test runner, the import throws.
- * A throw at the top of the tracking screen would take out the screen a
- * customer opens when they are already anxious about where their food is.
- *
- * Neither is fatal. Every map in this app falls back to the drawn
- * OpenStreetMap view it used before, which needs no token and no native code.
- *
- * `require` rather than `import`, deliberately: a static import is hoisted and
- * evaluated before the surrounding code, so it cannot be guarded - the throw
- * would happen while this module was still loading and take the bundle with it.
+ * TWO WAYS THE MAP CAN BE UNAVAILABLE, and neither is fatal:
+ *  - NO KEY: `app.config.js` records on `extra` whether the build carries one.
+ *    A Google map without a key draws a grey grid, which looks like a slow
+ *    network; asking `extra` turns that into an answer.
+ *  - NO NATIVE MODULE (a test runner, an older build): `require` throws, and
+ *    every map falls back to the drawn view it used before.
+ * `require`, not `import`, so that throw can be caught.
  */
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { isPlottable, fitCamera } from './cameraFit';
 
 export interface LatLng {
   latitude: number;
   longitude: number;
 }
 
-/** True when the build carries a Mapbox token. Written by the config plugin. */
-export const mapsKeyPresent: boolean = Boolean(
-  (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.mapboxConfigured
-);
+const extra = (Constants.expoConfig?.extra || {}) as Record<string, unknown>;
 
-const mapboxToken = String(
-  (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.mapboxAccessToken || ''
-);
+/** True when this build carries a Google Maps key for this platform (written by app.config.js). */
+export const mapsKeyPresent: boolean = Boolean(Platform.OS === 'ios' ? extra.googleMapsIos : extra.googleMapsAndroid);
 
-/**
- * The brand style, shared by all four apps.
- *
- * One URL in one place: four apps referencing four styles is a brand
- * inconsistency nobody notices until a screenshot goes somewhere public. It
- * falls back to Mapbox's own streets style rather than failing, because a map
- * in the wrong colours is better than no map.
- */
-export const MAP_STYLE_URL = String(
-  (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.mapboxStyleUrl ||
-    'mapbox://styles/mapbox/streets-v12'
-);
-
-function loadMapbox(): any | null {
+function loadMaps(): any | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require('@rnmapbox/maps');
-    const lib = mod?.default ?? mod;
-    // A resolved module with no MapView is a broken install rather than an
-    // absent one, and rendering it would throw somewhere far less obvious.
-    if (!lib?.MapView) return null;
-    if (mapboxToken) lib.setAccessToken(mapboxToken);
-    return lib;
+    const mod = require('react-native-maps');
+    return mod?.default ? mod : null;
   } catch {
     return null;
   }
 }
 
-const Mapbox = loadMapbox();
+const RNMaps = loadMaps();
 
-/** The native map library, or null when this build cannot draw one. */
-export const Maps = Mapbox;
+/** The one question every map component asks: a key AND the native module. */
+export const canRenderNativeMap: boolean = mapsKeyPresent && RNMaps !== null;
 
-/**
- * The single question every map component should ask.
- *
- * Both halves matter: a token with no native module still cannot draw, and a
- * native module with no token draws an empty canvas - which is worse than the
- * fallback, because it looks like the feature is working and merely broken.
- */
-export const canRenderNativeMap: boolean = mapsKeyPresent && Mapbox !== null;
+/** A real point: finite, and not the 0,0 an unset coordinate defaults to. */
+const plottable = (p?: LatLng | null): p is LatLng =>
+  !!p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && !(p.latitude === 0 && p.longitude === 0);
 
-
-/* -------------------------------------------------------------------------- */
-/*  Coordinate order                                                          */
-/* -------------------------------------------------------------------------- */
-
-/*
- * THE ONE PLACE THE TWO COORDINATE ORDERS MEET.
- *
- * Mapbox orders coordinates [longitude, latitude]. react-native-maps used
- * {latitude, longitude}, and so does every screen, every API response and
- * every stored address in this project.
- *
- * Getting it backwards does not raise an error anywhere. A Bengaluru address
- * transposed becomes a point in the Indian Ocean, and the map, the distance
- * and the delivery fee are all computed from it perfectly happily. The symptom
- * is a wrong fee or a map centred at sea, and it reads as a data problem
- * rather than an axis order - which is why it is worth two named functions
- * instead of an inline array literal repeated in four places.
- *
- * Named for the direction they convert, not for what they take. `toMapbox` and
- * `fromMapbox` cannot be used the wrong way round without the name saying so
- * at the call site.
- */
-export function toMapbox(p: LatLng): [number, number] {
-  return [p.longitude, p.latitude];
+/** "Metres across" (how callers think) -> a region the map understands. */
+function regionFor(centre: LatLng, spanMetres: number) {
+  const metres = Math.max(50, spanMetres);
+  const latitudeDelta = metres / 111_320;
+  const longitudeDelta = metres / (111_320 * Math.max(0.2, Math.cos((centre.latitude * Math.PI) / 180)));
+  return { latitude: centre.latitude, longitude: centre.longitude, latitudeDelta, longitudeDelta };
 }
 
-export function fromMapbox(c: unknown): LatLng | null {
-  // Guarded rather than trusted: this reads a value out of a native event,
-  // and a malformed one must leave the pin where it is rather than move it to
-  // [NaN, NaN] - which renders as the map jumping to the middle of nowhere.
-  if (!Array.isArray(c) || c.length < 2) return null;
-  const [lon, lat] = c;
-  if (typeof lon !== 'number' || typeof lat !== 'number') return null;
-  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
-  return { latitude: lat, longitude: lon };
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Provider-neutral components                                               */
-/* -------------------------------------------------------------------------- */
+const keyOf = (points: LatLng[]) => points.map(p => `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`).join('|');
+const EDGE = { top: 60, right: 60, bottom: 60, left: 60 };
 
 export interface MapCanvasProps {
   /** Where the map is looking. */
   centre: LatLng;
-  /**
-   * Metres across, roughly. Callers think in "how much ground do I want to
-   * see", not in zoom levels - a zoom level is a property of the tile scheme
-   * and would leak the provider straight back through this seam.
-   */
+  /** Metres across, roughly; ignored when `fit` has two or more points. */
   spanMetres?: number;
-  /** Points that must all be visible; framed exactly from the measured size. */
+  /** Points that must ALL be visible (kitchen, rider, door): the camera fits them. */
   fit?: LatLng[];
   children?: React.ReactNode;
   style?: any;
   /** Fired when the user stops moving the map, with the new centre. */
   onSettle?: (centre: LatLng) => void;
   scrollEnabled?: boolean;
-  /** Follows the device position. Used by the rider's own trip map. */
+  /** The device's own position (the rider's trip map). */
   showUserLocation?: boolean;
 }
-
-/**
- * Metres across -> Mapbox zoom level.
- *
- * Zoom is logarithmic in metres-per-pixel, so this is a log rather than a
- * table: a table would need an entry for every span any caller ever wanted and
- * would quietly round to the nearest one it had.
- *
- * Clamped at both ends. Past 20 a phone renders blank tiles, and below 1 the
- * whole world is a smear - neither is a view anyone asked for, and both look
- * like a broken map rather than a bad argument.
- */
-function zoomForSpan(spanMetres: number): number {
-  const safeSpan = Math.max(50, spanMetres);
-  const zoom = Math.log2(40075016.686 / safeSpan);
-  return Math.min(20, Math.max(1, zoom));
-}
-
-/* ------------------------------------------------------------------------- */
-/*            Framing two points exactly (owner, 1 Oct 2026)                 */
-/* ------------------------------------------------------------------------- */
-
-// The framing maths is pure, in its own file so the gate can check it.
-export { isPlottable, fitCamera };
 
 export const MapCanvas: React.FC<MapCanvasProps> = ({
   centre,
@@ -188,63 +85,48 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   scrollEnabled = true,
   showUserLocation = false
 }) => {
-  /*
-   * The map measures itself, and the camera is set from that measurement
-   * (owner, 1 Oct 2026). With two or more real points it frames them exactly
-   * (`fitCamera`); otherwise it shows `centre` at `spanMetres`. The same values
-   * are the Camera's DEFAULT settings, so even the very first frame is the
-   * right place — never Mapbox's own zoomed-out default.
-   */
-  const [size, setSize] = React.useState({ width: 0, height: 0 });
-  if (!Mapbox) return null;
-  const { MapView, Camera, LocationPuck } = Mapbox;
+  const ref = useRef<any>(null);
+  const points = (fit || []).filter(plottable);
+  const target = points.length === 1 ? points[0] : centre;
+  const fitKey = keyOf(points);
+  const targetKey = keyOf([target]);
 
-  const framed = fit && fit.filter(isPlottable).length >= 2 ? fitCamera(fit, size.width, size.height) : null;
-  const single = fit ? fit.find(isPlottable) : undefined;
-  const target = framed
-    ? { centerCoordinate: toMapbox(framed.centre), zoomLevel: framed.zoom }
-    : { centerCoordinate: toMapbox(single || centre), zoomLevel: zoomForSpan(spanMetres) };
+  const frame = () => {
+    if (points.length >= 2) ref.current?.fitToCoordinates(points, { edgePadding: EDGE, animated: true });
+    else if (plottable(target)) ref.current?.animateToRegion(regionFor(target, spanMetres), 350);
+  };
+  // Re-framed only when the points really move (5 decimals, about a metre), so a
+  // settle that reports the same centre back cannot start a loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(frame, [fitKey, targetKey, spanMetres]);
 
+  if (!RNMaps) return null;
+  const MapView = RNMaps.default;
   return React.createElement(
     View,
-    {
-      style,
-      onLayout: (e: any) => {
-        const { width, height } = e?.nativeEvent?.layout || {};
-        if (width > 0 && height > 0 && (width !== size.width || height !== size.height)) setSize({ width, height });
-      }
-    },
+    { style },
     React.createElement(
       MapView,
       {
+        ref,
+        provider: RNMaps.PROVIDER_GOOGLE,
         style: StyleSheet.absoluteFill,
-        styleURL: MAP_STYLE_URL,
-        scaleBarEnabled: false,
-        // The Mapbox wordmark and attribution must stay visible - it is a
-        // condition of the terms, not a design choice.
-        logoEnabled: true,
-        attributionEnabled: true,
+        initialRegion: regionFor(plottable(target) ? target : centre, spanMetres),
+        onMapReady: frame,
         scrollEnabled,
         zoomEnabled: scrollEnabled,
         rotateEnabled: false,
         pitchEnabled: false,
-        onMapIdle: onSettle
-          ? (state: any) => {
-              const point = fromMapbox(state?.properties?.center);
-              if (point) onSettle(point);
+        toolbarEnabled: false,
+        showsUserLocation: showUserLocation,
+        showsMyLocationButton: false,
+        onRegionChangeComplete: onSettle
+          ? (region: any) => {
+              const point = { latitude: Number(region?.latitude), longitude: Number(region?.longitude) };
+              if (plottable(point)) onSettle(point);
             }
           : undefined
       },
-      React.createElement(Camera, {
-        defaultSettings: target,
-        ...target,
-        animationDuration: size.width > 0 ? 350 : 0
-      }),
-      // LocationPuck, not UserLocation: UserLocation listens through @rnmapbox's
-      // location module, whose events need React Native's new architecture. On the
-      // old one the first real GPS fix crashed the app (NullPointerException in
-      // emitOnLocationUpdate, Vivo Android 15, 16 Oct 2026). The puck is drawn natively.
-      showUserLocation && LocationPuck ? React.createElement(LocationPuck, { key: 'me' }) : null,
       children
     )
   );
@@ -258,13 +140,8 @@ export interface MapPinProps {
 
 /** A marker at a point. `children` is the marker's own view, if it has one. */
 export const MapPin: React.FC<MapPinProps> = ({ id, at, children }) => {
-  if (!Mapbox) return null;
-  const { MarkerView } = Mapbox;
-  return React.createElement(
-    MarkerView,
-    { id, coordinate: toMapbox(at), allowOverlap: true },
-    children
-  );
+  if (!RNMaps || !plottable(at)) return null;
+  return React.createElement(RNMaps.Marker, { identifier: id, coordinate: at, anchor: { x: 0.5, y: 0.5 } }, children);
 };
 
 export interface MapRouteProps {
@@ -274,32 +151,15 @@ export interface MapRouteProps {
   width?: number;
 }
 
-/**
- * A line through a list of points.
- *
- * Mapbox draws lines as a GeoJSON source with a layer over it rather than as a
- * single component, which is more capable and more verbose. Callers should not
- * have to know that, so the GeoJSON is assembled here.
- */
-export const MapRoute: React.FC<MapRouteProps> = ({ id, points, colour, width = 4 }) => {
-  if (!Mapbox || points.length < 2) return null;
-  const { ShapeSource, LineLayer } = Mapbox;
-
-  const shape = {
-    type: 'Feature' as const,
-    properties: {},
-    geometry: {
-      type: 'LineString' as const,
-      coordinates: points.map(toMapbox)
-    }
-  };
-
-  return React.createElement(
-    ShapeSource,
-    { id: `${id}-source`, shape },
-    React.createElement(LineLayer, {
-      id: `${id}-line`,
-      style: { lineColor: colour, lineWidth: width, lineCap: 'round', lineJoin: 'round' }
-    })
-  );
+/** A line through a list of points. */
+export const MapRoute: React.FC<MapRouteProps> = ({ points, colour, width = 4 }) => {
+  const line = points.filter(plottable);
+  if (!RNMaps || line.length < 2) return null;
+  return React.createElement(RNMaps.Polyline, {
+    coordinates: line,
+    strokeColor: colour,
+    strokeWidth: width,
+    lineCap: 'round',
+    lineJoin: 'round'
+  });
 };
