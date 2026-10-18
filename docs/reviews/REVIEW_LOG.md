@@ -146,3 +146,19 @@ Still open: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1, D6, P1, P2, P3, PH1; R
 | G3 | Low | `blockedIdentifiers.ts` `canonical` (email) | `+tag` is stripped for every domain, not only Gmail (the comment says Gmail), so `john+shop@company.in` and `john@company.in`, possibly different inboxes, count as one person. | Strip `+tag` only for Gmail (and other providers you list), or accept the over-match knowingly in the comment. | open |
 
 Note: the misleading name `LIVE` (finished statuses) predates this commit; rename to `FINISHED` when that file is next touched.
+
+---
+
+## 18 Oct 2026 — `68c101f` B6 step 3 (deletion requests, owner Q2) and `c8a7850` B6 step 4 (admin Create)
+
+**Verdicts: both approve.**
+
+`68c101f`: with the account no longer locked during a request, every way to get new work is still closed: the request sets each kitchen `CLOSED` and the partner's open switch refuses anything not `ACTIVE` (`restaurantRouter.ts:~712`); the rider is set offline, taken off the offer pool, refused at "go online" (`DELETION_PENDING`, `riderRouter.ts:515`), and `claim` needs `isOnline` (`riderRouter.ts:~850`). A request is refused while an order is in progress. Completing a request lifts only the old-style deletion lock (`blockReason === REASON`), never a separate admin block. The review row (kitchens, rider, orders in progress/total, documents approved, last active) is computed from the store, nothing trusted from the app.
+
+`c8a7850`: reuses the sign-up schemas and record builders (`openRestaurant`, `openRiderRecord`), so a created kitchen/rider is the same record as a self-registered one (pending approval). The ban list, email and phone duplicates are checked first; per-kind manage permission is checked server-side; the temporary password is 12 characters from crypto randomness (≈ 69 bits), emailed, never returned, logged only off production; the write is durable (admin router) and audit-logged.
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| C1 | Low | `routes/admin/peopleRoutes.ts` `/accounts/create` (and the existing admin reset at `:1150`) | "Change it after signing in" is only advice: nothing forces it, and the temporary password stays valid for ever in the person's mailbox. | Mark the account `passwordTemporaryUntil` (e.g. 7 days); sign-in with an expired temporary password answers "use Forgot password", and the apps prompt for a new one when the flag is set (Stage E). | open |
+
+Still open from earlier rounds and not yet fixed in a commit: **P1** (unlimited reset codes, `55d62d5`) and **G1** (Block after Remove, `146c41d`); plus P2, P3, PH1, G2, G3, R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1.
