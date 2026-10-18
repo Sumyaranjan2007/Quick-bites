@@ -133,10 +133,12 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 - **Account deletion:** customers delete at once (password or a fresh phone code).
   Partners and riders *request* deletion; an admin completes it after dues are settled
   (People → Deletion requests).
-- **Restaurant invoices (6 Oct):** Partner → Money → Statement → *Download invoice (PDF)*
-  for the last 30 days / this month / last month / all orders, and *Download this order's
-  invoice* per order, and *Each order as its own PDF (ZIP)* (one file per order + the summary,
-  for their accounts/GST); Admin → Money → Pay → Owed → Statement → the same two downloads.
+- **Receipts and invoices (owner, 19 Oct; was "restaurant invoices" 6 Oct):** partners download
+  **receipts only**: Partner → Money → Statement → *Download receipts (ZIP)* for a period and
+  *Download receipt* per order (their own share). **Operations** keeps the invoices: per order,
+  *Download full invoice (PDF)* (`/api/admin/orders/:id/invoice.pdf`, `finance.revenue.view`: what the
+  customer paid and who earned what, from `splitForOrder`/`contributionPaise`, adds up to the total);
+  per payee, Admin → Money → Pay → Owed → Statement (period statement + each order's invoice, ZIP).
   One PDF builder (`modules/payments/statementPdf.ts`) on top of `statementFor`, dishes at
   the kitchen's prices, labelled "Not a GST tax invoice" (no GSTIN yet). Each order notes
   the 5% food GST the customer paid, which Quick Bites collects and keeps to pay (it is booked

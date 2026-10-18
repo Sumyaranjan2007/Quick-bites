@@ -63,9 +63,15 @@ const ymd = (iso: string) => new Date(iso).toISOString().slice(0, 10).replace(/-
 const isAllTime = (statement: Statement) => new Date(statement.period.from).getUTCFullYear() < 2000;
 
 /** The file name the download is saved under. */
-export function invoiceFileName(statement: Statement, orderNumber?: string): string {
+/**
+ * 'receipt' is what partners and riders get (owner, 19 Oct 2026): their own share of one
+ * order. 'invoice' stays for Quick Bites staff (Money -> Pay -> Statement).
+ */
+export type DocumentKind = 'invoice' | 'receipt';
+
+export function invoiceFileName(statement: Statement, orderNumber?: string, kind: DocumentKind = 'invoice'): string {
   return orderNumber
-    ? `QuickBites-invoice-${orderNumber}.pdf`
+    ? `QuickBites-${kind}-${orderNumber}.pdf`
     : `QuickBites-earnings-${isAllTime(statement) ? 'all' : ymd(statement.period.from)}-to-${ymd(statement.period.to)}.pdf`;
 }
 
@@ -77,8 +83,9 @@ function orderStatus(o: OrderStatement): { text: string; color: Rgb } {
 export function renderStatementPdf(
   statement: Statement,
   payee: InvoicePayee,
-  options: { orderId?: string; issuedAt?: string } = {}
+  options: { orderId?: string; issuedAt?: string; kind?: DocumentKind } = {}
 ): Buffer {
+  const receipt = options.kind === 'receipt';
   const pdf = new SimplePdf();
   const us = businessIdentity();
   const issuedAt = options.issuedAt || new Date().toISOString();
@@ -95,12 +102,12 @@ export function renderStatementPdf(
   // ---- Header band --------------------------------------------------------
   pdf.rect(0, 0, pdf.width, 96, MAROON);
   pdf.text(us.tradingName || 'Quick Bites', LEFT, 42, { size: 22, bold: true, color: [255, 255, 255] });
-  pdf.text(single ? 'Order invoice' : 'Earnings invoice and order statement', LEFT, 64, {
+  pdf.text(single ? (receipt ? 'Order receipt' : 'Order invoice') : 'Earnings invoice and order statement', LEFT, 64, {
     size: 11,
     color: [255, 228, 200]
   });
   const number = single
-    ? `QB-INV-${String(orders[0]?.orderNumber || options.orderId).replace(/^QB-/, '')}`
+    ? `${receipt ? 'QB-RCT' : 'QB-INV'}-${String(orders[0]?.orderNumber || options.orderId).replace(/^QB-/, '')}`
     : `QB-ST-${statement.ownerId.slice(-6).toUpperCase()}-${isAllTime(statement) ? 'ALL' : ymd(statement.period.from)}-${ymd(statement.period.to)}`;
   pdf.text(number, RIGHT, 42, { size: 10, bold: true, color: [255, 255, 255], align: 'right' });
   pdf.text(`Issued ${day(issuedAt)}`, RIGHT, 58, { size: 9, color: [255, 228, 200], align: 'right' });
@@ -357,7 +364,8 @@ export async function sendStatementPdf(
   ownerType: PayeeOwnerType,
   ownerId: string,
   ownerName: string,
-  range: { from?: string; to?: string; orderId?: string }
+  range: { from?: string; to?: string; orderId?: string },
+  kind: DocumentKind = 'invoice'
 ): Promise<void> {
   const statement = statementFor(
     ownerType,
@@ -370,9 +378,9 @@ export async function sendStatementPdf(
     throw new AppError('There are no earnings for that order on this account yet.', 404, 'NO_EARNINGS_FOR_ORDER');
   }
 
-  const body = renderStatementPdf(statement, await payeeFor(ownerType, ownerId, ownerName), { orderId: range.orderId });
+  const body = renderStatementPdf(statement, await payeeFor(ownerType, ownerId, ownerName), { orderId: range.orderId, kind });
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${invoiceFileName(statement, order?.orderNumber)}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${invoiceFileName(statement, order?.orderNumber, kind)}"`);
   res.setHeader('Cache-Control', 'no-store');
   res.send(body);
 }
@@ -388,23 +396,25 @@ export async function sendInvoiceZip(
   ownerType: PayeeOwnerType,
   ownerId: string,
   ownerName: string,
-  range: { from?: string; to?: string }
+  range: { from?: string; to?: string },
+  kind: DocumentKind = 'invoice'
 ): Promise<void> {
   const statement = statementFor(ownerType, ownerId, ownerName, range);
   const payee = await payeeFor(ownerType, ownerId, ownerName);
   const issuedAt = new Date().toISOString();
   const summaryName = invoiceFileName(statement).replace('QuickBites-earnings-', 'QuickBites-summary-');
+  // Receipts (partners, riders): one file per order, no period statement.
   const archive = zip([
-    { name: summaryName, data: renderStatementPdf(statement, payee, { issuedAt }) },
+    ...(kind === 'invoice' ? [{ name: summaryName, data: renderStatementPdf(statement, payee, { issuedAt }) }] : []),
     ...statement.orders.map(o => ({
-      name: invoiceFileName(statement, o.orderNumber),
-      data: renderStatementPdf(statement, payee, { orderId: o.orderId, issuedAt })
+      name: invoiceFileName(statement, o.orderNumber, kind),
+      data: renderStatementPdf(statement, payee, { orderId: o.orderId, issuedAt, kind })
     }))
   ]);
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader(
     'Content-Disposition',
-    `attachment; filename="${invoiceFileName(statement).replace('QuickBites-earnings-', 'QuickBites-invoices-').replace(/\.pdf$/, '.zip')}"`
+    `attachment; filename="${invoiceFileName(statement).replace('QuickBites-earnings-', kind === 'receipt' ? 'QuickBites-receipts-' : 'QuickBites-invoices-').replace(/\.pdf$/, '.zip')}"`
   );
   res.setHeader('Cache-Control', 'no-store');
   res.send(archive);

@@ -11,6 +11,7 @@ import {
   Platform
 } from 'react-native';
 import { tokens } from '../theme/tokens';
+import { PressableScale } from './PressableScale';
 
 const c = tokens.colors;
 
@@ -169,10 +170,9 @@ export const Button: React.FC<{
   }[size];
 
   return (
-    <TouchableOpacity
+    <PressableScale
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.85}
       style={[
         s.button,
         {
@@ -197,7 +197,7 @@ export const Button: React.FC<{
           </Text>
         </>
       )}
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

@@ -71,9 +71,9 @@ async function saveInvoice(
 ) {
   setBusy(true);
   try {
-    Alert.alert(each ? 'Invoices saved' : 'Invoice saved', await downloadInvoice(range, each));
+    Alert.alert(each ? 'Receipts saved' : 'Receipt saved', await downloadInvoice(range, each));
   } catch (err: any) {
-    Alert.alert('Invoice not saved', err?.message || 'Try again in a moment.');
+    Alert.alert('Not saved', err?.message || 'Try again in a moment.');
   } finally {
     setBusy(false);
   }
@@ -106,15 +106,15 @@ const PERIODS: Array<{ key: string; label: string; range: () => { from: string; 
 
 const InvoiceCard: React.FC = () => {
   const [period, setPeriod] = useState('30d');
-  const [busy, setBusy] = useState(false);
   const [eachBusy, setEachBusy] = useState(false);
   const range = () => PERIODS.find(p => p.key === period)!.range();
   return (
     <Card style={s.topCard}>
-      <Text style={s.invoiceTitle}>Download your invoice</Text>
+      {/* Partners download RECEIPTS (owner, 19 Oct 2026); invoices are kept by Quick Bites. */}
+      <Text style={s.invoiceTitle}>Download your receipts</Text>
       <Text style={s.invoiceBody}>
-        A PDF of every delivered order in the period, each with its dishes at your prices, our commission and
-        tax withheld, and a summary of what you earned and were paid.
+        A receipt for every delivered order in the period: the dishes at your prices, our commission, tax
+        withheld and what you earn. One file per order, in a ZIP, for your accounts.
       </Text>
       <View style={s.periodRow}>
         {PERIODS.map(p => (
@@ -130,19 +130,13 @@ const InvoiceCard: React.FC = () => {
           </TouchableOpacity>
         ))}
       </View>
-      <Button label="Download invoice (PDF)" busy={busy} disabled={busy || eachBusy} onPress={() => void saveInvoice(range(), setBusy)} />
       <Button
-        label="Each order as its own PDF (ZIP)"
-        variant="ghost"
+        label="Download receipts (ZIP)"
         busy={eachBusy}
-        disabled={busy || eachBusy}
+        disabled={eachBusy}
         onPress={() => void saveInvoice(range(), setEachBusy, true)}
-        style={s.eachButton}
       />
-      <Text style={s.eachHint}>
-        One file per order, plus the summary — to keep with your accounts and give your accountant for GST and
-        income tax.
-      </Text>
+      <Text style={s.eachHint}>Each order's receipt is also on the order below: Download receipt.</Text>
     </Card>
   );
 };
@@ -193,7 +187,7 @@ const OrderRow: React.FC<{ order: OrderStatementView }> = ({ order }) => {
           </View>
 
           <Button
-            label="Download this order's invoice"
+            label="Download receipt"
             variant="ghost"
             busy={busy}
             disabled={busy}

@@ -1,3 +1,4 @@
+import { PressableScale } from '../components/PressableScale';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -717,13 +718,13 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             {restaurants
               .filter(r => favourites.has(r.id))
               .map(r => (
-                <TouchableOpacity key={r.id} style={styles.favouriteCard} onPress={() => onSelectRestaurant(r)} activeOpacity={0.9}>
+                <PressableScale key={r.id} style={styles.favouriteCard} onPress={() => onSelectRestaurant(r)}>
                   <RestaurantPhoto photos={r.photos} placeholder={r.placeholder} bannerUrl={r.bannerUrl} name={r.name} style={styles.favouritePhoto} />
                   <Text style={styles.favouriteName} numberOfLines={1}>
                     {r.name}
                   </Text>
                   {r.isServing === false && <Text style={styles.favouriteClosed}>Not delivering currently</Text>}
-                </TouchableOpacity>
+                </PressableScale>
               ))}
           </ScrollView>
         </View>
@@ -783,7 +784,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 
       {state === 'success' &&
         visible.map(r => (
-          <TouchableOpacity key={r.id} activeOpacity={0.92} onPress={() => onSelectRestaurant(r)}>
+          <PressableScale key={r.id} onPress={() => onSelectRestaurant(r)}>
             <Card style={styles.restaurantCard} padded={false}>
               <View>
                 {/*
@@ -899,7 +900,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                 )}
               </View>
             </Card>
-          </TouchableOpacity>
+          </PressableScale>
         ))}
       <VoiceSearchSheet
         visible={voiceOpen}

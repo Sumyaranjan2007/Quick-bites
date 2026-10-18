@@ -10,6 +10,7 @@ import { AppError } from '../../utils/AppError.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { orderService } from '../../modules/orders/orderService.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
+import { sendOrderInvoicePdf } from '../../modules/payments/orderInvoicePdf.ts';
 import { LIVE_STATUSES, IN_TRANSIT_STATUSES, economicsOf } from '../../modules/admin/analytics.ts';
 import { shapeOrderDetail, summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore } from '../../db/client.ts';
@@ -94,6 +95,20 @@ orderRoutes.get('/orders', requirePermission('orders.view'), async (req, res, ne
 });
 
 /** GET /api/admin/orders/:id — the complete file on one order. */
+/**
+ * GET /api/admin/orders/:id/invoice.pdf — the FULL invoice of one order (owner, 19 Oct 2026):
+ * what the customer paid and how it was divided (kitchen, rider, taxes, Quick Bites).
+ * Staff who may see revenue only; partners get their own receipt instead.
+ */
+orderRoutes.get('/orders/:id/invoice.pdf', requirePermission('finance.revenue.view'), async (req, res, next) => {
+  try {
+    recordAudit(req, { action: 'ORDER_INVOICE_DOWNLOADED', entityType: 'ORDER', entityId: req.params.id, summary: 'Downloaded the full order invoice' });
+    await sendOrderInvoicePdf(res, req.params.id);
+  } catch (err) {
+    next(err);
+  }
+});
+
 orderRoutes.get('/orders/:id', requirePermission('orders.detail.view'), async (req, res, next) => {
   try {
     const order = await orderRepository.findById(req.params.id);

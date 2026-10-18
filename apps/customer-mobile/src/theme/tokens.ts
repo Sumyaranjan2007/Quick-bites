@@ -72,6 +72,16 @@ export const tokens = {
   },
   spacing: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 7: 28, 8: 32, 10: 40, 12: 48, 16: 64 },
   radii: { sm: 8, md: 12, lg: 16, xl: 20, '2xl': 28, full: 999 },
+  // Motion (design/motion/README.md): one place for timing; exits use 70% of these.
+  motion: {
+    press: { duration: 120, scale: 0.97 },
+    quick: 160,
+    standard: 260,
+    slow: 400,
+    easeOut: [0.23, 1, 0.32, 1] as [number, number, number, number],
+    easeInOut: [0.77, 0, 0.175, 1] as [number, number, number, number],
+    easeSheet: [0.32, 0.72, 0, 1] as [number, number, number, number]
+  },
   font: {
     family: FONT_FAMILY,
     size: { xs: 11, sm: 13, base: 15, md: 17, lg: 20, xl: 24, '2xl': 30, '3xl': 34 },

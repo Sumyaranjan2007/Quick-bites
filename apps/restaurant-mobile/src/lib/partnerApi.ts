@@ -742,7 +742,7 @@ export function invoiceRequest(range: { from?: string; to?: string; orderId?: st
   for (const [key, value] of Object.entries(range)) if (value) params.set(key, value);
   const query = params.toString();
   return {
-    url: `${apiUrl}/earnings/${each ? 'invoices.zip' : 'statement.pdf'}${query ? `?${query}` : ''}`,
+    url: `${apiUrl}/earnings/${each ? 'receipts.zip' : 'statement.pdf'}${query ? `?${query}` : ''}`,
     headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
   };
 }

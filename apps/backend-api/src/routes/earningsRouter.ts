@@ -1,3 +1,4 @@
+import type express from 'express';
 /**
  * What a partner or a rider has earned, and asking to be paid it.
  *
@@ -99,12 +100,20 @@ earningsRouter.get(
   validate({ query: StatementQuery.extend({ orderId: z.string().trim().max(80).optional() }) }),
   async (req, res, next) => {
     try {
+      // Partners and riders download RECEIPTS, one order each (owner, 19 Oct 2026);
+      // the full invoice and the period statement are for Quick Bites staff.
+      if (!req.query.orderId) {
+        throw new AppError('Choose an order to download its receipt.', 400, 'RECEIPT_NEEDS_ORDER');
+      }
       const payee = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as));
-      await sendStatementPdf(res, payee.ownerType, payee.ownerId, payee.ownerName, {
-        from: req.query.from as string | undefined,
-        to: req.query.to as string | undefined,
-        orderId: req.query.orderId as string | undefined
-      });
+      await sendStatementPdf(
+        res,
+        payee.ownerType,
+        payee.ownerId,
+        payee.ownerName,
+        { orderId: req.query.orderId as string },
+        'receipt'
+      );
     } catch (err) {
       next(err);
     }
@@ -115,17 +124,24 @@ earningsRouter.get(
  * GET /api/earnings/invoices.zip — every order in the period as its own PDF
  * invoice, plus the summary, for the restaurant's accounts and tax records.
  */
-earningsRouter.get('/invoices.zip', authMiddleware(), validate({ query: StatementQuery }), async (req, res, next) => {
+const receiptsZip: express.RequestHandler = async (req, res, next) => {
   try {
     const payee = await resolvePayee(req.user!.id, req.user!.role, parsePreference(req.query.as));
-    await sendInvoiceZip(res, payee.ownerType, payee.ownerId, payee.ownerName, {
-      from: req.query.from as string | undefined,
-      to: req.query.to as string | undefined
-    });
+    await sendInvoiceZip(
+      res,
+      payee.ownerType,
+      payee.ownerId,
+      payee.ownerName,
+      { from: req.query.from as string | undefined, to: req.query.to as string | undefined },
+      'receipt'
+    );
   } catch (err) {
     next(err);
   }
-});
+};
+earningsRouter.get('/receipts.zip', authMiddleware(), validate({ query: StatementQuery }), receiptsZip);
+// Kept for older Partner apps; it gives receipts too.
+earningsRouter.get('/invoices.zip', authMiddleware(), validate({ query: StatementQuery }), receiptsZip);
 
 const RaiseSchema = z.object({
   /**

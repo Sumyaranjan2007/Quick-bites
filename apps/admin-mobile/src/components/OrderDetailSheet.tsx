@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Alert, Linking } from 'react-native';
 import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState, Segmented, CheckRow } from './ui';
 import { tokens, formatMoney, formatDateTime, humanise, toneForStatus, refundSentence } from '../theme/tokens';
 import { useSession } from '../lib/session';
+import { DownloadButton } from './DownloadButton';
 import { useResource } from '../lib/useResource';
 
 const c = tokens.colors;
@@ -416,6 +417,16 @@ export const OrderDetailSheet: React.FC<{
           </View>
 
           {/* The relationship, in one card */}
+          {/* The full invoice: what the customer paid and how it was divided (owner, 19 Oct 2026). */}
+          {can('finance.revenue.view') ? (
+            <DownloadButton
+              source={`${api.baseUrl}/admin/orders/${order.id}/invoice.pdf`}
+              headers={{ Authorization: `Bearer ${api.token}` }}
+              name={`QuickBites-full-invoice-${order.orderNumber}`}
+              label="Download full invoice (PDF): who earned what"
+              full
+            />
+          ) : null}
           <Card>
             <Text style={s.cardHeading}>Who was involved</Text>
             <KeyValue label="Customer" value={data.customer?.fullName} tone="strong" />

@@ -6,6 +6,32 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Partners download receipts; the full invoice is for Operations only; press feel
+
+> **For the owner.** **Partner** app and website: no more invoices. Money → Statement now has
+> **Download receipts (ZIP)** for a period (one receipt per delivered order) and **Download receipt** on
+> each order: the dishes at their prices, our commission, tax withheld and what they earn. The period
+> statement is no longer downloadable by partners.
+> **Operations** (app and website): every order has **Download full invoice (PDF): who earned what**:
+> what the customer paid line by line, and how it was divided: kitchen, rider trip pay, rider tip, GST on
+> food, GST on commission, TDS, TCS, and what Quick Bites keeps, adding up exactly to what the customer
+> paid. Only staff allowed to see revenue (finance) can download it; support staff cannot.
+> Customer app: cards and buttons now squash slightly under the finger and spring back (press feel).
+
+- `modules/payments/orderInvoicePdf.ts` (`GET /api/admin/orders/:id/invoice.pdf`, `finance.revenue.view`,
+  audit-logged): figures only from `splitForOrder` / `contributionPaise` (before delivery the rider's pay is
+  the expected trip pay, labelled so). Partner `/earnings/statement.pdf` needs an `orderId` (receipt);
+  `/earnings/receipts.zip` (and the old `/invoices.zip`) give receipts only, no staff summary. Admin
+  payee statements unchanged.
+- Note for review: the dashboard's `economicsOf` (analytics) is a simpler figure than the books' split
+  (it leaves out packaging and food markup and taxes); the invoice uses the books.
+- Customer: Reanimated 4 + worklets + expo-image installed; `PressableScale` (0.97 for 120 ms, off with
+  reduce motion) on buttons and restaurant cards; `tokens.motion`.
+- Checks in `ownPricesAndSearch` (47): receipts only for partners, the invoice adds up, support refused,
+  finance allowed; 4 mutations caught. Checked on the QA websites.
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Customer app: soft haptics on Android too, with a switch
 
 > **For the owner.** The soft tap feel (adding food, changing tabs, placing an order, a refused coupon)

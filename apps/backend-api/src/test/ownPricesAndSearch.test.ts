@@ -14,6 +14,7 @@
  * period (7 days): a zero markup would make "the kitchen's price" and "the
  * customer's price" the same number and prove nothing.
  */
+import { orderInvoiceLines } from '../modules/payments/orderInvoicePdf.ts';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
@@ -301,8 +302,14 @@ try {
     return offsets.length > 3 && offsets.every((o, i) => text.slice(o).startsWith(`${i + 1} 0 obj`));
   };
 
-  const period = await pdf('/earnings/statement.pdf', partner.token);
-  it('The partner downloads the period invoice as a real PDF', () => {
+  // Owner, 19 Oct 2026: partners download RECEIPTS of one order; the period statement
+  // and the full invoice are for Quick Bites staff.
+  const partnerPeriod = await pdf('/earnings/statement.pdf', partner.token);
+  it('A partner can no longer download the period statement (receipts only)', () => {
+    assert.equal(partnerPeriod.status, 400, partnerPeriod.text.slice(0, 120));
+  });
+  const period = await pdf(`/admin/payouts/statement/RESTAURANT/${RESTAURANT_ID}/pdf`, admin.token);
+  it('An admin downloads the period statement as a real PDF', () => {
     assert.equal(period.status, 200, period.text.slice(0, 200));
     assert.match(period.type, /application\/pdf/);
     assert.match(period.name, /attachment; filename="QuickBites-earnings-\d{8}-to-\d{8}\.pdf"/);
@@ -322,14 +329,15 @@ try {
   });
 
   const one = await pdf(`/earnings/statement.pdf?orderId=${stored.id}`, partner.token);
-  it('One order downloads as its own invoice, and only that order', () => {
+  it("One order downloads as the partner's receipt, and only that order", () => {
     assert.equal(one.status, 200);
-    assert.ok(one.name.includes(`QuickBites-invoice-${stored.orderNumber}.pdf`), one.name);
+    assert.ok(one.name.includes(`QuickBites-receipt-${stored.orderNumber}.pdf`), one.name);
+    assert.ok(one.text.includes('Order receipt'), 'not labelled a receipt');
     assert.ok(one.text.includes(`#${stored.orderNumber}`));
     assert.equal(one.text.includes(`#${secondOrder.orderNumber}`), false);
     assert.ok(wellFormed(one.text));
   });
-  const pdfAsCustomer = await pdf('/earnings/statement.pdf', customer.token);
+  const pdfAsCustomer = await pdf(`/earnings/statement.pdf?orderId=${stored.id}`, customer.token);
   const signedOut = await pdf('/earnings/statement.pdf');
   const notTheirs = await pdf('/earnings/statement.pdf?orderId=ord_somebody_else', partner.token);
   it('Nobody else gets it: a customer, and no sign-in at all', () => {
@@ -373,17 +381,17 @@ try {
   const all = await bytes('/earnings/invoices.zip', partner.token);
   const files = all.status === 200 ? unzip(all.data) : [];
   const gstOf = (o: any) => money(Number(o.bill?.gstAmount) || 0);
-  it('Every order downloads as its own invoice, together in one ZIP with the summary', () => {
+  it("Every order downloads as its own receipt, together in one ZIP (no staff statement)", () => {
     assert.equal(all.status, 200, all.data.toString('latin1').slice(0, 200));
     assert.match(all.type, /application\/zip/);
-    assert.match(all.name, /QuickBites-invoices-\d{8}-to-\d{8}\.zip/);
-    assert.equal(files.length, statement.orders.length + 1);
+    assert.match(all.name, /QuickBites-receipts-\d{8}-to-\d{8}\.zip/);
+    assert.equal(files.length, statement.orders.length);
     assert.ok(files.every(f => f.crcOk && f.text.startsWith('%PDF-1.4')), 'a file is damaged');
-    assert.ok(files.some(f => f.name.startsWith('QuickBites-summary-')), 'no summary');
+    assert.ok(!files.some(f => f.name.startsWith('QuickBites-summary-')), 'a staff summary leaked in');
   });
   it('...each order file holds that order only, with the GST line for the records', () => {
     for (const o of [stored, secondOrder]) {
-      const f = files.find(x => x.name === `QuickBites-invoice-${o.orderNumber}.pdf`);
+      const f = files.find(x => x.name === `QuickBites-receipt-${o.orderNumber}.pdf`);
       assert.ok(f, `no file for ${o.orderNumber}`);
       assert.ok(f.text.includes(`#${o.orderNumber}`));
       const other = o === stored ? secondOrder : stored;
@@ -393,10 +401,41 @@ try {
   });
   const zipAsCustomer = await bytes('/earnings/invoices.zip', customer.token);
   const zipFromAdmin = await bytes(`/admin/payouts/statement/RESTAURANT/${RESTAURANT_ID}/pdf/each`, admin.token);
-  it('A customer gets no ZIP; an admin gets the same files for the restaurant', () => {
+  it('A customer gets no ZIP; an admin gets the invoices of the same orders plus the summary', () => {
     assert.notEqual(zipAsCustomer.status, 200);
     assert.equal(zipFromAdmin.status, 200);
-    assert.deepEqual(unzip(zipFromAdmin.data).map(f => f.name).sort(), files.map(f => f.name).sort());
+    const adminNames = unzip(zipFromAdmin.data).map(f => f.name);
+    assert.deepEqual(
+      adminNames.filter(n => !n.startsWith('QuickBites-summary-')).sort(),
+      files.map(f => f.name.replace('QuickBites-receipt-', 'QuickBites-invoice-')).sort()
+    );
+  });
+
+  // -- The FULL invoice of one order: staff only, and its parts add up to what the customer paid
+  const full = await pdf(`/admin/orders/${stored.id}/invoice.pdf`, admin.token);
+  const fullAsPartner = await pdf(`/admin/orders/${stored.id}/invoice.pdf`, partner.token);
+  const lines = orderInvoiceLines(memoryStore.orders.get(stored.id) as any);
+  it('Admin: the full invoice shows what the customer paid and how it was divided', () => {
+    assert.equal(full.status, 200, full.text.slice(0, 160));
+    assert.ok(full.name.includes(`QuickBites-full-invoice-${stored.orderNumber}.pdf`), full.name);
+    for (const label of ['WHAT THE CUSTOMER PAID', 'HOW THE MONEY WAS DIVIDED', 'Quick Bites keeps', 'Rider trip pay']) {
+      assert.ok(full.text.includes(label), `missing ${label}`);
+    }
+    assert.ok(wellFormed(full.text));
+  });
+  it('...and the divided parts add up exactly to the total paid', () => {
+    assert.ok(lines.totalPaid > 0);
+    assert.equal(lines.dividedSum, lines.totalPaid);
+  });
+  it('A partner cannot download the full invoice', () => assert.notEqual(fullAsPartner.status, 200));
+  // Staff without the revenue permission (support) cannot either; finance can.
+  const support = await login('support@quickbite.app');
+  const finance = await login('finance@quickbite.app');
+  const fullAsSupport = await pdf(`/admin/orders/${stored.id}/invoice.pdf`, support.token);
+  const fullAsFinance = await pdf(`/admin/orders/${stored.id}/invoice.pdf`, finance.token);
+  it('Support staff cannot download it; finance staff can', () => {
+    assert.equal(fullAsSupport.status, 403, `support got ${fullAsSupport.status}`);
+    assert.equal(fullAsFinance.status, 200, `finance got ${fullAsFinance.status}`);
   });
 
   const dashboard = (await api(`/restaurants/${RESTAURANT_ID}/dashboard`, {}, partner.token)).json?.data?.dashboard;
