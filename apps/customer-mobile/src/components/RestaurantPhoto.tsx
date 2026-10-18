@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, StyleSheet, Animated, type ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, Animated, type ViewStyle } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 
 import { tokens } from '../theme/tokens';
 
@@ -117,16 +118,18 @@ export const RestaurantPhoto: React.FC<RestaurantPhotoProps> = ({
 
   return (
     <View style={[...shape, styles.clip]}>
-      <Animated.Image
-        // Keyed on the uri so React replaces the element rather than reusing
-        // one whose source changed mid-fade, which shows the new photograph at
-        // the old one's opacity.
-        key={uri}
-        source={{ uri }}
-        style={[styles.fill, animate && count > 1 ? { opacity: fade } : null]}
-        resizeMode="cover"
-        onError={() => setBroken(b => ({ ...b, [uri]: true }))}
-      />
+      {/* Keyed on the uri so React replaces the element rather than reusing one whose
+          source changed mid-fade. expo-image: cached on the phone, fades in (D1). */}
+      <Animated.View key={uri} style={[styles.fill, animate && count > 1 ? { opacity: fade } : null]}>
+        <ExpoImage
+          source={{ uri }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={250}
+          cachePolicy="memory-disk"
+          onError={() => setBroken(b => ({ ...b, [uri]: true }))}
+        />
+      </Animated.View>
 
       {count > 1 && animate && (
         <View style={styles.dots}>

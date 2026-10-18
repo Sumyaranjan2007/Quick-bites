@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { PressableScale } from './PressableScale';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 const c = tokens.colors;
 
@@ -230,7 +231,18 @@ export const Skeleton: React.FC<{ height: number; radius?: number; style?: ViewS
   height,
   radius = tokens.radii.lg,
   style
-}) => <View style={[{ height, borderRadius: radius, backgroundColor: c.surface.sunken }, style]} />;
+}) => {
+  // A soft pulse while loading (design/motion "skeleton"); still when the phone asks for less motion.
+  const reduce = useReducedMotion();
+  const opacity = useSharedValue(1);
+  React.useEffect(() => {
+    if (reduce) return;
+    opacity.value = withRepeat(withTiming(0.55, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true);
+    return () => cancelAnimation(opacity);
+  }, [reduce, opacity]);
+  const pulse = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return <Animated.View style={[{ height, borderRadius: radius, backgroundColor: c.surface.sunken }, style, pulse]} />;
+};
 
 const s = StyleSheet.create({
   fill: { flex: 1 },

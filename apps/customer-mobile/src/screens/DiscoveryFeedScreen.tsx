@@ -1,3 +1,4 @@
+import { FoodImage } from '../components/FoodImage';
 import { PressableScale } from '../components/PressableScale';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -653,7 +654,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             activeOpacity={0.8}
             onPress={() => setSearchQuery(cat.label)}
           >
-            <Image source={{ uri: cat.img }} style={styles.categoryImage} />
+            <FoodImage uri={cat.img} style={styles.categoryImage} />
             <Text style={styles.categoryLabel}>{cat.label}</Text>
           </TouchableOpacity>
         ))}

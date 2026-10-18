@@ -542,6 +542,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             updatedAt={tracking?.riderLocationUpdatedAt}
             riderName={tracking?.riderName ?? riderName}
             restaurantName={tracking?.restaurantName ?? order?.restaurantName ?? null}
+            riderBearing={tracking?.riderBearing ?? null}
           />
         </Card>
       )}

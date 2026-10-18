@@ -1,3 +1,4 @@
+import { FoodImage } from '../components/FoodImage';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -423,11 +424,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
                 </View>
 
                 <View style={styles.dishRight}>
-                  {dish.imageUrl ? (
-                    <Image source={{ uri: dish.imageUrl }} style={styles.dishImage} />
-                  ) : (
-                    <View style={[styles.dishImage, { backgroundColor: c.surface.sunken }]} />
-                  )}
+                  <FoodImage uri={dish.imageUrl} style={styles.dishImage} isVeg={dish.isVeg} />
 
                   {dish.isAvailable ? (
                     <TouchableOpacity style={styles.addBtn} onPress={() => handleAddDish(dish)} activeOpacity={0.85}>

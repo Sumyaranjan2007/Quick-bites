@@ -15,4 +15,5 @@ export const canRenderNativeMap = false;
 
 export const MapCanvas: React.FC<any> = () => null;
 export const MapPin: React.FC<any> = () => null;
+export const MapMovingPin: React.FC<any> = () => null;
 export const MapRoute: React.FC<any> = () => null;

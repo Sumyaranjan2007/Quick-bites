@@ -144,6 +144,41 @@ export const MapPin: React.FC<MapPinProps> = ({ id, at, children }) => {
   return React.createElement(RNMaps.Marker, { identifier: id, coordinate: at, anchor: { x: 0.5, y: 0.5 } }, children);
 };
 
+export interface MapMovingPinProps {
+  id: string;
+  at: LatLng;
+  /** Heading in degrees (0 = north); the marker turns with the road. */
+  rotation?: number;
+  /** How long the glide to a new point takes: about the time between two fixes. */
+  glideMs?: number;
+  children?: React.ReactNode;
+}
+
+/**
+ * A marker that GLIDES from its last point to each new one (master plan D5),
+ * instead of jumping: react-native-maps' AnimatedRegion, the documented way on
+ * both Android and iPhone. Flat, so it turns with the map like a vehicle seen
+ * from above.
+ */
+export const MapMovingPin: React.FC<MapMovingPinProps> = ({ id, at, rotation = 0, glideMs = 3800, children }) => {
+  const region = useRef<any>(null);
+  const ok = Boolean(RNMaps) && plottable(at);
+  if (ok && !region.current) {
+    region.current = new RNMaps.AnimatedRegion({ latitude: at.latitude, longitude: at.longitude, latitudeDelta: 0, longitudeDelta: 0 });
+  }
+  useEffect(() => {
+    if (!ok || !region.current) return;
+    region.current.timing({ latitude: at.latitude, longitude: at.longitude, duration: glideMs, useNativeDriver: false }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ok, at.latitude, at.longitude]);
+  if (!ok) return null;
+  return React.createElement(
+    RNMaps.MarkerAnimated,
+    { identifier: id, coordinate: region.current, anchor: { x: 0.5, y: 0.5 }, flat: true, rotation },
+    children
+  );
+};
+
 export interface MapRouteProps {
   id: string;
   points: LatLng[];

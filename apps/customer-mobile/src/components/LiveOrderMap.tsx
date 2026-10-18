@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, Platform } fr
 import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
 import { Bike, Store } from 'lucide-react-native';
-import { canRenderNativeMap, MapCanvas, MapPin, MapRoute } from '../lib/nativeMap';
+import { canRenderNativeMap, MapCanvas, MapPin, MapMovingPin, MapRoute } from '../lib/nativeMap';
+import { BikeMarker } from './BikeMarker';
 import { distanceMetres, project, fitZoom } from '../lib/mapFit';
 
 const c = tokens.colors;
@@ -77,7 +78,13 @@ interface Props {
    * straight line, so the customer reads the same kilometres they paid for.
    */
   roadKm?: number | null;
+  /** The rider's heading, degrees from north: the bike turns with the road (D5). */
+  riderBearing?: number | null;
 }
+
+/** A position older than this shows as "updating…" (the server uses the same 30 s, B11). */
+const STALE_MS = 30_000;
+const isStale = (updatedAt?: string | null) => Boolean(updatedAt) && Date.now() - Date.parse(String(updatedAt)) > STALE_MS;
 
 /**
  * Distance and freshness, under whichever map drew above it.
@@ -114,7 +121,7 @@ const MapLegend: React.FC<{
     </View>
     <Text style={styles.freshness}>
       {carrying
-        ? `${riderName ? `${riderName} · ` : ''}${freshness(updatedAt)}`
+        ? `${riderName ? `${riderName} · ` : ''}${isStale(updatedAt) ? 'updating…' : freshness(updatedAt)}`
         : restaurantName || 'Being cooked'}
     </Text>
   </View>
@@ -134,10 +141,12 @@ const MapLegend: React.FC<{
  * rest of the live-tracking work in Stage 4; the camera easing here is most of
  * what makes it read as movement in the meantime.
  */
-const NativeOrderMap: React.FC<{ origin: Coords; destination: Coords; carrying: boolean }> = ({
+const NativeOrderMap: React.FC<{ origin: Coords; destination: Coords; carrying: boolean; bearing?: number | null; stale?: boolean }> = ({
   origin,
   destination,
-  carrying
+  carrying,
+  bearing,
+  stale
 }) => {
   /*
    * THE CAMERA FITS A BOX NOW, AND THIS IS THE OWNER'S BUG.
@@ -175,11 +184,16 @@ const NativeOrderMap: React.FC<{ origin: Coords; destination: Coords; carrying: 
         <MapPin id="destination" at={destination}>
           <View style={[styles.pin, { backgroundColor: c.primary[500] }]} />
         </MapPin>
-        <MapPin id="origin" at={origin}>
-          <View
-            style={[styles.pin, { backgroundColor: carrying ? c.accent[500] : c.primary[600] }]}
-          />
-        </MapPin>
+        {carrying ? (
+          /* The moving bike (D5): glides from fix to fix and turns to the rider's heading. */
+          <MapMovingPin id="rider" at={origin} rotation={bearing ?? 0}>
+            <BikeMarker stale={stale} />
+          </MapMovingPin>
+        ) : (
+          <MapPin id="origin" at={origin}>
+            <View style={[styles.pin, { backgroundColor: c.primary[600] }]} />
+          </MapPin>
+        )}
       </MapCanvas>
     </View>
   );
@@ -211,7 +225,8 @@ export const LiveOrderMap: React.FC<Props> = ({
   updatedAt,
   riderName,
   restaurantName,
-  roadKm
+  roadKm,
+  riderBearing
 }) => {
   const W = 320;
   const H = 190;
@@ -248,7 +263,7 @@ export const LiveOrderMap: React.FC<Props> = ({
     return (
       <View>
         <View style={[styles.mapFrame, { height: H }]}>
-          <NativeOrderMap origin={origin} destination={destination} carrying={carrying} />
+          <NativeOrderMap origin={origin} destination={destination} carrying={carrying} bearing={riderBearing} stale={carrying && isStale(updatedAt)} />
         </View>
         <MapLegend
           metres={metres}

@@ -1,3 +1,4 @@
+import Reanimated, { Easing as ReEasing, FadeInDown } from 'react-native-reanimated';
 import React, { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_API_URL } from './src/config';
 import {
@@ -445,6 +446,9 @@ function AppRoot() {
 
       {/* Primary Screen View */}
       <Animated.View style={[styles.mainContent, motion.style]} {...motion.panHandlers}>
+        {/* Screen change (design/motion): the new screen fades in and rises, 260 ms, ease-out.
+            Reanimated follows the phone's reduce-motion setting by itself. */}
+        <Reanimated.View key={currentScreen} entering={SCREEN_ENTER} style={styles.screenLayer}>
         {currentScreen === 'feed' && (
           <DiscoveryFeedScreen
             onSelectRestaurant={handleSelectRestaurant}
@@ -562,6 +566,7 @@ function AppRoot() {
             token={authToken}
           />
         )}
+        </Reanimated.View>
       </Animated.View>
 
       {/* Orders in flight.
@@ -647,6 +652,7 @@ function AppRoot() {
 }
 
 const styles = StyleSheet.create({
+  screenLayer: { flex: 1 },
   safeArea: {
     flex: 1,
     backgroundColor: tokens.colors.surface.app
@@ -696,6 +702,8 @@ const styles = StyleSheet.create({
     color: tokens.colors.text.onAccent
   }
 });
+
+const SCREEN_ENTER = FadeInDown.duration(260).easing(ReEasing.bezier(0.23, 1, 0.32, 1));
 
 export default function App() {
   return (
