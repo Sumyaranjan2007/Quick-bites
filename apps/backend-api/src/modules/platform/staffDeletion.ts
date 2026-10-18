@@ -62,11 +62,10 @@ export async function requestStaffDeletion(userId: string): Promise<void> {
     memoryStore.riders.set(rider.id, rider);
     setRiderOfferPoolMembership(userId, false);
   }
-  await userRepository.update(userId, {
-    isBlocked: true,
-    blockReason: REASON,
-    deletionRequestedAt: new Date().toISOString()
-  } as any);
+  // Owner Q2 (18 Oct 2026): they can still sign in, see their money and settle
+  // up while an admin reviews; they get no new orders (kitchen closed, rider
+  // offline and refused at "go online"). So the account is not blocked.
+  await userRepository.update(userId, { deletionRequestedAt: new Date().toISOString() } as any);
   triggerAutoSave();
 }
 
@@ -83,6 +82,13 @@ export interface DeletionRequestRow {
   cashTheyHold: number;
   canComplete: boolean;
   waitingFor: string | null;
+  /** What an admin checks before approving (owner, item 14): open with the full record (B7). */
+  kitchens: Array<{ id: string; name: string }>;
+  riderId: string | null;
+  ordersInProgress: number;
+  ordersTotal: number;
+  documents: { total: number; approved: number };
+  lastActiveAt: string | null;
 }
 
 function rowFor(user: any): DeletionRequestRow {
@@ -101,7 +107,23 @@ function rowFor(user: any): DeletionRequestRow {
       : cashPaise > 0
         ? `Collect ${toRupees(cashPaise)} of cash they hold first.`
         : null;
+  const kitchens = restaurantsOf(user.id);
+  const theirs = (Array.from(memoryStore.orders.values()) as any[]).filter(
+    o => kitchens.some(k => k.id === o.restaurantId) || (rider && o.riderId === rider.id)
+  );
+  const entityIds = new Set([...kitchens.map(k => k.id), ...(rider ? [rider.id] : [])]);
+  const docs = (Array.from(memoryStore.kycDocuments.values()) as any[]).filter(d => entityIds.has(d.entityId));
+  const lastActiveAt = theirs.reduce<string | null>((latest, o) => {
+    const at = o.updatedAt || o.createdAt;
+    return at && (!latest || at > latest) ? at : latest;
+  }, null);
   return {
+    kitchens: kitchens.map(k => ({ id: k.id, name: k.name })),
+    riderId: rider?.id ?? null,
+    ordersInProgress: theirs.filter(o => !LIVE.includes(o.status)).length,
+    ordersTotal: theirs.length,
+    documents: { total: docs.length, approved: docs.filter(d => d.status === 'APPROVED').length },
+    lastActiveAt,
     userId: user.id,
     name: user.fullName || user.email,
     email: user.email,
@@ -152,7 +174,12 @@ export async function completeStaffDeletion(userId: string): Promise<void> {
 export async function cancelStaffDeletion(userId: string): Promise<void> {
   const user = (await userRepository.findById(userId)) as any;
   if (!user || !user.deletionRequestedAt) throw new AppError('No deletion request for this account.', 404, 'NO_REQUEST');
-  await userRepository.update(userId, { isBlocked: false, blockReason: '', deletionRequestedAt: undefined } as any);
+  // Requests made before 18 Oct also locked the account; lift only that lock, never a separate block.
+  const legacyLock = user.isBlocked && user.blockReason === REASON;
+  await userRepository.update(userId, {
+    deletionRequestedAt: undefined,
+    ...(legacyLock ? { isBlocked: false, blockReason: '' } : {})
+  } as any);
   for (const kitchen of restaurantsOf(userId)) {
     if (kitchen.statusBeforeDeletionRequest) {
       kitchen.status = kitchen.statusBeforeDeletionRequest;

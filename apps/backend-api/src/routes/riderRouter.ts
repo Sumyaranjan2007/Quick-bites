@@ -511,6 +511,14 @@ riderRouter.post('/shift', validate({ body: ShiftStatusSchema }), async (req, re
     const self = await requireRiderSelf(req);
 
     if (isOnline) {
+      // Owner Q2: a rider who asked to delete the account takes no new trips while it is reviewed.
+      if ((memoryStore.users.get(req.user!.id) as any)?.deletionRequestedAt) {
+        throw new AppError(
+          'You asked to delete your account, so you cannot go online. Cancel the request in Help, or wait for Quick Bites to complete it.',
+          409,
+          'DELETION_PENDING'
+        );
+      }
       const completion = await assessProfile(self);
       if (!completion.complete) {
         throw new AppError(

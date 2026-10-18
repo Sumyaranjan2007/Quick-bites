@@ -15,6 +15,7 @@ import { memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
 import { canonical } from '../modules/platform/blockedIdentifiers.ts';
+import { requestStaffDeletion } from '../modules/platform/staffDeletion.ts';
 
 const PORT = 5284;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -120,6 +121,17 @@ try {
   const adminUser: any = userByEmail('ops@quickbite.app');
   const staff = await api(`/admin/accounts/${adminUser.id}/remove`, { method: 'POST', body: { confirmName: adminUser.fullName, reason: 'test' } }, admin);
   it('Administrator accounts are never removed from here', () => assert.equal(errCode(staff), 'STAFF_NOT_REMOVABLE'));
+
+  console.log('\n-- A deletion request does not hide or lift a block');
+  await customerSignIn('9000900901', 'blocked.leaver@example.com');
+  const leaver: any = userByEmail('blocked.leaver@example.com');
+  await api(`/admin/customers/${leaver.id}`, { method: 'PATCH', body: { isBlocked: true } }, admin);
+  await requestStaffDeletion(leaver.id);
+  const cancelled = await api(`/admin/deletion-requests/${leaver.id}/cancel`, { method: 'POST', body: {} }, admin);
+  it('Cancelling the deletion request of a blocked account keeps it blocked', () => {
+    assert.equal(cancelled.status, 200, JSON.stringify(cancelled.json).slice(0, 200));
+    assert.equal((memoryStore.users.get(leaver.id) as any).isBlocked, true);
+  });
 } finally {
   await new Promise(r => server.close(() => r(null)));
 }

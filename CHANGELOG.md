@@ -6,6 +6,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B6 step 3: deletion requests as you decided (Q2)
+
+> **For the owner.** A partner or rider who asks to delete their account can now still sign in to
+> see what they are owed and settle up; they just get no new orders (their kitchen stays closed, a
+> rider cannot go online). Before, they were locked out completely. The deletion requests list in
+> Operations now also returns what you check before approving: money owed either way, cash held,
+> their kitchens or rider record, orders in progress and in total, documents, and when they were
+> last active. Cancelling a request no longer unlocks someone you had blocked separately.
+
+- `staffDeletion.requestStaffDeletion` no longer sets `isBlocked`; `cancelStaffDeletion` lifts only
+  the lock that older requests set; `rowFor` adds `kitchens`, `riderId`, `ordersInProgress`,
+  `ordersTotal`, `documents`, `lastActiveAt`. `POST /api/riders/shift` online → 409
+  `DELETION_PENDING` while a request is open.
+- Checks: `launchRound` updated to Q2 (+3), `removeAndBlock` +1; 3 guards mutation-checked.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B6 step 2: Remove and Block accounts (server)
 
 > **For the owner.** As you decided: **Block** now also stops the person coming back. A new

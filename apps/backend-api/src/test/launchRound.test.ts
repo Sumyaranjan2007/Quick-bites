@@ -311,13 +311,16 @@ try {
   it('A wrong password changes nothing', () => {
     assert.equal(wrong.status, 401);
   });
-  it('A rider asking is closed at once, not deleted: they are owed money until settled', () => {
+  const goOnline = await api('/riders/shift', { method: 'POST', body: { isOnline: true } }, signIn.json?.data?.token);
+  it('A rider asking is taken off duty at once, not deleted: they are owed money until settled', () => {
     assert.equal(asked.status, 200, JSON.stringify(asked.json).slice(0, 200));
     assert.equal(asked.json.data.requested, true);
     assert.ok(riderUser, 'the user was deleted outright');
-    assert.equal(riderUser.isBlocked, true);
-    assert.ok(!signIn.json?.data?.token, 'a closed account can still sign in');
+    // Owner Q2 (18 Oct 2026): they can still sign in to see money and settle up.
+    assert.ok(!riderUser.isBlocked, 'the account was locked');
+    assert.ok(signIn.json?.data?.token, 'they could not sign in to see their money');
     assert.equal((memoryStore.riders.get('rdr_vikram_01') as any).isOnline, false);
+    assert.equal(code(goOnline), 'DELETION_PENDING', `going online: ${goOnline.status}`);
     assert.ok(pushes.some(p => /deletion/i.test(p.title)), 'administrators were not told');
   });
   const queue = await api('/admin/deletion-requests', {}, admin);
@@ -327,6 +330,10 @@ try {
   (memoryStore.riders.get('rdr_vikram_01') as any).codCashInHand = 0;
   it('Administrators see the request, and cannot complete it while cash is held', () => {
     assert.ok(row, JSON.stringify(queue.json).slice(0, 300));
+    // What they check before approving (owner item 14): the rider, orders, documents.
+    assert.equal(row.riderId, 'rdr_vikram_01');
+    assert.equal(typeof row.ordersTotal, 'number');
+    assert.equal(typeof row.documents?.total, 'number');
     assert.equal(tooSoon.status, 409);
     assert.equal(code(tooSoon), 'DUES_OUTSTANDING');
   });
@@ -356,7 +363,8 @@ try {
     assert.equal(closedNow, 'CLOSED');
     assert.equal(reopened.status, 200);
     assert.equal((memoryStore.restaurants.get(OTHER) as any).status, statusBefore);
-    assert.equal((memoryStore.users.get(partnerUser.id) as any).isBlocked, false, 'the account is still locked');
+    assert.ok(!(memoryStore.users.get(partnerUser.id) as any).isBlocked, 'the account is still locked');
+    assert.ok(!(memoryStore.users.get(partnerUser.id) as any).deletionRequestedAt, 'the request is still open');
   });
   // Review R2: a refund case copies the customer's name and phone from the order.
   const rahul: any = Array.from(memoryStore.users.values()).find((u: any) => u.email === 'rahul.sharma@quickbite.app');

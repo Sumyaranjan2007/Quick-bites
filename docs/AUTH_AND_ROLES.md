@@ -85,7 +85,7 @@ password-less (Customer-app) account → `CONFIRM_BY_EMAIL` (`:657`).
 |---|---|---|
 | Customer | deletes at once (password or a fresh code) | `DELETE /api/auth/me` (`routes/authRouter.ts:310`) |
 | Customer side of a partner/rider account | removes only addresses, favourites, name/address on past orders | `userRepository.removeCustomerSide` (`userRepository.ts:110`) |
-| Partner / Rider | *requests* deletion; an admin completes it after dues are settled | `modules/platform/staffDeletion.ts` (`requestStaffDeletion` `:36`, `completeStaffDeletion` `:130`, `cancelStaffDeletion` `:152`); admin routes `routes/admin/peopleRoutes.ts:702-747` |
+| Partner / Rider | *requests* deletion; an admin completes it after dues are settled. While it waits (owner Q2, 18 Oct): **not blocked**, can sign in and see money; kitchen closed, rider offline and refused at go-online (`DELETION_PENDING`). The admin list shows dues, cash held, kitchens/rider, orders in progress and total, documents, last activity. Cancelling never lifts a separate block. | `modules/platform/staffDeletion.ts` (`requestStaffDeletion` `:36`, `completeStaffDeletion` `:130`, `cancelStaffDeletion` `:152`); admin routes `routes/admin/peopleRoutes.ts:702-747` |
 | Public explanation | `/delete-account` page | `routes/publicPages.ts:247` |
 
 ## Admin permissions
