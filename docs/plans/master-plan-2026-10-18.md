@@ -52,8 +52,10 @@ The owner may open a fresh session and paste only this file's path. Do this, in 
 
 ## Status
 
-**Building, owner said "make" (18 Oct 2026).** Live on production: A1, B1, B3, B4, B5, B7, B8, B10, Stage F
-part (see Tracker). This is the one plan to follow.
+**Build complete (19 Oct 2026): stages A–F are on `main` and live.** Not built: B9 masked calls (on hold,
+owner) and phone change by SMS code (waits for SMS). Next, per the owner's order (START HERE item 8): one jury
+review round of everything, fixes, then the end-to-end test of all four apps and both websites; Stage G only on
+"make APK". This is the one plan to follow.
 It takes in, and replaces as the order of work:
 [`k1-k3-fixes-2026-10-17.md`](k1-k3-fixes-2026-10-17.md),
 [`new-architecture-and-animations-2026-10-17.md`](new-architecture-and-animations-2026-10-17.md) (its steps stay the recipe for Stage C),
@@ -115,24 +117,24 @@ Status: ⬜ not started · 🟨 exists partly today · ✅ built in this plan.
 | 4 | Admin: **Remove** or **Block** a restaurant/rider (Q1), by role permission | server ✅: Block bans email (canonical), phone, FSSAI, GSTIN, licence (`modules/platform/blockedIdentifiers.ts`); Remove `POST /api/admin/accounts/:userId/remove` (typed name, reason, per-kind permission, data kept, may re-register); suite `removeAndBlock`; screens in Stage E | B6 | ✅ 18 Oct (app E) |
 | 5 | Kitchen type veg / non-veg / both on profile; **Pure Veg seal** only admins give | server ✅: `cuisineType` (partner, reviewed edit), `isPureVeg` = the seal (permission `catalog.restaurants.pureVegSeal`), seal outranks the type for customers; badge look in Stage D | B5 | ✅ 18 Oct (apps D/E) |
 | 6 | Rider calls customer without seeing the number | **built but switched off**: Exotel masked call (`modules/orders/callMasking.ts`, route in `orderRouter.ts:~780`); Rider app still dials the number. **On hold (owner, 18 Oct)** | B9 | ⏸ |
-| 7 | Customer: choose location / save address **first**, then restaurants; without address → our recommended list | server ✅ (B5): no location → `listKind: 'recommended'`, `needsLocation: true`; the location-first screen is D3 | B5 + D3 | 🟨 (server done) |
+| 7 | Customer: choose location / save address **first**, then restaurants; without address → our recommended list | server ✅ (B5): no location → `listKind: 'recommended'`, `needsLocation: true`; the location-first screen is D3 | B5 + D3 | ✅ 19 Oct (D3 sheet, recommended banner) |
 | 8 | Admin "Create": build a whole restaurant / rider / partner account, verify and upload for them | server ✅: `POST /api/admin/accounts/create` (sign-up's own builders, temporary password emailed, per-kind permission); documents via existing `/api/kyc/submit`, approval via existing review; suite `adminCreate`; screen in Stage E | B6 | ✅ 18 Oct (app E) |
 | 9 | Partner switches off a **whole menu section** (e.g. dosa after 7 pm) | server ✅: section switch with optional "back at" time, partner + admin routes, `modules/restaurants/menuSections.ts`; switches in the apps in Stage E | B5 | ✅ 18 Oct (apps E) |
 | 10 | Every Admin/Partner app feature also on the websites | **automatic**: the websites are the same app code (`scripts/build-web.mjs`); each stage checks the web build | all | ✅ (by design) |
 | 11 | KYC and uploads arranged **per person** (restaurant, rider, customer), view and download | server ✅: `GET /api/admin/records/:kind/:id` (documents grouped, photos, tickets, history, each by permission), one file or all as ZIP (`routes/admin/recordRoutes.ts`); **Admin screens ✅ 18 Oct**: People sheets and KYC names show each person's uploads grouped, in force/earlier, photo, download, re-verify; every document replaceable by partners and riders (owner's "do first") | B7 | ✅ 18 Oct (app E) |
 | 12 | Forgot password with email code; admin can reset for partner/rider | server ✅: forgot/reset by email code (`/api/auth/password/forgot`, `/reset`, suite `passwordReset`); admin reset for partner/rider already existed (`/admin/staff/:id/reset-password`, per-kind permission, audit, sessions cut); app screens in Stage E | B6 | ✅ 18 Oct (app E) |
-| 13 | Customer: liked restaurants in a **Favourites** section | favourites saved (`/customers/favourites`), heart on cards; no section | D3 | 🟨 |
+| 13 | Customer: liked restaurants in a **Favourites** section | favourites saved (`/customers/favourites`), heart on cards; no section | D3 | ✅ 19 Oct (Favourites row) |
 | 14 | Rider delete = request; admin approves after seeing everything | server ✅: request keeps sign-in (Q2), no new trips (`DELETION_PENDING`), admin list carries dues, cash, orders, documents, last activity; review screen in Stage E | B6 | ✅ 18 Oct (app E) |
 | 15 | Same for restaurants | server ✅ same flow (kitchen closed while pending) | B6 | ✅ 18 Oct (app E) |
 | 16 | Help chat: answers itself first, then a person with all the info | server ✅: `GET /api/support/help` (topics per app) and `/help/:topic` (fixed answers from live data, `modules/support/helpChat.ts`); "Talk to us" = the existing ticket with the chat rebuilt by the server; staff reply pushed; screens in Stage D/E | B8 | ✅ 18 Oct (apps D/E) |
 | 17 | Admin picks **recommended** restaurants shown first | server ✅: `GET/PUT /api/admin/recommended-restaurants` (permission `catalog.restaurants.recommend`), first on the home in admins' order; Operations screen in Stage E | B5 | ✅ 18 Oct (app E) |
 | 18 | More profile fields; phone/email change only with a code | server ✅ email change with two proofs; **phone change by support until SMS** (settled with security, M1); more profile fields with #20; screens in Stage E | B6 | 🟨 (email ✅, phone at SMS) |
 | 19 | Real delivery time from cooking + distance; "We're ahead of time!" | server ✅: kitchen's measured cooking time (median of last 20 by cart size), rider's ride to the kitchen, promise frozen at checkout (`promisedArrivalAt`), `eta.ahead`; ETA on status and rider-position sockets; quote `estimatedDeliveryMinutes`. Road time with B2; card in Stage D | B3 + D | ✅ 18 Oct (server) |
-| 20 | Proper edit options in every profile | server: customer name/language + contact change ✅; rider profile (phone by code, approved licence/RC locked) ✅; partner profile edits reviewed, incl. GSTIN/FSSAI (F-13 ✅); screens in Stage E | B6 + E | 🟨 |
-| 21 | **Google Maps** everywhere + moving bike on the customer map | server routing ✅ Google Routes API (two-wheeler, traffic) when `GOOGLE_MAPS_SERVER_KEY` is set, Mapbox until then; Places (New) + Geocoding ✅; apps in C2 + D5 | B2 + C2 + D | 🟨 (server ✅ when the key is set) |
-| 22 | Rider: clear consent for live tracking, reliable updates | server ✅ B11: every fix kept with heading/speed (socket and REST, `recordRiderFix`), "updating…" after 30 s, tracking readable only by customer, trip rider, staff; consent screen + 4 s sending in Stage E | B11 + E | 🟨 (server ✅) |
-| 23 | Full security pass + harden against reverse-engineering + a security guideline | parts exist (secrets checks, ProGuard on, server checks) | F | 🟨 |
-| F1 | The leader's feel: Lexend Deca, press feel, soft haptics, images, motion | spec written (`design/motion/`) | C + D + E | ⬜ |
+| 20 | Proper edit options in every profile | server: customer name/language + contact change ✅; rider profile (phone by code, approved licence/RC locked) ✅; partner profile edits reviewed, incl. GSTIN/FSSAI (F-13 ✅); screens in Stage E | B6 + E | ✅ 19 Oct (screens in E; phone by support until SMS, #18) |
+| 21 | **Google Maps** everywhere + moving bike on the customer map | server routing ✅ Google Routes API (two-wheeler, traffic) when `GOOGLE_MAPS_SERVER_KEY` is set, Mapbox until then; Places (New) + Geocoding ✅; apps in C2 + D5 | B2 + C2 + D | ✅ 19 Oct (server B2, apps C2, bike D5) |
+| 22 | Rider: clear consent for live tracking, reliable updates | server ✅ B11: every fix kept with heading/speed (socket and REST, `recordRiderFix`), "updating…" after 30 s, tracking readable only by customer, trip rider, staff; consent screen + 4 s sending in Stage E | B11 + E | ✅ 19 Oct (consent, GPS chip, telemetry) |
+| 23 | Full security pass + harden against reverse-engineering + a security guideline | parts exist (secrets checks, ProGuard on, server checks) | F | ✅ 19 Oct (Stage F, `docs/SECURITY.md` §1j) |
+| F1 | The leader's feel: Lexend Deca, press feel, soft haptics, images, motion | spec written (`design/motion/`) | C + D + E | ✅ 19 Oct (C + D + E) |
 
 ---
 
