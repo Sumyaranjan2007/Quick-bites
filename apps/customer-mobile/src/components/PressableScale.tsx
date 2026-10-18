@@ -14,8 +14,8 @@ const EASE = Easing.bezier(...tokens.motion.easeOut);
  * change still explains the tap).
  */
 export const PressableScale: React.FC<
-  Omit<PressableProps, 'style' | 'children'> & { style?: StyleProp<ViewStyle>; children?: React.ReactNode }
-> = ({ style, children, onPressIn, onPressOut, ...rest }) => {
+  Omit<PressableProps, 'style' | 'children'> & { style?: StyleProp<ViewStyle>; children?: React.ReactNode; entering?: any }
+> = ({ style, children, onPressIn, onPressOut, entering, ...rest }) => {
   const scale = useSharedValue(1);
   const reduce = useReducedMotion();
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -25,6 +25,7 @@ export const PressableScale: React.FC<
   return (
     <AnimatedPressable
       {...rest}
+      entering={entering}
       style={[style, animated]}
       onPressIn={e => {
         to(PRESS.scale);

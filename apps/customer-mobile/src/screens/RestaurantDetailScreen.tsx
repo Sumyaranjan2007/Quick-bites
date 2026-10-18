@@ -1,3 +1,4 @@
+import Reanimated, { FadeInUp, SlideInDown, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { FoodImage } from '../components/FoodImage';
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -173,6 +174,11 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   useMenuSocket(restaurant.id, apiUrl, token, () => { loadMenu(); });
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const bump = useSharedValue(1);
+  React.useEffect(() => {
+    if (totalCartCount > 0) bump.value = withSequence(withTiming(1.04, { duration: 120 }), withSpring(1, { damping: 12 }));
+  }, [totalCartCount, bump]);
+  const bumpStyle = useAnimatedStyle(() => ({ transform: [{ scale: bump.value }] }));
   const categories = Array.from(new Set(dishes.map(d => d.categoryName).filter(Boolean))) as string[];
 
   // The whole menu, grouped under its headings. Nothing is filtered out.
@@ -428,7 +434,10 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 
                   {dish.isAvailable ? (
                     <TouchableOpacity style={styles.addBtn} onPress={() => handleAddDish(dish)} activeOpacity={0.85}>
-                      <Text style={styles.addBtnText}>{inCart > 0 ? `ADD ${inCart}` : 'ADD'}</Text>
+                      {/* The count rolls in from below when it changes (design/motion add-to-cart). */}
+                      <Reanimated.Text key={inCart} entering={FadeInUp.duration(160)} style={styles.addBtnText}>
+                        {inCart > 0 ? `ADD ${inCart}` : 'ADD'}
+                      </Reanimated.Text>
                       <Text style={styles.addBtnPlus}>+</Text>
                     </TouchableOpacity>
                   ) : (
@@ -485,7 +494,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 
       {/* Cart bar */}
       {totalCartCount > 0 && (
-        <View style={styles.cartBar}>
+        // Slides up on the first item, bumps on every add (design/motion add-to-cart).
+        <Reanimated.View style={[styles.cartBar, bumpStyle]} entering={SlideInDown.springify().damping(18)}>
           <View>
             <Text style={styles.cartBarCount}>
               {totalCartCount} item{totalCartCount > 1 ? 's' : ''} added
@@ -496,7 +506,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
             <Text style={styles.cartBarBtnText}>View Cart</Text>
             <ShoppingBag size={16} color={c.text.onAccent} />
           </TouchableOpacity>
-        </View>
+        </Reanimated.View>
       )}
 
       {/* Customisation sheet */}

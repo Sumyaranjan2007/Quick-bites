@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Customer app: list, add-to-cart and cart-bar motion (D4)
+
+> **For the owner.** Restaurant cards now rise gently into place when the list first loads (the
+> first six, a few milliseconds apart); the count on a dish's ADD button rolls in when it changes;
+> the "items added" bar slides up from the bottom on the first item and gives a small bump on every
+> add. Emulator-checked on a dish with options.
+
+- `DiscoveryFeedScreen` cards `FadeInDown` (first 6, 40 ms apart; `PressableScale` takes `entering`);
+  `RestaurantDetailScreen` ADD count `FadeInUp`, cart bar `SlideInDown` spring + scale bump.
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Customer app: new sign-in screen (D2)
 
 > **For the owner.** The sign-in screen now opens on **real food photos from our partner kitchens**

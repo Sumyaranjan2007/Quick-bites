@@ -1,3 +1,4 @@
+import { FadeInDown } from 'react-native-reanimated';
 import { FoodImage } from '../components/FoodImage';
 import { PressableScale } from '../components/PressableScale';
 import React, { useEffect, useRef, useState } from 'react';
@@ -784,8 +785,9 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
       )}
 
       {state === 'success' &&
-        visible.map(r => (
-          <PressableScale key={r.id} onPress={() => onSelectRestaurant(r)}>
+        visible.map((r, i) => (
+          // First six cards fade in and rise as they arrive, 40 ms apart (design/motion home-feed).
+          <PressableScale key={r.id} onPress={() => onSelectRestaurant(r)} entering={i < 6 ? FadeInDown.delay(i * 40).duration(260) : undefined}>
             <Card style={styles.restaurantCard} padded={false}>
               <View>
                 {/*
