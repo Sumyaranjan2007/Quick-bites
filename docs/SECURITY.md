@@ -119,7 +119,7 @@ document, and that is not checked.
 
 | # | Severity | Where | What an attacker can do | Fix | Status |
 |---|---|---|---|---|---|
-| M2 | **Medium** | `apps/backend-api/src/routes/restaurantRouter.ts:1074` (`POST /restaurants/:id/documents`), `routes/riderRouter.ts:424` (`POST /riders/documents`); `modules/platform/blockedIdentifiers.ts` `banAccount` | A blocked person registers again with a new email and phone and no FSSAI (it is optional at sign-up, `authRouter.ts:505`), then uploads their banned FSSAI (or, as a rider, their banned driving-licence number) as a document. **Proven:** an unbanned partner uploaded a blocked partner's FSSAI number → `201` accepted. Also, `banAccount` takes numbers only from the restaurant/rider records, never from the person's KYC documents, so a PAN, or an FSSAI/licence that exists only on a document, is never banned. | (1) `banAccount`: also ban every `documentNumber` on the person's KYC documents (FSSAI, GSTIN, PAN, DRIVING_LICENSE → kinds fssai/gstin/pan/license; add `pan`). (2) Call `assertNotBanned` in both document upload routes (by `documentType`) and when an admin approves a document. (3) Repeat `assertNotBanned` on the confirm-link POST (`authRouter.ts` `/confirm/:token`) for `pending.body` (phone, email, FSSAI, GSTIN, licence): today a ban applied during the 30-minute window is not re-checked. | **fixed** `0bed223` (deployed 18 Oct): both upload routes, the rider licence edit and the confirm-link POST check the ban; `banAccount` also bans KYC document numbers (new kind `pan`) and a removed account's real email/phone. **Proven:** the same upload now → 403 `IDENTITY_BLOCKED`; turning the check off fails 6 checks in `removeAndBlock`. Advised (open, one line): also check at document **approval**, for a number uploaded *before* its owner was banned |
+| M2 | **Medium** | `apps/backend-api/src/routes/restaurantRouter.ts:1074` (`POST /restaurants/:id/documents`), `routes/riderRouter.ts:424` (`POST /riders/documents`); `modules/platform/blockedIdentifiers.ts` `banAccount` | A blocked person registers again with a new email and phone and no FSSAI (it is optional at sign-up, `authRouter.ts:505`), then uploads their banned FSSAI (or, as a rider, their banned driving-licence number) as a document. **Proven:** an unbanned partner uploaded a blocked partner's FSSAI number → `201` accepted. Also, `banAccount` takes numbers only from the restaurant/rider records, never from the person's KYC documents, so a PAN, or an FSSAI/licence that exists only on a document, is never banned. | (1) `banAccount`: also ban every `documentNumber` on the person's KYC documents (FSSAI, GSTIN, PAN, DRIVING_LICENSE → kinds fssai/gstin/pan/license; add `pan`). (2) Call `assertNotBanned` in both document upload routes (by `documentType`) and when an admin approves a document. (3) Repeat `assertNotBanned` on the confirm-link POST (`authRouter.ts` `/confirm/:token`) for `pending.body` (phone, email, FSSAI, GSTIN, licence): today a ban applied during the 30-minute window is not re-checked. | **fixed** `0bed223` (deployed 18 Oct): both upload routes, the rider licence edit and the confirm-link POST check the ban; `banAccount` also bans KYC document numbers (new kind `pan`) and a removed account's real email/phone. **Proven:** the same upload now → 403 `IDENTITY_BLOCKED`; turning the check off fails 6 checks in `removeAndBlock`. Approval is ban-checked too since `1094edb` (for a number uploaded *before* its owner was banned) |
 
 Checked and holding:
 
@@ -218,6 +218,23 @@ assigned rider, on shift, while `OUT_FOR_DELIVERY`; latitude, longitude and spee
 `canStreamRiderLocation` (assigned rider by rider record, trackable status only) with the same
 bounds. `canJoinOrder`: customer by id, kitchen by owner, rider by rider record (the HTTP bug's
 twin is not present here), admins. Positions are stored as the latest fix only, never a history.
+
+## 1i. Review, 18 Oct 2026 — `1094edb` (any document can be replaced and re-verified)
+
+Holding: an approved document keeps standing until its replacement is approved, so replacing never
+un-verifies a trading kitchen or rider and never puts an unreviewed number on the profile; the
+number reaches the kitchen/rider record only on approval (`copyApprovedNumber`); the FSSAI badge
+reads the standing document's number; uploads (`restaurantRouter.ts:1083`, `riderRouter.ts:447`),
+the rider licence edit (`:339`), profile edits (`restaurantRouter.ts:1359`), admin Create and now
+**approval** (`peopleRoutes.ts:844`) all check the ban list. `removeAndBlock` 33/33.
+Note only: a waiting upload that a newer one replaces is deleted (`kycRepository.dropUnreviewed`); it
+was never reviewed, but the upload itself leaves no record. If uploads must be kept as evidence,
+mark them `SUPERSEDED` instead.
+
+### Open for the review round (owner's order of work, 18 Oct: build first, one jury round, then fix)
+
+No live hole is open. Logged for the round: **L1** (restaurantRouter ×4, walletRouter ×1), **L3**,
+**L5**, **L6**, **L8**, **L12**, **L13**, **L14**, **L15**, **L16**.
 
 ---
 
