@@ -16,7 +16,7 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { normalizeIndianPhone } from '../../utils/phone.ts';
 import { AppError } from '../../utils/AppError.ts';
 
-export type IdentifierKind = 'email' | 'phone' | 'fssai' | 'gstin' | 'license';
+export type IdentifierKind = 'email' | 'phone' | 'fssai' | 'gstin' | 'license' | 'pan';
 type Entry = { kind: IdentifierKind; userId: string; at: string };
 const KEY = 'blockedIdentifiers';
 
@@ -28,10 +28,11 @@ export function canonical(kind: IdentifierKind, raw: string | undefined | null):
   if (kind === 'email') {
     const [local = '', domain = ''] = value.toLowerCase().split('@');
     if (!domain) return '';
-    const base = local.split('+')[0];
-    // Gmail ignores dots and anything after "+"; the same inbox, the same person.
+    // Gmail ignores dots and anything after "+": the same inbox, the same person.
+    // Other providers may treat them as different mailboxes (review G3), so only Gmail.
     const gmail = domain === 'gmail.com' || domain === 'googlemail.com';
-    return `${gmail ? base.replace(/\./g, '') : base}@${gmail ? 'gmail.com' : domain}`;
+    if (!gmail) return `${local}@${domain}`;
+    return `${local.split('+')[0].replace(/\./g, '')}@gmail.com`;
   }
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -42,28 +43,51 @@ const hashOf = (kind: IdentifierKind, raw: string | undefined | null): string | 
 };
 const table = (): Record<string, Entry> => (memoryStore.settings.get(KEY) as Record<string, Entry>) || {};
 
-/** Bans every identifier of this account: its email, phone, its kitchens' licences, its rider licence. */
+/** The ban kind for a document's number, if that kind of document identifies a person or business. */
+export function kindForDocument(documentType: string | undefined): IdentifierKind | null {
+  switch (documentType) {
+    case 'FSSAI': return 'fssai';
+    case 'GSTIN': return 'gstin';
+    case 'PAN': return 'pan';
+    case 'DRIVING_LICENSE': return 'license';
+    default: return null;
+  }
+}
+
+/** Bans every identifier of this account: email, phone (also those it had before a Remove), its kitchens' and rider's numbers and documents. */
 export function banAccount(userId: string): number {
   const user: any = memoryStore.users.get(userId);
   if (!user) return 0;
   const found: Array<[IdentifierKind, string | undefined]> = [
     ['email', user.email],
-    ['phone', user.phone]
+    ['phone', user.phone],
+    // Removed first, blocked later: the real email and phone are kept here (review G1).
+    ['email', user.removedIdentity?.email],
+    ['phone', user.removedIdentity?.phone]
   ];
+  const entityIds = new Set<string>();
   for (const r of memoryStore.restaurants.values() as Iterable<any>) {
     if (r.ownerId !== userId) continue;
+    entityIds.add(r.id);
     found.push(['fssai', r.fssaiLicenseNumber], ['gstin', r.gstin], ['phone', r.phone]);
   }
   for (const rider of memoryStore.riders.values() as Iterable<any>) {
-    if (rider.userId === userId) found.push(['license', rider.licenseNumber], ['phone', rider.phone]);
+    if (rider.userId !== userId) continue;
+    entityIds.add(rider.id);
+    found.push(['license', rider.licenseNumber], ['phone', rider.phone]);
+  }
+  // Numbers held only on documents (a PAN, a licence typed at upload) count too (security M2).
+  for (const doc of memoryStore.kycDocuments.values() as Iterable<any>) {
+    const kind = kindForDocument(doc.documentType);
+    if (kind && entityIds.has(doc.entityId)) found.push([kind, doc.documentNumber]);
   }
   const next = { ...table() };
   const at = new Date().toISOString();
   let added = 0;
   for (const [kind, raw] of found) {
     const h = hashOf(kind, raw);
-    // Phone addresses on Quick Bites' own placeholder domain are not a person's.
-    if (!h || (kind === 'email' && String(raw).endsWith('@phone.quickbite.app'))) continue;
+    // Addresses on Quick Bites' own placeholder domains are not a person's.
+    if (!h || (kind === 'email' && /@(phone|removed)\.quickbite\.app$/.test(String(raw)))) continue;
     if (!next[h]) added++;
     next[h] = { kind, userId, at };
   }

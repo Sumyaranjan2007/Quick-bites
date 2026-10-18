@@ -1,3 +1,4 @@
+import { assertNotBanned, kindForDocument } from '../modules/platform/blockedIdentifiers.ts';
 import { normalizeIndianPhone } from '../utils/phone.ts';
 import { durable } from '../middlewares/durable.ts';
 import { Router } from 'express';
@@ -334,6 +335,7 @@ riderRouter.patch('/me', validate({ body: ProfileUpdateSchema }), async (req, re
       (patch.licenseNumber !== undefined && patch.licenseNumber !== rider.licenseNumber) ||
       ((patch as any).vehicleRcNumber !== undefined && (patch as any).vehicleRcNumber !== (rider as any).vehicleRcNumber)
     );
+    if (patch.licenseNumber !== undefined) assertNotBanned({ license: patch.licenseNumber }, rider.userId);
     if (reviewed) {
       throw new AppError('Your licence and vehicle were checked when you were approved. Ask Quick Bites support (Help) to change them.', 409, 'REVIEWED_FIELD_LOCKED');
     }
@@ -440,6 +442,8 @@ riderRouter.post('/documents', validate({ body: DocumentUploadSchema }), async (
   try {
     const rider = await requireRiderSelf(req);
     const { documentType, documentNumber, fileUrl } = req.body;
+    const banKind = kindForDocument(documentType);
+    if (banKind) assertNotBanned({ [banKind]: documentNumber }, rider.userId);
 
     const existing = await kycRepository.findByEntity('RIDER', rider.id);
     const current = existing

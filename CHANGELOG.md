@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Block closes the gaps the reviewers found
+
+> **For the owner.** The security reviewer showed a blocked person could come back with a new
+> email and number and then add their banned FSSAI licence or driving licence later as a document.
+> That is now refused, and Block also bans PAN and any licence that was only on a document, and the
+> real email and phone of someone you removed before blocking. Only Gmail treats "name+tag" as the
+> same inbox, so only Gmail addresses are folded that way.
+
+- `blockedIdentifiers.ts`: new kind `pan`, `kindForDocument`, `removedIdentity` and document numbers
+  banned; `+tag` folded for Gmail only. Checks added: kitchen and rider document uploads, rider
+  licence edit, the emailed confirm link (a ban made during its 30 minutes).
+- `removeAndBlock` +5 checks; 5 guards mutation-checked.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Password codes: daily limit, same timing, change notice; Create sends no password
 
 > **For the owner.** Hardening from the reviewers. Password reset codes now have a daily limit

@@ -1108,6 +1108,12 @@ authRouter.post('/confirm/:token', requireFeature('registrations'), async (req, 
     if (!pending) return res.status(404).type('html').send(expiredPage());
     pendingRoles().delete(key); // once only, whatever happens next
     await persistDurably();
+    try {
+      const b = pending.body || {};
+      assertNotBanned({ phone: b.phone, email: b.email, fssai: b.fssaiLicenseNumber, gstin: b.gstin, license: b.licenseNumber });
+    } catch {
+      return res.status(403).type('html').send(expiredPage());
+    }
 
     const fail = (message: string) =>
       res.status(409).type('html').send(

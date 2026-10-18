@@ -1,3 +1,4 @@
+import { assertNotBanned, kindForDocument } from '../modules/platform/blockedIdentifiers.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Restaurant } from '@quick-bites/shared-types';
@@ -1078,6 +1079,8 @@ restaurantRouter.post(
     try {
       const restaurant = await assertOwnsRestaurant(req, req.params.id);
       const { documentType, documentNumber, fileUrl } = req.body;
+      const banKind = kindForDocument(documentType);
+      if (banKind) assertNotBanned({ [banKind]: documentNumber }, restaurant.ownerId);
 
       const existing = await kycRepository.findByEntity('RESTAURANT', restaurant.id);
       const current = existing

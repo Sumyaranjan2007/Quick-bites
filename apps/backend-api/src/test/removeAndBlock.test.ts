@@ -14,7 +14,7 @@ import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
-import { canonical } from '../modules/platform/blockedIdentifiers.ts';
+import { canonical, banAccount } from '../modules/platform/blockedIdentifiers.ts';
 import { requestStaffDeletion } from '../modules/platform/staffDeletion.ts';
 
 const PORT = 5284;
@@ -121,6 +121,38 @@ try {
   const adminUser: any = userByEmail('ops@quickbite.app');
   const staff = await api(`/admin/accounts/${adminUser.id}/remove`, { method: 'POST', body: { confirmName: adminUser.fullName, reason: 'test' } }, admin);
   it('Administrator accounts are never removed from here', () => assert.equal(errCode(staff), 'STAFF_NOT_REMOVABLE'));
+
+  console.log('\n-- Review G1, G3 and security M2');
+  // G1: removed first, blocked later: the real email is still banned.
+  await customerSignIn('9000901001', 'removed.then.blocked@example.com');
+  const rtb: any = userByEmail('removed.then.blocked@example.com');
+  await api(`/admin/accounts/${rtb.id}/remove`, { method: 'POST', body: { confirmName: rtb.fullName, reason: 'test' } }, admin);
+  await api(`/admin/customers/${rtb.id}`, { method: 'PATCH', body: { isBlocked: true } }, admin);
+  const comebackAfterRemove = await customerSignIn('9000901002', 'removed.then.blocked@example.com');
+  it('Removed then blocked: their real email cannot sign up again (G1)', () =>
+    assert.equal(errCode(comebackAfterRemove), 'IDENTITY_BLOCKED', `status ${comebackAfterRemove.status} ${errCode(comebackAfterRemove)}`));
+  it('A "+tag" is ignored only for Gmail (G3)', () =>
+    assert.notEqual(canonical('email', 'john+shop@company.in'), canonical('email', 'john@company.in')));
+
+  // M2: a banned number cannot come back on a document, and numbers held only on documents are banned.
+  memoryStore.users.set('usr_ban_src', { id: 'usr_ban_src', email: 'ban.src@example.com', role: 'restaurant_owner' } as any);
+  memoryStore.restaurants.set('rst_ban_src', { id: 'rst_ban_src', ownerId: 'usr_ban_src', fssaiLicenseNumber: '99887766554433' } as any);
+  memoryStore.riders.set('rdr_ban_src', { id: 'rdr_ban_src', userId: 'usr_ban_src', licenseNumber: 'KA0700000001' } as any);
+  memoryStore.kycDocuments.set('kyc_ban_pan', { id: 'kyc_ban_pan', entityType: 'RESTAURANT', entityId: 'rst_ban_src', documentType: 'PAN', documentNumber: 'ABCPE1234F' } as any);
+  banAccount('usr_ban_src');
+  const partner = await login('partner@quickbite.app');
+  const ownKitchen: any = Array.from(memoryStore.restaurants.values()).find((r: any) => r.ownerId === userByEmail('partner@quickbite.app').id);
+  const img = 'data:image/png;base64,iVBORw0KGgo=';
+  const fssaiDoc = await api(`/restaurants/${ownKitchen.id}/documents`, { method: 'POST', body: { documentType: 'FSSAI', documentNumber: '99887766554433', fileUrl: img } }, partner);
+  it("A banned FSSAI uploaded as another kitchen's document is refused (M2)", () =>
+    assert.equal(errCode(fssaiDoc), 'IDENTITY_BLOCKED', `status ${fssaiDoc.status} ${errCode(fssaiDoc)}`));
+  const panDoc = await api(`/restaurants/${ownKitchen.id}/documents`, { method: 'POST', body: { documentType: 'PAN', documentNumber: 'abcpe 1234 f', fileUrl: img } }, partner);
+  it('...and a PAN that was only on a document is banned too', () =>
+    assert.equal(errCode(panDoc), 'IDENTITY_BLOCKED', `status ${panDoc.status} ${errCode(panDoc)}`));
+  const riderToken = await login('rider@quickbite.app');
+  const dlDoc = await api('/riders/documents', { method: 'POST', body: { documentType: 'DRIVING_LICENSE', documentNumber: 'KA07 0000 0001', fileUrl: img } }, riderToken);
+  it("A banned driving licence uploaded by another rider is refused", () =>
+    assert.equal(errCode(dlDoc), 'IDENTITY_BLOCKED', `status ${dlDoc.status} ${errCode(dlDoc)}`));
 
   console.log('\n-- A deletion request does not hide or lift a block');
   await customerSignIn('9000900901', 'blocked.leaver@example.com');
