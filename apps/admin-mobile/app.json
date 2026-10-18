@@ -112,7 +112,7 @@
         "android.permission.CAMERA"
       ]
     },
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "plugins": [
       [

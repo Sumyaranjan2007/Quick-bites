@@ -175,7 +175,7 @@
         "android.permission.VIBRATE"
       ]
     },
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "plugins": [
       [

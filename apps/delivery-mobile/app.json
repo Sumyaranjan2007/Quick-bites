@@ -118,7 +118,7 @@
         "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "plugins": [
       [

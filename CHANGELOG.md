@@ -6,6 +6,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- Stage C1: all four apps on React Native's New Architecture
+
+> **For the owner.** The apps now run on React Native's New Architecture, the base the smooth modern
+> animations need (and the next Expo upgrade requires). Built and checked on the emulator, against a
+> private test server: Customer (sign-in, "where to deliver", list, favourites, restaurant, cart,
+> checkout, the map), Rider (sign-in, the new location consent, going online with the background
+> location service running), Partner (sign-in, dashboard), Operations (sign-in, dashboard). Still to
+> check on a real phone in the final round: Razorpay payment, GPS with the screen off, push with the
+> app closed. Nothing reaches phones until you say "make APK". The websites still build.
+
+- `newArchEnabled: true` in the four `app.json` (Android config otherwise unchanged, checked with
+  `expo config --type introspect`); `react-native-razorpay` 3.0.0 (TurboModule); expo-doctor 18/18 ×4.
+- Fixes found on the way: Operations seeded the session while rendering (React error) → effect;
+  Customer home "Your favourites" sat under the list heading → above it.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- A4: a deploy no longer loses what the old server wrote in its last seconds
 
 > **For the owner.** When Railway swaps to a new version, the old server keeps answering for a few

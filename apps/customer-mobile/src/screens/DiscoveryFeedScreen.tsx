@@ -702,6 +702,33 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         ))}
       </ScrollView>
 
+      {state === 'success' && listKind === 'recommended' && (
+        <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
+          <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
+          <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Favourites (#13): the kitchens this customer hearted, above the main list. */}
+      {state === 'success' && !!token && restaurants.some(r => favourites.has(r.id)) && (
+        <View style={styles.favouritesBlock}>
+          <SectionHeader title="Your favourites" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            {restaurants
+              .filter(r => favourites.has(r.id))
+              .map(r => (
+                <TouchableOpacity key={r.id} style={styles.favouriteCard} onPress={() => onSelectRestaurant(r)} activeOpacity={0.9}>
+                  <RestaurantPhoto photos={r.photos} placeholder={r.placeholder} bannerUrl={r.bannerUrl} name={r.name} style={styles.favouritePhoto} />
+                  <Text style={styles.favouriteName} numberOfLines={1}>
+                    {r.name}
+                  </Text>
+                  {r.isServing === false && <Text style={styles.favouriteClosed}>Not delivering currently</Text>}
+                </TouchableOpacity>
+              ))}
+          </ScrollView>
+        </View>
+      )}
+
       <SectionHeader title={searchQuery ? `Results for "${searchQuery}"` : 'Popular Restaurants'} />
 
       {state === 'loading' && (
@@ -752,33 +779,6 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             }}
           />
         )
-      )}
-
-      {state === 'success' && listKind === 'recommended' && (
-        <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
-          <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
-          <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Favourites (#13): the kitchens this customer hearted, above the main list. */}
-      {state === 'success' && !!token && restaurants.some(r => favourites.has(r.id)) && (
-        <View style={styles.favouritesBlock}>
-          <SectionHeader title="Your favourites" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-            {restaurants
-              .filter(r => favourites.has(r.id))
-              .map(r => (
-                <TouchableOpacity key={r.id} style={styles.favouriteCard} onPress={() => onSelectRestaurant(r)} activeOpacity={0.9}>
-                  <RestaurantPhoto photos={r.photos} placeholder={r.placeholder} bannerUrl={r.bannerUrl} name={r.name} style={styles.favouritePhoto} />
-                  <Text style={styles.favouriteName} numberOfLines={1}>
-                    {r.name}
-                  </Text>
-                  {r.isServing === false && <Text style={styles.favouriteClosed}>Not delivering currently</Text>}
-                </TouchableOpacity>
-              ))}
-          </ScrollView>
-        </View>
       )}
 
       {state === 'success' &&

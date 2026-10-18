@@ -566,12 +566,12 @@ function AdminApp() {
  */
 const Bootstrapped: React.FC<{ session: SessionState }> = ({ session }) => {
   const { signIn, token } = useSession();
-  const [seeded, setSeeded] = useState(false);
 
-  if (!seeded) {
-    setSeeded(true);
+  // In an effect, not during render: updating the provider while this renders is a React error.
+  useEffect(() => {
     signIn(session);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!token) return <Screen />;
   return <Console />;

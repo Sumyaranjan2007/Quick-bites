@@ -227,7 +227,10 @@ B3 (18 Oct): **honest delivery time.** `eta.ts`: `kitchenPrepMinutes` = median o
 2. **Mapbox → Google Maps in the apps**: remove `@rnmapbox/maps` and its build tokens; add `react-native-maps` at the SDK pin (1.20.1) with `android.config.googleMaps.apiKey` in each `app.config.js` (Android always uses Google with react-native-maps; iPhone uses `provider="google"`, which needs the iOS key). Rewrite only the seam `src/lib/nativeMap.ts` (Customer, Partner, Rider) so screens keep their imports. Address search keeps going through our server.
 3. `expo-print` (Partner) for B10.
 
-**Built:** –
+**Built (C1, 18 Oct):** New Architecture on in all four apps, Razorpay 3.0.0, emulator-checked (QA server)
+per app; Reanimated/gesture/expo-image are added in D1 when the first screen uses them. Phone-only checks
+(payment, background GPS, push) wait for the final test round. **Next: C2** Mapbox → Google Maps
+(`react-native-maps`), then C3 expo-print.
 
 ## Stage D — Customer app (the leader's feel, our brand) · ~2 weeks
 Recipe: `customer-app-feel-2026-10-17.md` phases 1–4 and `design/motion/`.
