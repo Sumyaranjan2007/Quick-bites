@@ -174,6 +174,30 @@ plus a code to the new email, signs out other devices and notifies the old addre
 | L12 | Low | `apps/backend-api/src/routes/authRouter.ts` `/auth/contact/confirm` (`generateToken(updated, req.user!.role)`), and the change-password route's `generateToken(refreshed)` | The fresh token loses `scope: 'customer'`. **Proven:** a Customer-app session of a partner (403 on `/earnings`) changed its email (with the partner's password) and the new token read `/earnings` (200). Needs the partner password, so no outsider gains, but it breaks "kitchen data only behind the Partner app". | Expose the scope in `middlewares/auth.ts` (`req.user.scope = payload.scope`) and pass it on: `generateToken(updated, role, req.user.scope)` in both routes. | open |
 | L13 | Low | `/auth/contact/request` with `currentPassword` | The sign-in rate limit keys on `email`/`phone` in the body; this body has neither, so the current-password check is limited per IP only. Someone holding a stolen session can try that account's password from many IPs. | In `authRateLimiterMiddleware`, when `req.user` is set, key the account bucket on `req.user.id`. | open |
 
+## 1g. Review, 18 Oct 2026 — `495437a`, `02f88e9` (B2 Google Maps on the server: key exposure)
+
+**For the owner.** The Google server key stays on the server: it is sent to Google in a request
+header (Routes, Places) or, for the address-from-pin lookup, in the address Google requires, and
+no log, error or page shows it. The key restrictions in `docs/ops/OPS_GUIDE.md` §5 match what the
+code calls. One small clean-up on the public health page.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| L14 | Low | `apps/backend-api/src/modules/places/placesService.ts` `callGoogle` (`lastRefusal.detail`) and `routingService.ts` (`lastRefusal.detail`), shown by the **public** `/health` | Google's refusal text is published on `/health`. It never contains the key, but some messages name the calling server's IP address and the exact misconfiguration, which helps someone probing the setup. | Show only `status` and `at` on `/health`; keep `detail` in the server log. | open |
+
+Checked and holding: Routes (`computeRoutes`, `computeRouteMatrix`) and Places (New) send the key
+only as `X-Goog-Api-Key`; the Geocoding web service puts `key=` in the URL (Google requires it),
+server to Google over HTTPS only. That URL is never logged: refusal logs carry `api` and `status`
+only, the circuit breaker records `error.message` of a failed fetch (a generic "fetch failed" or a
+timeout, no URL), and responses to apps carry addresses, never the request. `/health` shows the
+provider name, not the key. `GOOGLE_MAPS_SERVER_KEY` is read only by the server (`config/env.ts`),
+named in `.env.example` with no value, and `scripts/check-apk-secrets.mjs` treats every root `.env`
+value not on its publishable list as secret and refuses any `AIza…` key in an app's JS bundle.
+`docs/ops/OPS_GUIDE.md` §5: separate server project, key `qb-server` IP-restricted to Railway's static
+IPs (shared with other Railway customers, as the guide says) and API-restricted to Places (New),
+Geocoding, Routes, Roads; budgets and per-API daily caps; app keys restricted by package + both
+SHA-1s. Matches the APIs the code calls (Roads is for B11).
+
 ---
 
 ## 2. Rules every change must follow
