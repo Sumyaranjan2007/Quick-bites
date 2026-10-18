@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Partner, Rider and Operations apps in Lexend Deca (Stage E base feel)
+
+> **For the owner.** The Partner, Rider and Operations apps now use the same **Lexend Deca** font as the
+> Customer app, so all four look like one family. The websites keep the browser's font (their own
+> "Glass Kitchen" look). Rider checked on the emulator.
+
+- Each app: `assets/fonts/LexendDeca_400–800.ttf` + licence, `expo-font` plugin registering one family by
+  weight, `FONT_FAMILY` in its theme, on every text style (232 / 242 / 321 styles).
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Dispatch monitor in Operations; rider GPS status chip (Stage E)
 
 > **For the owner.** Operations → Today → Live: an order still looking for a rider now shows

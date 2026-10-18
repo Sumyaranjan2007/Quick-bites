@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, Alert } from 'react-native';
 import { Banknote, TriangleAlert, CircleCheck, Clock, Building2, Ban } from 'lucide-react-native';
@@ -366,14 +367,14 @@ const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40, gap: 12 },
 
   head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: t.color.text, fontSize: 16, fontWeight: '700', flex: 1 },
-  body: { color: t.color.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 8 },
-  sub: { color: t.color.textSecondary, fontSize: 13, marginTop: 6, lineHeight: 18 },
+  title: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '700', flex: 1 },
+  body: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  sub: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 6, lineHeight: 18 },
 
-  big: { fontSize: 40, fontWeight: '800', marginTop: 12, letterSpacing: -1 },
+  big: { fontFamily: FONT_FAMILY, fontSize: 40, fontWeight: '800', marginTop: 12, letterSpacing: -1 },
 
   limitRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  limitText: { color: t.color.textMuted, fontSize: 12 },
+  limitText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
 
   notice: {
     flexDirection: 'row',
@@ -385,14 +386,14 @@ const s = StyleSheet.create({
   },
   noticeWarn: { backgroundColor: t.color.moneySoft },
   noticeStop: { backgroundColor: t.color.dangerSoft },
-  noticeText: { fontSize: 12, lineHeight: 17, flex: 1, fontWeight: '600' },
-  blockedHelp: { color: t.color.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 10 },
+  noticeText: { fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, flex: 1, fontWeight: '600' },
+  blockedHelp: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 10 },
 
-  pendingAmount: { color: t.color.text, fontSize: 30, fontWeight: '800', marginTop: 10 },
+  pendingAmount: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 30, fontWeight: '800', marginTop: 10 },
   steps: { marginTop: 14, gap: 6 },
-  step: { color: t.color.textSecondary, fontSize: 13, lineHeight: 18 },
+  step: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18 },
 
-  label: { color: t.color.text, fontSize: 13, fontWeight: '700', marginTop: 14, marginBottom: 6 },
+  label: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', marginTop: 14, marginBottom: 6 },
   input: {
     backgroundColor: t.color.surfaceSunken,
     borderRadius: 10,
@@ -401,15 +402,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: t.color.text,
-    fontSize: 20,
+    fontFamily: FONT_FAMILY, fontSize: 20,
     fontWeight: '700'
   },
   inputError: { borderColor: t.color.danger },
-  fieldError: { color: t.color.danger, fontSize: 12, marginTop: 6, lineHeight: 17 },
-  errorText: { color: t.color.danger, fontSize: 13, marginTop: 8, lineHeight: 18 },
+  fieldError: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 6, lineHeight: 17 },
+  errorText: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 8, lineHeight: 18 },
 
   historyHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  historyAmount: { color: t.color.text, fontSize: 20, fontWeight: '800' },
+  historyAmount: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800' },
 
   variance: {
     backgroundColor: t.color.surfaceSunken,
@@ -418,11 +419,11 @@ const s = StyleSheet.create({
     marginTop: 10,
     gap: 3
   },
-  varianceLine: { color: t.color.text, fontSize: 13, fontWeight: '600' },
-  varianceNote: { color: t.color.textSecondary, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
-  varianceHelp: { color: t.color.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 6 },
+  varianceLine: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '600' },
+  varianceNote: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
+  varianceHelp: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 6 },
 
-  footnote: { color: t.color.textMuted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 4 }
+  footnote: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 4 }
 });
 
 export default CashScreen;

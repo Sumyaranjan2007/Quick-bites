@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -430,17 +431,17 @@ const s = StyleSheet.create({
     borderWidth: 3,
     borderColor: t.color.surfaceRaised
   },
-  name: { color: t.color.text, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold, marginTop: t.space[4] },
+  name: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold, marginTop: t.space[4] },
   idRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[2] },
-  driverCode: { color: t.color.textMuted, fontSize: t.font.size.sm, marginLeft: 6, letterSpacing: 0.6 },
+  driverCode: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginLeft: 6, letterSpacing: 0.6 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[4], flexWrap: 'wrap', justifyContent: 'center' },
-  uploadingNote: { color: t.color.goText, fontSize: t.font.size.xs, marginTop: t.space[3] },
+  uploadingNote: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: t.space[3] },
   checklistHead: { marginBottom: t.space[4] },
-  checklistStatus: { fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  checklistSub: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: 3, lineHeight: 18 },
+  checklistStatus: { fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  checklistSub: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 3, lineHeight: 18 },
   checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[3] },
-  checkLabel: { color: t.color.text, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
-  checkDetail: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
+  checkLabel: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  checkDetail: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
   deleteInput: {
     borderWidth: 1,
     borderColor: t.color.border,
@@ -450,7 +451,7 @@ const s = StyleSheet.create({
     color: t.color.text
   },
   passwordRow: { flexDirection: 'row', gap: t.space[3], justifyContent: 'flex-end', marginTop: t.space[3] },
-  fieldLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[2] },
+  fieldLabel: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[2] },
   input: {
     backgroundColor: t.color.surfaceSunken,
     borderRadius: t.radius.md,
@@ -459,7 +460,7 @@ const s = StyleSheet.create({
     height: 50,
     paddingHorizontal: t.space[4],
     color: t.color.text,
-    fontSize: t.font.size.base
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.base
   },
   vehicleRow: { flexDirection: 'row' },
   vehicleChip: {
@@ -471,9 +472,9 @@ const s = StyleSheet.create({
     marginRight: t.space[2]
   },
   vehicleChipActive: { backgroundColor: t.color.goSoft, borderColor: t.color.go },
-  vehicleChipText: { color: t.color.textMuted, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  vehicleChipText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   editActions: { flexDirection: 'row', marginTop: t.space[5] },
   linkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[4] },
-  linkLabel: { flex: 1, color: t.color.text, fontSize: t.font.size.base, marginLeft: t.space[3] },
-  version: { color: t.color.textMuted, fontSize: t.font.size.xs, textAlign: 'center', marginTop: t.space[6] }
+  linkLabel: { flex: 1, color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, marginLeft: t.space[3] },
+  version: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, textAlign: 'center', marginTop: t.space[6] }
 });

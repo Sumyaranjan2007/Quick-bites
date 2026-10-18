@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -324,27 +325,27 @@ const styles = StyleSheet.create({
   bannerOk: { borderColor: c.success },
   bannerWork: { borderColor: c.warning },
   bannerRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  bannerTitle: { fontSize: 15, fontWeight: '800', color: c.text },
-  bannerBody: { fontSize: 13, color: c.textMuted, marginTop: 4, lineHeight: 19 },
+  bannerTitle: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800', color: c.text },
+  bannerBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 4, lineHeight: 19 },
   slotTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
-  slotLabel: { fontSize: 15, fontWeight: '800', color: c.text },
+  slotLabel: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800', color: c.text },
   slotNumber: { fontSize: 12, color: c.textMuted, marginTop: 2, fontFamily: 'monospace' },
-  purpose: { fontSize: 13, color: c.textSoft, lineHeight: 19, marginBottom: spacing.md },
+  purpose: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, lineHeight: 19, marginBottom: spacing.md },
   requirementBox: { backgroundColor: c.bg, borderRadius: radii.md, padding: spacing.md },
   requirementLabel: {
-    fontSize: 10,
+    fontFamily: FONT_FAMILY, fontSize: 10,
     color: c.textMuted,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.sm
   },
-  requirementText: { fontSize: 12, color: c.textSoft, marginTop: 3, lineHeight: 17 },
+  requirementText: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textSoft, marginTop: 3, lineHeight: 17 },
   rejectBox: { backgroundColor: c.dangerSoft, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md },
-  rejectTitle: { fontSize: 12, fontWeight: '800', color: c.danger },
-  rejectBody: { fontSize: 13, color: c.dangerText, marginTop: 4, lineHeight: 18 },
-  quiet: { fontSize: 12, color: c.textMuted, marginTop: spacing.md, lineHeight: 17 },
-  footnote: { fontSize: 12, color: c.textMuted, lineHeight: 18, marginTop: spacing.sm },
+  rejectTitle: { fontFamily: FONT_FAMILY, fontSize: 12, fontWeight: '800', color: c.danger },
+  rejectBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.dangerText, marginTop: 4, lineHeight: 18 },
+  quiet: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: spacing.md, lineHeight: 17 },
+  footnote: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, lineHeight: 18, marginTop: spacing.sm },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface,
@@ -354,7 +355,7 @@ const styles = StyleSheet.create({
     maxHeight: '88%'
   },
   photoLabel: {
-    fontSize: 12,
+    fontFamily: FONT_FAMILY, fontSize: 12,
     color: c.textMuted,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -376,9 +377,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl
   },
   photoBoxFilled: { borderStyle: 'solid', borderColor: c.success, paddingVertical: spacing.md },
-  photoHint: { fontSize: 14, color: c.text, fontWeight: '700', marginTop: spacing.sm },
-  photoSub: { fontSize: 12, color: c.textMuted, marginTop: 4, textAlign: 'center' },
-  photoReplace: { fontSize: 12, color: c.textMuted, marginTop: spacing.sm },
+  photoHint: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, fontWeight: '700', marginTop: spacing.sm },
+  photoSub: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 4, textAlign: 'center' },
+  photoReplace: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: spacing.sm },
   preview: { width: '100%', height: 180, borderRadius: radii.sm },
   sentThumb: {
     width: '100%',
@@ -388,6 +389,6 @@ const styles = StyleSheet.create({
     backgroundColor: c.bg
   },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: c.text },
-  sheetBody: { fontSize: 13, color: c.textMuted, marginTop: 8, marginBottom: spacing.xl, lineHeight: 19 }
+  sheetTitle: { fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800', color: c.text },
+  sheetBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 8, marginBottom: spacing.xl, lineHeight: 19 }
 });

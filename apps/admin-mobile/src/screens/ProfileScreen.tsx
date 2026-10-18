@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { UserCog, KeyRound, LogOut, ShieldCheck } from 'lucide-react-native';
@@ -209,11 +210,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  avatarText: { fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
-  name: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  email: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
+  avatarText: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
+  name: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  email: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -222,8 +223,8 @@ const s = StyleSheet.create({
   },
   actionRow: { flexDirection: 'row', gap: tokens.space[3] },
   superRow: { flexDirection: 'row', gap: tokens.space[3], alignItems: 'flex-start' },
-  superText: { flex: 1, fontSize: tokens.font.size.xs, color: c.text.secondary, lineHeight: 17 },
+  superText: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.secondary, lineHeight: 17 },
   permissionRow: { flexDirection: 'row', gap: tokens.space[3], alignItems: 'center', paddingVertical: 5 },
-  permissionTick: { color: c.state.success, fontSize: tokens.font.size.sm, fontWeight: '800' },
-  permissionLabel: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary }
+  permissionTick: { color: c.state.success, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: '800' },
+  permissionLabel: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary }
 });

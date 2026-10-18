@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useState } from 'react';
 import { SafeScreen } from '../components/SafeScreen';
 import {
@@ -401,8 +402,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: t.space[4]
   },
-  title: { color: t.color.text, fontSize: t.font.size.xxl, fontWeight: t.font.weight.extrabold },
-  subtitle: { color: t.color.textMuted, fontSize: t.font.size.base, marginTop: t.space[2] },
+  title: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.xxl, fontWeight: t.font.weight.extrabold },
+  subtitle: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, marginTop: t.space[2] },
   card: {
     backgroundColor: t.color.surface,
     borderRadius: t.radius.xl,
@@ -411,20 +412,20 @@ const s = StyleSheet.create({
     padding: t.space[5],
     ...t.shadow.card
   },
-  label: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[2] },
+  label: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[2] },
   input: {
     backgroundColor: t.color.surfaceSunken,
     borderRadius: t.radius.md,
     height: 54,
     paddingHorizontal: t.space[4],
     color: t.color.text,
-    fontSize: t.font.size.base,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.base,
     borderWidth: 1,
     borderColor: t.color.border
   },
   error: {
     color: t.color.danger,
-    fontSize: t.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.sm,
     marginTop: t.space[4],
     lineHeight: 19
   },
@@ -433,12 +434,12 @@ const s = StyleSheet.create({
     backgroundColor: t.color.goSoft,
     borderRadius: t.radius.md,
     padding: t.space[3],
-    fontSize: t.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.sm,
     marginTop: t.space[4],
     lineHeight: 19
   },
   recoveryLink: { alignItems: 'center', paddingVertical: t.space[4] },
-  recoveryLinkText: { color: t.color.goText, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  recoveryLinkText: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   serverToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,7 +447,7 @@ const s = StyleSheet.create({
     marginTop: t.space[5],
     paddingVertical: t.space[2]
   },
-  serverToggleText: { color: t.color.textMuted, fontSize: t.font.size.sm, marginRight: 6 },
+  serverToggleText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginRight: 6 },
   footerNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -456,7 +457,7 @@ const s = StyleSheet.create({
   },
   footerNoteText: {
     color: t.color.textMuted,
-    fontSize: t.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xs,
     marginLeft: 6,
     flexShrink: 1,
     lineHeight: 16

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Bike, Store, Landmark, ShieldAlert, Wallet } from 'lucide-react-native';
@@ -335,18 +336,18 @@ const Figure: React.FC<{ label: string; value: string; strong?: boolean }> = ({ 
 const s = StyleSheet.create({
   list: { padding: tokens.space[4], gap: tokens.space[3], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start' },
-  name: { fontSize: tokens.font.size.md, color: c.text.primary, fontWeight: '700' },
-  sub: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
+  name: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, color: c.text.primary, fontWeight: '700' },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
   figures: { flexDirection: 'row', marginTop: tokens.space[3], gap: tokens.space[4] },
   figure: { flex: 1 },
-  figureLabel: { fontSize: tokens.font.size.xxs, color: c.text.muted },
-  figureValue: { fontSize: tokens.font.size.sm, color: c.text.primary, marginTop: 2, fontWeight: '600' },
-  figureStrong: { color: c.brand.amberText, fontSize: tokens.font.size.md },
+  figureLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
+  figureValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, marginTop: 2, fontWeight: '600' },
+  figureStrong: { color: c.brand.amberText, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md },
   line: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: tokens.space[2] },
-  lineText: { flex: 1, fontSize: tokens.font.size.xxs, color: c.text.secondary },
-  asked: { marginTop: tokens.space[2], fontSize: tokens.font.size.xxs, color: c.text.muted },
+  lineText: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.secondary },
+  asked: { marginTop: tokens.space[2], fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
   errorCard: { borderColor: c.state.danger },
-  sheetNote: { fontSize: tokens.font.size.xs, color: c.text.secondary, marginVertical: tokens.space[2] },
-  sheetHeading: { fontSize: tokens.font.size.xs, fontWeight: '800', color: c.text.muted, marginBottom: tokens.space[2] },
-  errorText: { color: c.state.danger, fontSize: 13 }
+  sheetNote: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.secondary, marginVertical: tokens.space[2] },
+  sheetHeading: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, fontWeight: '800', color: c.text.muted, marginBottom: tokens.space[2] },
+  errorText: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 13 }
 });

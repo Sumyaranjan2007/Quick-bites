@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Star } from 'lucide-react-native';
@@ -170,21 +171,21 @@ const s = StyleSheet.create({
     marginRight: t.space[2]
   },
   rangeChipActive: { backgroundColor: t.color.goSoft, borderColor: t.color.go },
-  rangeChipText: { color: t.color.textMuted, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  rangeChipText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   rangeChipTextActive: { color: t.color.goText },
   tileRow: { flexDirection: 'row' },
   chart: { flexDirection: 'row', height: 150, alignItems: 'flex-end' },
   chartColumn: { flex: 1, alignItems: 'center', height: '100%' },
-  chartValue: { color: t.color.textSecondary, fontSize: t.font.size.xs, fontWeight: t.font.weight.bold, height: 14 },
+  chartValue: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.bold, height: 14 },
   chartBarTrack: { flex: 1, width: 18, justifyContent: 'flex-end' },
   chartBar: { width: '100%', borderRadius: 6 },
-  chartLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 6 },
-  empty: { color: t.color.textMuted, fontSize: t.font.size.sm, lineHeight: 20 },
+  chartLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 6 },
+  empty: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, lineHeight: 20 },
   tripRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[3] },
-  tripName: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
-  tripMeta: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
+  tripName: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
+  tripMeta: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
   tripPills: { flexDirection: 'row', marginTop: t.space[2] },
-  tripPayout: { color: t.color.money, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  tripPayout: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
   tripRating: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
-  tripRatingText: { color: t.color.textMuted, fontSize: t.font.size.xs, marginLeft: 3 }
+  tripRatingText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginLeft: 3 }
 });

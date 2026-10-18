@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Switch, TouchableOpacity, RefreshControl, Image, Alert } from 'react-native';
 import { Modal } from '../components/Modal';
@@ -630,7 +631,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
 };
 
 const styles = StyleSheet.create({
-  photoLabel: { fontSize: 13, fontWeight: '700', color: c.text, marginTop: spacing.lg },
+  photoLabel: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', color: c.text, marginTop: spacing.lg },
   photoActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm, marginBottom: spacing.lg },
   photoBtn: {
     flex: 1,
@@ -644,7 +645,7 @@ const styles = StyleSheet.create({
     borderColor: c.brand,
     backgroundColor: c.surface
   },
-  photoBtnText: { color: c.brand, fontSize: 13, fontWeight: '700' },
+  photoBtnText: { color: c.brand, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700' },
   photoWrap: { marginTop: spacing.sm },
   // 4:3, the aspect the picker crops to, so the preview is what gets sent.
   photoPreview: { width: '100%', aspectRatio: 4 / 3, borderRadius: radii.md, backgroundColor: c.bg },
@@ -662,7 +663,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xl, paddingBottom: 48 },
   sentNote: { backgroundColor: c.successSoft, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },
-  sentNoteText: { color: c.success, fontSize: 13, lineHeight: 18 },
+  sentNoteText: { color: c.success, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18 },
   requestRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -671,9 +672,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border
   },
-  requestName: { fontSize: 14, color: c.text, fontWeight: '600' },
-  requestMeta: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-  rejectReason: { fontSize: 12, color: c.danger, marginTop: 3, lineHeight: 17 },
+  requestName: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, fontWeight: '600' },
+  requestMeta: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 },
+  rejectReason: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.danger, marginTop: 3, lineHeight: 17 },
   dishRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -683,10 +684,10 @@ const styles = StyleSheet.create({
     borderTopColor: c.border
   },
   dietDot: { width: 10, height: 10, borderRadius: 2 },
-  dishName: { fontSize: 14, color: c.text, fontWeight: '600' },
+  dishName: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, fontWeight: '600' },
   dishNameOff: { color: c.textMuted, textDecorationLine: 'line-through' },
-  dishPrice: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-  footnote: { fontSize: 12, color: c.textMuted, lineHeight: 18, marginTop: spacing.sm },
+  dishPrice: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 },
+  footnote: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, lineHeight: 18, marginTop: spacing.sm },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface,
@@ -695,15 +696,15 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
     maxHeight: '88%'
   },
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: c.text },
-  sheetBody: { fontSize: 13, color: c.textMuted, marginTop: 6, marginBottom: spacing.xl, lineHeight: 19 },
+  sheetTitle: { fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800', color: c.text },
+  sheetBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 6, marginBottom: spacing.xl, lineHeight: 19 },
   vegRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.xl
   },
-  vegLabel: { fontSize: 14, color: c.textSoft, fontWeight: '700', marginBottom: spacing.sm },
+  vegLabel: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.textSoft, fontWeight: '700', marginBottom: spacing.sm },
   dietChoice: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
   dietBtn: {
     flex: 1,
@@ -716,9 +717,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: c.border
   },
-  dietBtnText: { fontSize: 15, fontWeight: '800', color: c.text },
-  rowHint: { fontSize: 12, color: c.textMuted, marginTop: 4, lineHeight: 17 },
-  rowError: { fontSize: 12, color: c.danger, marginTop: 4 },
+  dietBtnText: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800', color: c.text },
+  rowHint: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 4, lineHeight: 17 },
+  rowError: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.danger, marginTop: 4 },
   choiceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
   choiceRemove: { padding: spacing.sm, marginBottom: spacing.md },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm, marginBottom: spacing.md, paddingVertical: 6 }

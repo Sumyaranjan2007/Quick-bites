@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, Modal, Image } from 'react-native';
 import { RestaurantMenuSheet, MenuUploadModal } from '../components/RestaurantMenuTools';
@@ -533,10 +534,10 @@ const s = StyleSheet.create({
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   list: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -555,17 +556,17 @@ const s = StyleSheet.create({
   },
   // flexShrink lets a long dish name yield to the price beside it rather than
   // pushing the amount off the row.
-  dishName: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold, flexShrink: 1 },
-  dishMeta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
+  dishName: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold, flexShrink: 1 },
+  dishMeta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
   queueSummary: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm,
     color: c.text.secondary,
     marginBottom: tokens.space[3],
     fontWeight: '600'
   },
-  origin: { fontSize: tokens.font.size.xs, color: c.brand.amberText, marginTop: 4 },
+  origin: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.brand.amberText, marginTop: 4 },
   reviewPhoto: { width: '100%', height: 160, borderRadius: tokens.radius.md, marginVertical: tokens.space[2] },
-  firstMenuNote: { fontSize: tokens.font.size.sm, color: c.brand.amberText, lineHeight: 20 },
+  firstMenuNote: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.brand.amberText, lineHeight: 20 },
   dishLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -573,7 +574,7 @@ const s = StyleSheet.create({
     gap: 12,
     paddingVertical: 4
   },
-  dishPrice: { fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 0 },
-  muted: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4 },
+  dishPrice: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 0 },
+  muted: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4 },
   dishActions: { flexDirection: 'row', gap: tokens.space[2] }
 });

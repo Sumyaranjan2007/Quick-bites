@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from './src/theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -546,11 +547,11 @@ const styles = StyleSheet.create({
     borderBottomColor: c.surface,
     gap: spacing.md
   },
-  storeName: { fontSize: 19, fontWeight: '800', color: c.text },
+  storeName: { fontFamily: FONT_FAMILY, fontSize: 19, fontWeight: '800', color: c.text },
   storeMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  storeMetaText: { fontSize: 13, color: c.textMuted },
-  liveTag: { fontSize: 10, color: c.success, fontWeight: '800', letterSpacing: 0.5, marginLeft: 4 },
+  storeMetaText: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted },
+  liveTag: { fontFamily: FONT_FAMILY, fontSize: 10, color: c.success, fontWeight: '800', letterSpacing: 0.5, marginLeft: 4 },
   kitchenToggle: {
     minWidth: 88,
     height: 38,
@@ -563,7 +564,7 @@ const styles = StyleSheet.create({
   kitchenOn: { backgroundColor: c.success, borderColor: c.success },
   kitchenOff: { backgroundColor: 'transparent', borderColor: c.border },
   kitchenLocked: { backgroundColor: 'transparent', borderColor: c.warning, opacity: 0.85 },
-  kitchenToggleText: { fontSize: 13, fontWeight: '800', color: c.textSoft },
+  kitchenToggleText: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '800', color: c.textSoft },
   body: { flex: 1 },
   tabBar: {
     flexDirection: 'row',
@@ -590,13 +591,13 @@ const styles = StyleSheet.create({
     borderColor: c.border
   },
   subTabActive: { backgroundColor: c.brand, borderColor: c.brand },
-  subTabText: { fontSize: 13, fontWeight: '700', color: c.textSoft },
+  subTabText: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', color: c.textSoft },
   subTabTextActive: { color: '#FFFFFF' },
-  tabLabel: { fontSize: 11, color: c.textMuted, fontWeight: '700' },
+  tabLabel: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.textMuted, fontWeight: '700' },
   tabLabelActive: { color: c.brand },
   blocked: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl },
-  blockedTitle: { fontSize: 20, fontWeight: '800', color: c.text, marginTop: spacing.lg },
-  blockedBody: { fontSize: 14, color: c.textMuted, textAlign: 'center', marginTop: spacing.md, lineHeight: 21 },
+  blockedTitle: { fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800', color: c.text, marginTop: spacing.lg },
+  blockedBody: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.textMuted, textAlign: 'center', marginTop: spacing.md, lineHeight: 21 },
   blockedBtn: { marginTop: spacing.xxl, paddingVertical: spacing.md, paddingHorizontal: spacing.xxl },
-  blockedBtnText: { color: c.brand, fontSize: 15, fontWeight: '800' }
+  blockedBtnText: { color: c.brand, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800' }
 });

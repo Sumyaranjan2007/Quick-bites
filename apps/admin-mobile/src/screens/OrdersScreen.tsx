@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { ShoppingBag } from 'lucide-react-native';
@@ -152,11 +153,11 @@ export const OrdersScreen: React.FC = () => {
 
 const s = StyleSheet.create({
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
-  summary: { fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
+  summary: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
   list: { paddingHorizontal: tokens.space[5], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  orderNumber: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  restaurant: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 2 },
+  orderNumber: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  restaurant: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 2 },
   metaGrid: {
     flexDirection: 'row',
     gap: tokens.space[4],
@@ -166,8 +167,8 @@ const s = StyleSheet.create({
     borderTopColor: c.border.subtle
   },
   metaCell: { flex: 1, minWidth: 0 },
-  metaLabel: { fontSize: tokens.font.size.xxs, color: c.text.muted },
-  metaValue: { fontSize: tokens.font.size.sm, color: c.text.primary, marginTop: 2 },
+  metaLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
+  metaValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, marginTop: 2 },
   rowBottom: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -175,8 +176,8 @@ const s = StyleSheet.create({
     marginTop: tokens.space[3],
     gap: tokens.space[3]
   },
-  amount: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
-  meta: { flexShrink: 1, fontSize: tokens.font.size.xxs, color: c.text.muted, textAlign: 'right' },
+  amount: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
+  meta: { flexShrink: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, textAlign: 'right' },
   pager: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -184,5 +185,5 @@ const s = StyleSheet.create({
     paddingVertical: tokens.space[4],
     gap: tokens.space[3]
   },
-  pagerText: { color: c.text.muted, fontSize: tokens.font.size.xs }
+  pagerText: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs }
 });

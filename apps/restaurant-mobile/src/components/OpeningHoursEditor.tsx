@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Plus, X } from 'lucide-react-native';
@@ -187,17 +188,17 @@ export function toWirePayload(week: Week, timezone = 'Asia/Kolkata') {
 const styles = StyleSheet.create({
   day: { paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: c.border },
   dayHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  dayName: { color: c.text, fontSize: 14, fontWeight: '700' },
+  dayName: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
   dayActions: { flexDirection: 'row', gap: spacing.lg, alignItems: 'center' },
-  linkText: { fontSize: 12.5, fontWeight: '700', color: c.brand },
+  linkText: { fontFamily: FONT_FAMILY, fontSize: 12.5, fontWeight: '700', color: c.brand },
   linkOpen: { color: c.success },
   linkClose: { color: c.textMuted },
 
-  closedText: { color: c.textMuted, fontSize: 12.5, marginTop: 6 },
+  closedText: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12.5, marginTop: 6 },
 
   windowRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm },
   timeBox: { flex: 1 },
-  timeLabel: { color: c.textMuted, fontSize: 11, marginBottom: 3 },
+  timeLabel: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, marginBottom: 3 },
   timeInput: {
     borderWidth: 1,
     borderColor: c.border,
@@ -205,14 +206,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
     color: c.text,
-    fontSize: 14.5,
+    fontFamily: FONT_FAMILY, fontSize: 14.5,
     backgroundColor: c.surface
   },
   removeWindow: { paddingBottom: 10, paddingHorizontal: 4 },
 
-  hint: { color: c.textMuted, fontSize: 11.5, marginTop: 6 },
+  hint: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11.5, marginTop: 6 },
   addWindow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing.sm },
-  addWindowText: { color: c.brand, fontSize: 12.5, fontWeight: '700' }
+  addWindowText: { color: c.brand, fontFamily: FONT_FAMILY, fontSize: 12.5, fontWeight: '700' }
 });
 
 export default OpeningHoursEditor;

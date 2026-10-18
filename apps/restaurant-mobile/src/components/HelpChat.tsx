@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { c, radii, spacing } from '../theme';
@@ -101,7 +102,7 @@ export const HelpChat: React.FC<{ onSent?: () => void }> = ({ onSent }) => {
 };
 
 const styles = StyleSheet.create({
-  greeting: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: spacing.sm },
+  greeting: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', color: c.text, marginBottom: spacing.sm },
   bubble: { padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.sm, maxWidth: '88%' },
   mine: { alignSelf: 'flex-end', backgroundColor: c.brand },
   mineText: { color: '#FFFFFF', fontWeight: '600' },
@@ -109,6 +110,6 @@ const styles = StyleSheet.create({
   theirsText: { color: c.text, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginVertical: spacing.sm },
   chip: { borderWidth: 1, borderColor: c.brand, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-  chipText: { color: c.brand, fontWeight: '600', fontSize: 13 },
+  chipText: { color: c.brand, fontWeight: '600', fontFamily: FONT_FAMILY, fontSize: 13 },
   done: { color: c.success, marginVertical: spacing.sm }
 });

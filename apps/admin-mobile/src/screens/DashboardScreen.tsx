@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, useWindowDimensions, RefreshControl } from 'react-native';
 import {
@@ -291,22 +292,22 @@ const s = StyleSheet.create({
   greeting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.space[3] },
   greetingName: {
     flex: 1,
-    fontSize: tokens.font.size.lg,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.primary
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[3], marginBottom: tokens.space[2] },
   allClear: { flexDirection: 'row', alignItems: 'center', gap: tokens.space[3] },
-  allClearText: { flex: 1, color: c.text.secondary, fontSize: tokens.font.size.sm, lineHeight: 19 },
+  allClearText: { flex: 1, color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, lineHeight: 19 },
   revenueHead: { flexDirection: 'row', alignItems: 'flex-start', gap: tokens.space[3] },
-  revenueLabel: { fontSize: tokens.font.size.xs, color: c.text.muted },
+  revenueLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted },
   revenueValue: {
-    fontSize: tokens.font.size.xxl,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxl,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.primary,
     marginTop: 2
   },
-  revenueHint: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4, lineHeight: 16 },
+  revenueHint: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4, lineHeight: 16 },
   revenueTodayPill: {
     backgroundColor: c.brand.amberSoft,
     borderRadius: tokens.radius.md,
@@ -314,9 +315,9 @@ const s = StyleSheet.create({
     paddingVertical: tokens.space[2],
     alignItems: 'flex-end'
   },
-  revenueTodayLabel: { fontSize: tokens.font.size.xxs, color: c.brand.amberText },
-  revenueTodayValue: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
+  revenueTodayLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.brand.amberText },
+  revenueTodayValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
   trendAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  trendAxisText: { fontSize: tokens.font.size.xxs, color: c.text.muted },
-  footNote: { textAlign: 'center', color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: tokens.space[4] }
+  trendAxisText: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
+  footNote: { textAlign: 'center', color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, marginTop: tokens.space[4] }
 });

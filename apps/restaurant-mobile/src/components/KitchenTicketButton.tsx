@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -74,12 +75,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     backgroundColor: c.brandSoft
   },
-  label: { color: c.brand, fontWeight: '700', fontSize: 15 },
-  hint: { color: c.textSoft, fontSize: 12, marginTop: 2 },
+  label: { color: c.brand, fontWeight: '700', fontFamily: FONT_FAMILY, fontSize: 15 },
+  hint: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
   sizes: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  sizeLabel: { color: c.textMuted, fontSize: 12 },
+  sizeLabel: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
   size: { borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
   sizeOn: { borderColor: c.brand },
-  sizeText: { color: c.textMuted, fontSize: 12 },
+  sizeText: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
   sizeTextOn: { color: c.brand, fontWeight: '700' }
 });

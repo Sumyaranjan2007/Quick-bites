@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { t } from '../theme';
@@ -189,9 +190,9 @@ export const SettlementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 
 const s = StyleSheet.create({
   body: { padding: t.space[4], gap: t.space[4], paddingBottom: t.space[8] },
-  headline: { fontSize: 32, fontWeight: '800', color: t.color.text, marginTop: t.space[2] },
-  headlineSub: { fontSize: 12, color: t.color.textMuted, marginTop: 2 },
-  error: { color: t.color.danger, fontSize: 13, lineHeight: 19 },
+  headline: { fontFamily: FONT_FAMILY, fontSize: 32, fontWeight: '800', color: t.color.text, marginTop: t.space[2] },
+  headlineSub: { fontFamily: FONT_FAMILY, fontSize: 12, color: t.color.textMuted, marginTop: 2 },
+  error: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19 },
   blocked: {
     marginTop: t.space[4],
     padding: t.space[3],
@@ -201,13 +202,13 @@ const s = StyleSheet.create({
     borderLeftColor: t.color.warning,
     gap: 4
   },
-  blockedTitle: { color: t.color.text, fontSize: 13, fontWeight: '800' },
-  blockedBody: { color: t.color.textSecondary, fontSize: 12, lineHeight: 17 },
+  blockedTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '800' },
+  blockedBody: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17 },
   line: { paddingVertical: t.space[3], borderTopWidth: 1, borderTopColor: t.color.border, gap: 3 },
   lineHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: t.space[3] },
-  lineTitle: { fontSize: 14, fontWeight: '800', color: t.color.text, flexShrink: 1 },
-  lineValue: { fontSize: 14, fontWeight: '800', color: t.color.go },
-  lineMeta: { fontSize: 11, color: t.color.textMuted, lineHeight: 17 },
-  lineRef: { fontSize: 11, color: t.color.textSecondary, fontWeight: '700' },
-  linePaid: { fontSize: 11, color: t.color.go, fontWeight: '700' }
+  lineTitle: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: t.color.text, flexShrink: 1 },
+  lineValue: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: t.color.go },
+  lineMeta: { fontFamily: FONT_FAMILY, fontSize: 11, color: t.color.textMuted, lineHeight: 17 },
+  lineRef: { fontFamily: FONT_FAMILY, fontSize: 11, color: t.color.textSecondary, fontWeight: '700' },
+  linePaid: { fontFamily: FONT_FAMILY, fontSize: 11, color: t.color.go, fontWeight: '700' }
 });

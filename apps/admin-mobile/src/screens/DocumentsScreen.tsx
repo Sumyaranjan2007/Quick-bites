@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { DownloadButton } from '../components/DownloadButton';
 import { documentFileName } from '../lib/download';
@@ -102,9 +103,9 @@ const s = StyleSheet.create({
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
   list: { paddingHorizontal: tokens.space[5], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
   link: { color: c.brand.amber },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
   scan: {
     width: '100%',
     height: 180,

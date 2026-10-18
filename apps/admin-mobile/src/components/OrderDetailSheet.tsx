@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, Linking } from 'react-native';
 import { Sheet, Card, KeyValue, Divider, Badge, Button, Field, Loading, EmptyState, Segmented, CheckRow } from './ui';
@@ -622,15 +623,15 @@ const s = StyleSheet.create({
   callRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[2], marginBottom: tokens.space[3] },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: tokens.space[2]
   },
-  blockTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  blockBody: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4, marginBottom: tokens.space[4], lineHeight: 19 },
+  blockTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  blockBody: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4, marginBottom: tokens.space[4], lineHeight: 19 },
   actionRow: { flexDirection: 'row', gap: tokens.space[3] },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.space[3], paddingVertical: tokens.space[2] },
   itemQty: {
@@ -641,21 +642,21 @@ const s = StyleSheet.create({
     backgroundColor: c.bg.sunken,
     alignItems: 'center'
   },
-  itemQtyText: { color: c.brand.amberText, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold },
-  itemName: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
-  itemUnit: { color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: 2 },
-  itemTotal: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
+  itemQtyText: { color: c.brand.amberText, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold },
+  itemName: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  itemUnit: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, marginTop: 2 },
+  itemTotal: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
   timelineRow: { flexDirection: 'row', gap: tokens.space[3] },
   timelineMarker: { width: 14, alignItems: 'center' },
   timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.border.strong, marginTop: 4 },
   timelineDotLast: { backgroundColor: c.brand.amber },
   timelineLine: { flex: 1, width: 1.5, backgroundColor: c.border.subtle, marginVertical: 3 },
-  timelineLabel: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
-  timelineTime: { color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: 2 },
-  timelineDetail: { color: c.text.secondary, fontSize: tokens.font.size.xs, marginTop: 3 },
+  timelineLabel: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  timelineTime: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, marginTop: 2 },
+  timelineDetail: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, marginTop: 3 },
   quote: {
     color: c.text.secondary,
-    fontSize: tokens.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm,
     fontStyle: 'italic',
     marginTop: tokens.space[2],
     lineHeight: 20
@@ -668,7 +669,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  caseTitle: { color: c.text.primary, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
-  caseBody: { color: c.text.secondary, fontSize: tokens.font.size.xs, marginTop: 3, lineHeight: 17 },
-  caseMeta: { color: c.text.muted, fontSize: tokens.font.size.xxs, marginTop: 4 }
+  caseTitle: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  caseBody: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, marginTop: 3, lineHeight: 17 },
+  caseMeta: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, marginTop: 4 }
 });

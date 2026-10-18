@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Sheet, Card, KeyValue, Divider, Loading, EmptyState } from './ui';
@@ -113,8 +114,8 @@ export const StatementSheet: React.FC<{ owner: StatementOwner | null; onClose: (
 };
 
 const s = StyleSheet.create({
-  heading: { fontSize: 14, fontWeight: '800', color: c.text.primary, marginBottom: 6 },
-  note: { fontSize: 12, color: c.text.secondary, marginBottom: 6, lineHeight: 17 },
-  warn: { fontSize: 12, color: c.state.danger, marginTop: 4 },
+  heading: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: c.text.primary, marginBottom: 6 },
+  note: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.text.secondary, marginBottom: 6, lineHeight: 17 },
+  warn: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.state.danger, marginTop: 4 },
   order: { marginBottom: 4 }
 });

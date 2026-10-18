@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import { PersonDocuments } from '../components/PersonDocuments';
 import { CreateAccountSheet, RemoveAccountCard } from '../components/AccountTools';
 import React, { useState } from 'react';
@@ -1358,8 +1359,8 @@ const s = StyleSheet.create({
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   list: { paddingHorizontal: tokens.space[5], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  name: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  name: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
   statRow: {
     flexDirection: 'row',
     marginTop: tokens.space[3],
@@ -1369,17 +1370,17 @@ const s = StyleSheet.create({
     gap: tokens.space[2]
   },
   miniStat: { flex: 1, minWidth: 0 },
-  miniStatValue: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  miniStatLabel: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
-  activeTrip: { marginTop: tokens.space[3], fontSize: tokens.font.size.xs, color: c.state.info },
+  miniStatValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  miniStatLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
+  activeTrip: { marginTop: tokens.space[3], fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.state.info },
   noShowFlag: {
     marginTop: tokens.space[3],
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: '700',
     color: c.state.danger
   },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -1395,8 +1396,8 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  miniTitle: { fontSize: tokens.font.size.sm, color: c.text.primary },
-  miniMeta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
-  miniValue: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.brand.amberText },
-  muted: { fontSize: tokens.font.size.sm, color: c.text.muted }
+  miniTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary },
+  miniMeta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
+  miniValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.brand.amberText },
+  muted: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted }
 });

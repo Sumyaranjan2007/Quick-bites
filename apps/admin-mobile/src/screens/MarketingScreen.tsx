@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Ticket, Star } from 'lucide-react-native';
@@ -386,12 +387,12 @@ const s = StyleSheet.create({
   tabs: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   list: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2], paddingBottom: tokens.space[8] },
-  summary: { fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
+  summary: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  code: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText, letterSpacing: 1 },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4, lineHeight: 16 },
+  code: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText, letterSpacing: 1 },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 4, lineHeight: 16 },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -401,8 +402,8 @@ const s = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: tokens.space[3] },
   // Mid gold rather than the bright brand gold: star glyphs in #FFC928 on a
   // cream ground are about 1.7:1 and read as a smudge.
-  stars: { fontSize: tokens.font.size.md, color: c.state.warning, letterSpacing: 2 },
-  comment: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20, marginTop: tokens.space[3], fontStyle: 'italic' },
-  noComment: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: tokens.space[3] },
-  meta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] }
+  stars: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, color: c.state.warning, letterSpacing: 2 },
+  comment: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20, marginTop: tokens.space[3], fontStyle: 'italic' },
+  noComment: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: tokens.space[3] },
+  meta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] }
 });

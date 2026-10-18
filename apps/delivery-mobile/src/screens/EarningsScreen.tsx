@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Award, CalendarDays, IndianRupee, Package, Percent, Star, Wallet } from 'lucide-react-native';
@@ -214,25 +215,25 @@ const s = StyleSheet.create({
   content: { padding: t.space[4], paddingBottom: t.space[10] },
   walletCard: { paddingVertical: t.space[5] },
   walletHead: { flexDirection: 'row', alignItems: 'center' },
-  walletLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginLeft: 8 },
+  walletLabel: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginLeft: 8 },
   walletValueRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[3] },
-  walletValue: { color: t.color.money, fontSize: t.font.size.display, fontWeight: t.font.weight.extrabold, marginLeft: 2 },
-  walletSub: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
+  walletValue: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.display, fontWeight: t.font.weight.extrabold, marginLeft: 2 },
+  walletSub: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
   cashNote: {
     marginTop: t.space[4],
     backgroundColor: t.color.moneySoft,
     borderRadius: t.radius.sm,
     padding: t.space[3]
   },
-  cashNoteText: { color: t.color.money, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  cashNoteText: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   tileRow: { flexDirection: 'row' },
   rateHead: { flexDirection: 'row', alignItems: 'center', marginBottom: t.space[3] },
   rateValue: {
     color: t.color.text,
-    fontSize: t.font.size.xxl,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xxl,
     fontWeight: t.font.weight.extrabold,
     marginLeft: t.space[3]
   },
-  rateOutOf: { color: t.color.textMuted, fontSize: t.font.size.base, marginLeft: 4 },
-  rateCaption: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[3], lineHeight: 19 }
+  rateOutOf: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, marginLeft: 4 },
+  rateCaption: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[3], lineHeight: 19 }
 });

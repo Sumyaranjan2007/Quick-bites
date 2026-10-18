@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { Star, TrendingUp, Clock, Package } from 'lucide-react-native';
@@ -234,27 +235,27 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xl, paddingBottom: 48 },
   centre: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' },
-  bigMoney: { fontSize: 34, fontWeight: '800', color: c.brand },
-  bigMoneySub: { fontSize: 13, color: c.textMuted, marginTop: 2, marginBottom: spacing.lg },
+  bigMoney: { fontFamily: FONT_FAMILY, fontSize: 34, fontWeight: '800', color: c.brand },
+  bigMoneySub: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 2, marginBottom: spacing.lg },
   // Wraps: two 140-wide stats do not fit side by side on a 360-wide phone, and
   // without wrapping the right one was cut off ("AVERAGE ORD").
   metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginBottom: spacing.lg },
-  quietNote: { fontSize: 13, color: c.textMuted, lineHeight: 19 },
+  quietNote: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, lineHeight: 19 },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 124, paddingTop: spacing.md },
   barColumn: { flex: 1, alignItems: 'center' },
   bar: { width: '78%', backgroundColor: c.brand, borderRadius: 3 },
   barEmpty: { backgroundColor: c.border },
-  barLabel: { fontSize: 9, color: c.textMuted, marginTop: 6 },
+  barLabel: { fontFamily: FONT_FAMILY, fontSize: 9, color: c.textMuted, marginTop: 6 },
   inlineStat: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.sm },
-  inlineStatText: { fontSize: 12, color: c.textMuted, flex: 1, lineHeight: 17 },
+  inlineStatText: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, flex: 1, lineHeight: 17 },
   ratingHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.lg },
-  ratingValue: { fontSize: 30, fontWeight: '800', color: c.text },
-  ratingCount: { fontSize: 13, color: c.textMuted, marginLeft: 4 },
+  ratingValue: { fontFamily: FONT_FAMILY, fontSize: 30, fontWeight: '800', color: c.text },
+  ratingCount: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginLeft: 4 },
   distRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: 6 },
-  distStar: { fontSize: 12, color: c.textMuted, width: 24 },
+  distStar: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, width: 24 },
   distTrack: { flex: 1, height: 7, backgroundColor: c.border, borderRadius: 4, overflow: 'hidden' },
   distFill: { height: 7, backgroundColor: c.brand },
-  distCount: { fontSize: 12, color: c.textMuted, width: 28, textAlign: 'right' },
+  distCount: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, width: 28, textAlign: 'right' },
   dishRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -263,8 +264,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border
   },
-  dishRank: { fontSize: 14, fontWeight: '800', color: c.brand, width: 20 },
-  dishName: { fontSize: 14, color: c.text, fontWeight: '600' },
-  dishMeta: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-  catMoney: { fontSize: 14, fontWeight: '800', color: c.text }
+  dishRank: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: c.brand, width: 20 },
+  dishName: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, fontWeight: '600' },
+  dishMeta: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 },
+  catMoney: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: c.text }
 });

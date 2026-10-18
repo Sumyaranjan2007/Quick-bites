@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { ShieldCheck, UserCog, ScrollText } from 'lucide-react-native';
@@ -492,10 +493,10 @@ const s = StyleSheet.create({
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   list: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -503,8 +504,8 @@ const s = StyleSheet.create({
     marginBottom: tokens.space[2]
   },
   actionRow: { flexDirection: 'row', gap: tokens.space[3] },
-  note: { fontSize: tokens.font.size.xs, color: c.text.muted, lineHeight: 17, marginTop: tokens.space[2] },
-  auditSummary: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 19 },
-  auditWhen: { fontSize: tokens.font.size.xxs, color: c.text.muted },
+  note: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, lineHeight: 17, marginTop: tokens.space[2] },
+  auditSummary: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 19 },
+  auditWhen: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
   auditTags: { flexDirection: 'row', gap: tokens.space[2], marginTop: tokens.space[3], flexWrap: 'wrap' }
 });

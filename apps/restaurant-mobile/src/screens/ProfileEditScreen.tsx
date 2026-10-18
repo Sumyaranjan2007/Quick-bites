@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -656,21 +657,21 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
 };
 
 const styles = StyleSheet.create({
-  choiceLabel: { fontSize: 13, fontWeight: '700', color: c.text, marginBottom: spacing.xs },
+  choiceLabel: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', color: c.text, marginBottom: spacing.xs },
   choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: c.border },
   choiceOn: { borderColor: c.brand, backgroundColor: c.brandSoft },
-  choiceText: { color: c.text, fontSize: 13 },
+  choiceText: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 13 },
   choiceTextOn: { color: c.brand, fontWeight: '700' },
-  choiceHint: { color: c.textMuted, fontSize: 12, marginTop: spacing.xs, marginBottom: spacing.md },
+  choiceHint: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: spacing.xs, marginBottom: spacing.md },
   body: { padding: spacing.lg, gap: spacing.md },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   noticeCard: { backgroundColor: '#EAF2FB', borderColor: '#C6DBF2' },
   okCard: { backgroundColor: c.successSoft, borderColor: '#BFE5D2' },
   noticeRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  noticeText: { flex: 1, color: c.textSoft, fontSize: 13, lineHeight: 18 },
-  okText: { flex: 1, color: c.success, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  noticeText: { flex: 1, color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18 },
+  okText: { flex: 1, color: c.success, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18, fontWeight: '600' },
 
   pendingCard: { borderColor: '#EAD3A8', backgroundColor: '#FFF9EE' },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
@@ -685,7 +686,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: spacing.md
   },
-  chipText: { fontSize: 12, color: c.warning, fontWeight: '600' },
+  chipText: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.warning, fontWeight: '600' },
 
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radii.md, backgroundColor: c.bg },
   coverActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
@@ -701,8 +702,8 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: c.bg
   },
-  coverEmptyText: { color: c.brand, fontWeight: '700', fontSize: 14 },
-  coverEmptyHint: { color: c.textMuted, fontSize: 12, textAlign: 'center', paddingHorizontal: spacing.xl },
+  coverEmptyText: { color: c.brand, fontWeight: '700', fontFamily: FONT_FAMILY, fontSize: 14 },
+  coverEmptyHint: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, textAlign: 'center', paddingHorizontal: spacing.xl },
 
   galleryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
   thumbWrap: { width: 84, height: 60 },
@@ -729,8 +730,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
 
-  refusal: { color: c.danger, fontSize: 12, marginTop: 6, lineHeight: 17 },
-  hoursEmpty: { color: c.textMuted, fontSize: 12.5, marginTop: spacing.md, lineHeight: 18 },
+  refusal: { color: c.danger, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 6, lineHeight: 17 },
+  hoursEmpty: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12.5, marginTop: spacing.md, lineHeight: 18 },
   payNote: {
     backgroundColor: c.successSoft,
     borderWidth: 1,
@@ -751,18 +752,18 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 2
   },
-  payNoteText: { color: c.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  payNoteSub: { color: c.textSoft, fontSize: 12, lineHeight: 17 },
+  payNoteText: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  payNoteSub: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17 },
 
   hoursRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  hoursText: { flex: 1, color: c.textSoft, fontSize: 13, lineHeight: 18 },
+  hoursText: { flex: 1, color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18 },
   overrideRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  lockedText: { color: c.textMuted, fontSize: 12.5, marginTop: spacing.sm, lineHeight: 18 },
+  lockedText: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12.5, marginTop: spacing.sm, lineHeight: 18 },
 
   historyRow: { paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: c.border },
   historyHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  historyDate: { color: c.textMuted, fontSize: 12.5 },
-  historyFields: { color: c.text, fontSize: 13.5, marginTop: 4 }
+  historyDate: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12.5 },
+  historyFields: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 13.5, marginTop: 4 }
 });
 
 export default ProfileEditScreen;

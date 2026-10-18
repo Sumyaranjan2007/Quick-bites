@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { Banknote, Receipt, Percent, CheckCircle2 } from 'lucide-react-native';
@@ -159,8 +160,8 @@ export const SettlementsScreen: React.FC<Props> = ({ restaurantId, refreshSignal
 const s = StyleSheet.create({
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl * 2 },
-  headline: { fontSize: 30, fontWeight: '800', color: c.text, marginTop: spacing.sm },
-  headlineSub: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+  headline: { fontFamily: FONT_FAMILY, fontSize: 30, fontWeight: '800', color: c.text, marginTop: spacing.sm },
+  headlineSub: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 },
   splitRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg, flexWrap: 'wrap' },
   line: {
     paddingVertical: spacing.md,
@@ -169,9 +170,9 @@ const s = StyleSheet.create({
     gap: 3
   },
   lineHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
-  lineNumber: { fontSize: 14, fontWeight: '800', color: c.text, flexShrink: 1 },
-  lineNet: { fontSize: 14, fontWeight: '800', color: c.brand },
-  lineMeta: { fontSize: 11, color: c.textMuted, lineHeight: 17 },
-  lineRef: { fontSize: 11, color: c.textSoft, fontWeight: '700' },
-  linePaid: { fontSize: 11, color: c.success, fontWeight: '700' }
+  lineNumber: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: c.text, flexShrink: 1 },
+  lineNet: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: c.brand },
+  lineMeta: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.textMuted, lineHeight: 17 },
+  lineRef: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.textSoft, fontWeight: '700' },
+  linePaid: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.success, fontWeight: '700' }
 });

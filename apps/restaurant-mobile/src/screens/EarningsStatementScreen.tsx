@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Modal } from '../components/Modal';
@@ -448,11 +449,11 @@ export const EarningsStatementScreen: React.FC = () => {
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  centreText: { color: c.textMuted, fontSize: 14 },
+  centreText: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 14 },
 
   topCard: { marginBottom: 16 },
-  invoiceTitle: { fontSize: 16, fontWeight: '800', color: c.text },
-  invoiceBody: { fontSize: 13, color: c.textSoft, lineHeight: 19, marginTop: 4 },
+  invoiceTitle: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800', color: c.text },
+  invoiceBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, lineHeight: 19, marginTop: 4 },
   periodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 14 },
   periodChip: {
     minHeight: 40,
@@ -464,35 +465,35 @@ const s = StyleSheet.create({
     backgroundColor: c.surface
   },
   periodChipOn: { backgroundColor: c.brand, borderColor: c.brand },
-  periodText: { fontSize: 13, fontWeight: '700', color: c.textSoft },
+  periodText: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', color: c.textSoft },
   periodTextOn: { color: '#FFFFFF' },
   orderInvoice: { marginTop: 12 },
   eachButton: { marginTop: 10 },
-  eachHint: { fontSize: 12, color: c.textMuted, lineHeight: 17, marginTop: 8, textAlign: 'center' },
-  topLabel: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
-  topValue: { color: c.text, fontSize: 34, fontWeight: '800', marginTop: 4 },
-  topSub: { color: c.textMuted, fontSize: 12, lineHeight: 17, marginTop: 8 },
+  eachHint: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, lineHeight: 17, marginTop: 8, textAlign: 'center' },
+  topLabel: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, fontWeight: '600' },
+  topValue: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 34, fontWeight: '800', marginTop: 4 },
+  topSub: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 8 },
   topDivider: { height: 1, backgroundColor: c.border, marginVertical: 14 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  topRowLabel: { color: c.textMuted, fontSize: 13 },
-  topRowValue: { color: c.text, fontSize: 13, fontWeight: '700' },
+  topRowLabel: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 13 },
+  topRowValue: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700' },
 
-  promise: { color: c.textMuted, fontSize: 12, lineHeight: 18, marginTop: 14 },
+  promise: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 18, marginTop: 14 },
 
-  reassure: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: 12 },
+  reassure: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 12 },
 
   orderCard: { marginBottom: 10 },
   orderHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  orderNumber: { color: c.text, fontSize: 15, fontWeight: '700' },
-  orderDate: { color: c.textMuted, fontSize: 12, marginTop: 2 },
-  orderNet: { color: c.text, fontSize: 17, fontWeight: '800', marginBottom: 4 },
-  tapHint: { color: c.textMuted, fontSize: 11, marginTop: 8 },
+  orderNumber: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' },
+  orderDate: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
+  orderNet: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 17, fontWeight: '800', marginBottom: 4 },
+  tapHint: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, marginTop: 8 },
 
   breakdown: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
   lineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 5 },
-  lineLabel: { color: c.text, fontSize: 13, fontWeight: '600' },
-  lineDetail: { color: c.textMuted, fontSize: 11, lineHeight: 15, marginTop: 2 },
-  lineAmount: { color: c.text, fontSize: 14, fontWeight: '700' },
+  lineLabel: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '600' },
+  lineDetail: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  lineAmount: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
   lineAmountNegative: { color: c.danger },
 
   lineTotal: {
@@ -503,14 +504,14 @@ const s = StyleSheet.create({
     marginTop: 8,
     paddingTop: 10
   },
-  lineTotalLabel: { color: c.text, fontSize: 14, fontWeight: '700' },
-  lineTotalValue: { color: c.text, fontSize: 16, fontWeight: '800' },
+  lineTotalLabel: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  lineTotalValue: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800' },
 
-  unexplained: { color: c.danger, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  unexplained: { color: c.danger, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 10 },
 
-  policyRowTitle: { color: c.text, fontSize: 14, fontWeight: '700' },
-  policyRowSummary: { color: c.textMuted, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  policyGap: { color: c.warning, fontSize: 11, lineHeight: 16, marginTop: 8 },
+  policyRowTitle: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  policyRowSummary: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  policyGap: { color: c.warning, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 8 },
 
   policyOverlay: { flex: 1, backgroundColor: 'rgba(23,19,19,0.55)', justifyContent: 'flex-end' },
   policySheet: {
@@ -529,14 +530,14 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.border
   },
-  policyTitle: { color: c.text, fontSize: 17, fontWeight: '800', flex: 1 },
-  policyClose: { color: c.brand, fontSize: 14, fontWeight: '700' },
+  policyTitle: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 17, fontWeight: '800', flex: 1 },
+  policyClose: { color: c.brand, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
   policyBody: { padding: 20, paddingBottom: 36 },
-  policyDate: { color: c.textMuted, fontSize: 12 },
-  policyHeading: { color: c.text, fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  policyText: { color: c.textSoft, fontSize: 14, lineHeight: 21 },
+  policyDate: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  policyHeading: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  policyText: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 14, lineHeight: 21 },
 
-  footnote: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: 16, textAlign: 'center' }
+  footnote: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 16, textAlign: 'center' }
 });
 
 export default EarningsStatementScreen;

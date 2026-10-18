@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Banknote, ShieldAlert, Clock, CircleSlash, Send, Info, Wallet, TriangleAlert, Landmark } from 'lucide-react-native';
@@ -1635,47 +1636,47 @@ const EarnRow: React.FC<{ label: string; value: number; hint?: string }> = ({ la
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   errorCard: { borderColor: c.state.danger, marginBottom: 12 },
-  errorText: { color: c.state.danger, fontSize: 13, marginTop: 8 },
+  errorText: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 8 },
 
   summaryCard: { marginBottom: 12 },
   summaryRow: { flexDirection: 'row', gap: 12 },
   summaryCell: { flex: 1 },
-  summaryValue: { color: c.text.primary, fontSize: 20, fontWeight: '800' },
-  summaryLabel: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
-  limitsText: { color: c.text.muted, fontSize: 11, lineHeight: 16 },
+  summaryValue: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800' },
+  summaryLabel: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
+  limitsText: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16 },
 
   dueCard: { marginBottom: 10 },
   dueHead: { flexDirection: 'row', alignItems: 'flex-start' },
-  dueName: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
-  dueType: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
-askedMoved: { color: c.state.warning, fontSize: 12, marginTop: 10, lineHeight: 17 },
-  askedNote: { color: c.text.secondary, fontSize: 13, marginTop: 10, fontStyle: 'italic' as const },
-  askedBlocked: { color: c.state.danger, fontSize: 12, marginTop: 10, lineHeight: 17 },
-  askedReady: { color: c.text.secondary, fontSize: 12, marginTop: 10, lineHeight: 17 },
-    dueAmount: { color: c.text.primary, fontSize: 17, fontWeight: '800' },
-  dueHeld: { color: c.text.muted, fontSize: 11, marginTop: 2 },
+  dueName: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' },
+  dueType: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
+askedMoved: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 10, lineHeight: 17 },
+  askedNote: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 10, fontStyle: 'italic' as const },
+  askedBlocked: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 10, lineHeight: 17 },
+  askedReady: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 10, lineHeight: 17 },
+    dueAmount: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 17, fontWeight: '800' },
+  dueHeld: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, marginTop: 2 },
 
   blockRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10 },
-  blockText: { color: c.state.danger, fontSize: 12, lineHeight: 17, flex: 1 },
-  blockTextWarn: { color: c.state.warning, fontSize: 12, lineHeight: 17, flex: 1 },
-  blockTextMuted: { color: c.text.muted, fontSize: 12, lineHeight: 17, flex: 1 },
+  blockText: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, flex: 1 },
+  blockTextWarn: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, flex: 1 },
+  blockTextMuted: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, flex: 1 },
 
   payoutCard: { marginBottom: 10 },
   payoutHead: { flexDirection: 'row', alignItems: 'flex-start' },
-  reference: { color: c.text.secondary, fontSize: 12, marginTop: 6 },
-  destination: { color: c.text.secondary, fontSize: 12, marginTop: 4, fontWeight: '600' },
-  uncertain: { color: c.state.warning, fontSize: 12, lineHeight: 17, marginTop: 8 },
+  reference: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 6 },
+  destination: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 4, fontWeight: '600' },
+  uncertain: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 8 },
 
   confirmBox: { backgroundColor: c.bg.sunken, borderRadius: 10, padding: 12, marginBottom: 12 },
   confirmRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  confirmLabel: { color: c.text.muted, fontSize: 12 },
-  confirmValue: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  confirmNote: { color: c.text.secondary, fontSize: 12, lineHeight: 17, marginBottom: 12 },
+  confirmLabel: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  confirmValue: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  confirmNote: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginBottom: 12 },
 
   railCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   railCardActive: { borderColor: c.brand.amberText },
-  railName: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  railDescription: { color: c.text.secondary, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  railName: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  railDescription: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2, lineHeight: 16 },
 
   warnBox: {
     flexDirection: 'row',
@@ -1685,21 +1686,21 @@ askedMoved: { color: c.state.warning, fontSize: 12, marginTop: 10, lineHeight: 1
     padding: 12,
     marginBottom: 12
   },
-  warnText: { color: c.state.warning, fontSize: 12, lineHeight: 17, flex: 1 },
+  warnText: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, flex: 1 },
 
-  okTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
-  okBody: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  okTitle: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' },
+  okBody: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginTop: 6 },
 
   blockerCard: { marginBottom: 10 },
-  blockerWhat: { color: c.text.primary, fontSize: 13, fontWeight: '700', lineHeight: 19, flex: 1 },
-  blockerFix: { color: c.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  blockerWhat: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', lineHeight: 19, flex: 1 },
+  blockerFix: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 18, marginTop: 8 },
 
-  earnedTotal: { color: c.text.primary, fontSize: 30, fontWeight: '800' },
-  earnedCaption: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
+  earnedTotal: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 30, fontWeight: '800' },
+  earnedCaption: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
   earnRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  earnLabel: { color: c.text.secondary, fontSize: 13 },
-  earnValue: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  earnHint: { color: c.state.danger, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  earnLabel: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13 },
+  earnValue: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  earnHint: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 2 },
 
-  footnote: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 12 }
+  footnote: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 12 }
 });

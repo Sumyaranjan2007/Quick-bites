@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
@@ -297,40 +298,40 @@ const s = StyleSheet.create({
     padding: t.space[4],
     marginBottom: t.space[4]
   },
-  bannerTitle: { color: t.color.money, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  bannerBody: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: 3, lineHeight: 18 },
+  bannerTitle: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  bannerBody: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 3, lineHeight: 18 },
   heroCard: { paddingVertical: t.space[5] },
   heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  heroLabel: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   heroValueRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[3] },
   heroValue: {
     color: t.color.money,
-    fontSize: t.font.size.display,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.display,
     fontWeight: t.font.weight.extrabold,
     marginLeft: 2
   },
   heroMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[3] },
   heroMeta: { flexDirection: 'row', alignItems: 'center', marginRight: t.space[5] },
-  heroMetaText: { color: t.color.textMuted, fontSize: t.font.size.sm, marginLeft: 5 },
+  heroMetaText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginLeft: 5 },
   activeCard: { borderColor: t.color.go, backgroundColor: t.color.goSoft },
   activeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  activeOrderNumber: { color: t.color.goText, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold },
+  activeOrderNumber: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold },
   activeRestaurant: {
     color: t.color.text,
-    fontSize: t.font.size.md,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.md,
     fontWeight: t.font.weight.bold,
     marginTop: t.space[3]
   },
-  activeAddress: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: 3 },
+  activeAddress: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 3 },
   activeFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: t.space[4]
   },
-  activeEarnings: { color: t.color.money, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold },
+  activeEarnings: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold },
   activeCta: { flexDirection: 'row', alignItems: 'center' },
-  activeCtaText: { color: t.color.goText, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold, marginRight: 2 },
+  activeCtaText: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold, marginRight: 2 },
   tileRow: { flexDirection: 'row' },
   incentiveHead: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: t.space[4] },
   incentiveIcon: {
@@ -341,21 +342,21 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  incentiveTitle: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  incentiveBody: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
-  incentiveReward: { color: t.color.money, fontSize: t.font.size.base, fontWeight: t.font.weight.extrabold },
-  incentiveProgress: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: t.space[2] },
-  emptyTrips: { color: t.color.textMuted, fontSize: t.font.size.sm, lineHeight: 20 },
+  incentiveTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  incentiveBody: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
+  incentiveReward: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.extrabold },
+  incentiveProgress: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: t.space[2] },
+  emptyTrips: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, lineHeight: 20 },
   tripRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[3] },
   tripDivider: { height: 1, backgroundColor: t.color.border },
-  tripName: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
-  tripMeta: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
-  tripPayout: { color: t.color.money, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  tripName: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
+  tripMeta: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
+  tripPayout: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
   tripRating: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
-  tripRatingText: { color: t.color.textMuted, fontSize: t.font.size.xs, marginLeft: 3 },
+  tripRatingText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginLeft: 3 },
   updatedAt: {
     color: t.color.textMuted,
-    fontSize: t.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xs,
     textAlign: 'center',
     marginTop: t.space[6]
   }

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { DownloadButton } from '../components/DownloadButton';
 import { documentFileName } from '../lib/download';
@@ -320,15 +321,15 @@ const s = StyleSheet.create({
   body: { padding: 16, gap: 12, paddingBottom: 40 },
   card: { gap: 4 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  title: { color: c.text.primary, fontSize: 15, fontWeight: '800' },
-  sub: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
-  warn: { color: c.state.warning, fontSize: 12, marginTop: 8, lineHeight: 17 },
+  title: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800' },
+  sub: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
+  warn: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 8, lineHeight: 17 },
 
   field: { marginTop: 14 },
-  fieldName: { color: c.text.primary, fontSize: 13.5, fontWeight: '700', marginBottom: 8 },
-  sideLabel: { color: c.text.secondary, fontSize: 10, letterSpacing: 0.6, fontWeight: '700' },
-  value: { color: c.text.primary, fontSize: 13.5, lineHeight: 19, marginTop: 2 },
-  valueMuted: { color: c.text.secondary, fontSize: 13, fontStyle: 'italic', marginTop: 2 },
+  fieldName: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 13.5, fontWeight: '700', marginBottom: 8 },
+  sideLabel: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 10, letterSpacing: 0.6, fontWeight: '700' },
+  value: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 13.5, lineHeight: 19, marginTop: 2 },
+  valueMuted: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13, fontStyle: 'italic', marginTop: 2 },
 
   // Bounded so one tall photograph cannot push the decision buttons off screen.
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: 10, marginTop: 4, backgroundColor: c.bg.card },
@@ -336,11 +337,11 @@ const s = StyleSheet.create({
   thumb: { width: 76, height: 54, borderRadius: 8, backgroundColor: c.bg.card },
 
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  settled: { color: c.text.secondary, fontSize: 12.5, marginTop: 10, lineHeight: 18 },
+  settled: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12.5, marginTop: 10, lineHeight: 18 },
   footer: { flexDirection: 'row', gap: 8, marginTop: 16, justifyContent: 'flex-end' },
 
   errorCard: { borderColor: c.state.danger },
-  errorText: { color: c.state.danger, fontSize: 13, lineHeight: 18 }
+  errorText: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18 }
 });
 
 export default ProfileApprovalsScreen;

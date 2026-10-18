@@ -12,6 +12,7 @@
  * Every direct change goes live at once and the partner is told (the server
  * sends the push and lists it in their Recent decisions).
  */
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Modal } from './Modal';
@@ -348,7 +349,7 @@ export const MenuUploadModal: React.FC<{
 
 const s = StyleSheet.create({
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -364,7 +365,7 @@ const s = StyleSheet.create({
     borderTopColor: c.border.subtle,
     flexWrap: 'wrap'
   },
-  dishName: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold, flexShrink: 1 },
-  dishMeta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
+  dishName: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold, flexShrink: 1 },
+  dishMeta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
   dishActions: { flexDirection: 'row', gap: tokens.space[2] }
 });

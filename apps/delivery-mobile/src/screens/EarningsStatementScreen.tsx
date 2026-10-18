@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { ReceiptText, ChevronDown, ChevronUp } from 'lucide-react-native';
@@ -242,25 +243,25 @@ const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40, gap: 12 },
 
   head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { color: t.color.text, fontSize: 16, fontWeight: '700', flex: 1 },
-  sub: { color: t.color.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 6 },
-  big: { color: t.color.text, fontSize: 34, fontWeight: '800', marginTop: 10 },
+  title: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '700', flex: 1 },
+  sub: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 6 },
+  big: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 34, fontWeight: '800', marginTop: 10 },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  rowLabel: { color: t.color.textSecondary, fontSize: 13 },
-  rowValue: { color: t.color.text, fontSize: 13, fontWeight: '700' },
+  rowLabel: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13 },
+  rowValue: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700' },
 
-  promise: { color: t.color.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 14 },
+  promise: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 18, marginTop: 14 },
 
-  orderNumber: { color: t.color.text, fontSize: 15, fontWeight: '700' },
-  date: { color: t.color.textMuted, fontSize: 12, marginTop: 2 },
-  net: { color: t.color.text, fontSize: 17, fontWeight: '800' },
+  orderNumber: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' },
+  date: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
+  net: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 17, fontWeight: '800' },
 
   breakdown: { marginTop: 12, borderTopWidth: 1, borderTopColor: t.color.border, paddingTop: 12 },
   lineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 5 },
-  lineLabel: { color: t.color.text, fontSize: 13, fontWeight: '600' },
-  lineDetail: { color: t.color.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 2 },
-  lineAmount: { color: t.color.text, fontSize: 14, fontWeight: '700' },
+  lineLabel: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '600' },
+  lineDetail: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  lineAmount: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
 
   lineTotal: {
     flexDirection: 'row',
@@ -270,13 +271,13 @@ const s = StyleSheet.create({
     marginTop: 8,
     paddingTop: 10
   },
-  lineTotalLabel: { color: t.color.text, fontSize: 14, fontWeight: '700' },
-  lineTotalValue: { color: t.color.text, fontSize: 16, fontWeight: '800' },
+  lineTotalLabel: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  lineTotalValue: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800' },
 
-  unexplained: { color: t.color.danger, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  unexplained: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 10 },
 
-  errorText: { color: t.color.danger, fontSize: 13, lineHeight: 18, marginBottom: 10 },
-  footnote: { color: t.color.textMuted, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' }
+  errorText: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18, marginBottom: 10 },
+  footnote: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' }
 });
 
 export default EarningsStatementScreen;

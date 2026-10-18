@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 
@@ -71,10 +72,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F2ED' },
   content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  emoji: { fontSize: 1, height: 0 },
-  title: { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: -0.4 },
+  emoji: { fontFamily: FONT_FAMILY, fontSize: 1, height: 0 },
+  title: { fontFamily: FONT_FAMILY, fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: -0.4 },
   body: {
-    fontSize: 14,
+    fontFamily: FONT_FAMILY, fontSize: 14,
     color: '#6B6259',
     textAlign: 'center',
     marginTop: 12,
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
     borderColor: '#F5C9C9',
     maxWidth: 360
   },
-  devText: { fontSize: 12, color: '#D64545' },
+  devText: { fontFamily: FONT_FAMILY, fontSize: 12, color: '#D64545' },
   button: {
     marginTop: 24,
     height: 48,
@@ -99,5 +100,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  buttonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 }
+  buttonText: { color: '#FFFFFF', fontWeight: '800', fontFamily: FONT_FAMILY, fontSize: 15 }
 });

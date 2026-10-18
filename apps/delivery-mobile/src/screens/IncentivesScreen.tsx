@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Award, CheckCircle2 } from 'lucide-react-native';
@@ -128,14 +129,14 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 const s = StyleSheet.create({
   content: { padding: t.space[4], paddingBottom: t.space[10] },
   summaryCard: { alignItems: 'flex-start' },
-  summaryLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  summaryLabel: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   summaryValue: {
     color: t.color.money,
-    fontSize: t.font.size.xxl,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xxl,
     fontWeight: t.font.weight.extrabold,
     marginTop: t.space[2]
   },
-  summarySub: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
+  summarySub: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
   head: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: t.space[4] },
   icon: {
     width: 38,
@@ -145,10 +146,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  title: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  description: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
-  reward: { color: t.color.money, fontSize: t.font.size.base, fontWeight: t.font.weight.extrabold, marginLeft: t.space[2] },
+  title: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  description: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
+  reward: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.extrabold, marginLeft: t.space[2] },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: t.space[3] },
-  progressText: { color: t.color.textSecondary, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
-  remaining: { color: t.color.textMuted, fontSize: t.font.size.xs }
+  progressText: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
+  remaining: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs }
 });

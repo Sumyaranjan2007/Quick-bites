@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput } from 'react-native';
 import { Store, Search, TriangleAlert, ChevronLeft, Package } from 'lucide-react-native';
@@ -294,11 +295,11 @@ const Figure: React.FC<{ label: string; value: string; strong?: boolean; tone?: 
 const s = StyleSheet.create({
   list: { gap: tokens.space[3], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { flex: 1, fontSize: tokens.font.size.md, color: c.text.primary, fontWeight: '700' },
-  heading: { fontSize: tokens.font.size.md, color: c.text.primary, fontWeight: '700' },
-  sub: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 4 },
+  name: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, color: c.text.primary, fontWeight: '700' },
+  heading: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, color: c.text.primary, fontWeight: '700' },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 4 },
   categoryName: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     color: c.text.secondary,
     fontWeight: '700',
     marginTop: tokens.space[3],
@@ -306,10 +307,10 @@ const s = StyleSheet.create({
     textTransform: 'uppercase'
   },
   itemCard: { marginBottom: tokens.space[2] },
-  itemName: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: '600' },
+  itemName: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: '600' },
   figures: { flexDirection: 'row', gap: tokens.space[3], marginTop: tokens.space[2] },
-  figureLabel: { fontSize: tokens.font.size.xxs, color: c.text.muted },
-  figureValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: '600', marginTop: 2 },
+  figureLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
+  figureValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: '600', marginTop: 2 },
   figureStrong: { color: c.brand.amberText },
   figureMoney: { color: c.state.success },
   editRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: tokens.space[3] },
@@ -323,10 +324,10 @@ const s = StyleSheet.create({
     color: c.text.primary,
     backgroundColor: c.bg.raised
   },
-  preview: { fontSize: tokens.font.size.xxs, color: c.state.success, marginTop: 6 },
-  previewBad: { fontSize: tokens.font.size.xxs, color: c.state.danger, marginTop: 6, fontWeight: '700' },
-  rowError: { fontSize: tokens.font.size.xxs, color: c.state.danger, marginTop: 6 },
-  rowDone: { fontSize: tokens.font.size.xxs, color: c.state.success, marginTop: 6 },
+  preview: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.state.success, marginTop: 6 },
+  previewBad: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.state.danger, marginTop: 6, fontWeight: '700' },
+  rowError: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.state.danger, marginTop: 6 },
+  rowDone: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.state.success, marginTop: 6 },
   warnRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginTop: tokens.space[3] },
-  warnText: { flex: 1, fontSize: tokens.font.size.xxs, color: c.state.warning }
+  warnText: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.state.warning }
 });

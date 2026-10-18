@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { DownloadButton } from '../components/DownloadButton';
 import { documentFileName } from '../lib/download';
@@ -279,12 +280,12 @@ const RefundCaseSheet: React.FC<{ id: string | null; onClose: () => void; onChan
 
 const s = StyleSheet.create({
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
-  summary: { fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
+  summary: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
   list: { paddingHorizontal: tokens.space[5], paddingBottom: tokens.space[8] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
-  body: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: tokens.space[3], lineHeight: 19 },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  body: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: tokens.space[3], lineHeight: 19 },
   rowBottom: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,18 +296,18 @@ const s = StyleSheet.create({
     borderTopColor: c.border.subtle,
     gap: tokens.space[3]
   },
-  amount: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
-  amountHint: { fontSize: tokens.font.size.xxs, fontWeight: tokens.font.weight.regular, color: c.text.muted },
-  meta: { flexShrink: 1, fontSize: tokens.font.size.xxs, color: c.text.muted, textAlign: 'right' },
+  amount: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
+  amountHint: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, fontWeight: tokens.font.weight.regular, color: c.text.muted },
+  meta: { flexShrink: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, textAlign: 'right' },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: tokens.space[2]
   },
-  claim: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20, marginTop: tokens.space[2] },
+  claim: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20, marginTop: tokens.space[2] },
   attachments: { gap: tokens.space[3] },
   attachment: { width: 112, height: 112, borderRadius: tokens.radius.md, backgroundColor: c.bg.sunken },
   timelineRow: {
@@ -317,7 +318,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  timelineWho: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
-  timelineWhen: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
-  timelineNote: { fontSize: tokens.font.size.xs, color: c.text.secondary, marginTop: 4, lineHeight: 17 }
+  timelineWho: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
+  timelineWhen: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
+  timelineNote: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.secondary, marginTop: 4, lineHeight: 17 }
 });

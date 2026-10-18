@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from './src/theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeScreen } from './src/components/SafeScreen';
 import { TripChat } from './src/components/TripChat';
@@ -1090,10 +1091,10 @@ const s = StyleSheet.create({
     borderBottomColor: t.color.border
   },
   headerText: { flex: 1, marginLeft: t.space[3] },
-  headerName: { color: t.color.text, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
+  headerName: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
   headerMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  headerStatus: { color: t.color.textMuted, fontSize: t.font.size.xs },
+  headerStatus: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs },
   shiftControl: { flexDirection: 'row', alignItems: 'center' },
   subHeader: {
     flexDirection: 'row',
@@ -1106,7 +1107,7 @@ const s = StyleSheet.create({
   backButton: { padding: t.space[1] },
   subHeaderTitle: {
     color: t.color.text,
-    fontSize: t.font.size.md,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.md,
     fontWeight: t.font.weight.bold,
     marginLeft: t.space[2],
     flex: 1
@@ -1120,7 +1121,7 @@ const s = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? t.space[5] : t.space[3]
   },
   tabButton: { flex: 1, alignItems: 'center' },
-  tabLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 4, fontWeight: t.font.weight.semibold },
+  tabLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 4, fontWeight: t.font.weight.semibold },
   tabBadge: {
     position: 'absolute',
     top: -5,
@@ -1133,7 +1134,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4
   },
-  tabBadgeText: { color: '#04231A', fontSize: 10, fontWeight: t.font.weight.extrabold },
+  tabBadgeText: { color: '#04231A', fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: t.font.weight.extrabold },
   sosButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1143,7 +1144,7 @@ const s = StyleSheet.create({
     borderRadius: t.radius.full,
     marginRight: t.space[3]
   },
-  sosButtonText: { color: '#FFFFFF', fontSize: t.font.size.xs, fontWeight: t.font.weight.extrabold, marginLeft: 5 }
+  sosButtonText: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.extrabold, marginLeft: 5 }
 });
 
 export default function App() {

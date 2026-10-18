@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react-native';
@@ -167,19 +168,19 @@ export const PoliciesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 const s = StyleSheet.create({
   content: { padding: t.space[4], paddingBottom: t.space[10] },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: t.space[4] },
-  rowTitle: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
-  rowSummary: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
+  rowTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.semibold },
+  rowSummary: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: t.space[4] },
-  backText: { color: t.color.goText, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginLeft: 2 },
-  docTitle: { color: t.color.text, fontSize: t.font.size.xl, fontWeight: t.font.weight.extrabold },
-  docUpdated: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: t.space[2] },
+  backText: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginLeft: 2 },
+  docTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.xl, fontWeight: t.font.weight.extrabold },
+  docUpdated: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: t.space[2] },
   section: { marginTop: t.space[6] },
-  sectionHeading: { color: t.color.goText, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  sectionBody: { color: t.color.textSecondary, fontSize: t.font.size.base, marginTop: t.space[2], lineHeight: 23 },
-  contact: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[8], textAlign: 'center' },
+  sectionHeading: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  sectionBody: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, marginTop: t.space[2], lineHeight: 23 },
+  contact: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[8], textAlign: 'center' },
   footnote: {
     color: t.color.textMuted,
-    fontSize: t.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xs,
     marginTop: t.space[5],
     textAlign: 'center',
     lineHeight: 17

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { LifeBuoy, TriangleAlert } from 'lucide-react-native';
@@ -308,22 +309,22 @@ const s = StyleSheet.create({
   tabs: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   list: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2], paddingBottom: tokens.space[8] },
-  summary: { fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
+  summary: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginBottom: tokens.space[3] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
-  body: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: tokens.space[3], lineHeight: 19 },
-  meta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  body: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: tokens.space[3], lineHeight: 19 },
+  meta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: tokens.space[2]
   },
-  message: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20 },
-  muted: { fontSize: tokens.font.size.sm, color: c.text.muted },
+  message: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 20 },
+  muted: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted },
   actionRow: { flexDirection: 'row', gap: tokens.space[3] },
   replyRow: {
     backgroundColor: c.bg.sunken,
@@ -332,6 +333,6 @@ const s = StyleSheet.create({
     marginTop: tokens.space[2]
   },
   replyRowStaff: { backgroundColor: c.brand.amberSoft },
-  replyWho: { fontSize: tokens.font.size.xxs, color: c.text.muted },
-  replyBody: { fontSize: tokens.font.size.sm, color: c.text.primary, marginTop: 4, lineHeight: 19 }
+  replyWho: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
+  replyBody: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, marginTop: 4, lineHeight: 19 }
 });

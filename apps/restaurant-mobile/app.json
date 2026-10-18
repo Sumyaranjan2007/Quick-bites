@@ -156,7 +156,50 @@
       "../../packages/config/expo-plugins/withArmOnlyAbis",
       "../../packages/config/expo-plugins/withLocalDevCleartext",
       "../../packages/config/expo-plugins/withLegacyBackGesture",
-      "../../packages/config/expo-plugins/withExternalAppQueries"
+      "../../packages/config/expo-plugins/withExternalAppQueries",
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+              "./assets/fonts/LexendDeca_400Regular.ttf",
+              "./assets/fonts/LexendDeca_500Medium.ttf",
+              "./assets/fonts/LexendDeca_600SemiBold.ttf",
+              "./assets/fonts/LexendDeca_700Bold.ttf",
+              "./assets/fonts/LexendDeca_800ExtraBold.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "LexendDeca",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/LexendDeca_400Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/LexendDeca_500Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/LexendDeca_600SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/LexendDeca_700Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/LexendDeca_800ExtraBold.ttf",
+                    "weight": 800
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     ],
     "experiments": {
       "baseUrl": "/partner"

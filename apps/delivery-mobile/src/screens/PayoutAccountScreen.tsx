@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput } from 'react-native';
 import { Landmark, ShieldCheck, ShieldAlert, Clock, Smartphone, Info } from 'lucide-react-native';
@@ -371,13 +372,13 @@ export const PayoutAccountScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40, gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { color: t.color.text, fontSize: 16, fontWeight: '700' },
-  sub: { color: t.color.textSecondary, fontSize: 13, marginTop: 2 },
+  title: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '700' },
+  sub: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 2 },
 
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusHeading: { color: t.color.text, fontSize: 14, fontWeight: '700', flex: 1 },
-  body: { color: t.color.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 8 },
-  since: { color: t.color.textMuted, fontSize: 11, lineHeight: 16, marginTop: 8 },
+  statusHeading: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700', flex: 1 },
+  body: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  since: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 8 },
 
   compare: {
     backgroundColor: t.color.surfaceSunken,
@@ -386,13 +387,13 @@ const s = StyleSheet.create({
     marginTop: 12
   },
   compareRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  compareLabel: { color: t.color.textMuted, fontSize: 12 },
-  compareValue: { color: t.color.text, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
-  compareHelp: { color: t.color.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 8 },
+  compareLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  compareValue: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
+  compareHelp: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: 8 },
 
   methodRow: { flexDirection: 'row', gap: 8, marginVertical: 12 },
 
-  label: { color: t.color.text, fontSize: 13, fontWeight: '700', marginTop: 12, marginBottom: 6 },
+  label: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', marginTop: 12, marginBottom: 6 },
   input: {
     backgroundColor: t.color.surfaceSunken,
     borderRadius: 10,
@@ -401,14 +402,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: t.color.text,
-    fontSize: 15
+    fontFamily: FONT_FAMILY, fontSize: 15
   },
   inputError: { borderColor: t.color.danger },
-  hint: { color: t.color.textMuted, fontSize: 11, marginTop: 4, lineHeight: 15 },
-  fieldError: { color: t.color.danger, fontSize: 12, marginTop: 4 },
-  errorText: { color: t.color.danger, fontSize: 13, marginTop: 8 },
+  hint: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, marginTop: 4, lineHeight: 15 },
+  fieldError: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 4 },
+  errorText: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 8 },
 
-  footnote: { color: t.color.textMuted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 8 }
+  footnote: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 8 }
 });
 
 export default PayoutAccountScreen;

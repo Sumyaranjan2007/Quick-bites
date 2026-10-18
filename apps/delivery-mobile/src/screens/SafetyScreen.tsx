@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
@@ -202,11 +203,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  emergencyTitle: { color: '#FFFFFF', fontSize: t.font.size.md, fontWeight: t.font.weight.extrabold },
-  emergencyBody: { color: 'rgba(255,255,255,0.9)', fontSize: t.font.size.sm, marginTop: 3, lineHeight: 18 },
+  emergencyTitle: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontSize: t.font.size.md, fontWeight: t.font.weight.extrabold },
+  emergencyBody: { color: 'rgba(255,255,255,0.9)', fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 3, lineHeight: 18 },
   sosHead: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: t.space[5] },
-  sosHeadText: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginLeft: t.space[3], flex: 1, lineHeight: 19 },
-  fieldLabel: { color: t.color.textSecondary, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[3] },
+  sosHeadText: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginLeft: t.space[3], flex: 1, lineHeight: 19 },
+  fieldLabel: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, marginBottom: t.space[3] },
   category: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,8 +218,8 @@ const s = StyleSheet.create({
     marginBottom: t.space[2]
   },
   categoryActive: { borderColor: t.color.danger, backgroundColor: t.color.dangerSoft },
-  categoryLabel: { color: t.color.text, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold },
-  categoryDescription: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
+  categoryLabel: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold },
+  categoryDescription: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
   input: {
     backgroundColor: t.color.surfaceSunken,
     borderRadius: t.radius.md,
@@ -227,16 +228,16 @@ const s = StyleSheet.create({
     minHeight: 80,
     padding: t.space[4],
     color: t.color.text,
-    fontSize: t.font.size.base,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.base,
     textAlignVertical: 'top'
   },
   historyRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: t.space[3] },
-  historyCategory: { color: t.color.text, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold },
-  historyDate: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
-  historyNote: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: 4, lineHeight: 18 },
+  historyCategory: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold },
+  historyDate: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
+  historyNote: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 4, lineHeight: 18 },
   footnote: {
     color: t.color.textMuted,
-    fontSize: t.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xs,
     marginTop: t.space[6],
     lineHeight: 17,
     textAlign: 'center'

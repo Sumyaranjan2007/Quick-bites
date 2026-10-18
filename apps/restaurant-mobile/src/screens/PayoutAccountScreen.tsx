@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { Landmark, ShieldCheck, ShieldAlert, Clock, Smartphone, Info } from 'lucide-react-native';
@@ -421,18 +422,18 @@ export const PayoutAccountScreen: React.FC = () => {
 const s = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  centreText: { color: c.textMuted, fontSize: 14 },
+  centreText: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 14 },
 
   accountCard: { marginBottom: spacing.md },
   accountHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  accountTitle: { color: c.text, fontSize: 16, fontWeight: '700' },
-  accountName: { color: c.textSoft, fontSize: 13, marginTop: 2 },
+  accountTitle: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '700' },
+  accountName: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 2 },
 
   statusBlock: { marginTop: spacing.md, marginBottom: spacing.md },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusHeading: { color: c.text, fontSize: 14, fontWeight: '700', flex: 1 },
-  statusBody: { color: c.textSoft, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
-  since: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: spacing.sm },
+  statusHeading: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700', flex: 1 },
+  statusBody: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
+  since: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: spacing.sm },
 
   compareBox: {
     backgroundColor: c.bg,
@@ -443,12 +444,12 @@ const s = StyleSheet.create({
     marginTop: spacing.md
   },
   compareRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },
-  compareLabel: { color: c.textMuted, fontSize: 12 },
-  compareValue: { color: c.text, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
-  compareHelp: { color: c.textSoft, fontSize: 12, lineHeight: 17, marginTop: spacing.sm },
+  compareLabel: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  compareValue: { color: c.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
+  compareHelp: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginTop: spacing.sm },
 
   noticeCard: { marginBottom: spacing.md },
-  noticeText: { color: c.textSoft, fontSize: 13, lineHeight: 19, flex: 1 },
+  noticeText: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, flex: 1 },
 
   formCard: { marginBottom: spacing.md },
   methodRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
@@ -460,11 +461,11 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.sm
   },
-  pastText: { color: c.textSoft, fontSize: 13, flex: 1 },
+  pastText: { color: c.textSoft, fontFamily: FONT_FAMILY, fontSize: 13, flex: 1 },
 
   footnote: {
     color: c.textMuted,
-    fontSize: 12,
+    fontFamily: FONT_FAMILY, fontSize: 12,
     lineHeight: 17,
     marginTop: spacing.lg,
     textAlign: 'center'

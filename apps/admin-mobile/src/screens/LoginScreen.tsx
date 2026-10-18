@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { ShieldCheck, Sparkles } from 'lucide-react-native';
@@ -180,18 +181,18 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.medium
   },
-  brandTitle: { fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  brandSubtitle: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 5 },
+  brandTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  brandSubtitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 5 },
   stepTitle: {
-    fontSize: tokens.font.size.md,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.primary,
     marginBottom: 6
   },
-  stepBody: { fontSize: tokens.font.size.sm, color: c.text.muted, marginBottom: tokens.space[4], lineHeight: 19 },
+  stepBody: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, marginBottom: tokens.space[4], lineHeight: 19 },
   error: {
     color: c.state.danger,
-    fontSize: tokens.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm,
     marginBottom: tokens.space[3],
     backgroundColor: c.state.dangerBg,
     padding: tokens.space[3],
@@ -200,7 +201,7 @@ const s = StyleSheet.create({
   },
   notice: {
     color: c.state.success,
-    fontSize: tokens.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm,
     marginBottom: tokens.space[3],
     backgroundColor: c.state.successBg,
     padding: tokens.space[3],
@@ -208,9 +209,9 @@ const s = StyleSheet.create({
     lineHeight: 18
   },
   linkRow: { alignItems: 'center', paddingVertical: tokens.space[3] },
-  link: { color: c.brand.amberText, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
+  link: { color: c.brand.amberText, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold },
   serverToggle: { alignItems: 'center', paddingVertical: tokens.space[3] },
-  serverToggleText: { color: c.text.muted, fontSize: tokens.font.size.xs },
+  serverToggleText: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs },
   devPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -224,5 +225,5 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.subtle
   },
-  devPillText: { color: c.text.secondary, fontSize: tokens.font.size.xs }
+  devPillText: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs }
 });

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Navigation, TriangleAlert, Bike } from 'lucide-react-native';
@@ -118,8 +119,8 @@ const s = StyleSheet.create({
   scroll: { padding: tokens.space[5], paddingBottom: tokens.space[8] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[3], marginBottom: tokens.space[4] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  orderNumber: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  route: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 3 },
+  orderNumber: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  route: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 3 },
   rowBottom: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -130,6 +131,6 @@ const s = StyleSheet.create({
     borderTopColor: c.border.subtle,
     gap: tokens.space[3]
   },
-  amount: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
-  elapsed: { flexShrink: 1, fontSize: tokens.font.size.xxs, color: c.text.muted, textAlign: 'right' }
+  amount: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
+  elapsed: { flexShrink: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, textAlign: 'right' }
 });

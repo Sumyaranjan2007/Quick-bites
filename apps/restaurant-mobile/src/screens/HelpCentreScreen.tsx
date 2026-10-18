@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking, RefreshControl, Alert } from 'react-native';
 import { Modal } from '../components/Modal';
@@ -475,18 +476,18 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 };
 
 const styles = StyleSheet.create({
-  deletionNote: { color: c.warning, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
+  deletionNote: { color: c.warning, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
   deleteLink: { color: c.danger, fontWeight: '600' },
   deleteNote: { color: c.textSoft, marginBottom: spacing.md, lineHeight: 20 },
   accountRow: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', marginTop: spacing.sm },
-  accountNotice: { color: c.success, fontSize: 13, marginTop: spacing.md, lineHeight: 18 },
+  accountNotice: { color: c.success, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: spacing.md, lineHeight: 18 },
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xl, paddingBottom: 48 },
   sentNote: { backgroundColor: c.successSoft, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md },
-  sentNoteText: { color: c.success, fontSize: 13, lineHeight: 18 },
+  sentNoteText: { color: c.success, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 18 },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
-  headTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-  headBody: { fontSize: 13, color: c.textMuted, marginTop: 2 },
+  headTitle: { fontFamily: FONT_FAMILY, fontSize: 18, fontWeight: '800', color: c.text },
+  headBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 2 },
   contactRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
   contact: {
     flex: 1,
@@ -499,7 +500,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border
   },
-  contactText: { fontSize: 13, color: c.textSoft, fontWeight: '700' },
+  contactText: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, fontWeight: '700' },
   ticketRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -508,8 +509,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border
   },
-  ticketSubject: { fontSize: 14, color: c.text, fontWeight: '600' },
-  ticketMeta: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+  ticketSubject: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, fontWeight: '600' },
+  ticketMeta: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 },
   faq: {
     backgroundColor: c.surface,
     borderRadius: radii.md,
@@ -519,8 +520,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm
   },
   faqHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  faqQ: { flex: 1, fontSize: 14, color: c.text, fontWeight: '700', lineHeight: 20 },
-  faqA: { fontSize: 13, color: c.textMuted, lineHeight: 20, marginTop: spacing.md },
+  faqQ: { flex: 1, fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, fontWeight: '700', lineHeight: 20 },
+  faqA: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, lineHeight: 20, marginTop: spacing.md },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface,
@@ -529,8 +530,8 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
     maxHeight: '88%'
   },
-  sheetTitle: { fontSize: 20, fontWeight: '800', color: c.text, marginBottom: spacing.xl },
-  catLabel: { fontSize: 13, color: c.textSoft, fontWeight: '700', marginBottom: spacing.md },
+  sheetTitle: { fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800', color: c.text, marginBottom: spacing.xl },
+  catLabel: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, fontWeight: '700', marginBottom: spacing.md },
   catWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl },
   cat: {
     paddingHorizontal: spacing.lg,
@@ -540,6 +541,6 @@ const styles = StyleSheet.create({
     borderColor: c.border
   },
   catActive: { backgroundColor: c.border, borderColor: c.brand },
-  catText: { fontSize: 13, color: c.textMuted, fontWeight: '600' },
+  catText: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, fontWeight: '600' },
   catTextActive: { color: c.brand }
 });

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -238,23 +239,23 @@ export const DocumentsScreen: React.FC<{ ctx: ApiContext; onChanged: () => void 
 
 const s = StyleSheet.create({
   content: { padding: t.space[4], paddingBottom: t.space[10] },
-  introTitle: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  introBody: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 20 },
+  introTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  introBody: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 20 },
   docHead: { flexDirection: 'row', alignItems: 'center' },
-  docLabel: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  docNumber: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2, letterSpacing: 0.5 },
+  docLabel: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  docNumber: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2, letterSpacing: 0.5 },
   instructions: { flexDirection: 'row', marginTop: t.space[3] },
-  instructionsText: { color: t.color.textMuted, fontSize: t.font.size.sm, marginLeft: 6, flex: 1, lineHeight: 18 },
+  instructionsText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginLeft: 6, flex: 1, lineHeight: 18 },
   rejection: {
     marginTop: t.space[3],
     backgroundColor: t.color.dangerSoft,
     borderRadius: t.radius.sm,
     padding: t.space[3]
   },
-  rejectionText: { color: t.color.danger, fontSize: t.font.size.sm, lineHeight: 18 },
-  docMeta: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: t.space[3] },
-  pendingNote: { color: t.color.money, fontSize: t.font.size.sm, marginTop: t.space[4] },
-  approvedNote: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[4] },
+  rejectionText: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, lineHeight: 18 },
+  docMeta: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: t.space[3] },
+  pendingNote: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[4] },
+  approvedNote: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[4] },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: t.color.surface,
@@ -265,11 +266,11 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: t.color.borderStrong
   },
-  modalTitle: { color: t.color.text, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold },
-  modalBody: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
+  modalTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold },
+  modalBody: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
   fieldLabel: {
     color: t.color.textSecondary,
-    fontSize: t.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.sm,
     fontWeight: t.font.weight.semibold,
     marginTop: t.space[5],
     marginBottom: t.space[2]
@@ -282,7 +283,7 @@ const s = StyleSheet.create({
     height: 50,
     paddingHorizontal: t.space[4],
     color: t.color.text,
-    fontSize: t.font.size.base
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.base
   },
   photoBox: {
     marginTop: t.space[4],
@@ -295,6 +296,6 @@ const s = StyleSheet.create({
     alignItems: 'center'
   },
   photoBoxFilled: { borderColor: t.color.go, backgroundColor: t.color.goSoft, borderStyle: 'solid' },
-  photoBoxText: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[2] },
+  photoBoxText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[2] },
   modalActions: { flexDirection: 'row', marginTop: t.space[5] }
 });

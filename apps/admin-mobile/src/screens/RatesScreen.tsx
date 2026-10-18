@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Store, Percent, TriangleAlert, Info, Gift, Search } from 'lucide-react-native';
@@ -797,7 +798,7 @@ export const RatesScreen: React.FC = () => {
           <View style={s.compareRow}>
             <Text style={[s.compareLabel, { fontWeight: '700', color: c.text.primary }]}>You keep</Text>
             <Text
-              style={[s.compareValue, { fontSize: 16 }, liveMarkup > 0 && { color: c.state.success }]}
+              style={[s.compareValue, { fontFamily: FONT_FAMILY, fontSize: 16 }, liveMarkup > 0 && { color: c.state.success }]}
             >
               {rupees(liveMarkup)}
             </Text>
@@ -807,7 +808,7 @@ export const RatesScreen: React.FC = () => {
             <Text style={[s.compareLabel, { fontWeight: '700', color: c.text.primary }]}>
               The customer pays
             </Text>
-            <Text style={[s.compareValue, { fontSize: 16 }]}>{rupees(liveCustomer)}</Text>
+            <Text style={[s.compareValue, { fontFamily: FONT_FAMILY, fontSize: 16 }]}>{rupees(liveCustomer)}</Text>
           </View>
 
           {liveApproved < (editing?.partnerDeclaredFee || 0) && (
@@ -999,12 +1000,12 @@ const s = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16
   },
-  saveBarTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  saveBarLine: { color: c.text.secondary, fontSize: 13 },
+  saveBarTitle: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  saveBarLine: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13 },
   fieldRowLocked: { opacity: 0.55 },
   noMarkup: {
     color: c.state.warning,
-    fontSize: 12,
+    fontFamily: FONT_FAMILY, fontSize: 12,
     lineHeight: 17,
     marginTop: 10
   },
@@ -1012,8 +1013,8 @@ const s = StyleSheet.create({
 
   explainer: { marginBottom: 12 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  explainerTitle: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  explainerBody: { color: c.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  explainerTitle: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  explainerBody: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 18, marginTop: 8 },
 
   searchRow: {
     flexDirection: 'row',
@@ -1024,34 +1025,34 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 12
   },
-  search: { flex: 1, color: c.text.primary, fontSize: 14, paddingVertical: 10 },
+  search: { flex: 1, color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, paddingVertical: 10 },
 
   row: { marginBottom: 10 },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  rowName: { color: c.text.primary, fontSize: 15, fontWeight: '700', flex: 1 },
-  marginNote: { color: c.text.secondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
-  adjustedNote: { color: c.state.warning, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  rowName: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', flex: 1 },
+  marginNote: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  adjustedNote: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 4 },
 
   figures: { flexDirection: 'row', flexWrap: 'wrap' },
   figure: { width: '50%', paddingVertical: 4 },
-  figureValue: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
-  figureLabel: { color: c.text.muted, fontSize: 11, marginTop: 1 },
+  figureValue: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' },
+  figureLabel: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, marginTop: 1 },
 
-  extra: { color: c.text.secondary, fontSize: 12, marginTop: 8 },
+  extra: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 8 },
   warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 10 },
-  warnText: { color: c.state.warning, fontSize: 11, lineHeight: 16, flex: 1 },
-  tap: { color: c.text.muted, fontSize: 11, marginTop: 10 },
+  warnText: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, flex: 1 },
+  tap: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, marginTop: 10 },
 
-  bonusLine: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  bonusLine: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginTop: 8 },
   bonusActions: { marginTop: 12 },
 
   compareBox: { backgroundColor: c.bg.sunken, borderRadius: 10, padding: 12, marginBottom: 16 },
   compareRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  compareLabel: { color: c.text.muted, fontSize: 12 },
-  compareValue: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  subsidy: { color: c.state.warning, fontSize: 11, lineHeight: 16, marginTop: 8 },
+  compareLabel: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  compareValue: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  subsidy: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 8 },
 
-  fieldLabel: { color: c.text.primary, fontSize: 13, fontWeight: '700', marginBottom: 6 },
+  fieldLabel: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', marginBottom: 6 },
   fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1059,13 +1060,13 @@ const s = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12
   },
-  fieldInput: { flex: 1, color: c.text.primary, fontSize: 15, paddingVertical: 11 },
-  fieldSuffix: { color: c.text.muted, fontSize: 13, marginLeft: 8 },
-  fieldHint: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 5 },
+  fieldInput: { flex: 1, color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, paddingVertical: 11 },
+  fieldSuffix: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 13, marginLeft: 8 },
+  fieldHint: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 5 },
 
-  error: { color: c.state.danger, fontSize: 13, marginBottom: 10 },
-  sheetFoot: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
-  footnote: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 12 }
+  error: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 13, marginBottom: 10 },
+  sheetFoot: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  footnote: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, lineHeight: 16, marginTop: 12 }
 });
 
 export default RatesScreen;

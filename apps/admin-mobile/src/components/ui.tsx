@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import {
   View,
@@ -367,7 +368,7 @@ export const Button: React.FC<{
           <Text
             style={[
               s.buttonText,
-              { color: palette.fg, fontSize: size === 'sm' ? 13 : 15 },
+              { color: palette.fg, fontFamily: FONT_FAMILY, fontSize: size === 'sm' ? 13 : 15 },
               icon ? { marginLeft: 6 } : null
             ]}
             numberOfLines={1}
@@ -921,11 +922,11 @@ const s = StyleSheet.create({
     backgroundColor: c.bg.base
   },
   headerText: { flex: 1, minWidth: 0 },
-  headerTitle: { fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  headerSubtitle: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
+  headerTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  headerSubtitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 2 },
   headerRight: { marginLeft: tokens.space[3], flexShrink: 0 },
   backButton: { paddingRight: tokens.space[3] },
-  backChevron: { fontSize: 30, color: c.brand.maroon, lineHeight: 32 },
+  backChevron: { fontFamily: FONT_FAMILY, fontSize: 30, color: c.brand.maroon, lineHeight: 32 },
 
   railWrap: { borderBottomWidth: 1, borderBottomColor: c.border.subtle, backgroundColor: c.bg.raised },
   railContent: { paddingHorizontal: tokens.space[3], paddingVertical: tokens.space[2], gap: tokens.space[2] },
@@ -962,8 +963,8 @@ const s = StyleSheet.create({
     borderBottomColor: 'transparent'
   },
   railItemGroupActive: { borderBottomColor: c.brand.amberText, backgroundColor: 'transparent' },
-  railLabelGroup: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
-  railLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: tokens.font.weight.semibold },
+  railLabelGroup: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
+  railLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: tokens.font.weight.semibold },
   railLabelActive: { color: c.brand.amberText, fontWeight: tokens.font.weight.bold },
   railBadge: {
     minWidth: 18,
@@ -978,7 +979,7 @@ const s = StyleSheet.create({
   railLabelBox: { position: 'relative', flexShrink: 1, minWidth: 0 },
   // Raised above the end of the word so it never sits on the letters.
   railBadgeCorner: { position: 'absolute', top: -9, right: -12, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4 },
-  railBadgeText: { fontSize: 10, fontWeight: tokens.font.weight.heavy, color: '#2A0710' },
+  railBadgeText: { fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: tokens.font.weight.heavy, color: '#2A0710' },
 
   card: {
     backgroundColor: c.bg.card,
@@ -995,8 +996,8 @@ const s = StyleSheet.create({
     marginBottom: tokens.space[3],
     marginTop: tokens.space[2]
   },
-  sectionTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  sectionSubtitle: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
+  sectionTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  sectionSubtitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
 
   statTouch: { width: '48%' },
   statTile: {
@@ -1011,9 +1012,9 @@ const s = StyleSheet.create({
   },
   statTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  statLabel: { flex: 1, fontSize: tokens.font.size.xs, color: c.text.secondary, lineHeight: 15 },
-  statValue: { fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.heavy, marginTop: tokens.space[2] },
-  statHint: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
+  statLabel: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.secondary, lineHeight: 15 },
+  statValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.heavy, marginTop: tokens.space[2] },
+  statHint: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 3 },
 
   badge: {
     paddingHorizontal: tokens.space[2],
@@ -1022,7 +1023,7 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
     maxWidth: 180
   },
-  badgeText: { fontSize: tokens.font.size.xxs, fontWeight: tokens.font.weight.heavy, letterSpacing: 0.3 },
+  badgeText: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, fontWeight: tokens.font.weight.heavy, letterSpacing: 0.3 },
 
   button: {
     flexDirection: 'row',
@@ -1035,7 +1036,7 @@ const s = StyleSheet.create({
 
   field: { marginBottom: tokens.space[4] },
   fieldLabel: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     color: c.text.secondary,
     fontWeight: tokens.font.weight.semibold,
     marginBottom: 6,
@@ -1049,11 +1050,11 @@ const s = StyleSheet.create({
     paddingHorizontal: tokens.space[4],
     height: 48,
     color: c.text.primary,
-    fontSize: tokens.font.size.base
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base
   },
   inputMultiline: { height: 104, paddingTop: tokens.space[3] },
-  fieldHint: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 5 },
-  fieldError: { fontSize: tokens.font.size.xxs, color: c.state.danger, marginTop: 5 },
+  fieldHint: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 5 },
+  fieldError: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.state.danger, marginTop: 5 },
 
   searchBar: {
     flexDirection: 'row',
@@ -1066,9 +1067,9 @@ const s = StyleSheet.create({
     height: 44,
     marginBottom: tokens.space[3]
   },
-  searchIcon: { color: c.text.muted, fontSize: 18, marginRight: 8 },
-  searchInput: { flex: 1, color: c.text.primary, fontSize: tokens.font.size.base, padding: 0 },
-  searchClear: { color: c.text.muted, fontSize: 14, paddingHorizontal: 4 },
+  searchIcon: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 18, marginRight: 8 },
+  searchInput: { flex: 1, color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, padding: 0 },
+  searchClear: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 14, paddingHorizontal: 4 },
 
   segmentScroll: { marginBottom: tokens.space[3], flexGrow: 0 },
   segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[2] },
@@ -1081,7 +1082,7 @@ const s = StyleSheet.create({
     borderColor: c.border.subtle
   },
   segmentActive: { backgroundColor: c.brand.amber, borderColor: c.brand.amber },
-  segmentText: { fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: tokens.font.weight.semibold },
+  segmentText: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: tokens.font.weight.semibold },
   segmentTextActive: { color: '#2A0710', fontWeight: tokens.font.weight.bold },
 
   emptyState: {
@@ -1092,13 +1093,13 @@ const s = StyleSheet.create({
   },
   emptyIcon: { marginBottom: tokens.space[3], opacity: 0.9 },
   emptyTitle: {
-    fontSize: tokens.font.size.base,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.bold,
     color: c.text.primary,
     textAlign: 'center'
   },
   emptyMessage: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm,
     color: c.text.muted,
     textAlign: 'center',
     marginTop: 6,
@@ -1107,7 +1108,7 @@ const s = StyleSheet.create({
   },
 
   loading: { paddingVertical: tokens.space[8], alignItems: 'center', gap: tokens.space[3] },
-  loadingText: { color: c.text.muted, fontSize: tokens.font.size.sm },
+  loadingText: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm },
 
   kvRow: {
     flexDirection: 'row',
@@ -1119,8 +1120,8 @@ const s = StyleSheet.create({
   // The label is the key to reading the row, so it keeps its space and the
   // value is what truncates. Letting both shrink turned "Dropping at" into
   // "Droppin…" next to an address that had plenty of room to be cut instead.
-  kvLabel: { fontSize: tokens.font.size.sm, color: c.text.muted, flexShrink: 0, maxWidth: '45%' },
-  kvValue: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary, textAlign: 'right' },
+  kvLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, flexShrink: 0, maxWidth: '45%' },
+  kvValue: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, textAlign: 'right' },
   kvValueStrong: { fontWeight: tokens.font.weight.bold },
   kvValueMoney: { fontWeight: tokens.font.weight.heavy, color: c.brand.amberText },
 
@@ -1152,9 +1153,9 @@ const s = StyleSheet.create({
     paddingTop: tokens.space[4],
     paddingBottom: tokens.space[3]
   },
-  sheetTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
-  sheetSubtitle: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
-  sheetClose: { fontSize: 17, color: c.text.muted, paddingLeft: tokens.space[3] },
+  sheetTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.heavy, color: c.text.primary },
+  sheetSubtitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3, lineHeight: 16 },
+  sheetClose: { fontFamily: FONT_FAMILY, fontSize: 17, color: c.text.muted, paddingLeft: tokens.space[3] },
   sheetBody: { paddingHorizontal: tokens.space[5], flexGrow: 0, flexShrink: 1 },
   sheetFooter: {
     flexDirection: 'row',
@@ -1166,7 +1167,7 @@ const s = StyleSheet.create({
   },
 
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.space[4] },
-  toggleLabel: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary },
+  toggleLabel: { flex: 1, fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary },
   toggleTrack: { width: 46, height: 27, borderRadius: 14, backgroundColor: c.bg.sunken, padding: 3, borderWidth: 1, borderColor: c.border.medium },
   toggleTrackOn: { backgroundColor: c.state.successBg, borderColor: c.state.success },
   toggleThumb: { width: 19, height: 19, borderRadius: 10, backgroundColor: c.text.muted },
@@ -1184,19 +1185,19 @@ const s = StyleSheet.create({
     marginTop: 1
   },
   checkboxOn: { backgroundColor: c.brand.amber, borderColor: c.brand.amber },
-  checkMark: { color: '#2A0710', fontSize: 13, fontWeight: '800' },
-  checkTitle: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
-  checkDescription: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2, lineHeight: 15 },
+  checkMark: { color: '#2A0710', fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '800' },
+  checkTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
+  checkDescription: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2, lineHeight: 15 },
 
   barRow: { marginBottom: tokens.space[3] },
   barHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, gap: tokens.space[3] },
-  barLabel: { fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 1 },
-  barValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.bold },
+  barLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 1 },
+  barValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.bold },
   barTrack: { height: 7, borderRadius: 4, backgroundColor: c.bg.sunken, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
-  resourceErrorTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  resourceErrorBody: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginBottom: 6 },
-  resourceErrorHint: { color: c.text.muted, fontSize: 12, lineHeight: 17, marginBottom: 12 }
+  resourceErrorTitle: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  resourceErrorBody: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginBottom: 6 },
+  resourceErrorHint: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginBottom: 12 }
 });
 
 export const styles = s;

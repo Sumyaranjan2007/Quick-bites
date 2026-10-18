@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from './src/theme/tokens';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import {
@@ -593,7 +594,7 @@ const st = StyleSheet.create({
   liveChipOn: { backgroundColor: c.state.successBg, borderColor: c.state.success },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.text.muted },
   liveDotOn: { backgroundColor: c.state.success },
-  liveText: { fontSize: 10, fontWeight: '800', color: c.text.muted, letterSpacing: 0.5 },
+  liveText: { fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: '800', color: c.text.muted, letterSpacing: 0.5 },
   liveTextOn: { color: c.state.success }
 });
 

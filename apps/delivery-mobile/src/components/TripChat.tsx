@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -228,21 +229,21 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: t.color.border
   },
-  title: { fontSize: 16, fontWeight: '800', color: t.color.text },
-  subtitle: { fontSize: 11, color: t.color.textMuted, marginTop: 2 },
+  title: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800', color: t.color.text },
+  subtitle: { fontFamily: FONT_FAMILY, fontSize: 11, color: t.color.textMuted, marginTop: 2 },
   thread: { padding: t.space[4], gap: t.space[3], flexGrow: 1 },
-  empty: { color: t.color.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: t.space[6] },
+  empty: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: t.space[6] },
   bubbleRow: { flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubble: { maxWidth: '82%', borderRadius: 16, paddingHorizontal: t.space[3], paddingVertical: t.space[2], gap: 2 },
   bubbleTheirs: { backgroundColor: t.color.surfaceRaised, borderTopLeftRadius: 4 },
   bubbleMine: { backgroundColor: t.color.go, borderTopRightRadius: 4 },
-  sender: { fontSize: 10, fontWeight: '800', color: t.color.textMuted },
-  body: { fontSize: 14, color: t.color.text, lineHeight: 20 },
+  sender: { fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: '800', color: t.color.textMuted },
+  body: { fontFamily: FONT_FAMILY, fontSize: 14, color: t.color.text, lineHeight: 20 },
   bodyMine: { color: '#04301F' },
-  time: { fontSize: 9, color: t.color.textMuted, alignSelf: 'flex-end' },
+  time: { fontFamily: FONT_FAMILY, fontSize: 9, color: t.color.textMuted, alignSelf: 'flex-end' },
   timeMine: { color: 'rgba(4,48,31,0.6)' },
-  error: { color: t.color.danger, fontSize: 12, paddingHorizontal: t.space[4], paddingBottom: t.space[2] },
+  error: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 12, paddingHorizontal: t.space[4], paddingBottom: t.space[2] },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -260,7 +261,7 @@ const s = StyleSheet.create({
     paddingHorizontal: t.space[3],
     paddingVertical: t.space[2],
     color: t.color.text,
-    fontSize: 14
+    fontFamily: FONT_FAMILY, fontSize: 14
   },
   sendButton: {
     width: 44,
@@ -273,7 +274,7 @@ const s = StyleSheet.create({
   sendButtonOff: { opacity: 0.4 },
   closed: {
     padding: t.space[4],
-    fontSize: 12,
+    fontFamily: FONT_FAMILY, fontSize: 12,
     color: t.color.textMuted,
     textAlign: 'center',
     borderTopWidth: 1,

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Modal } from '../components/Modal';
@@ -487,8 +488,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.bg },
   listContent: { padding: spacing.xl, paddingBottom: 48 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
-  heading: { fontSize: 22, fontWeight: '800', color: c.text },
-  subheading: { fontSize: 13, color: c.textMuted, marginTop: 2 },
+  heading: { fontFamily: FONT_FAMILY, fontSize: 22, fontWeight: '800', color: c.text },
+  subheading: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 2 },
   soundBtn: {
     width: 42,
     height: 42,
@@ -500,8 +501,8 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   orderTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.md },
-  orderNumber: { fontSize: 16, fontWeight: '800', color: c.text },
-  customer: { fontSize: 13, color: c.textMuted, marginTop: 2 },
+  orderNumber: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800', color: c.text },
+  customer: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 2 },
   itemsBlock: {
     borderTopWidth: 1,
     borderBottomWidth: 1,
@@ -510,19 +511,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   itemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  itemQty: { fontSize: 14, fontWeight: '800', color: c.brand, width: 34 },
-  itemName: { fontSize: 14, color: c.text, flex: 1 },
-  itemOptions: { fontSize: 13, color: c.brand, fontWeight: '700' },
+  itemQty: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '800', color: c.brand, width: 34 },
+  itemName: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text, flex: 1 },
+  itemOptions: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.brand, fontWeight: '700' },
   acceptBar: { backgroundColor: '#FFF4E5', borderRadius: radii.md, padding: spacing.sm, marginBottom: spacing.sm },
   acceptBarUrgent: { backgroundColor: '#FDECEC' },
-  acceptBarText: { fontSize: 13, fontWeight: '700', color: c.text },
+  acceptBarText: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', color: c.text },
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  billTotal: { fontSize: 16, fontWeight: '800', color: c.text },
-  pickupCode: { fontSize: 13, color: c.info, fontWeight: '700' },
-  prepNote: { fontSize: 12, color: c.textMuted, marginTop: spacing.sm },
+  billTotal: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800', color: c.text },
+  pickupCode: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.info, fontWeight: '700' },
+  prepNote: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
   waitingNote: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: spacing.md },
-  waitingText: { fontSize: 13, color: c.textSoft },
+  waitingText: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: c.surface,
@@ -531,8 +532,8 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
     paddingBottom: 40
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: c.text },
-  modalBody: { fontSize: 13, color: c.textMuted, marginTop: 6, lineHeight: 19 },
+  modalTitle: { fontFamily: FONT_FAMILY, fontSize: 20, fontWeight: '800', color: c.text },
+  modalBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 6, lineHeight: 19 },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,6 +563,6 @@ const styles = StyleSheet.create({
   },
   stepBtnDisabled: { opacity: 0.4 },
   stepValue: { alignItems: 'center' },
-  stepNumber: { fontSize: 40, fontWeight: '800', color: c.brand },
-  stepUnit: { fontSize: 13, color: c.textMuted }
+  stepNumber: { fontFamily: FONT_FAMILY, fontSize: 40, fontWeight: '800', color: c.brand },
+  stepUnit: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted }
 });

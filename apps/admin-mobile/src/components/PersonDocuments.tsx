@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Alert } from 'react-native';
 import { Card, Badge, Button, Field, Divider, Loading, KeyValue, ResourceError } from './ui';
@@ -200,7 +201,7 @@ export const PersonDocuments: React.FC<{ kind: 'restaurant' | 'rider' | 'custome
 
 const s = StyleSheet.create({
   group: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.bold,
     color: c.text.muted,
     textTransform: 'uppercase',
@@ -208,9 +209,9 @@ const s = StyleSheet.create({
     marginBottom: tokens.space[2]
   },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
-  muted: { fontSize: tokens.font.size.sm, color: c.text.muted, marginVertical: tokens.space[2] },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  muted: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, marginVertical: tokens.space[2] },
   scan: {
     width: '100%',
     height: 200,

@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -62,6 +63,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: t.space[5]
   },
-  title: { fontSize: 22, fontWeight: '800', color: t.color.text, textAlign: 'center', marginBottom: t.space[4] },
-  body: { fontSize: 15, lineHeight: 22, color: t.color.text, marginBottom: t.space[3] }
+  title: { fontFamily: FONT_FAMILY, fontSize: 22, fontWeight: '800', color: t.color.text, textAlign: 'center', marginBottom: t.space[4] },
+  body: { fontFamily: FONT_FAMILY, fontSize: 15, lineHeight: 22, color: t.color.text, marginBottom: t.space[3] }
 });

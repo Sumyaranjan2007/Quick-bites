@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, useWindowDimensions, Alert } from 'react-native';
 import { IndianRupee, Wallet, CreditCard } from 'lucide-react-native';
@@ -319,16 +320,16 @@ const PayCell: React.FC<{ label: string; value: string }> = ({ label, value }) =
  */
 
 const s = StyleSheet.create({
-  lossCause: { fontSize: 12, color: c.text.secondary, marginTop: 2, marginBottom: 8, lineHeight: 17 },
+  lossCause: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.text.secondary, marginTop: 2, marginBottom: 8, lineHeight: 17 },
   tabs: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[4] },
   controls: { paddingHorizontal: tokens.space[5], paddingTop: tokens.space[2] },
   scroll: { padding: tokens.space[5], paddingBottom: tokens.space[8] },
   list: { paddingHorizontal: tokens.space[5], paddingBottom: tokens.space[8] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space[3], marginBottom: tokens.space[3] },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  sub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
-  meta: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] },
+  title: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  sub: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 3 },
+  meta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: tokens.space[3] },
   paymentGrid: {
     flexDirection: 'row',
     gap: tokens.space[2],
@@ -338,10 +339,10 @@ const s = StyleSheet.create({
     borderTopColor: c.border.subtle
   },
   payCell: { flex: 1, minWidth: 0 },
-  payValue: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  payLabel: { fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
+  payValue: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  payLabel: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted, marginTop: 2 },
   cardHeading: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.heavy,
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -349,8 +350,8 @@ const s = StyleSheet.create({
     marginBottom: tokens.space[2]
   },
   axis: { flexDirection: 'row', justifyContent: 'space-between' },
-  axisText: { fontSize: tokens.font.size.xxs, color: c.text.muted },
-  muted: { fontSize: tokens.font.size.sm, color: c.text.muted, lineHeight: 19 },
+  axisText: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.muted },
+  muted: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, lineHeight: 19 },
   payoutRow: {
     flexDirection: 'row',
     gap: tokens.space[3],
@@ -359,7 +360,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  payoutBreakdown: { fontSize: tokens.font.size.xxs, color: c.text.secondary, marginTop: 4 }
+  payoutBreakdown: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xxs, color: c.text.secondary, marginTop: 4 }
 });
 
 /* --------------------------- Restaurant settlements --------------------------- */

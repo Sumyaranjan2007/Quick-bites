@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { t } from '../theme';
@@ -168,7 +169,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: t.color.border
   },
-  tagText: { color: t.color.text, fontSize: 12, fontWeight: '700' },
+  tagText: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 12, fontWeight: '700' },
   fallback: {
     padding: t.space[3],
     borderRadius: t.radius.md,
@@ -178,6 +179,6 @@ const s = StyleSheet.create({
     marginBottom: t.space[4],
     gap: 4
   },
-  fallbackText: { color: t.color.text, fontSize: 13, fontWeight: '700' },
-  fallbackHint: { color: t.color.textMuted, fontSize: 12 }
+  fallbackText: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700' },
+  fallbackHint: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 }
 });

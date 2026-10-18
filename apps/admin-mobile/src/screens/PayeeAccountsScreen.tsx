@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Landmark, Smartphone, UserCheck, AlertTriangle } from 'lucide-react-native';
@@ -457,36 +458,36 @@ export const PayeeAccountsScreen: React.FC = () => {
 const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   errorCard: { borderColor: c.state.danger, marginBottom: 12 },
-  errorText: { color: c.state.danger, fontSize: 13, marginTop: 8 },
+  errorText: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 13, marginTop: 8 },
 
   warnCard: { marginBottom: 12 },
   warnRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  warnText: { color: c.state.warning, fontSize: 12, lineHeight: 17, flex: 1 },
+  warnText: { color: c.state.warning, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, flex: 1 },
 
   rowCard: { marginBottom: 10 },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  owner: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
-  ownerDetail: { color: c.text.secondary, fontSize: 12, marginTop: 2 },
+  owner: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' },
+  ownerDetail: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 },
 
   compareRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, gap: 12 },
-  compareLabel: { color: c.text.muted, fontSize: 12 },
-  compareValue: { color: c.text.primary, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
+  compareLabel: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  compareValue: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
 
-  added: { color: c.text.muted, fontSize: 11, marginTop: 8 },
-  advice: { color: c.text.secondary, fontSize: 12, marginTop: 10, lineHeight: 17 },
+  added: { color: c.text.muted, fontFamily: FONT_FAMILY, fontSize: 11, marginTop: 8 },
+  advice: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 10, lineHeight: 17 },
   refusedNote: {
     color: c.state.danger,
-    fontSize: 12,
+    fontFamily: FONT_FAMILY, fontSize: 12,
     marginTop: 12,
     lineHeight: 17
   },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12, justifyContent: 'flex-end' },
 
   confirmBox: { backgroundColor: c.bg.sunken, borderRadius: 10, padding: 12, marginBottom: 12 },
-  confirmNote: { color: c.text.secondary, fontSize: 12, lineHeight: 17, marginBottom: 12 },
+  confirmNote: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, lineHeight: 17, marginBottom: 12 },
 
-  allGood: { color: c.state.success, fontSize: 13 },
+  allGood: { color: c.state.success, fontFamily: FONT_FAMILY, fontSize: 13 },
   gapCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  gapName: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  gapReason: { color: c.text.secondary, fontSize: 12, marginTop: 2 }
+  gapName: { color: c.text.primary, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
+  gapReason: { color: c.text.secondary, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 2 }
 });

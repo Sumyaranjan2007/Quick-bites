@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { t } from '../theme';
@@ -112,7 +113,7 @@ export const HelpScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
 
 const s = StyleSheet.create({
   content: { padding: t.space[5] },
-  greeting: { fontSize: 16, fontWeight: '700', color: t.color.text, marginBottom: t.space[3] },
+  greeting: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '700', color: t.color.text, marginBottom: t.space[3] },
   bubble: { padding: t.space[3], borderRadius: t.radius.md, marginBottom: t.space[2], maxWidth: '88%' },
   mine: { alignSelf: 'flex-end', backgroundColor: t.color.brand },
   mineText: { color: '#FFFFFF', fontWeight: '600' },
@@ -120,7 +121,7 @@ const s = StyleSheet.create({
   theirsText: { color: t.color.text, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: t.space[2], marginVertical: t.space[3] },
   chip: { borderWidth: 1, borderColor: t.color.brand, borderRadius: t.radius.full, paddingVertical: 6, paddingHorizontal: 12 },
-  chipText: { color: t.color.brand, fontWeight: '600', fontSize: 13 },
+  chipText: { color: t.color.brand, fontWeight: '600', fontFamily: FONT_FAMILY, fontSize: 13 },
   input: {
     borderWidth: 1,
     borderColor: t.color.border,

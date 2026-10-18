@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { Text, StyleSheet } from 'react-native';
 import { Card, Button, Field, Sheet, KeyValue, SectionTitle, ResourceError } from '../components/ui';
@@ -115,5 +116,5 @@ export const BusinessCard: React.FC = () => {
 };
 
 const s = StyleSheet.create({
-  error: { color: c.state.danger, fontSize: 13, marginVertical: 8 }
+  error: { color: c.state.danger, fontFamily: FONT_FAMILY, fontSize: 13, marginVertical: 8 }
 });

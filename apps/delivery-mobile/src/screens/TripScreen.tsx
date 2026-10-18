@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -533,7 +534,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  chatBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  chatBadgeText: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontSize: 10, fontWeight: '800' },
   content: { padding: t.space[4], paddingBottom: t.space[10] },
   stageBar: { flexDirection: 'row', alignItems: 'flex-start' },
   stageItem: { flex: 1, alignItems: 'center' },
@@ -554,16 +555,16 @@ const s = StyleSheet.create({
     backgroundColor: t.color.border,
     zIndex: -1
   },
-  stageLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 6, fontWeight: t.font.weight.semibold },
+  stageLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 6, fontWeight: t.font.weight.semibold },
   tripHead: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: t.space[4]
   },
-  tripOrder: { color: t.color.text, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
-  tripPlaced: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
-  tripEarn: { color: t.color.money, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold },
+  tripOrder: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
+  tripPlaced: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
+  tripEarn: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold },
   stop: {
     borderRadius: t.radius.md,
     borderWidth: 1,
@@ -574,10 +575,10 @@ const s = StyleSheet.create({
   stopActive: { borderColor: t.color.borderStrong, backgroundColor: t.color.surfaceRaised },
   stopHead: { flexDirection: 'row', alignItems: 'center' },
   stopIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  stopLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
-  stopName: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold, marginTop: 1 },
-  stopAddress: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: t.space[3], lineHeight: 19 },
-  stopCoords: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 4 },
+  stopLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
+  stopName: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold, marginTop: 1 },
+  stopAddress: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[3], lineHeight: 19 },
+  stopCoords: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 4 },
   stopActions: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[3] },
   callBtn: {
     width: 50,
@@ -592,10 +593,10 @@ const s = StyleSheet.create({
   },
   stopConnector: { width: 2, height: 20, backgroundColor: t.color.borderStrong, marginLeft: 20, marginVertical: 2 },
   metaGrid: { marginTop: t.space[3], borderTopWidth: 1, borderTopColor: t.color.border },
-  telemetryOk: { color: t.color.goText, fontSize: t.font.size.sm, lineHeight: 19 },
-  telemetryWarn: { color: t.color.money, fontSize: t.font.size.sm, lineHeight: 19 },
-  actionTitle: { color: t.color.text, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
-  actionBody: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
+  telemetryOk: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, lineHeight: 19 },
+  telemetryWarn: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, lineHeight: 19 },
+  actionTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.md, fontWeight: t.font.weight.bold },
+  actionBody: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[2], lineHeight: 19 },
   codeInput: {
     backgroundColor: t.color.surfaceSunken,
     borderRadius: t.radius.md,
@@ -604,7 +605,7 @@ const s = StyleSheet.create({
     height: 66,
     marginVertical: t.space[4],
     color: t.color.text,
-    fontSize: 30,
+    fontFamily: FONT_FAMILY, fontSize: 30,
     fontWeight: t.font.weight.extrabold,
     letterSpacing: 14,
     textAlign: 'center'
@@ -618,11 +619,11 @@ const s = StyleSheet.create({
     marginTop: t.space[3]
   },
   codBoxPaid: { backgroundColor: t.color.goSoft, marginBottom: t.space[3] },
-  codText: { color: t.color.money, fontSize: t.font.size.sm, marginLeft: t.space[2], flex: 1, fontWeight: t.font.weight.semibold },
+  codText: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginLeft: t.space[2], flex: 1, fontWeight: t.font.weight.semibold },
   offerHead: { flexDirection: 'row', alignItems: 'flex-start' },
-  offerRestaurant: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
-  offerAddress: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: 2 },
-  offerPay: { color: t.color.money, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold, marginLeft: t.space[3] },
+  offerRestaurant: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  offerAddress: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 2 },
+  offerPay: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.lg, fontWeight: t.font.weight.extrabold, marginLeft: t.space[3] },
   offerMeta: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[3], flexWrap: 'wrap' },
   offerActions: { flexDirection: 'row', marginTop: t.space[4] },
   escapeRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[6] },
@@ -637,5 +638,5 @@ const s = StyleSheet.create({
     borderColor: t.color.border
   },
   sosBtn: { marginLeft: t.space[3], borderColor: t.color.danger, backgroundColor: t.color.dangerSoft, flex: 0.7 },
-  escapeText: { color: t.color.textMuted, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold }
+  escapeText: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold }
 });

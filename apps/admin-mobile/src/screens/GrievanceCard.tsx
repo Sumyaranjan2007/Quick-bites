@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Scale } from 'lucide-react-native';
@@ -209,12 +210,12 @@ export const GrievanceCard: React.FC = () => {
 const s = StyleSheet.create({
   gapCard: { borderWidth: 1, borderColor: c.state.danger, backgroundColor: c.state.dangerBg },
   gapHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  gapTitle: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.state.danger },
-  okTitle: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.state.success },
-  gapText: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19, marginBottom: 4 },
-  gapNote: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
-  contactLine: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: c.text.primary },
-  contactMeta: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 2 },
-  sheetIntro: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19, marginBottom: 14 },
-  error: { fontSize: tokens.font.size.sm, color: c.state.danger, marginTop: 10 }
+  gapTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.state.danger },
+  okTitle: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.state.success },
+  gapText: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19, marginBottom: 4 },
+  gapNote: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
+  contactLine: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: c.text.primary },
+  contactMeta: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 2 },
+  sheetIntro: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19, marginBottom: 14 },
+  error: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.state.danger, marginTop: 10 }
 });

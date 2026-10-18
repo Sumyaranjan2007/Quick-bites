@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Modal } from './Modal';
@@ -206,12 +207,12 @@ const s = StyleSheet.create({
     paddingBottom: 32
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  title: { color: t.color.text, fontSize: 17, fontWeight: '800', flex: 1 },
+  title: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 17, fontWeight: '800', flex: 1 },
 
-  amount: { color: t.color.text, fontSize: 32, fontWeight: '800', textAlign: 'center' },
+  amount: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: 32, fontWeight: '800', textAlign: 'center' },
   instruction: {
     color: t.color.textSecondary,
-    fontSize: 13,
+    fontFamily: FONT_FAMILY, fontSize: 13,
     textAlign: 'center',
     marginTop: 6,
     marginBottom: 16,
@@ -230,18 +231,18 @@ const s = StyleSheet.create({
   qrImage: { width: 220, height: 220 },
 
   waitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, paddingHorizontal: 4 },
-  waitText: { color: t.color.textSecondary, fontSize: 12, flex: 1, lineHeight: 17 },
-  waitTextWarn: { color: t.color.money, fontSize: 12, flex: 1, lineHeight: 17 },
+  waitText: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 12, flex: 1, lineHeight: 17 },
+  waitTextWarn: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: 12, flex: 1, lineHeight: 17 },
 
   centre: { alignItems: 'center', paddingVertical: 24, gap: 10 },
-  centreText: { color: t.color.textSecondary, fontSize: 13 },
-  errorText: { color: t.color.danger, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  centreText: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: 13 },
+  errorText: { color: t.color.danger, fontFamily: FONT_FAMILY, fontSize: 13, textAlign: 'center', lineHeight: 19 },
 
   paidBox: { alignItems: 'center', paddingVertical: 20 },
-  paidTitle: { color: t.color.go, fontSize: 24, fontWeight: '800', marginTop: 12 },
+  paidTitle: { color: t.color.go, fontFamily: FONT_FAMILY, fontSize: 24, fontWeight: '800', marginTop: 12 },
   paidBody: {
     color: t.color.textSecondary,
-    fontSize: 13,
+    fontFamily: FONT_FAMILY, fontSize: 13,
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 19,

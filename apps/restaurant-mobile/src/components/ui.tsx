@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
@@ -192,32 +193,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   sectionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-  sectionSub: { fontSize: 13, color: c.textMuted, marginTop: 2 },
+  sectionTitle: { fontFamily: FONT_FAMILY, fontSize: 18, fontWeight: '800', color: c.text },
+  sectionSub: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 2 },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.pill, alignSelf: 'flex-start' },
-  pillText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  pillText: { fontFamily: FONT_FAMILY, fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   button: { height: 50, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center' },
   buttonPrimary: { backgroundColor: c.brand },
   buttonGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: c.border },
   buttonDanger: { backgroundColor: c.danger },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  buttonText: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800' },
   field: { marginBottom: spacing.lg },
-  fieldLabel: { fontSize: 13, color: c.textSoft, marginBottom: spacing.sm, fontWeight: '700' },
+  fieldLabel: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, marginBottom: spacing.sm, fontWeight: '700' },
   input: {
     backgroundColor: c.bg,
     borderRadius: radii.md,
     minHeight: 50,
     paddingHorizontal: spacing.lg,
     color: c.text,
-    fontSize: 15,
+    fontFamily: FONT_FAMILY, fontSize: 15,
     borderWidth: 1,
     borderColor: c.border
   },
   inputMultiline: { paddingTop: spacing.md, textAlignVertical: 'top', minHeight: 96 },
   inputError: { borderColor: c.danger },
-  fieldError: { color: c.danger, fontSize: 12, marginTop: 6 },
-  fieldHint: { color: c.textMuted, fontSize: 12, marginTop: 6 },
+  fieldError: { color: c.danger, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 6 },
+  fieldHint: { color: c.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, marginTop: 6 },
   passwordWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -227,11 +228,11 @@ const styles = StyleSheet.create({
     borderColor: c.border,
     paddingRight: spacing.md
   },
-  passwordInput: { flex: 1, height: 50, paddingHorizontal: spacing.lg, color: c.text, fontSize: 15 },
+  passwordInput: { flex: 1, height: 50, paddingHorizontal: spacing.lg, color: c.text, fontFamily: FONT_FAMILY, fontSize: 15 },
   eyeBtn: { padding: 6 },
   empty: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: spacing.xl },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' },
-  emptyBody: { fontSize: 13, color: c.textMuted, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 6, textAlign: 'center' },
+  emptyBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, textAlign: 'center', lineHeight: 19 },
   errorNote: {
     backgroundColor: c.dangerSoft,
     borderRadius: radii.md,
@@ -241,10 +242,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md
   },
-  errorNoteText: { color: c.dangerText, fontSize: 13, flex: 1, lineHeight: 18 },
-  errorNoteRetry: { color: c.brand, fontSize: 13, fontWeight: '800' },
+  errorNoteText: { color: c.dangerText, fontFamily: FONT_FAMILY, fontSize: 13, flex: 1, lineHeight: 18 },
+  errorNoteRetry: { color: c.brand, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '800' },
   metric: { flex: 1, minWidth: 140 },
-  metricLabel: { fontSize: 11, color: c.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  metricValue: { fontSize: 22, fontWeight: '800', color: c.text, marginTop: 4 },
-  metricSub: { fontSize: 12, color: c.textMuted, marginTop: 2 }
+  metricLabel: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  metricValue: { fontFamily: FONT_FAMILY, fontSize: 22, fontWeight: '800', color: c.text, marginTop: 4 },
+  metricSub: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 }
 });

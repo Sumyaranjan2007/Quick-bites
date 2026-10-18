@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
@@ -71,6 +72,6 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12, marginTop: t.space[3] },
   on: { backgroundColor: t.color.goSoft, alignSelf: 'flex-start' },
   off: { backgroundColor: '#FDECEC' },
-  text: { fontSize: 12, fontWeight: '600' },
+  text: { fontFamily: FONT_FAMILY, fontSize: 12, fontWeight: '600' },
   fixText: { color: t.color.brand, fontWeight: '800' }
 });

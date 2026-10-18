@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -257,14 +258,14 @@ const s = StyleSheet.create({
     borderBottomColor: c.border
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: c.text },
+  headerTitle: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '700', color: c.text },
 
   mapArea: { flex: 1, backgroundColor: c.bg },
   pinLayer: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
 
   noMap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 10 },
-  noMapTitle: { fontSize: 15, fontWeight: '700', color: c.text },
-  noMapBody: { fontSize: 13, color: c.textSoft, textAlign: 'center', lineHeight: 19 },
+  noMapTitle: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', color: c.text },
+  noMapBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, textAlign: 'center', lineHeight: 19 },
 
   locateFab: {
     position: 'absolute',
@@ -288,9 +289,9 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: c.border
   },
-  sheetLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: c.textMuted },
-  address: { fontSize: 15, fontWeight: '700', color: c.text, lineHeight: 21 },
-  hint: { fontSize: 12, color: c.textMuted, lineHeight: 17 },
+  sheetLabel: { fontFamily: FONT_FAMILY, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: c.textMuted },
+  address: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', color: c.text, lineHeight: 21 },
+  hint: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, lineHeight: 17 },
   confirm: {
     marginTop: 6,
     flexDirection: 'row',
@@ -301,5 +302,5 @@ const s = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14
   },
-  confirmText: { color: c.bg, fontSize: 15, fontWeight: '700' }
+  confirmText: { color: c.bg, fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700' }
 });

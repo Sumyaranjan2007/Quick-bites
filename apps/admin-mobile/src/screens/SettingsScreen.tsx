@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { ShieldAlert, Activity } from 'lucide-react-native';
@@ -416,19 +417,19 @@ const s = StyleSheet.create({
   content: { padding: 16, paddingBottom: 48, gap: 12 },
   flagCard: { gap: 6 },
   flagHead: { flexDirection: 'row', alignItems: 'flex-start' },
-  flagLabel: { fontSize: 15, fontWeight: '700', color: c.text.primary },
-  flagDescription: { fontSize: 12, color: c.text.secondary, marginTop: 3, lineHeight: 17 },
+  flagLabel: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '700', color: c.text.primary },
+  flagDescription: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.text.secondary, marginTop: 3, lineHeight: 17 },
   offRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  offMessage: { flex: 1, fontSize: 12, color: c.text.secondary, fontStyle: 'italic' },
-  meta: { fontSize: 11, color: c.text.secondary, marginTop: 6 },
+  offMessage: { flex: 1, fontFamily: FONT_FAMILY, fontSize: 12, color: c.text.secondary, fontStyle: 'italic' },
+  meta: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.text.secondary, marginTop: 6 },
   depRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   warnCard: { backgroundColor: c.bg.sunken },
   warnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  warnText: { flex: 1, fontSize: 13, color: c.text.primary, fontWeight: '600' },
+  warnText: { flex: 1, fontFamily: FONT_FAMILY, fontSize: 13, color: c.text.primary, fontWeight: '600' },
   errorCard: { backgroundColor: c.bg.sunken },
-  errorText: { fontSize: 13, color: c.state.danger },
-  confirmBody: { fontSize: 13, color: c.text.secondary, lineHeight: 19 },
+  errorText: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.state.danger },
+  confirmBody: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.text.secondary, lineHeight: 19 },
   quoteCard: { backgroundColor: c.bg.sunken, gap: 4 },
-  quoteLabel: { fontSize: 11, color: c.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  quoteText: { fontSize: 14, color: c.text.primary, lineHeight: 20 }
+  quoteLabel: { fontFamily: FONT_FAMILY, fontSize: 11, color: c.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  quoteText: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.text.primary, lineHeight: 20 }
 });

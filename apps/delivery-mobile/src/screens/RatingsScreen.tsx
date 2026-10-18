@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Star } from 'lucide-react-native';
@@ -95,23 +96,23 @@ const s = StyleSheet.create({
   content: { padding: t.space[4], paddingBottom: t.space[10] },
   summary: { flexDirection: 'row', alignItems: 'center' },
   summaryLeft: { alignItems: 'center', paddingRight: t.space[5], borderRightWidth: 1, borderRightColor: t.color.border },
-  average: { color: t.color.text, fontSize: t.font.size.display, fontWeight: t.font.weight.extrabold },
-  total: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: t.space[2] },
+  average: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.display, fontWeight: t.font.weight.extrabold },
+  total: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: t.space[2] },
   distribution: { flex: 1, paddingLeft: t.space[4] },
   distRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  distStar: { color: t.color.textMuted, fontSize: t.font.size.xs, marginRight: 3, width: 8 },
+  distStar: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginRight: 3, width: 8 },
   distBar: { flex: 1, marginHorizontal: t.space[2] },
-  distCount: { color: t.color.textMuted, fontSize: t.font.size.xs, width: 18, textAlign: 'right' },
+  distCount: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, width: 18, textAlign: 'right' },
   review: { paddingVertical: t.space[4] },
   reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  reviewDate: { color: t.color.textMuted, fontSize: t.font.size.xs },
+  reviewDate: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs },
   reviewComment: {
     color: t.color.text,
-    fontSize: t.font.size.base,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.base,
     marginTop: t.space[3],
     lineHeight: 21,
     fontStyle: 'italic'
   },
-  reviewNoComment: { color: t.color.textMuted, fontSize: t.font.size.sm, marginTop: t.space[3] },
-  reviewMeta: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: t.space[3] }
+  reviewNoComment: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: t.space[3] },
+  reviewMeta: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: t.space[3] }
 });

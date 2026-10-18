@@ -1,3 +1,11 @@
+import { Platform } from 'react-native';
+/**
+ * Lexend Deca (owner, 17 Oct 2026; SIL Open Font License, assets/fonts): one family with weights
+ * 400-800, so `fontWeight` picks the file. Android name from the expo-font XML family; iPhone uses
+ * the font's own name. The websites keep the browser's font.
+ */
+export const FONT_FAMILY = Platform.OS === 'ios' ? 'Lexend Deca' : 'LexendDeca';
+
 /**
  * Quick Bites Rider — design tokens.
  *

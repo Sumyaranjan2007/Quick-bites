@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { Modal } from './Modal';
@@ -178,12 +179,12 @@ const s = StyleSheet.create({
   },
   headerTitle: {
     color: t.color.text,
-    fontSize: t.font.size.xl,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.xl,
     fontWeight: t.font.weight.extrabold,
     marginTop: t.space[4]
   },
   timerRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[2] },
-  timerText: { color: t.color.money, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold, marginLeft: 6 },
+  timerText: { color: t.color.money, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.bold, marginLeft: 6 },
   body: { flex: 1, paddingHorizontal: t.space[5], paddingTop: t.space[6] },
   payRow: {
     flexDirection: 'row',
@@ -196,11 +197,11 @@ const s = StyleSheet.create({
   },
   payBlock: { flex: 1, alignItems: 'center' },
   payDivider: { width: 1, alignSelf: 'stretch', backgroundColor: t.color.border },
-  payLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
+  payLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
   payValueRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[2] },
   payValue: {
     color: t.color.money,
-    fontSize: t.font.size.display,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.display,
     fontWeight: t.font.weight.extrabold,
     marginLeft: 2
   },
@@ -222,9 +223,9 @@ const s = StyleSheet.create({
     marginVertical: 4
   },
   stopText: { flex: 1, marginLeft: t.space[3] },
-  stopLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
-  stopName: { color: t.color.text, fontSize: t.font.size.base, fontWeight: t.font.weight.bold, marginTop: 2 },
-  stopAddress: { color: t.color.textSecondary, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
+  stopLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold },
+  stopName: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold, marginTop: 2 },
+  stopAddress: { color: t.color.textSecondary, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginTop: 2, lineHeight: 18 },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: t.space[4], flexWrap: 'wrap' },
   actions: {
     flexDirection: 'row',

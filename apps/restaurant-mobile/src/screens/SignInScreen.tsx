@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { ChefHat, CheckCircle2, ChevronDown, ChevronUp, MapPin } from 'lucide-react-native';
@@ -487,8 +488,8 @@ const styles = StyleSheet.create({
     backgroundColor: c.surface
   },
   pinButtonDone: { borderColor: c.success, backgroundColor: c.successSoft },
-  pinButtonText: { flex: 1, fontSize: 13, fontWeight: '700', color: c.brand },
-  pinError: { fontSize: 12, color: c.danger, marginTop: -spacing.xs },
+  pinButtonText: { flex: 1, fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '700', color: c.brand },
+  pinError: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.danger, marginTop: -spacing.xs },
   screen: { flex: 1, backgroundColor: c.bg },
   content: { padding: spacing.xxl, paddingTop: 64, paddingBottom: 48 },
   header: { alignItems: 'center', marginBottom: spacing.xxl },
@@ -501,8 +502,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg
   },
-  title: { fontSize: 24, fontWeight: '800', color: c.text },
-  subtitle: { fontSize: 14, color: c.textMuted, marginTop: 4 },
+  title: { fontFamily: FONT_FAMILY, fontSize: 24, fontWeight: '800', color: c.text },
+  subtitle: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.textMuted, marginTop: 4 },
   switcher: {
     flexDirection: 'row',
     backgroundColor: c.surface,
@@ -512,7 +513,7 @@ const styles = StyleSheet.create({
   },
   switchTab: { flex: 1, paddingVertical: 11, borderRadius: radii.sm, alignItems: 'center' },
   switchTabActive: { backgroundColor: c.border },
-  switchText: { fontSize: 14, color: c.textMuted, fontWeight: '700' },
+  switchText: { fontFamily: FONT_FAMILY, fontSize: 14, color: c.textMuted, fontWeight: '700' },
   switchTextActive: { color: c.brand },
   serverToggle: {
     flexDirection: 'row',
@@ -524,7 +525,7 @@ const styles = StyleSheet.create({
   },
   serverToggleText: {
     color: c.textMuted,
-    fontSize: 13,
+    fontFamily: FONT_FAMILY, fontSize: 13,
   },
   serverInput: {
     borderWidth: 1,
@@ -533,18 +534,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     color: c.text,
-    fontSize: 14,
+    fontFamily: FONT_FAMILY, fontSize: 14,
     marginTop: spacing.xs,
   },
-  legal: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: spacing.lg, lineHeight: 18 },
+  legal: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: spacing.lg, lineHeight: 18 },
   linkRow: { alignItems: 'center', paddingVertical: spacing.lg },
-  link: { color: c.brand, fontSize: 14, fontWeight: '700' },
+  link: { color: c.brand, fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '700' },
   notice: {
     color: c.success,
     backgroundColor: c.successSoft,
     borderRadius: radii.sm,
     padding: spacing.md,
-    fontSize: 13,
+    fontFamily: FONT_FAMILY, fontSize: 13,
     lineHeight: 18,
     marginBottom: spacing.lg
   },
@@ -554,9 +555,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.xxl
   },
-  doneTitle: { fontSize: 22, fontWeight: '800', color: c.text, marginTop: spacing.lg },
+  doneTitle: { fontFamily: FONT_FAMILY, fontSize: 22, fontWeight: '800', color: c.text, marginTop: spacing.lg },
   doneBody: {
-    fontSize: 14,
+    fontFamily: FONT_FAMILY, fontSize: 14,
     color: c.textMuted,
     textAlign: 'center',
     marginTop: spacing.md,

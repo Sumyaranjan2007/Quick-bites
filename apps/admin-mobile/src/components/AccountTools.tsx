@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Card, Button, Field, Sheet, Segmented, Divider } from './ui';
@@ -155,8 +156,8 @@ export const RemoveAccountCard: React.FC<{ userId: string; name: string; onRemov
 };
 
 const s = StyleSheet.create({
-  heading: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary, marginBottom: tokens.space[2] },
-  label: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary, marginBottom: tokens.space[2] },
-  muted: { fontSize: tokens.font.size.sm, color: c.text.muted, marginBottom: tokens.space[3] },
+  heading: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary, marginBottom: tokens.space[2] },
+  label: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary, marginBottom: tokens.space[2] },
+  muted: { fontFamily: FONT_FAMILY, fontSize: tokens.font.size.sm, color: c.text.muted, marginBottom: tokens.space[3] },
   row: { flexDirection: 'row', gap: tokens.space[3] }
 });

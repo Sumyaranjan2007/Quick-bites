@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -98,7 +99,7 @@ export const Button: React.FC<{
           <Text
             style={[
               s.buttonLabel,
-              size === 'lg' && { fontSize: t.font.size.md },
+              size === 'lg' && { fontFamily: FONT_FAMILY, fontSize: t.font.size.md },
               { color: tone.fg },
               icon ? { marginLeft: 8 } : null
             ]}
@@ -224,7 +225,7 @@ export const Avatar: React.FC<{ uri?: string; name?: string; size?: number; ring
         borderColor: ring ? t.color.go : t.color.borderStrong
       }}
     >
-      <Text style={{ color: t.color.text, fontWeight: t.font.weight.bold, fontSize: size * 0.34 }}>
+      <Text style={{ color: t.color.text, fontWeight: t.font.weight.bold, fontFamily: FONT_FAMILY, fontSize: size * 0.34 }}>
         {initialsOf(name)}
       </Text>
     </View>
@@ -308,11 +309,11 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     color: t.color.text,
-    fontSize: t.font.size.md,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.md,
     fontWeight: t.font.weight.bold,
     letterSpacing: 0.2
   },
-  sectionAction: { color: t.color.goText, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
+  sectionAction: { color: t.color.goText, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold },
   button: {
     minHeight: 50,
     borderRadius: t.radius.md,
@@ -322,7 +323,7 @@ const s = StyleSheet.create({
     paddingHorizontal: t.space[5]
   },
   buttonLarge: { minHeight: 58, borderRadius: t.radius.lg },
-  buttonLabel: { fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
+  buttonLabel: { fontFamily: FONT_FAMILY, fontSize: t.font.size.base, fontWeight: t.font.weight.bold },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -331,7 +332,7 @@ const s = StyleSheet.create({
     borderRadius: t.radius.full,
     alignSelf: 'flex-start'
   },
-  pillText: { fontSize: t.font.size.xs, fontWeight: t.font.weight.bold, letterSpacing: 0.4 },
+  pillText: { fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.bold, letterSpacing: 0.4 },
   statTile: {
     flex: 1,
     backgroundColor: t.color.surface,
@@ -343,9 +344,9 @@ const s = StyleSheet.create({
     justifyContent: 'space-between'
   },
   statTileHead: { flexDirection: 'row', alignItems: 'center' },
-  statLabel: { color: t.color.textMuted, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold, flex: 1 },
-  statValue: { fontSize: t.font.size.xl, fontWeight: t.font.weight.extrabold, marginTop: t.space[2] },
-  statCaption: { color: t.color.textMuted, fontSize: t.font.size.xs, marginTop: 2 },
+  statLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, fontWeight: t.font.weight.semibold, flex: 1 },
+  statValue: { fontFamily: FONT_FAMILY, fontSize: t.font.size.xl, fontWeight: t.font.weight.extrabold, marginTop: t.space[2] },
+  statCaption: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.xs, marginTop: 2 },
   progressTrack: { backgroundColor: t.color.surfaceSunken, overflow: 'hidden', width: '100%' },
   progressFill: { height: '100%' },
   empty: { alignItems: 'center', paddingVertical: t.space[10], paddingHorizontal: t.space[6] },
@@ -360,23 +361,23 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: t.color.border
   },
-  emptyTitle: { color: t.color.text, fontSize: t.font.size.md, fontWeight: t.font.weight.bold, textAlign: 'center' },
+  emptyTitle: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.md, fontWeight: t.font.weight.bold, textAlign: 'center' },
   emptyMessage: {
     color: t.color.textMuted,
-    fontSize: t.font.size.sm,
+    fontFamily: FONT_FAMILY, fontSize: t.font.size.sm,
     textAlign: 'center',
     marginTop: t.space[2],
     lineHeight: 20
   },
   loading: { alignItems: 'center', paddingVertical: t.space[10] },
-  loadingLabel: { color: t.color.textMuted, marginTop: t.space[3], fontSize: t.font.size.sm },
+  loadingLabel: { color: t.color.textMuted, marginTop: t.space[3], fontFamily: FONT_FAMILY, fontSize: t.font.size.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: t.space[3]
   },
-  rowLabel: { color: t.color.textMuted, fontSize: t.font.size.sm, marginRight: t.space[4] },
-  rowValue: { color: t.color.text, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, flexShrink: 1 },
+  rowLabel: { color: t.color.textMuted, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, marginRight: t.space[4] },
+  rowValue: { color: t.color.text, fontFamily: FONT_FAMILY, fontSize: t.font.size.sm, fontWeight: t.font.weight.semibold, flexShrink: 1 },
   divider: { height: 1, backgroundColor: t.color.border }
 });

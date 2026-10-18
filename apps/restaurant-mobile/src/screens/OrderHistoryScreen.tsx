@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '../theme';
 import { KitchenTicketButton } from '../components/KitchenTicketButton';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
@@ -177,19 +178,19 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, paddingVertical: 9, borderRadius: radii.sm, alignItems: 'center', backgroundColor: c.surface },
   tabActive: { backgroundColor: c.border },
-  tabText: { fontSize: 13, color: c.textMuted, fontWeight: '700' },
+  tabText: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, fontWeight: '700' },
   tabTextActive: { color: c.brand },
   listContent: { padding: spacing.xl, paddingBottom: 48 },
   top: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.md },
-  orderNumber: { fontSize: 15, fontWeight: '800', color: c.text },
-  meta: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+  orderNumber: { fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800', color: c.text },
+  meta: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textMuted, marginTop: 2 },
   lines: { borderTopWidth: 1, borderTopColor: c.border, paddingTop: spacing.md, marginBottom: spacing.md },
-  line: { fontSize: 13, color: c.textSoft, marginBottom: 3 },
+  line: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, marginBottom: 3 },
   bottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  customer: { fontSize: 13, color: c.textMuted },
+  customer: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
-  ratingText: { fontSize: 12, color: c.textSoft, flexShrink: 1 },
-  cancelReason: { fontSize: 12, color: c.danger, marginTop: 4 },
-  total: { fontSize: 16, fontWeight: '800', color: c.text },
-  payout: { fontSize: 12, color: c.success, marginTop: 2 }
+  ratingText: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.textSoft, flexShrink: 1 },
+  cancelReason: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.danger, marginTop: 4 },
+  total: { fontFamily: FONT_FAMILY, fontSize: 16, fontWeight: '800', color: c.text },
+  payout: { fontFamily: FONT_FAMILY, fontSize: 12, color: c.success, marginTop: 2 }
 });
