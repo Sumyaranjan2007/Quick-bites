@@ -202,3 +202,18 @@ Still open from earlier: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1; R1, B1-1 
 | L1 | Low (efficiency) | `liveLocation.ts` `recordRiderFix` | Every fix (every ~4 s per active trip) marks the whole order document and the rider document dirty, so each autosave flush re-writes the full order JSON (items, bill, timeline) to Postgres for every live trip. Bounded by the debounce, fine today. | Keep the live position in memory every fix and mark it dirty at most every ~15–30 s (or on status change); a restart then loses at most that much of a trail it never needed. | open |
 
 Open list unchanged otherwise: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1 (for B2 polyline), Q1, Q2, G4, G2b, B2-1…B2-4; R1, B1-1 with the owner.
+
+---
+
+## 18 Oct 2026 — `1ded66b` (F-13 FSSAI/GSTIN as reviewed edits; B2-1) and `1094edb` (replace and re-verify any document)
+
+Owner's new order (master plan START HERE item 8): build everything first, then one jury round, then full tests. These are logged for that round; no per-step verdict was asked. Both read correct on a first pass.
+
+Closed by these: **B2-1** (Google routing now `DRIVE` + `TRAFFIC_UNAWARE`, Essentials rate; the comment says when to switch back), **G2b** (kitchen phone and licence numbers ban-checked at profile-edit submit, `restaurantRouter.ts:~1373`, and again at approval, `catalogRoutes.ts:~1112`), **G4** (moot: `/kyc/submit` carries no number; document approval is ban-checked, `peopleRoutes.ts:~840`). Checked: an approved document keeps standing while its replacement waits or after the replacement is refused (`documentsByType`, `kycRepository.ts`); withdrawing the standing approval leaves nothing standing; the FSSAI badge and the kitchen/rider "verified" state read the standing document; approving a licence copies its number onto the record, so a renewal is one upload and one approval.
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| K1d | Low | `db/repositories/kycRepository.ts` `dropUnreviewed` | A waiting (never reviewed) upload is **deleted** when a newer one replaces it, so a forged or wrong document sent and swapped before review leaves no trace for operations or the audit log. | Keep it with status `SUPERSEDED` (excluded from `documentsByType`), or write an audit line with its type and number before deleting. | open |
+| K2d | Low | `modules/restaurants/profileEdits.ts` (F-13) + `peopleRoutes.ts` `copyApprovedNumber` | Two writers of `fssaiLicenseNumber`/`gstin` now (approved profile edit, approved document). An approved edit to number X while the standing FSSAI document says Y turns the verified badge off silently until a new document is approved. Intended, but nothing tells the partner why. | When an approved edit changes the number, add "upload the licence for the new number" to the partner's decision note. | open |
+
+For the jury round, still open: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, Q1, Q2, B2-2, B2-3, B2-4, L1, K1d, K2d; D1 when B2's polyline lands; R1 and B1-1 with the owner (money behaviour unchanged meanwhile).
