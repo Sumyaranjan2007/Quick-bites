@@ -247,7 +247,7 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-    const { passwordHash, passwordReset, ...safeUser } = user as any;
+    const { passwordHash, passwordReset, contactChange, ...safeUser } = user as any;
     // Whether this account has a password at all. A customer who signed up with
     // a phone code never set one, and the app must not ask them for it — to
     // delete the account, or on a "change password" row.
@@ -290,7 +290,7 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
       const isStaffAdmin = req.user!.role === 'admin' && (req.user as any).scope !== 'customer';
       if (changing && !isStaffAdmin) {
         throw new AppError(
-          'To change your mobile number, contact Quick Bites support from Help. A code to the new number will do this in the app soon.',
+          'To change your mobile number, use "Change mobile number": we send a code to confirm it.',
           409,
           'PHONE_CHANGE_NEEDS_CODE'
         );
@@ -299,7 +299,7 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
     const updated = await userRepository.updateProfile(req.user!.id, req.body);
     if (!updated) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
 
-    const { passwordHash, passwordReset, ...safeUser } = updated as any;
+    const { passwordHash, passwordReset, contactChange, ...safeUser } = updated as any;
     res.json({
       success: true,
       data: { user: safeUser },
@@ -1513,6 +1513,116 @@ authRouter.post('/password/reset', authRateLimiterMiddleware, validate({ body: R
     } as any);
     await persistDurably();
     res.json({ success: true, data: { reset: true }, message: 'Your password has been changed. Sign in with the new one.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+ * Change your mobile number or email with a code (owner item 18, master plan B6,
+ * 18 Oct 2026). Email: the code goes to the NEW address (proves it), and the old
+ * one is told afterwards. Phone: the owner's rule is "every code by email until
+ * SMS (MSG91) is live", so the code goes to the account's current email (proves
+ * the account holder); when SMS is live it goes to the new number instead.
+ * Same storage as password reset: a hash on the user record, 10 minutes, 5
+ * tries, one code a minute. A number or email on another account, or on the
+ * ban list, is refused before anything is sent.
+ */
+const ContactRequestSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('phone'), value: phoneSchema }),
+  z.object({ kind: z.literal('email'), value: z.string().trim().toLowerCase().email('Enter a valid email address.').max(254) })
+]);
+const ContactConfirmSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from the email.') });
+const BAD_CONTACT_CODE = () => new AppError('That code is not right, or it has expired. Ask for a new one.', 400, 'INVALID_CONTACT_CODE');
+
+/** POST /api/auth/contact/request — sends the code for a new phone or email. */
+authRouter.post('/contact/request', authMiddleware(), authRateLimiterMiddleware, validate({ body: ContactRequestSchema }), async (req, res, next) => {
+  try {
+    const user: any = await userRepository.findById(req.user!.id);
+    if (!user) throw new AppError('Account not found.', 404, 'USER_NOT_FOUND');
+    const { kind, value } = req.body as { kind: 'phone' | 'email'; value: string };
+    const label = kind === 'phone' ? 'mobile number' : 'email';
+    const holder = kind === 'phone' ? await userRepository.findByPhone(value) : await userRepository.findByEmail(value);
+    if (holder && holder.id !== user.id) {
+      throw new AppError(`That ${label} is already on another Quick Bites account.`, 409, kind === 'phone' ? 'PHONE_IN_USE' : 'EMAIL_IN_USE');
+    }
+    if (holder?.id === user.id) throw new AppError(`That is already your ${label}.`, 400, 'CONTACT_UNCHANGED');
+    assertNotBanned({ [kind]: value });
+    const sendTo = kind === 'email' ? value : user.email;
+    if (!isRealEmail(sendTo)) {
+      throw new AppError('This account has no email to send a code to. Contact Quick Bites support from Help.', 409, 'NO_EMAIL_FOR_CODE');
+    }
+    const now = Date.now();
+    if (user.contactChange && now - Date.parse(user.contactChange.sentAt) < 60_000) {
+      throw new AppError('A code was sent less than a minute ago. Check your email, or try again in a minute.', 429, 'CODE_RECENTLY_SENT');
+    }
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    const stored = kind === 'phone' ? normalizeIndianPhone(value) : value;
+    await userRepository.update(user.id, {
+      contactChange: {
+        kind,
+        value: stored,
+        codeHash: resetHash(user.id, code),
+        sentAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + RESET_TTL_MS).toISOString(),
+        triesLeft: RESET_TRIES
+      }
+    } as any);
+    await persistDurably();
+    const what = kind === 'phone' ? `change your mobile number to ${maskPhone(stored)}` : 'use this email on your account';
+    const text = `Your Quick Bites code to ${what} is ${code}. It works for 10 minutes. If you did not ask for it, ignore this email: nothing has changed.`;
+    const sent = await sendEmail(sendTo, 'Your Quick Bites confirmation code', text, `<p>${text}</p>`);
+    if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'CONTACT_CHANGE_CODE', userId: user.id, code }));
+    if (!sent.accepted && config.NODE_ENV === 'production') {
+      throw new AppError('We could not send the code just now. Try again in a few minutes.', 503, 'EMAIL_UNAVAILABLE');
+    }
+    res.json({
+      success: true,
+      data: { sent: true, sentTo: kind === 'email' ? 'new' : 'current' },
+      message: `Code sent to ${kind === 'email' ? 'the new email' : 'your email'}. It works for 10 minutes.`
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /api/auth/contact/confirm — applies the new phone or email. */
+authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware, validate({ body: ContactConfirmSchema }), async (req, res, next) => {
+  try {
+    const user: any = await userRepository.findById(req.user!.id);
+    const pending = user?.contactChange;
+    if (!pending || Date.now() > Date.parse(pending.expiresAt) || !(pending.triesLeft > 0)) {
+      if (pending) await userRepository.update(user.id, { contactChange: undefined } as any);
+      throw BAD_CONTACT_CODE();
+    }
+    const given = Buffer.from(resetHash(user.id, req.body.code));
+    const expected = Buffer.from(pending.codeHash);
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      const triesLeft = pending.triesLeft - 1;
+      await userRepository.update(user.id, { contactChange: triesLeft > 0 ? { ...pending, triesLeft } : undefined } as any);
+      await persistDurably();
+      throw BAD_CONTACT_CODE();
+    }
+    // Taken by someone else since the code was sent?
+    const holder = pending.kind === 'phone' ? await userRepository.findByPhone(pending.value) : await userRepository.findByEmail(pending.value);
+    if (holder && holder.id !== user.id) {
+      await userRepository.update(user.id, { contactChange: undefined } as any);
+      throw new AppError('That is now on another Quick Bites account.', 409, pending.kind === 'phone' ? 'PHONE_IN_USE' : 'EMAIL_IN_USE');
+    }
+    const oldEmail = user.email;
+    await userRepository.update(user.id, { [pending.kind]: pending.value, contactChange: undefined } as any);
+    await persistDurably();
+    if (pending.kind === 'email' && isRealEmail(oldEmail)) {
+      const notice = `The email on your Quick Bites account was changed to ${pending.value}. If this was not you, contact Quick Bites support now.`;
+      await sendEmail(oldEmail, 'Your Quick Bites email was changed', notice, `<p>${notice}</p>`);
+    }
+    const updated: any = await userRepository.findById(user.id);
+    const { passwordHash, passwordReset, contactChange, ...safeUser } = updated;
+    res.json({
+      success: true,
+      data: { user: safeUser },
+      message: pending.kind === 'phone' ? 'Your mobile number is changed.' : 'Your email is changed.'
+    });
   } catch (err) {
     next(err);
   }

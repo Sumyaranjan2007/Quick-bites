@@ -107,6 +107,7 @@ const SUITES = [
   'passwordReset',
   'removeAndBlock',
   'adminCreate',
+  'contactChange',
   'helpChat',
   'kitchenTicket',
   'personRecord',

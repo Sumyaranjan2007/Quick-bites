@@ -120,4 +120,5 @@ try {
 }
 
 console.log(`\n  ${passed} passed, ${failed} failed`);
-process.exit(failed === 0 ? 0 : 1);
+// A moment for Node to finish closing handles: exiting mid-close crashes it on Windows.
+setTimeout(() => process.exit(failed === 0 ? 0 : 1), 100);

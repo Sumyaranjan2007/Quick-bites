@@ -49,6 +49,16 @@ fields without a password }` builds the account with the sign-up's own record bu
 `POST /api/kyc/submit` (admins may submit for anyone); approval: existing review. Permission per kind.
 Suite `adminCreate`.
 
+## Change mobile number or email (18 Oct 2026, owner item 18)
+
+Signed in, any role: `POST /api/auth/contact/request` `{ kind: 'phone' | 'email', value }` → a 6-digit code;
+`POST /api/auth/contact/confirm` `{ code }` applies it. **Email:** code to the new address; the old address is
+told afterwards. **Phone:** code to the account's current email (owner: every code by email until SMS/MSG91 is
+live; then it goes by SMS to the new number). Refused before sending: on another account (`PHONE_IN_USE` /
+`EMAIL_IN_USE`), on the ban list (`IDENTITY_BLOCKED`), unchanged. Hash on the user (`contactChange`), 10 min,
+5 tries, 1 a minute; stripped from responses. `PATCH /api/auth/me` still refuses a different phone and points
+here. Suite `contactChange`.
+
 ## Forgot password (18 Oct 2026, master plan B6)
 
 Partners, riders and staff: `POST /api/auth/password/forgot` `{ email }` → the same reply for every

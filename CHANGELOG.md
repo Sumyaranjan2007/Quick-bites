@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B6 step 5: change mobile number or email with a code (server)
+
+> **For the owner.** Anyone can now change their mobile number or email themselves, confirmed by a
+> 6-digit code: a new email gets the code at the new address; a new mobile number gets the code at
+> their email for now (as you said, all codes go by email until SMS is switched on; then the code
+> will go to the new number by SMS). Numbers or emails already on another account, or belonging to
+> someone you blocked, are refused. The "Change number" screens come in the next app build.
+
+- `POST /api/auth/contact/request`, `/contact/confirm` (`authRouter.ts`); `contactChange` stripped
+  wherever `passwordHash` is. New suite `contactChange` (12 checks; 3 guards mutation-checked).
+- The five new suites (`deliveryRadius`, `passwordReset`, `removeAndBlock`, `adminCreate`,
+  `contactChange`) pause 100 ms before exiting (the Windows exit crash `fssaiBadge` has).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B6 step 4: Operations creates a partner or rider account (server)
 
 > **For the owner.** Operations can now build a kitchen's or a rider's whole account for them: the
