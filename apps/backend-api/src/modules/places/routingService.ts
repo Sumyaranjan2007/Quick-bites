@@ -36,7 +36,6 @@
 import { config } from '../../config/env.ts';
 import { calculateDistanceKm } from '../../db/client.ts';
 import { CircuitBreaker } from '../platform/circuitBreaker.ts';
-import { isPlacesConfigured } from './placesService.ts';
 import type { Coordinates } from '@quick-bites/shared-types';
 
 const MAPBOX_MATRIX = 'https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic';
@@ -413,7 +412,7 @@ async function callDistanceMatrix(
 /** Google when its key is set (owner, 18 Oct 2026), else Mapbox while its token is set, else none. */
 export function routingProvider(): 'GOOGLE' | 'MAPBOX' | 'NONE' {
   if (config.GOOGLE_MAPS_SERVER_KEY) return 'GOOGLE';
-  return isPlacesConfigured() ? 'MAPBOX' : 'NONE';
+  return config.MAPBOX_ACCESS_TOKEN ? 'MAPBOX' : 'NONE';
 }
 
 /*

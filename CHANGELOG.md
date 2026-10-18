@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B2 step 2: address search and map pins on Google (ready for your key)
+
+> **For the owner.** With the same Google key, address search in the apps (typing an address),
+> choosing a suggestion, and turning a map pin into an address all move to Google, limited to India
+> and biased to where the customer is. As before, nothing changes until the key is on Railway, and a
+> Google problem never blocks an order.
+
+- `placesService.ts`: Google Places (New) autocomplete + details (session tokens, field mask, key in a
+  header), Geocoding for a pin; refusals reported, never cached; `/health` `places.provider`.
+- New suite `placesGoogle` (5 checks, Google simulated); 3 guards mutation-checked.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B2 step 1: road distance from Google (ready for your key)
 
 > **For the owner.** The server can now measure delivery distance and time with Google Maps:

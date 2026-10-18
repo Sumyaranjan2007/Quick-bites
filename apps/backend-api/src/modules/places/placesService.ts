@@ -65,7 +65,64 @@ const breaker = new CircuitBreaker('Address lookup', {
 let lastRefusal: { status: string; detail?: string; at: string } | null = null;
 
 export function isPlacesConfigured(): boolean {
-  return config.MAPBOX_ACCESS_TOKEN.length > 0;
+  return config.GOOGLE_MAPS_SERVER_KEY.length > 0 || config.MAPBOX_ACCESS_TOKEN.length > 0;
+}
+
+/** Google when its key is set (master plan B2, owner 18 Oct 2026); Mapbox until then. */
+const useGoogle = () => config.GOOGLE_MAPS_SERVER_KEY.length > 0;
+
+/*
+ * Google Places (New) and Geocoding. The key goes in a header where the API
+ * allows it; the Geocoding web service only takes it in the URL, which is a
+ * server-to-Google request and never logged here.
+ */
+async function callGoogle(url: string, init: { method?: string; body?: unknown; fieldMask?: string } = {}): Promise<any | null> {
+  try {
+    const response = await breaker.run(
+      signal =>
+        fetch(url, {
+          method: init.method || 'GET',
+          signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': config.GOOGLE_MAPS_SERVER_KEY,
+            ...(init.fieldMask ? { 'X-Goog-FieldMask': init.fieldMask } : {})
+          },
+          ...(init.body ? { body: JSON.stringify(init.body) } : {})
+        }),
+      res => res.status >= 500
+    );
+    const body: any = await response.json().catch(() => null);
+    const geocodeRefused = body?.status && !['OK', 'ZERO_RESULTS'].includes(body.status);
+    if (!response.ok || geocodeRefused) {
+      lastRefusal = {
+        status: response.ok ? String(body.status) : `HTTP_${response.status}`,
+        detail: body?.error?.message || body?.error_message,
+        at: new Date().toISOString()
+      };
+      console.log(JSON.stringify({ level: 'ERROR', timestamp: new Date().toISOString(), event: 'PLACES_API_REFUSED', api: 'google', status: lastRefusal.status }));
+      return null;
+    }
+    return body || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Google's address parts to ours. */
+function shapeGooglePlace(formattedAddress: string, lat: number, lng: number, parts: any[] | undefined): ResolvedPlace {
+  const find = (type: string) => {
+    const part = (parts || []).find(c => Array.isArray(c?.types) && c.types.includes(type));
+    const value = part?.longText ?? part?.long_name;
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  };
+  return {
+    formattedAddress: formattedAddress || '',
+    latitude: lat,
+    longitude: lng,
+    locality: find('sublocality') || find('locality') || find('administrative_area_level_3'),
+    postalCode: find('postal_code')
+  };
 }
 
 export interface PlaceSuggestion {
@@ -285,6 +342,34 @@ export async function suggestAddresses(
   const cached = suggestionCache.get(cacheKey);
   if (cached) return cached;
 
+  if (useGoogle()) {
+    const refusals = lastRefusal?.at;
+    const body = await callGoogle('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      body: {
+        input: trimmed,
+        sessionToken: sessionFor(options.sessionToken),
+        includedRegionCodes: [config.PLACES_REGION.toLowerCase()],
+        languageCode: 'en',
+        ...(options.near
+          ? { locationBias: { circle: { center: { latitude: options.near.latitude, longitude: options.near.longitude }, radius: 50000 } } }
+          : {})
+      }
+    });
+    if (!body || lastRefusal?.at !== refusals) return [];
+    const suggestions: PlaceSuggestion[] = (Array.isArray(body.suggestions) ? body.suggestions : [])
+      .map((x: any) => x.placePrediction)
+      .filter(Boolean)
+      .slice(0, 8)
+      .map((p: any) => ({
+        placeId: p.placeId,
+        primary: p.structuredFormat?.mainText?.text || p.text?.text || '',
+        secondary: p.structuredFormat?.secondaryText?.text || ''
+      }));
+    suggestionCache.set(cacheKey, suggestions);
+    return suggestions;
+  }
+
   const params = new URLSearchParams({
     q: trimmed,
     access_token: config.MAPBOX_ACCESS_TOKEN,
@@ -332,6 +417,23 @@ export async function resolvePlace(
 
   const cached = placeCache.get(placeId);
   if (cached !== undefined) return cached;
+
+  if (useGoogle()) {
+    const refusals = lastRefusal?.at;
+    const body = await callGoogle(
+      `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?sessionToken=${encodeURIComponent(sessionFor(sessionToken))}`,
+      { fieldMask: 'formattedAddress,location,addressComponents' }
+    );
+    const lat = Number(body?.location?.latitude);
+    const lng = Number(body?.location?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      if (body && lastRefusal?.at === refusals) placeCache.set(placeId, null);
+      return null;
+    }
+    const resolved = shapeGooglePlace(body.formattedAddress, lat, lng, body.addressComponents);
+    placeCache.set(placeId, resolved);
+    return resolved;
+  }
 
   const params = new URLSearchParams({
     access_token: config.MAPBOX_ACCESS_TOKEN,
@@ -386,6 +488,25 @@ export async function reverseGeocode(
   const cacheKey = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
   const cached = reverseCache.get(cacheKey);
   if (cached !== undefined) return cached;
+
+  if (useGoogle()) {
+    const refusals = lastRefusal?.at;
+    const q = new URLSearchParams({ latlng: `${latitude},${longitude}`, language: 'en', key: config.GOOGLE_MAPS_SERVER_KEY });
+    const body = await callGoogle(`https://maps.googleapis.com/maps/api/geocode/json?${q.toString()}`);
+    const first = body?.results?.[0];
+    if (!first) {
+      if (body && lastRefusal?.at === refusals) reverseCache.set(cacheKey, null);
+      return null;
+    }
+    const resolved = shapeGooglePlace(
+      first.formatted_address,
+      Number(first.geometry?.location?.lat ?? latitude),
+      Number(first.geometry?.location?.lng ?? longitude),
+      first.address_components
+    );
+    reverseCache.set(cacheKey, resolved);
+    return resolved;
+  }
 
   const params = new URLSearchParams({
     // Named parameters rather than an ordered pair, which is the one place
@@ -451,6 +572,7 @@ function shapePlace(
 /** For the health payload, so "why is address search dead" is answerable. */
 export function placesStatus() {
   return {
+    provider: useGoogle() ? 'GOOGLE' : isPlacesConfigured() ? 'MAPBOX' : 'NONE',
     configured: isPlacesConfigured(),
     region: config.PLACES_REGION,
     cachedSuggestions: suggestionCache.size,

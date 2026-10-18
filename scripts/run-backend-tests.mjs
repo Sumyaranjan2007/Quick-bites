@@ -108,6 +108,7 @@ const SUITES = [
   'removeAndBlock',
   'adminCreate',
   'contactChange',
+  'placesGoogle',
   'helpChat',
   'kitchenTicket',
   'personRecord',
