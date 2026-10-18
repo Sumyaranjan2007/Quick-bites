@@ -184,6 +184,47 @@ Events worth a look, all logged as JSON with `event` (`grep -rn "event: '" apps/
 | `ORDER_SWEEP_FAILED`, `ORDER_AUTO_CANCEL_FAILED` | timers not advancing orders | Logs around it; tell the main session |
 | `ADMIN_NOTIFY_FAILED`, `MASKED_CALL_FAILED` | staff alerts / calls failing | provider keys |
 
+### 6a. Live tracking load on one instance (B11, `7542edf`, checked 18 Oct)
+
+How it writes (read from code): each rider fix, socket or REST, goes through `recordRiderFix`
+(`modules/riders/liveLocation.ts`). It **overwrites** fields on two documents, the rider
+(`riderRepository.updateLocation`) and the order (`orderRepository.updateRiderLocation`). Nothing
+appends, so documents do not grow with trip length. Both call `triggerAutoSave()`: no request waits for
+the database; a save runs 0.3–2 s later and upserts each changed document once, however many fixes
+arrived in between (`db/client.ts` debounce + `MAX_DEFERRAL_MS`).
+
+Rough load (estimate: rider document 4.8 KB measured locally, order ~5–10 KB assumed, no live orders to
+measure): a fix every 4 s = 2 documents per trip per 4 s.
+
+| Trips on the road at once | Document upserts per second (worst case) | Row data written |
+|---|---|---|
+| 10 | ~5 | ~40 KB/s |
+| 50 | ~25 | ~200 KB/s |
+| 200 | ~100 | ~0.8 MB/s |
+
+Verdict: **not a worry at Harohalli's scale** (tens of trips at once); Postgres and the one Node process
+handle this easily, and the debounce batches it. Two effects to watch, not to fix now:
+- **Database volume and PITR storage.** Every upsert rewrites the whole JSON row (dead rows for vacuum,
+  WAL for the PITR archive). At ~50 trips through a dinner rush that is a few GB of WAL a day, which goes
+  to the PITR bucket (cheap at $0.015/GB-month, but it grows). Watch Postgres disk and the bucket size
+  in Railway monthly.
+- **Save lag under load.** Saves are serialised (`flushStore` queue). If Postgres slows, saves queue
+  behind each other and the position in the database lags (memory and the live socket stay current).
+  Sign: `[ERROR] Failed to persist` or rising Postgres CPU.
+
+Upgrade path when trips at once pass ~200 (or Postgres CPU/disk climbs): keep the live position in
+memory and the socket, and save it to the order at most every 30 s plus at pickup/delivery (one place:
+`recordRiderFix`). Not needed before then.
+
+### 6b. Deploys show a short 502 window (observed 18 Oct)
+
+During the `7542edf` switch, `/health` answered **502 "Application failed to respond"** at ~08:00:4x UTC,
+then 200 from 08:01:00 (new server up ~08:00:43). So a deploy costs a few seconds of errors to anyone using
+the app at that moment (the apps retry most reads; a tap in that window can fail). A small Overlap
+(e.g. 5 s) would hide the gap but widens the data-split window of §3 (master plan F-6). Keep Overlap 0
+until the A4 fix (new server re-reads documents changed after it loaded) lands; then set Overlap 5 s.
+Meanwhile: deploy outside the busy hours (§3).
+
 ## 7. Owner's list for Stage A2 (short)
 
 1. Postgres: Backups daily + weekly + monthly; **Enable PITR**.
@@ -203,6 +244,7 @@ Events worth a look, all logged as JSON with `event` (`grep -rn "event: '" apps/
 | 18 Oct 2026 | Deploy `bd5ca2b` (K1–K3) checked | `/health` uptime reset to 42 s at 19:42:30 UTC, all services up; malformed Origin → 403 `ORIGIN_NOT_ALLOWED` live |
 | 18 Oct 2026 | Deploy `0a33e95` (security M1/L7/L1, review R2/R3) checked | new server live ~21:49:07 UTC (uptime 1251 s → 9 s), all services up, circuits closed. M1 (409 `PHONE_IN_USE`) **not observed live**: proving it needs a signed-in live account; proven locally instead (`identity` suite, 54 PASS / 0 FAIL, "A customer cannot put a partner's number on their own profile"). Anonymous probes unchanged (login `{}` → 400, `PATCH /auth/me` without token → 401). |
 | 18 Oct 2026 | Deploy `55d62d5` (B6 forgot password; with `5bddb01`, `5e93f1b`, `08e0cfe`, `83d0a31`) checked | before: `POST /api/auth/password/forgot` → 404 at 02:36:59 UTC, uptime 16349 s. New server live ~02:37:56 UTC (uptime 10 s at 02:38:06), all services up, circuits closed. Observed live: made-up address `nobody-qa@example.com` → **200** `{"sent":true}` with the standard reply ("If that email has a Quick Bites password, a 6-digit code is on its way…"). No real account used. |
+| 18 Oct 2026 | Deploy `7542edf` (B11 live tracking) checked | old server up since 07:56:38 UTC (before the 07:58:08 commit, so the previous deploy). Switch ~08:00:43 UTC: brief **502** on `/health` at ~08:00:4x, then HEALTHY from 08:01:00 at every check (uptime 17→112 s), all services up, database durable, map circuits closed. Boot logs not readable from here (Railway → Logs is the owner's); no sign of a boot failure. Anonymous probes: `POST /api/riders/telemetry`, `GET /api/orders/x/tracking` → 401 (guarded). Tracking write load: §6a. |
 
 ## Sources
 
