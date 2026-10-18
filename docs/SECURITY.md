@@ -95,8 +95,8 @@ which emails belong to partners; and cap how many codes one account can get per 
 
 | # | Severity | Where | What an attacker can do | Fix | Status |
 |---|---|---|---|---|---|
-| L9 | Low | `apps/backend-api/src/routes/authRouter.ts` `POST /auth/password/forgot` | The reply text is identical (proven), but for an email **with** a password the server first writes to the database and waits for Brevo (up to 10 s) before answering; an unknown email answers at once. On live that is a gap of hundreds of milliseconds, enough to tell which emails are partners, riders or staff by timing. Locally (no real email) 3.5 ms vs 1.9 ms. | Answer first, then do the work: `res.json(...)` and run the code creation + `sendEmail` in a detached `void (async () => {...})()` with its own `try/catch` and log. | open |
-| L10 | Low | same route, `/auth/password/reset` | Guessing is bounded only by the shared per-account sign-in limit (10 requests / 5 min across forgot + reset): five wrong tries clear the code, after which a new one can be asked for at once. Worst case ≈ 2,500 guesses a day on one account (≈ 0.25 % chance a day of hitting a 6-digit code), while the victim's inbox fills with codes. No email tells the person their password was changed. | Count wrong guesses per account per 24 h (e.g. 10, then no new code for 24 h), cap codes per day (e.g. 5), and email "your password was changed" after a reset. | open |
+| L9 | Low | `apps/backend-api/src/routes/authRouter.ts` `POST /auth/password/forgot` | The reply text is identical (proven), but for an email **with** a password the server first writes to the database and waits for Brevo (up to 10 s) before answering; an unknown email answers at once. On live that is a gap of hundreds of milliseconds, enough to tell which emails are partners, riders or staff by timing. Locally (no real email) 3.5 ms vs 1.9 ms. | Answer first, then do the work: `res.json(...)` and run the code creation + `sendEmail` in a detached `void (async () => {...})()` with its own `try/catch` and log. | **fixed** `12bbc0c` (deployed 18 Oct): the reply goes out before any lookup or email; the work runs in the background |
+| L10 | Low | same route, `/auth/password/reset` | Guessing is bounded only by the shared per-account sign-in limit (10 requests / 5 min across forgot + reset): five wrong tries clear the code, after which a new one can be asked for at once. Worst case ≈ 2,500 guesses a day on one account (≈ 0.25 % chance a day of hitting a 6-digit code), while the victim's inbox fills with codes. No email tells the person their password was changed. | Count wrong guesses per account per 24 h (e.g. 10, then no new code for 24 h), cap codes per day (e.g. 5), and email "your password was changed" after a reset. | **fixed** `12bbc0c`: per account 5 codes and 10 wrong guesses per 24 h; a reset emails "password changed" (check in `passwordReset`, mutation caught) |
 
 Checked and holding: same reply text for every email; code `crypto.randomInt` (6 digits),
 stored only as `sha256(userId:code)`, compared with `timingSafeEqual`, 10 min expiry, 5 tries, one
@@ -119,7 +119,7 @@ document, and that is not checked.
 
 | # | Severity | Where | What an attacker can do | Fix | Status |
 |---|---|---|---|---|---|
-| M2 | **Medium** | `apps/backend-api/src/routes/restaurantRouter.ts:1074` (`POST /restaurants/:id/documents`), `routes/riderRouter.ts:424` (`POST /riders/documents`); `modules/platform/blockedIdentifiers.ts` `banAccount` | A blocked person registers again with a new email and phone and no FSSAI (it is optional at sign-up, `authRouter.ts:505`), then uploads their banned FSSAI (or, as a rider, their banned driving-licence number) as a document. **Proven:** an unbanned partner uploaded a blocked partner's FSSAI number → `201` accepted. Also, `banAccount` takes numbers only from the restaurant/rider records, never from the person's KYC documents, so a PAN, or an FSSAI/licence that exists only on a document, is never banned. | (1) `banAccount`: also ban every `documentNumber` on the person's KYC documents (FSSAI, GSTIN, PAN, DRIVING_LICENSE → kinds fssai/gstin/pan/license; add `pan`). (2) Call `assertNotBanned` in both document upload routes (by `documentType`) and when an admin approves a document. (3) Repeat `assertNotBanned` on the confirm-link POST (`authRouter.ts` `/confirm/:token`) for `pending.body` (phone, email, FSSAI, GSTIN, licence): today a ban applied during the 30-minute window is not re-checked. | open |
+| M2 | **Medium** | `apps/backend-api/src/routes/restaurantRouter.ts:1074` (`POST /restaurants/:id/documents`), `routes/riderRouter.ts:424` (`POST /riders/documents`); `modules/platform/blockedIdentifiers.ts` `banAccount` | A blocked person registers again with a new email and phone and no FSSAI (it is optional at sign-up, `authRouter.ts:505`), then uploads their banned FSSAI (or, as a rider, their banned driving-licence number) as a document. **Proven:** an unbanned partner uploaded a blocked partner's FSSAI number → `201` accepted. Also, `banAccount` takes numbers only from the restaurant/rider records, never from the person's KYC documents, so a PAN, or an FSSAI/licence that exists only on a document, is never banned. | (1) `banAccount`: also ban every `documentNumber` on the person's KYC documents (FSSAI, GSTIN, PAN, DRIVING_LICENSE → kinds fssai/gstin/pan/license; add `pan`). (2) Call `assertNotBanned` in both document upload routes (by `documentType`) and when an admin approves a document. (3) Repeat `assertNotBanned` on the confirm-link POST (`authRouter.ts` `/confirm/:token`) for `pending.body` (phone, email, FSSAI, GSTIN, licence): today a ban applied during the 30-minute window is not re-checked. | **fixed** `0bed223` (deployed 18 Oct): both upload routes, the rider licence edit and the confirm-link POST check the ban; `banAccount` also bans KYC document numbers (new kind `pan`) and a removed account's real email/phone. **Proven:** the same upload now → 403 `IDENTITY_BLOCKED`; turning the check off fails 6 checks in `removeAndBlock`. Advised (open, one line): also check at document **approval**, for a number uploaded *before* its owner was banned |
 
 Checked and holding:
 
@@ -143,7 +143,7 @@ to email a "set your password" code instead of a temporary password.
 
 | # | Severity | Where | What an attacker can do | Fix | Status |
 |---|---|---|---|---|---|
-| L11 | Low | `apps/backend-api/src/routes/admin/peopleRoutes.ts` `POST /admin/accounts/create` | The 12-character temporary password is sent in the email body and never expires; nothing forces a change. Anyone who later reads that inbox (or a mistyped address's owner) holds a working partner/rider password. | Create the account with no password and a `passwordReset` code (24 h), emailing "set your password with this code" through `/auth/password/reset` (allow `resettable` for a password-less account that carries an admin-issued code). No password travels by email. | open |
+| L11 | Low | `apps/backend-api/src/routes/admin/peopleRoutes.ts` `POST /admin/accounts/create` | The 12-character temporary password is sent in the email body and never expires; nothing forces a change. Anyone who later reads that inbox (or a mistyped address's owner) holds a working partner/rider password. | Create the account with no password and a `passwordReset` code (24 h), emailing "set your password with this code" through `/auth/password/reset` (allow `resettable` for a password-less account that carries an admin-issued code). No password travels by email. | **fixed** `12bbc0c`: no password is set or emailed; a 24 h set-password code instead (`issuePasswordCode`) |
 
 Checked and holding:
 
@@ -159,6 +159,20 @@ Checked and holding:
   never let an unverified number capture another person's sign-in.
 - Email change must prove the current owner as well as the new inbox (current password, or a code
   to the old email), then sign out other sessions (`tokenVersion`) and notify the old address.
+
+## 1f. Verification, 18 Oct 2026 — `b5043a4` (item 18), `12bbc0c` (L9, L10, L11), `0bed223` (M2)
+
+Item 18 is built as advised: mobile numbers change through support until SMS codes are live
+(`PHONE_CHANGE_VIA_SUPPORT`; `PATCH /auth/me` and `/riders/me` refuse a different number); an email
+change needs the current password (or, for an account without one, a code to the **old** email)
+plus a code to the new email, signs out other devices and notifies the old address. Suites:
+`contactChange` 24/24, `passwordReset` 27/27, `adminCreate` 18/18, `removeAndBlock` 29/29,
+`identity` 56/56. Deployed (uptime reset); not exercised on live.
+
+| # | Severity | Where | What an attacker can do | Fix | Status |
+|---|---|---|---|---|---|
+| L12 | Low | `apps/backend-api/src/routes/authRouter.ts` `/auth/contact/confirm` (`generateToken(updated, req.user!.role)`), and the change-password route's `generateToken(refreshed)` | The fresh token loses `scope: 'customer'`. **Proven:** a Customer-app session of a partner (403 on `/earnings`) changed its email (with the partner's password) and the new token read `/earnings` (200). Needs the partner password, so no outsider gains, but it breaks "kitchen data only behind the Partner app". | Expose the scope in `middlewares/auth.ts` (`req.user.scope = payload.scope`) and pass it on: `generateToken(updated, role, req.user.scope)` in both routes. | open |
+| L13 | Low | `/auth/contact/request` with `currentPassword` | The sign-in rate limit keys on `email`/`phone` in the body; this body has neither, so the current-password check is limited per IP only. Someone holding a stolen session can try that account's password from many IPs. | In `authRateLimiterMiddleware`, when `req.user` is set, key the account bucket on `req.user.id`. | open |
 
 ---
 
