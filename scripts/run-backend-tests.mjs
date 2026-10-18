@@ -111,6 +111,7 @@ const SUITES = [
   'placesGoogle',
   'liveTracking',
   'documentReplace',
+  'securityInputs',
   'deployOverlap',
   'helpChat',
   'kitchenTicket',

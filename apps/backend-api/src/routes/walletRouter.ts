@@ -65,7 +65,7 @@ walletRouter.get('/me', async (req, res, next) => {
 });
 
 // GET /api/wallets/:userId
-walletRouter.get('/:userId', checkWalletAccess, async (req, res) => {
+walletRouter.get('/:userId', checkWalletAccess, async (req, res, next) => {
   try {
     const wallet = await walletRepository.getByUserId(req.params.userId);
     const transactions = await walletRepository.getTransactions(wallet.id);
@@ -77,7 +77,8 @@ walletRouter.get('/:userId', checkWalletAccess, async (req, res) => {
       }
     });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    // To the central handler: it logs the error and never sends its text to the phone (security L1).
+    return next(error);
   }
 });
 

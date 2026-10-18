@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 19 Oct 2026: Security pass, part 1 (master plan Stage F)
+
+- **Documents are photos only (L5).** Partner, rider and `/kyc/submit` uploads must be a JPG/PNG/WebP photo sent from the app. Links and SVG are refused. One rule in `utils/imageInput.ts`.
+- **Dish photos (L6).** A photo or an https link only (`javascript:`, `http:` and SVG are refused). Applies to the partner's dishes, admin edits and bulk menus.
+- **No link is followed for the admin (L8).** An old document stored as a link now answers 409 `DOCUMENT_IS_A_LINK` with the address as text, instead of a redirect. The KYC queue shows the address instead of loading it.
+- **No internal error text in answers (L1).** The restaurant and wallet routes pass errors to the shared handler.
+- **Customer-app session limits (L3).** The Customer-app session of a partner can no longer read the kitchen record (`/restaurants/owner/:id`).
+- **Fixed:** the admin Menu Builder had drifted from the partner copy (font import). Added `theme/index.ts`.
+- New suite `securityInputs`, with each guard mutated and caught.
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Partner, Rider and Operations apps in Lexend Deca (Stage E base feel)
 
 > **For the owner.** The Partner, Rider and Operations apps now use the same **Lexend Deca** font as the

@@ -20,7 +20,7 @@
  *     sends the menu in small batches under one batch id. A batch that was
  *     received but whose answer was lost is not duplicated on retry.
  */
-import { FONT_FAMILY } from '../theme/tokens';
+import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,

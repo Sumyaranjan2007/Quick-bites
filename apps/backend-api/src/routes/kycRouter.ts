@@ -1,3 +1,4 @@
+import { isPhotoData } from '../utils/imageInput.ts';
 import { Router } from 'express';
 import { z } from 'zod';
 import { notifyAdminsKycSubmitted } from '../notifications/adminNotifier.ts';
@@ -51,8 +52,8 @@ const SubmitKycSchema = z
       .string()
       .max(700_000, 'That photo is too large. Take a new one from inside the app.')
       .refine(
-        v => v.startsWith('data:image/') || /^https?:\/\//.test(v),
-        'Attach a photo of the document.'
+        isPhotoData /* JPG/PNG/WebP photo from the app; no links, no SVG (security L5) */,
+        'Attach a photo of the document (JPG or PNG), taken in the app.'
       )
   })
   .superRefine((value, ctx) => {

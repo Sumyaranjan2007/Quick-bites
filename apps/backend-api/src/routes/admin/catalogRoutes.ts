@@ -2,6 +2,7 @@
  * The catalogue: every partner's menu, the queue of changes they have asked for,
  * and the platform-wide categories that organise it.
  */
+import { isImageRef } from '../../utils/imageInput.ts';
 import { optionGroupsFromChoices } from '../../modules/orders/dishOptions.ts';
 import { assertNotBanned } from '../../modules/platform/blockedIdentifiers.ts';
 import { Router } from 'express';
@@ -719,7 +720,7 @@ const ReviewMenuRequestSchema = z.object({
       price: z.number().positive().max(100000).optional(),
       isVeg: z.boolean().optional(),
       categoryName: z.string().trim().min(1).max(80).optional(),
-      imageUrl: z.string().trim().max(200000).optional()
+      imageUrl: z.string().trim().max(200000).refine(v => v === '' || isImageRef(v), 'The dish photo must be a JPG or PNG, or an https link.').optional()
     })
     .optional(),
   /**
@@ -906,7 +907,7 @@ catalogRoutes.get('/categories', requirePermission('catalog.categories.manage', 
 const CategorySchema = z.object({
   name: z.string().trim().min(1).max(60),
   description: z.string().trim().max(300).optional(),
-  imageUrl: z.string().trim().max(200000).optional(),
+  imageUrl: z.string().trim().max(200000).refine(v => v === '' || isImageRef(v), 'The dish photo must be a JPG or PNG, or an https link.').optional(),
   sortOrder: z.number().int().min(0).max(999).optional()
 });
 

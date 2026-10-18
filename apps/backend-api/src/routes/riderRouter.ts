@@ -1,3 +1,4 @@
+import { isPhotoData } from '../utils/imageInput.ts';
 import { recordRiderFix, MAX_SPEED_MPS } from '../modules/riders/liveLocation.ts';
 import { assertNotBanned, kindForDocument } from '../modules/platform/blockedIdentifiers.ts';
 import { normalizeIndianPhone } from '../utils/phone.ts';
@@ -436,7 +437,7 @@ const DocumentUploadSchema = z.object({
   fileUrl: z
     .string()
     .max(700_000, 'That photo is too large. Take a new one from inside the app.')
-    .refine(v => v.startsWith('data:image/') || /^https?:\/\//.test(v), 'Upload a photo of the document.')
+    .refine(isPhotoData /* JPG/PNG/WebP photo from the app; no links, no SVG (security L5) */, 'Upload a photo of the document (JPG or PNG), taken in the app.')
 });
 
 /** POST /api/riders/documents — upload or replace one document. */

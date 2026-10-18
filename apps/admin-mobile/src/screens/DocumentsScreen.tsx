@@ -78,8 +78,15 @@ export const DocumentsScreen: React.FC = () => {
               <Badge label={doc.status} />
             </View>
 
-            {doc.fileUrl ? <Image source={{ uri: doc.fileUrl }} style={s.scan} resizeMode="contain" /> : null}
-            <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} />
+            {/* Only a photo sent from the app is shown; an old link is never fetched (security L8). */}
+            {String(doc.fileUrl).startsWith('data:image/') ? (
+              <>
+                <Image source={{ uri: doc.fileUrl }} style={s.scan} resizeMode="contain" />
+                <DownloadButton source={doc.fileUrl} name={documentFileName([doc.entityName, doc.documentType, doc.documentNumber])} />
+              </>
+            ) : doc.fileUrl ? (
+              <KeyValue label="Sent as a link, not a photo" value={String(doc.fileUrl)} />
+            ) : null}
 
             <KeyValue label="Document number" value={doc.documentNumber} tone="strong" />
             <KeyValue label="Contact" value={doc.entityPhone} />

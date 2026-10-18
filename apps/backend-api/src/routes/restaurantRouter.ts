@@ -1,3 +1,4 @@
+import { isPhotoData, isImageRef } from '../utils/imageInput.ts';
 import { assertNotBanned, kindForDocument } from '../modules/platform/blockedIdentifiers.ts';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -118,7 +119,7 @@ function numberParam(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-restaurantRouter.get('/', async (req, res) => {
+restaurantRouter.get('/', async (req, res, next) => {
   try {
     const lat = numberParam(req.query.lat);
     const lng = numberParam(req.query.lng);
@@ -402,17 +403,19 @@ restaurantRouter.get('/', async (req, res) => {
       }
     });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    // To the central handler: it logs the error and never sends its text to the phone (security L1).
+    return next(error);
   }
 });
 
 // GET /api/restaurants/owner/:ownerId
-restaurantRouter.get('/owner/:ownerId', authMiddleware(), async (req: any, res) => {
+restaurantRouter.get('/owner/:ownerId', authMiddleware(), async (req: any, res, next) => {
   try {
     // Only the owner, or staff. It returns the kitchen's own prices and full
     // record, and used to answer anybody who knew an owner's user id.
     const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin';
-    if (!isStaff && req.user?.id !== req.params.ownerId) {
+    // A Customer-app session of the owner is customer-only (security L3).
+    if (!isStaff && (req.user?.id !== req.params.ownerId || req.user?.scope === 'customer')) {
       return res.status(403).json({
         success: false,
         error: { code: 'NOT_RESTAURANT_OWNER', message: 'You do not manage this restaurant.' }
@@ -429,12 +432,13 @@ restaurantRouter.get('/owner/:ownerId', authMiddleware(), async (req: any, res) 
     const menu = await menuRepository.findByRestaurantId(found.id);
     return res.json({ success: true, data: { restaurant: found, menu } });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    // To the central handler: it logs the error and never sends its text to the phone (security L1).
+    return next(error);
   }
 });
 
 // GET /api/restaurants/:id
-restaurantRouter.get('/:id', async (req, res) => {
+restaurantRouter.get('/:id', async (req, res, next) => {
   try {
     const restaurant = await restaurantRepository.findById(req.params.id);
     if (!restaurant) {
@@ -450,12 +454,13 @@ restaurantRouter.get('/:id', async (req, res) => {
     );
     return res.json({ success: true, data: { restaurant: publicRestaurant({ ...restaurant, fssaiVerified }), menu } });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    // To the central handler: it logs the error and never sends its text to the phone (security L1).
+    return next(error);
   }
 });
 
 // GET /api/restaurants/:id/menu
-restaurantRouter.get('/:id/menu', async (req, res) => {
+restaurantRouter.get('/:id/menu', async (req, res, next) => {
   try {
     // Marked up for the customer. This is a VIEW: `inflateMenuForCustomer`
     // never writes, so the kitchen's stored menu cannot drift upward on
@@ -469,7 +474,8 @@ restaurantRouter.get('/:id/menu', async (req, res) => {
     }
     return res.json({ success: true, data: { menu } });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    // To the central handler: it logs the error and never sends its text to the phone (security L1).
+    return next(error);
   }
 });
 
@@ -559,7 +565,8 @@ const MenuItemSchema = z.object({
   price: z.number().positive('price must be greater than zero').max(100000),
   isVeg: z.boolean(),
   isAvailable: z.boolean().optional().default(true),
-  imageUrl: z.string().url('imageUrl must be a valid URL').optional(),
+  // A photo from the app or an https link; never javascript: or SVG (security L6).
+  imageUrl: z.string().max(200000).refine(isImageRef, 'The dish photo must be a JPG or PNG, or an https link.').optional(),
   categoryName: z.string().min(1, 'categoryName is required').max(80)
 });
 
@@ -1059,8 +1066,8 @@ const UploadDocumentSchema = z.object({
     .string()
     .max(700_000, 'That photo is too large. Take a new one from inside the app.')
     .refine(
-      v => v.startsWith('data:image/') || /^https?:\/\//.test(v),
-      'Attach a photo of the document.'
+      isPhotoData /* JPG/PNG/WebP photo from the app; no links, no SVG (security L5) */,
+      'Attach a photo of the document (JPG or PNG), taken in the app.'
     )
 });
 

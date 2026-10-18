@@ -207,7 +207,7 @@ async function run() {
         entityId: newRestaurantId,
         entityName: 'Meera Rao Kitchen',
         documentType: 'FSSAI_LICENSE',
-        fileUrl: 'https://example.test/fssai.jpg'
+        fileUrl: 'data:image/png;base64,iVBORw0KGgo='
       }
     },
     partnerToken
@@ -244,7 +244,7 @@ async function run() {
           entityName: 'Meera Rao Kitchen',
           documentType,
           documentNumber,
-          fileUrl: 'https://example.test/doc.jpg'
+          fileUrl: 'data:image/png;base64,iVBORw0KGgo='
         }
       },
       partnerToken
@@ -265,7 +265,7 @@ async function run() {
           entityId: newRiderId,
           entityName: 'Arjun Nair',
           documentType,
-          fileUrl: 'https://example.test/licence.jpg'
+          fileUrl: 'data:image/png;base64,iVBORw0KGgo='
         }
       },
       riderToken

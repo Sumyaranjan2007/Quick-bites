@@ -15,6 +15,7 @@
  * once, with the total, rather than once per batch.
  */
 import { z } from 'zod';
+import { isImageRef } from '../../utils/imageInput.ts';
 import { menuRequestRepository } from '../../db/repositories/menuRequestRepository.ts';
 import { AppError } from '../../utils/AppError.ts';
 import type { MenuChangeRequest } from '@quick-bites/shared-types';
@@ -26,7 +27,7 @@ export const MenuDishSchema = z.object({
   price: z.number().positive('Price must be greater than zero').max(100000),
   isVeg: z.boolean(),
   categoryName: z.string().trim().min(1, 'Category is required').max(80),
-  imageUrl: z.string().trim().max(200000).optional(),
+  imageUrl: z.string().trim().max(200000).refine(v => v === '' || isImageRef(v), 'The dish photo must be a JPG or PNG, or an https link.').optional(),
   sizes: z
     .array(
       z.object({

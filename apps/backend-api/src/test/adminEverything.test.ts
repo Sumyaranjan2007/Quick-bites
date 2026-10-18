@@ -321,7 +321,7 @@ try {
   captureSends();
   const upload = await api(
     `/restaurants/${restaurantId}/documents`,
-    { method: 'POST', body: { documentType: 'GSTIN', documentNumber: '29ABCDE1234F1Z5', fileUrl: 'https://example.test/gst.pdf' } },
+    { method: 'POST', body: { documentType: 'GSTIN', documentNumber: '29ABCDE1234F1Z5', fileUrl: 'data:image/png;base64,iVBORw0KGgo=' } },
     partner.token
   );
 
@@ -341,7 +341,7 @@ try {
   captureSends();
   const riderUpload = await api(
     '/riders/documents',
-    { method: 'POST', body: { documentType: 'AADHAAR', documentNumber: '999988887777', fileUrl: 'https://example.test/aadhaar.pdf' } },
+    { method: 'POST', body: { documentType: 'AADHAAR', documentNumber: '999988887777', fileUrl: 'data:image/png;base64,iVBORw0KGgo=' } },
     rider.token
   );
 

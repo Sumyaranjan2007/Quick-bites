@@ -495,7 +495,7 @@ try {
         entityId: 'rst_bbh_01',
         entityName: 'Biryani By Heart',
         documentType: 'GSTIN',
-        fileUrl: 'https://example.test/gstin.jpg'
+        fileUrl: 'data:image/png;base64,iVBORw0KGgo='
       }
     },
     partnerLogin.token

@@ -174,9 +174,10 @@ try {
   const gone = await get(`${RIDER}/documents/${missing.id}/file`, admin);
   it('A missing file is 404 FILE_MISSING', () => assert.equal(gone.json?.error?.code, 'FILE_MISSING'));
   const link = await get(`/admin/records/restaurant/rst_bbh_01/documents/${fssai.id}/file`, admin);
-  it('A document kept as a link redirects to it', () => {
-    assert.equal(link.status, 302);
-    assert.equal(link.location, fssai.fileUrl);
+  it('A document kept as a link is not followed: 409 DOCUMENT_IS_A_LINK with the address as text (L8)', () => {
+    assert.equal(link.status, 409);
+    assert.equal(link.json?.error?.code, 'DOCUMENT_IS_A_LINK');
+    assert.ok(String(link.json?.error?.message).includes(fssai.fileUrl));
   });
 
   const all = await get(`${RIDER}/documents.zip`, ops);

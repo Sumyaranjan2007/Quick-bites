@@ -157,7 +157,14 @@ recordRoutes.get('/records/:kind/:id/documents/:docId/file', ...mayView, require
     const kind = fileKind(doc.fileUrl);
     if (kind === 'missing') throw new AppError('This document has no file. Ask them to upload it again.', 404, 'FILE_MISSING');
     recordAudit(req, { action: 'DOCUMENT_DOWNLOADED', entityType: 'KYC_DOCUMENT', entityId: doc.id, summary: `Downloaded ${p.name}'s ${doc.documentType}` });
-    if (kind === 'link') return res.redirect(302, doc.fileUrl);
+    // An old document stored as a link is not followed for the admin (security L8): its address is
+    // given as text so it is opened knowingly. New uploads cannot be links any more (L5).
+    if (kind === 'link') {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'DOCUMENT_IS_A_LINK', message: `This document is a link, not a photo: ${doc.fileUrl}. Ask them to upload a photo instead.` }
+      });
+    }
     const file = decode(doc.fileUrl);
     if (!file) throw new AppError('This document has no file. Ask them to upload it again.', 404, 'FILE_MISSING');
     res.setHeader('Content-Type', file.type);
