@@ -33,6 +33,16 @@ Checked by `authMiddleware` (`middlewares/auth.ts`): password changed → `SESSI
 - A code counts as **email-proven** only when it really went through Brevo (not `fixed`, not the reviewer number): `emailed` set at `otpService.ts:180`, returned as `emailProven` from `verify` (`:227-280`).
 - Limits: `OTP_TTL_MINUTES` (10 on live), `OTP_MAX_ATTEMPTS`, `OTP_RESEND_COOLDOWN_SECONDS`.
 
+## Forgot password (18 Oct 2026, master plan B6)
+
+Partners, riders and staff: `POST /api/auth/password/forgot` `{ email }` → the same reply for every
+email; for an account with a password (not the `ADMIN_EMAIL` super admin, not blocked) a 6-digit code
+is emailed (Brevo), stored only as a hash on the user (`passwordReset`), 10 minutes, 5 tries, one email
+a minute. `POST /api/auth/password/reset` `{ email, code, newPassword }` sets the password and raises
+`tokenVersion` (every other device signed out). Wrong/expired/used code → 400 `INVALID_RESET_CODE`.
+`passwordReset` is stripped from every user response along with `passwordHash`. Suite `passwordReset`.
+Customers keep signing in with a code; the apps' "forgot" screens move onto this in Stage E.
+
 ## One account, several roles (17 Oct 2026)
 
 | Piece | Where |

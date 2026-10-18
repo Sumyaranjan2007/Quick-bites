@@ -105,7 +105,7 @@ Status: ⬜ not started · 🟨 exists partly today · ✅ built in this plan.
 | 9 | Partner switches off a **whole menu section** (e.g. dosa after 7 pm) | server ✅: section switch with optional "back at" time, partner + admin routes, `modules/restaurants/menuSections.ts`; switches in the apps in Stage E | B5 | ✅ 18 Oct (apps E) |
 | 10 | Every Admin/Partner app feature also on the websites | **automatic**: the websites are the same app code (`scripts/build-web.mjs`); each stage checks the web build | all | ✅ (by design) |
 | 11 | KYC and uploads arranged **per person** (restaurant, rider, customer), view and download | server ✅: `GET /api/admin/records/:kind/:id` (documents grouped, photos, tickets, history, each by permission), one file or all as ZIP (`routes/admin/recordRoutes.ts`); Record screen in Stage E | B7 | ✅ 18 Oct (app E) |
-| 12 | Forgot password with email code; admin can reset for partner/rider | emailed reset codes were removed (`delivery-mobile/src/screens/LoginScreen.tsx:251`); admin reset exists (`/admin/staff/:id/reset-password`) | B6 | 🟨 |
+| 12 | Forgot password with email code; admin can reset for partner/rider | server ✅ forgot/reset by email code (`/api/auth/password/forgot`, `/reset`, suite `passwordReset`); admin reset for partner/rider next; app screens in Stage E | B6 | 🟨 (server forgot ✅) |
 | 13 | Customer: liked restaurants in a **Favourites** section | favourites saved (`/customers/favourites`), heart on cards; no section | D3 | 🟨 |
 | 14 | Rider delete = request; admin approves after seeing everything | request flow exists (`modules/platform/staffDeletion.ts`, People → Deletion requests); review page thin | B6 | 🟨 |
 | 15 | Same for restaurants | partner request exists (Help Centre); same review page | B6 | 🟨 |

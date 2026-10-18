@@ -246,7 +246,7 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-    const { passwordHash, ...safeUser } = user;
+    const { passwordHash, passwordReset, ...safeUser } = user as any;
     // Whether this account has a password at all. A customer who signed up with
     // a phone code never set one, and the app must not ask them for it — to
     // delete the account, or on a "change password" row.
@@ -298,7 +298,7 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
     const updated = await userRepository.updateProfile(req.user!.id, req.body);
     if (!updated) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
 
-    const { passwordHash, ...safeUser } = updated as any;
+    const { passwordHash, passwordReset, ...safeUser } = updated as any;
     res.json({
       success: true,
       data: { user: safeUser },
@@ -1420,6 +1420,97 @@ authRouter.post(
     }
   }
 );
+
+/*
+ * Forgot password (master plan B6, 18 Oct 2026): a 6-digit code to the account's
+ * email, then a new password. For accounts that have a password (partners,
+ * riders, staff); a customer-only account signs in with a phone code instead.
+ *
+ * The reply to "send me a code" is the same whether or not the email has an
+ * account (review D8), so the form cannot be used to find out who is a partner.
+ * The code is stored only as a hash on the user record, lasts 10 minutes, allows
+ * 5 tries, and one email a minute. Setting the new password signs out every
+ * other device, as change-password does.
+ */
+const RESET_TTL_MS = 10 * 60_000;
+const RESET_TRIES = 5;
+const resetHash = (userId: string, code: string) => crypto.createHash('sha256').update(`${userId}:${code}`).digest('hex');
+const FORGOT_REPLY = 'If that email has a Quick Bites password, a 6-digit code is on its way. It works for 10 minutes. Check spam too.';
+const BAD_RESET = () => new AppError('That code is not right, or it has expired. Ask for a new one.', 400, 'INVALID_RESET_CODE');
+
+const ForgotPasswordSchema = z.object({ email: z.string().trim().toLowerCase().email('Enter a valid email address.') });
+const ResetPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.'),
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from the email.'),
+  newPassword: z.string().min(8, 'Choose a password of at least 8 characters.').max(128)
+});
+
+/** The accounts this flow is for: has a password, and is not the super admin re-applied from ADMIN_EMAIL at every boot. */
+function resettable(user: any): boolean {
+  if (!user?.passwordHash || user.isBlocked) return false;
+  return !(config.ADMIN_EMAIL && user.email?.toLowerCase() === config.ADMIN_EMAIL.toLowerCase());
+}
+
+/** POST /api/auth/password/forgot — emails a reset code; same answer for every email. */
+authRouter.post('/password/forgot', authRateLimiterMiddleware, validate({ body: ForgotPasswordSchema }), async (req, res, next) => {
+  try {
+    const user: any = await userRepository.findByEmail(req.body.email);
+    const now = Date.now();
+    const recent = user?.passwordReset && now - Date.parse(user.passwordReset.sentAt) < 60_000;
+    if (resettable(user) && !recent) {
+      const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+      await userRepository.update(user.id, {
+        passwordReset: {
+          codeHash: resetHash(user.id, code),
+          sentAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + RESET_TTL_MS).toISOString(),
+          triesLeft: RESET_TRIES
+        }
+      } as any);
+      await persistDurably();
+      const text = `Your Quick Bites password reset code is ${code}. It works for 10 minutes. If you did not ask for it, ignore this email: your password has not changed.`;
+      const sent = await sendEmail(user.email, 'Your Quick Bites password reset code', text, `<p>${text}</p>`);
+      // Off production the logged code stands in for the email (QA server), as for confirm links.
+      if (config.NODE_ENV !== 'production') console.log(JSON.stringify({ level: 'INFO', event: 'PASSWORD_RESET_CODE', email: user.email, code }));
+      if (!sent.accepted && config.NODE_ENV === 'production') {
+        console.error(JSON.stringify({ level: 'ERROR', event: 'PASSWORD_RESET_EMAIL_FAILED', userId: user.id, error: sent.error }));
+      }
+    }
+    res.json({ success: true, data: { sent: true }, message: FORGOT_REPLY });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /api/auth/password/reset — the code from the email and a new password. */
+authRouter.post('/password/reset', authRateLimiterMiddleware, validate({ body: ResetPasswordSchema }), async (req, res, next) => {
+  try {
+    const user: any = await userRepository.findByEmail(req.body.email);
+    const pending = user?.passwordReset;
+    if (!resettable(user) || !pending) throw BAD_RESET();
+    if (Date.now() > Date.parse(pending.expiresAt) || !(pending.triesLeft > 0)) {
+      await userRepository.update(user.id, { passwordReset: undefined } as any);
+      throw BAD_RESET();
+    }
+    const given = Buffer.from(resetHash(user.id, req.body.code));
+    const expected = Buffer.from(pending.codeHash);
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      const triesLeft = pending.triesLeft - 1;
+      await userRepository.update(user.id, { passwordReset: triesLeft > 0 ? { ...pending, triesLeft } : undefined } as any);
+      await persistDurably();
+      throw BAD_RESET();
+    }
+    await userRepository.update(user.id, {
+      passwordHash: await bcrypt.hash(req.body.newPassword, 10),
+      tokenVersion: (Number(user.tokenVersion) || 0) + 1,
+      passwordReset: undefined
+    } as any);
+    await persistDurably();
+    res.json({ success: true, data: { reset: true }, message: 'Your password has been changed. Sign in with the new one.' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * POST /api/auth/logout

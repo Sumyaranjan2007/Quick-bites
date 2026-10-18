@@ -173,7 +173,7 @@ peopleRoutes.get('/customers/:id', requirePermission('users.customers.view'), as
 
     const orders = await orderRepository.listByCustomerId(user.id);
     const wallet = await walletRepository.getByUserId(user.id);
-    const { passwordHash, ...safe } = user as any;
+    const { passwordHash, passwordReset, ...safe } = user as any;
 
     res.json({
       success: true,
@@ -269,7 +269,7 @@ peopleRoutes.patch(
         after: req.body
       });
 
-      const { passwordHash, ...safe } = (updated || {}) as any;
+      const { passwordHash, passwordReset, ...safe } = (updated || {}) as any;
       res.json({ success: true, data: { customer: safe } });
     } catch (err) {
       next(err);

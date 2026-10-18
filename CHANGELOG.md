@@ -6,6 +6,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B6 step 1: forgot password by email code (server)
+
+> **For the owner.** Partners, riders and staff can now get a 6-digit code by email to set a new
+> password, instead of phoning operations. The server part is live with this push; the "Forgot
+> password" screens in the Partner, Rider and Operations apps switch to it in the next app build
+> (Stage E). Typing an email that is not ours gets the same reply, so the form cannot be used to
+> find out who is a partner. Setting a new password signs that person out everywhere else.
+
+- `POST /api/auth/password/forgot`, `POST /api/auth/password/reset` (`authRouter.ts`): code hashed on
+  the user record (`passwordReset`), 10 min, 5 tries, 1 email a minute, constant-time compare,
+  `tokenVersion` raised on success; not for the `ADMIN_EMAIL` super admin or blocked accounts.
+- `passwordReset` removed from every response that already removed `passwordHash` (authRouter,
+  admin `peopleRoutes`, `rbacRoutes`).
+- New suite `passwordReset` (16 checks; 4 guards mutation-checked). Docs: `AUTH_AND_ROLES`.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Phone change needs a code (M1 round 2); unpinned kitchen no longer blocks cash (T1)
 
 > **For the owner.** A customer can no longer switch their profile to a different mobile

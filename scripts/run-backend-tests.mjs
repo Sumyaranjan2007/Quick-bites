@@ -104,6 +104,7 @@ const SUITES = [
   'abuseGuards',
   'profitGuards',
   'deliveryRadius',
+  'passwordReset',
   'helpChat',
   'kitchenTicket',
   'personRecord',

@@ -156,7 +156,7 @@ rbacRoutes.get('/admins', requirePermission('admin.accounts.manage', 'admin.role
       data: {
         admins: staff.map(user => {
           const access = resolveAccess(user);
-          const { passwordHash, ...safe } = user as any;
+          const { passwordHash, passwordReset, ...safe } = user as any;
           return {
             ...safe,
             roleId: user.adminRoleId || null,
@@ -219,7 +219,7 @@ rbacRoutes.post('/admins', requireSuperAdmin, validate({ body: CreateAdminSchema
       after: { email: user.email, roleId: role.id }
     });
 
-    const { passwordHash, ...safe } = user as any;
+    const { passwordHash, passwordReset, ...safe } = user as any;
     res.status(201).json({ success: true, data: { admin: { ...safe, roleName: role.name } } });
   } catch (err) {
     next(err);
@@ -274,7 +274,7 @@ rbacRoutes.patch('/admins/:id', requireSuperAdmin, validate({ body: AssignRoleSc
     });
 
     const updated = await userRepository.findById(user.id);
-    const { passwordHash, ...safe } = (updated || {}) as any;
+    const { passwordHash, passwordReset, ...safe } = (updated || {}) as any;
     res.json({ success: true, data: { admin: safe } });
   } catch (err) {
     next(err);
