@@ -1,3 +1,6 @@
+import { HeroSlideshow } from '../components/HeroSlideshow';
+import { CodeBoxes } from '../components/CodeBoxes';
+import { haptic } from '../lib/haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -9,7 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image
+  Image,
+  useWindowDimensions
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Phone, Mail, Server, ShieldCheck, User, ArrowLeft } from 'lucide-react-native';
@@ -52,7 +56,10 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
 
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
+  const [codeValue, setCode] = useState('');
+  const code = codeValue;
+  const [shakeKey, setShakeKey] = useState(0);
+  const { height: windowHeight } = useWindowDimensions();
   const [fullName, setFullName] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -128,7 +135,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
     }
   };
 
-  const verifyCode = async () => {
+  const verifyCode = async (typed?: string) => {
+    const code = typed ?? codeValue;
     if (code.length < 4) {
       setFieldErrors({ code: 'Enter the code we sent you.' });
       return;
@@ -145,6 +153,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
 
       if (res.ok && data.success && data.data?.token) {
         const { token, user, isNewAccount } = data.data;
+        haptic.success();
         if (isNewAccount) {
           // The account is already created and the session is valid; only the
           // name is missing, so this step can be skipped without losing it.
@@ -155,6 +164,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
           onLoginSuccess(token, user, apiUrl);
         }
       } else {
+        haptic.warning();
+        setShakeKey(k => k + 1);
         const parsed = parseApiError(data, 'That code is not right. Check it and try again.');
         setFieldErrors(parsed.fieldErrors);
         setFormError(Object.keys(parsed.fieldErrors).length ? null : parsed.message);
@@ -207,19 +218,21 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Real food from our partner kitchens, fading into the form (D2). */}
+        <HeroSlideshow
+          apiUrl={apiUrl}
+          height={Math.round(windowHeight * 0.42)}
+          logo={require('../../assets/logo-mark.png')}
+          tagline={t('auth.tagline')}
+          onTouchEnd={serverSettingsAllowed ? registerTap : undefined}
+        />
         {!!onCancel && (
           <TouchableOpacity style={styles.notNow} onPress={onCancel} hitSlop={10} accessibilityRole="button">
             <Text style={styles.notNowText}>Not now</Text>
           </TouchableOpacity>
         )}
-        <View style={styles.brand} onTouchEnd={serverSettingsAllowed ? registerTap : undefined}>
-          <View style={styles.logoFrame}>
-            <Image source={require('../../assets/logo-mark.png')} style={styles.logo} resizeMode="contain" />
-          </View>
-          <Text style={styles.brandName}>Quick Bites</Text>
-          <Text style={styles.brandTag}>{t('auth.tagline')}</Text>
-        </View>
+        <View style={styles.content}>
 
         <Card style={styles.card}>
           {step === 'phone' && (
@@ -301,23 +314,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
               )}
 
               <Text style={styles.label}>{t('auth.verificationCode')}</Text>
-              <View style={[styles.field, !!fieldErrors.code && styles.fieldError]}>
-                <ShieldCheck size={17} color={c.text.muted} />
-                <TextInput
-                  style={[styles.input, styles.codeInput]}
-                  value={code}
-                  onChangeText={v => setCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
-                  maxLength={6}
-                  placeholder="------"
-                  placeholderTextColor={c.text.muted}
-                  keyboardType="number-pad"
-                  // iPhone offers a code from Mail or Messages above the keyboard.
-                  textContentType="oneTimeCode"
-                  autoFocus
-                  returnKeyType="go"
-                  onSubmitEditing={verifyCode}
-                />
-              </View>
+              {/* Six boxes; checks itself at the sixth digit; a wrong code shakes them (D2). */}
+              <CodeBoxes value={code} onChange={setCode} onComplete={v => void verifyCode(v)} shakeKey={shakeKey} hasError={!!fieldErrors.code} />
               {!!fieldErrors.code && <Text style={styles.fieldErrorText}>{fieldErrors.code}</Text>}
 
               {!!formError && (
@@ -328,7 +326,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
 
               <TouchableOpacity
                 style={[styles.primaryBtn, loading && styles.btnDisabled]}
-                onPress={verifyCode}
+                onPress={() => void verifyCode()}
                 disabled={loading}
                 activeOpacity={0.9}
               >
@@ -421,6 +419,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
             </View>
           )}
         </Card>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -428,9 +427,10 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
-  content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
-  notNow: { position: 'absolute', top: 8, right: 20, minHeight: 44, justifyContent: 'center' },
-  notNowText: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '600', color: c.primary[500] },
+  scroll: { flexGrow: 1 },
+  content: { padding: 20, marginTop: -24, paddingBottom: 40 },
+  notNow: { position: 'absolute', top: 44, right: 20, minHeight: 44, justifyContent: 'center' },
+  notNowText: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
 
   brand: { alignItems: 'center', marginBottom: 26 },
   /**

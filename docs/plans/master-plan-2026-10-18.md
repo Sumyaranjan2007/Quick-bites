@@ -239,7 +239,7 @@ Recipe: `customer-app-feel-2026-10-17.md` phases 1–4 and `design/motion/`.
 | Step | What |
 |---|---|
 | D1 | Base: tokens, Lexend Deca (✅ 19 Oct), `PressableScale` (✅ 19 Oct), soft haptics (Android + iPhone, ✅ 19 Oct, Profile switch), `FoodImage` ✅, skeletons ✅, screen change ✅ |
-| D2 | Sign-in screen (Q4 artwork) + code screen |
+| D2 | ✅ 19 Oct Sign-in screen (partner-photo slideshow) + 6-box code screen |
 | D3 | **Location first** (#7): after sign-in, a full-screen "Where should we deliver?" (use my location / search / saved addresses / save this exact pin with house, floor, landmark); skipping shows "Recommended by Quick Bites" (B5) with a banner "Set your location to see every restaurant near you". Home → Favourites section (#13) above the main list when you have any. |
 | D4 | Home, search, restaurant page (section switch greys a whole section, "Not delivering currently", Pure Veg seal badge), add to cart, dish sheet, checkout |
 | D5 | ✅ 19 Oct (our bike icon glides between fixes and turns to the heading; stale fades) **Tracking with the moving bike** (#21): Google map, our own bike icon (top-down, maroon, flat, rotates to heading); each GPS fix → marker glides from the last point to the new one over the time between fixes (Android `animateMarkerToCoordinate`, iPhone `AnimatedRegion` timing, both documented by react-native-maps), heading from the last two snapped points; camera fits kitchen + bike + home and eases, stops following while the customer drags; route line from Routes API polyline; "We're ahead of time!" card (B3) |

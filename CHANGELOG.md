@@ -6,6 +6,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Customer app: new sign-in screen (D2)
+
+> **For the owner.** The sign-in screen now opens on **real food photos from our partner kitchens**
+> (from the public restaurant list, so no stock pictures), slowly zooming and cross-fading every 5
+> seconds, fading into our maroon with the logo and tagline; the form sits below. The code is now
+> **six boxes**: they fill as you type or paste, check themselves at the sixth digit (no button
+> needed), and a wrong code shakes them with a short vibration; a right one gives a success tap.
+> Emulator-checked: photos, wrong code, right code, sign-in. With no partner photos yet (or offline)
+> the top shows our brand colour and logo.
+
+- `components/HeroSlideshow.tsx` (expo-image, Reanimated zoom, SVG gradient), `components/CodeBoxes.tsx`
+  (one hidden field under six boxes: paste and one-time-code suggestions work), `LoginScreen` uses
+  both; `haptic.success` / `haptic.warning` on verify.
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Customer app: moving bike on the tracking map, photos, loading and screen motion (D1, D5)
 
 > **For the owner.** On the tracking screen the rider is now **our own bike icon** (maroon scooter, amber
