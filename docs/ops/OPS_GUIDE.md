@@ -202,6 +202,7 @@ Events worth a look, all logged as JSON with `event` (`grep -rn "event: '" apps/
 |---|---|---|
 | 18 Oct 2026 | Deploy `bd5ca2b` (K1–K3) checked | `/health` uptime reset to 42 s at 19:42:30 UTC, all services up; malformed Origin → 403 `ORIGIN_NOT_ALLOWED` live |
 | 18 Oct 2026 | Deploy `0a33e95` (security M1/L7/L1, review R2/R3) checked | new server live ~21:49:07 UTC (uptime 1251 s → 9 s), all services up, circuits closed. M1 (409 `PHONE_IN_USE`) **not observed live**: proving it needs a signed-in live account; proven locally instead (`identity` suite, 54 PASS / 0 FAIL, "A customer cannot put a partner's number on their own profile"). Anonymous probes unchanged (login `{}` → 400, `PATCH /auth/me` without token → 401). |
+| 18 Oct 2026 | Deploy `55d62d5` (B6 forgot password; with `5bddb01`, `5e93f1b`, `08e0cfe`, `83d0a31`) checked | before: `POST /api/auth/password/forgot` → 404 at 02:36:59 UTC, uptime 16349 s. New server live ~02:37:56 UTC (uptime 10 s at 02:38:06), all services up, circuits closed. Observed live: made-up address `nobody-qa@example.com` → **200** `{"sent":true}` with the standard reply ("If that email has a Quick Bites password, a 6-digit code is on its way…"). No real account used. |
 
 ## Sources
 
