@@ -15,7 +15,7 @@ import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { adminRoleRepository, sanitizePermissions } from '../../db/repositories/adminRoleRepository.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
-import { userRepository } from '../../db/repositories/userRepository.ts';
+import { userRepository, publicUser } from '../../db/repositories/userRepository.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { resolveAccess } from '../../modules/admin/permissions.ts';
 import { ADMIN_PERMISSION_GROUPS } from '@quick-bites/shared-types';
@@ -156,7 +156,7 @@ rbacRoutes.get('/admins', requirePermission('admin.accounts.manage', 'admin.role
       data: {
         admins: staff.map(user => {
           const access = resolveAccess(user);
-          const { passwordHash, passwordReset, contactChange, ...safe } = user as any;
+          const safe = publicUser(user);
           return {
             ...safe,
             roleId: user.adminRoleId || null,
@@ -219,7 +219,7 @@ rbacRoutes.post('/admins', requireSuperAdmin, validate({ body: CreateAdminSchema
       after: { email: user.email, roleId: role.id }
     });
 
-    const { passwordHash, passwordReset, contactChange, ...safe } = user as any;
+    const safe = publicUser(user);
     res.status(201).json({ success: true, data: { admin: { ...safe, roleName: role.name } } });
   } catch (err) {
     next(err);
@@ -274,7 +274,7 @@ rbacRoutes.patch('/admins/:id', requireSuperAdmin, validate({ body: AssignRoleSc
     });
 
     const updated = await userRepository.findById(user.id);
-    const { passwordHash, passwordReset, contactChange, ...safe } = (updated || {}) as any;
+    const safe = publicUser(updated);
     res.json({ success: true, data: { admin: safe } });
   } catch (err) {
     next(err);

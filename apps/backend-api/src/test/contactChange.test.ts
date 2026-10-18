@@ -146,6 +146,23 @@ try {
     assert.equal(licence.json?.error?.code, 'REVIEWED_FIELD_LOCKED', `status ${licence.status} (kyc ${riderRec.kycStatus})`));
   const sameName = await api('/riders/me', { method: 'PATCH', body: { fullName: 'Vikram Singh' } }, riderToken);
   it('...while ordinary fields still save', () => assert.equal(sameName.status, 200, `status ${sameName.status}`));
+
+  console.log('\n-- A daily cap on codes (review Q1), and no private fields in replies (Q2)');
+  const partnerToken = (await api('/auth/login', { method: 'POST', body: { email: 'partner@quickbite.app', password: 'pass123' } })).json?.data?.token;
+  const PARTNER = 'usr_partner_01';
+  const capped: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    allowResend(PARTNER);
+    const r = await request({ kind: 'email', value: `cap${i}@example.test`, currentPassword: 'pass123' }, partnerToken);
+    capped.push(r.json?.error?.code || String(r.status));
+  }
+  it('Five codes a day, then CODE_LIMIT_REACHED', () => assert.deepEqual(capped, ['200', '200', '200', '200', '200', 'CODE_LIMIT_REACHED']));
+  const me = await api('/auth/me/usr_partner_01', {}, partnerToken);
+  it('The account reply carries no hash, pending code or quota', () => {
+    assert.equal(me.status, 200);
+    for (const key of ['passwordHash', 'passwordReset', 'contactChange', 'resetQuota', 'contactQuota']) assert.ok(!(key in (me.json?.data?.user || {})), key);
+    assert.ok(user(PARTNER).contactQuota, 'the quota is stored');
+  });
 } finally {
   console.log = log;
   await new Promise(r => server.close(() => r(null)));

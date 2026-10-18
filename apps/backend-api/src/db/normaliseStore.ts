@@ -103,6 +103,17 @@ export function normaliseLoadedStore(): NormaliseResult {
       changed = true;
     }
 
+    // Review R5: a live order from before K1 gets the customer's phone once, here, so the
+    // rider, the kitchen and the call route all read it from the order like any other.
+    const live = !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(order.status);
+    if (live && !order.customerPhone && order.customerId && order.customerId !== 'deleted_user') {
+      const phone = (memoryStore.users.get(order.customerId) as any)?.phone;
+      if (phone) {
+        order.customerPhone = phone;
+        changed = true;
+      }
+    }
+
     if (changed) memoryStore.orders.set(id, order);
   }
 

@@ -50,6 +50,26 @@ function anonymiseCustomerHistory(userId: string): void {
       memoryStore.refundRequests.set(request.id, request);
     }
   }
+  // Their help requests keep the conversation (support history) but not who they were (review T3).
+  for (const ticket of memoryStore.supportTickets.values()) {
+    if (ticket.raisedByUserId !== userId || ticket.raisedByRole !== 'customer') continue;
+    ticket.raisedByUserId = 'deleted_user';
+    ticket.raisedByName = 'Deleted account';
+    delete ticket.contactPhone;
+    for (const reply of ticket.replies || []) {
+      if (reply.byUserId === userId) {
+        reply.byUserId = 'deleted_user';
+        reply.byName = 'Deleted account';
+      }
+    }
+    memoryStore.supportTickets.set(ticket.id, ticket);
+  }
+}
+
+/** A user as any response may show them: never a hash, a pending code or a daily quota (review Q2). */
+export function publicUser(user: any): any {
+  const { passwordHash, passwordReset, contactChange, resetQuota, contactQuota, ...safe } = user || {};
+  return safe;
 }
 
 export const userRepository = {

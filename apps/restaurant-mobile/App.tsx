@@ -348,7 +348,9 @@ function PartnerApp() {
     );
   }
 
-  if (loadingProfile) {
+  // No kitchen and no answer yet is still loading: right after sign-in the token is set a moment
+  // before the kitchen is asked for, and "Kitchen not linked yet" flashed up (review note).
+  if (loadingProfile || (!restaurant && !profileError)) {
     return (
       <SafeScreen style={[styles.safe, styles.centre]}>
         <ActivityIndicator color={c.brand} size="large" />

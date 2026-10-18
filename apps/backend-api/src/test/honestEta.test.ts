@@ -17,6 +17,7 @@ import { memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { estimateArrival, kitchenPrepMinutes } from '../modules/orders/eta.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
+import { orderService } from '../modules/orders/orderService.ts';
 
 const PORT = 5282;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -142,6 +143,18 @@ try {
   });
   const later = estimateArrival({ ...stored, status: 'ACCEPTED', acceptedAt: new Date().toISOString(), preparationMinutes: 45 });
   it('...and a later estimate does not move the promise', () => assert.equal(later.promisedAt, stored.promisedArrivalAt));
+
+  // Review S5: an online order paid minutes after checkout gets its promise from the payment.
+  const paidLate = [...memoryStore.orders.values()].find((o: any) => o.restaurantId === KITCHEN) as any;
+  const late = {
+    ...structuredClone(paidLate), id: 'ord_s5_check', status: 'PAYMENT_PENDING', paymentStatus: 'PENDING', paymentMethod: 'ONLINE',
+    riderId: undefined, razorpayPaymentId: undefined, acceptedAt: undefined, createdAt: new Date().toISOString(),
+    restaurantCoordinates: { latitude: 12.68, longitude: 77.47 }, deliveryCoordinates: { latitude: 12.7, longitude: 77.48 }, promisedArrivalAt: new Date(Date.now() - 3_600_000).toISOString()
+  };
+  memoryStore.orders.set(late.id, late);
+  await orderService.markPaidByGateway(late.id, { razorpayPaymentId: 'pay_s5_check' });
+  it('S5: the promise is set when the payment lands, not at checkout', () =>
+    assert.ok(Date.parse((memoryStore.orders.get(late.id) as any).promisedArrivalAt) > Date.now(), (memoryStore.orders.get(late.id) as any).promisedArrivalAt));
 } finally {
   // Wait for the close: exiting while it is in flight crashes Node on Windows (UV_HANDLE_CLOSING).
   await new Promise(r => server.close(() => r(null)));

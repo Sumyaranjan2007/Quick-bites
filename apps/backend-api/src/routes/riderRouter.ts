@@ -229,13 +229,10 @@ async function shapeTripForRider(order: Order) {
 
   const isCod = order.paymentMethod === 'CASH_ON_DELIVERY';
 
-  // Orders placed before customerPhone was stored (K1) take it from the account.
   // Only for the rider who has the trip: an open offer goes to several riders,
-  // and none of them may see who the customer is before accepting.
-  let customerPhone = order.riderId ? order.customerPhone : undefined;
-  if (order.riderId && !customerPhone && order.customerId && order.customerId !== 'deleted_user') {
-    customerPhone = (await userRepository.findById(order.customerId))?.phone;
-  }
+  // and none of them may see who the customer is before accepting. (Older orders
+  // got their phone at start-up, normaliseStore, review R5.)
+  const customerPhone = order.riderId ? order.customerPhone : undefined;
 
   return {
     id: order.id,

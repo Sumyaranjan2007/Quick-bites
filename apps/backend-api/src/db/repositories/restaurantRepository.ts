@@ -43,6 +43,8 @@ export const restaurantRepository = {
    * nothing. The one restaurant a customer actually orders from is measured
    * properly at checkout, where the number decides a charge.
    */
+  // Not used by any route (review B1-2): the customer list uses the admin radius (maxDeliveryKm,
+  // 35 km). Its 15 km default is the old rule; pass radiusKm if you ever call it.
   async findNearby(filter: NearbyFilter): Promise<Array<Restaurant & { distanceKm: number }>> {
     const ceiling = filter.radiusKm || 15.0;
     const origin = { latitude: filter.latitude, longitude: filter.longitude };

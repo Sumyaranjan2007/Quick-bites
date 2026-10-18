@@ -4,7 +4,7 @@ import { isStaffRole, requestStaffDeletion } from '../modules/platform/staffDele
 import { notifyAdminsDeletionRequested } from '../notifications/adminNotifier.ts';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { userRepository, grantRole, hasRole, rolesOf } from '../db/repositories/userRepository.ts';
+import { userRepository, grantRole, hasRole, rolesOf, publicUser } from '../db/repositories/userRepository.ts';
 import { memoryStore, triggerAutoSave, persistDurably } from '../db/client.ts';
 import { pendingRoles, CONFIRM_TTL_MS, type PendingRole } from '../modules/auth/confirmLinks.ts';
 import { normalizeIndianPhone } from '../utils/phone.ts';
@@ -247,11 +247,11 @@ authRouter.get('/me/:userId', authMiddleware(), async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-    const { passwordHash, passwordReset, contactChange, ...safeUser } = user as any;
+    const safeUser = publicUser(user);
     // Whether this account has a password at all. A customer who signed up with
     // a phone code never set one, and the app must not ask them for it — to
     // delete the account, or on a "change password" row.
-    return res.json({ success: true, data: { user: { ...safeUser, hasPassword: Boolean(passwordHash) } } });
+    return res.json({ success: true, data: { user: { ...safeUser, hasPassword: Boolean((user as any).passwordHash) } } });
   } catch (error: any) {
     return next(error); // security L1: the error handler masks internals in production
   }
@@ -299,7 +299,7 @@ authRouter.patch('/me', authMiddleware(), validate({ body: UpdateProfileSchema }
     const updated = await userRepository.updateProfile(req.user!.id, req.body);
     if (!updated) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
 
-    const { passwordHash, passwordReset, contactChange, ...safeUser } = updated as any;
+    const safeUser = publicUser(updated);
     res.json({
       success: true,
       data: { user: safeUser },
@@ -1479,8 +1479,8 @@ function resettable(user: any): boolean {
 const RESET_CODES_PER_DAY = 5;
 const RESET_WRONG_PER_DAY = 10;
 const DAY_MS = 24 * 3_600_000;
-function resetQuota(user: any, now = Date.now()) {
-  const q = user.resetQuota;
+function resetQuota(user: any, now = Date.now(), field: 'resetQuota' | 'contactQuota' = 'resetQuota') {
+  const q = user[field];
   return q && now - Date.parse(q.since) < DAY_MS ? { ...q } : { since: new Date(now).toISOString(), codes: 0, wrong: 0 };
 }
 
@@ -1629,9 +1629,16 @@ authRouter.post('/contact/request', authMiddleware(), authRateLimiterMiddleware,
     if (user.contactChange && now - Date.parse(user.contactChange.sentAt) < 60_000) {
       throw new AppError('A code was sent less than a minute ago. Check your email, or try again in a minute.', 429, 'CODE_RECENTLY_SENT');
     }
+    // The same daily cap as password reset, on its own count (review Q1).
+    const quota = resetQuota(user, now, 'contactQuota');
+    if (quota.codes >= RESET_CODES_PER_DAY || quota.wrong >= RESET_WRONG_PER_DAY) {
+      throw new AppError('Too many codes today. Try again tomorrow, or contact Quick Bites support from Help.', 429, 'CODE_LIMIT_REACHED');
+    }
+    quota.codes += 1;
     const code = sixDigits();
     const ownerCode = ownerByCode ? sixDigits() : null;
     await userRepository.update(user.id, {
+      contactQuota: quota,
       contactChange: {
         kind: 'email',
         value,
@@ -1684,8 +1691,11 @@ authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware,
     const newOk = same(resetHash(user.id, req.body.code), pending.codeHash);
     const ownerOk = !pending.ownerCodeHash || (req.body.ownerCode && same(resetHash(user.id, `owner:${req.body.ownerCode}`), pending.ownerCodeHash));
     if (!newOk || !ownerOk) {
+      const quota = resetQuota(user, Date.now(), 'contactQuota');
+      quota.wrong += 1;
       const triesLeft = pending.triesLeft - 1;
-      await userRepository.update(user.id, { contactChange: triesLeft > 0 ? { ...pending, triesLeft } : undefined } as any);
+      const keep = triesLeft > 0 && quota.wrong < RESET_WRONG_PER_DAY;
+      await userRepository.update(user.id, { contactChange: keep ? { ...pending, triesLeft } : undefined, contactQuota: quota } as any);
       await persistDurably();
       throw BAD_CONTACT_CODE();
     }
@@ -1708,7 +1718,7 @@ authRouter.post('/contact/confirm', authMiddleware(), authRateLimiterMiddleware,
       await sendEmail(oldEmail, 'Your Quick Bites email was changed', notice, `<p>${notice}</p>`);
     }
     const updated: any = await userRepository.findById(user.id);
-    const { passwordHash, passwordReset, contactChange, ...safeUser } = updated;
+    const safeUser = publicUser(updated);
     res.json({
       success: true,
       data: { user: safeUser, token: generateToken(updated, req.user!.role as any, req.user!.scope) },

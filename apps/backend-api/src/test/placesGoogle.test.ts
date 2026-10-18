@@ -125,6 +125,15 @@ await it('Without a Google key, Mapbox is still asked (live keeps working until 
   assert.equal(placesStatus().provider, 'MAPBOX');
 });
 
+// Last: it leaves the shared breaker open for its cool-down.
+await it('A refused key (403) or quota (429) opens the breaker: Google stops being called (B2-3)', async () => {
+  google();
+  const calls = stub(() => ({ status: 403, body: { error: { message: 'API key not valid' } } }));
+  for (let i = 0; i < 6; i++) await reverseGeocode(12.6 + i / 100, 77.4, `caller-b${i}`);
+  assert.equal(placesStatus().dependency.state, 'open');
+  assert.ok(calls.length <= 4, `${calls.length} calls reached Google`);
+});
+
 globalThis.fetch = realFetch;
 console.log(`\n  ${passed} passed, ${failed} failed`);
 setTimeout(() => process.exit(failed === 0 ? 0 : 1), 100);

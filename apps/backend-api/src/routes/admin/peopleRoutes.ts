@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
-import { userRepository, rolesOf, hasRole } from '../../db/repositories/userRepository.ts';
+import { userRepository, rolesOf, hasRole, publicUser } from '../../db/repositories/userRepository.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { MANDATORY_RIDER_DOCUMENTS } from '../../db/repositories/riderRepository.ts';
@@ -179,7 +179,7 @@ peopleRoutes.get('/customers/:id', requirePermission('users.customers.view'), as
 
     const orders = await orderRepository.listByCustomerId(user.id);
     const wallet = await walletRepository.getByUserId(user.id);
-    const { passwordHash, passwordReset, contactChange, ...safe } = user as any;
+    const safe = publicUser(user);
 
     res.json({
       success: true,
@@ -278,7 +278,7 @@ peopleRoutes.patch(
         after: req.body
       });
 
-      const { passwordHash, passwordReset, contactChange, ...safe } = (updated || {}) as any;
+      const safe = publicUser(updated);
       res.json({ success: true, data: { customer: safe } });
     } catch (err) {
       next(err);

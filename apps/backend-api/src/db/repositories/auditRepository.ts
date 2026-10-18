@@ -26,12 +26,15 @@ export const auditRepository = {
     actorUserId?: string;
     entityType?: string;
     action?: string;
+    /** Only lines about these records; filtered before sorting (review B7-2). */
+    entityIds?: Set<string>;
     limit?: number;
   } = {}): Promise<AuditLogEntry[]> {
     let rows = Array.from(memoryStore.auditLogs.values()) as AuditLogEntry[];
     if (filter.actorUserId) rows = rows.filter(r => r.actorUserId === filter.actorUserId);
     if (filter.entityType) rows = rows.filter(r => r.entityType === filter.entityType);
     if (filter.action) rows = rows.filter(r => r.action === filter.action);
+    if (filter.entityIds) rows = rows.filter(r => r.entityId && filter.entityIds!.has(r.entityId));
     rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return rows.slice(0, filter.limit ?? 200);
   }

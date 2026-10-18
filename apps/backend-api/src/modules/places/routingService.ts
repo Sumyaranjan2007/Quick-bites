@@ -441,7 +441,7 @@ async function googlePost(url: string, fieldMask: string, body: unknown): Promis
           },
           body: JSON.stringify(body)
         }),
-      res => res.status >= 500
+      res => res.status >= 500 || res.status === 403 || res.status === 429 // as callGoogle (B2-3)
     );
     if (!response.ok) {
       const errorBody: any = await response.json().catch(() => null);

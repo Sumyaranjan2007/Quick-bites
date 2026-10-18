@@ -1186,6 +1186,8 @@ export const orderService = {
 
     order.paymentStatus = 'PAID';
     order.status = 'ORDER_PLACED';
+    // The promise starts when the order really does (review S5), not at checkout.
+    order.promisedArrivalAt = estimateArrival(order).arrivingAt ?? undefined;
     order.razorpayPaymentId = razorpayPaymentId;
     order.updatedAt = new Date().toISOString();
     // Saved, not only changed in place: the store writes what set() marked, and
@@ -1249,7 +1251,10 @@ export const orderService = {
 
     order.paymentStatus = 'PAID';
     order.razorpayPaymentId = detail.razorpayPaymentId;
-    if (wasPending) order.status = 'ORDER_PLACED';
+    if (wasPending) {
+      order.status = 'ORDER_PLACED';
+      order.promisedArrivalAt = estimateArrival(order).arrivingAt ?? undefined; // review S5, as in verify
+    }
 
     // The gateway's own amount, where the webhook carried one. It is what
     // Razorpay is actually holding, and the settlement is checked against it.

@@ -15,6 +15,7 @@
  * deliberately made to FAIL once during development before being kept — a check
  * that has never failed is not evidence that anything works.
  */
+import { normaliseLoadedStore } from '../db/normaliseStore.ts';
 import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { resetAuthRateLimit, resetRequestRateLimit } from '../middlewares/rateLimiter.ts';
@@ -857,7 +858,8 @@ async function run() {
     const shown = await trip();
     check('...and the rider\'s live trip shows it', shown.customerPhone === accountPhone, String(shown.customerPhone));
     delete live.customerPhone; // an order placed before K1
-    check('...an older order without it takes the account phone', (await trip()).customerPhone === accountPhone);
+    normaliseLoadedStore(); // what start-up does (review R5)
+    check('...an older order without it gets the account phone at start-up', (await trip()).customerPhone === accountPhone);
     Object.assign(live, before);
 
     const asCustomer = await api(`/orders/${order.id}`, customerToken);

@@ -90,7 +90,9 @@ async function callGoogle(url: string, init: { method?: string; body?: unknown; 
           },
           ...(init.body ? { body: JSON.stringify(init.body) } : {})
         }),
-      res => res.status >= 500
+      // 403 (key refused) and 429 (quota) open the breaker too: a broken key stops
+      // costing a Google call per keystroke until its cool-down (review B2-3).
+      res => res.status >= 500 || res.status === 403 || res.status === 429
     );
     const body: any = await response.json().catch(() => null);
     const geocodeRefused = body?.status && !['OK', 'ZERO_RESULTS'].includes(body.status);
@@ -256,8 +258,9 @@ function enforceQuota(callerId: string): void {
  * One call to Mapbox, with every refusal made visible.
  *
  * Returns null for "no answer" — a refusal, a timeout, an open breaker — and
- * the caller must not cache null unless `lastRefusal` is unchanged across the
- * call. Caching a refusal would leave every address anybody looked up broken
+ * the caller must not cache null for it (a null body is never cached; review
+ * B2-2: comparing `lastRefusal` across the call let another request's refusal
+ * discard this one's good answer). Caching a refusal would leave every address anybody looked up broken
  * for as long as the cache lives, which is exactly long enough for somebody to
  * decide that fixing the token did not work.
  */
@@ -343,7 +346,6 @@ export async function suggestAddresses(
   if (cached) return cached;
 
   if (useGoogle()) {
-    const refusals = lastRefusal?.at;
     const body = await callGoogle('https://places.googleapis.com/v1/places:autocomplete', {
       method: 'POST',
       body: {
@@ -356,7 +358,7 @@ export async function suggestAddresses(
           : {})
       }
     });
-    if (!body || lastRefusal?.at !== refusals) return [];
+    if (!body) return [];
     const suggestions: PlaceSuggestion[] = (Array.isArray(body.suggestions) ? body.suggestions : [])
       .map((x: any) => x.placePrediction)
       .filter(Boolean)
@@ -387,12 +389,10 @@ export async function suggestAddresses(
     params.set('proximity', `${options.near.longitude},${options.near.latitude}`);
   }
 
-  const refusalsBefore = lastRefusal?.at;
   const body = await callMapbox(`${MAPBOX}/search/searchbox/v1/suggest?${params.toString()}`);
   // A refusal returns nothing AND is not cached below, so the next keystroke
   // after the token is fixed gets a real answer.
   if (!body || !Array.isArray(body.suggestions)) return [];
-  if (lastRefusal?.at !== refusalsBefore) return [];
 
   const suggestions: PlaceSuggestion[] = body.suggestions.slice(0, 8).map((p: any) => ({
     placeId: p.mapbox_id,
@@ -419,7 +419,6 @@ export async function resolvePlace(
   if (cached !== undefined) return cached;
 
   if (useGoogle()) {
-    const refusals = lastRefusal?.at;
     const body = await callGoogle(
       `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?sessionToken=${encodeURIComponent(sessionFor(sessionToken))}`,
       { fieldMask: 'formattedAddress,location,addressComponents' }
@@ -427,7 +426,7 @@ export async function resolvePlace(
     const lat = Number(body?.location?.latitude);
     const lng = Number(body?.location?.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      if (body && lastRefusal?.at === refusals) placeCache.set(placeId, null);
+      if (body) placeCache.set(placeId, null);
       return null;
     }
     const resolved = shapeGooglePlace(body.formattedAddress, lat, lng, body.addressComponents);
@@ -442,7 +441,6 @@ export async function resolvePlace(
     session_token: sessionFor(sessionToken)
   });
 
-  const refusalsBefore = lastRefusal?.at;
   const body = await callMapbox(
     `${MAPBOX}/search/searchbox/v1/retrieve/${encodeURIComponent(placeId)}?${params.toString()}`
   );
@@ -457,7 +455,7 @@ export async function resolvePlace(
     // be remembered, or fixing the key leaves every address anybody has already
     // looked up broken for a day — which is exactly long enough for somebody to
     // conclude the fix did not work.
-    if (body && lastRefusal?.at === refusalsBefore) placeCache.set(placeId, null);
+    if (body) placeCache.set(placeId, null);
     return null;
   }
 
@@ -483,19 +481,18 @@ export async function reverseGeocode(
 
   enforceQuota(callerId);
 
-  // Five decimal places is about a metre, which is finer than a dragged pin and
-  // coarse enough for two drags of the same doorstep to share a cache entry.
-  const cacheKey = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
+  // Four decimal places is about 11 m (the routing cache's precision): small
+  // drags of the pin on one doorstep share a cache entry and a Google call (B2-4).
+  const cacheKey = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
   const cached = reverseCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   if (useGoogle()) {
-    const refusals = lastRefusal?.at;
     const q = new URLSearchParams({ latlng: `${latitude},${longitude}`, language: 'en', key: config.GOOGLE_MAPS_SERVER_KEY });
     const body = await callGoogle(`https://maps.googleapis.com/maps/api/geocode/json?${q.toString()}`);
     const first = body?.results?.[0];
     if (!first) {
-      if (body && lastRefusal?.at === refusals) reverseCache.set(cacheKey, null);
+      if (body) reverseCache.set(cacheKey, null);
       return null;
     }
     const resolved = shapeGooglePlace(
@@ -518,12 +515,11 @@ export async function reverseGeocode(
     limit: '1'
   });
 
-  const refusalsBefore = lastRefusal?.at;
   const body = await callMapbox(`${MAPBOX}/search/geocode/v6/reverse?${params.toString()}`);
   const first = body?.features?.[0];
   if (!first) {
     // See resolvePlace: a refusal is not an answer and is not cached.
-    if (body && lastRefusal?.at === refusalsBefore) reverseCache.set(cacheKey, null);
+    if (body) reverseCache.set(cacheKey, null);
     return null;
   }
 

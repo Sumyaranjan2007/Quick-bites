@@ -371,10 +371,19 @@ try {
   memoryStore.refundRequests.set('rr_r2_check', {
     id: 'rr_r2_check', orderId: 'ord_r2', customerId: rahul.id, customerName: rahul.fullName, customerPhone: '9800011122'
   } as any);
+  memoryStore.supportTickets.set('tkt_t3_check', {
+    id: 'tkt_t3_check', raisedByUserId: rahul.id, raisedByRole: 'customer', raisedByName: rahul.fullName, contactPhone: '9800011122',
+    replies: [{ at: '', byUserId: rahul.id, byName: rahul.fullName, byRole: 'customer', body: 'still waiting' }]
+  } as any);
   const customerDeletes = await api('/auth/me', { method: 'DELETE', body: { password: 'pass123' } }, await login('rahul.sharma@quickbite.app'));
   it('A customer is still deleted at once, as before', () => {
     assert.equal(customerDeletes.status, 200, JSON.stringify(customerDeletes.json).slice(0, 200));
     assert.equal(customerDeletes.json.data.deleted, true);
+  });
+  it('...and their help requests keep the conversation but not who they were (review T3)', () => {
+    const t: any = memoryStore.supportTickets.get('tkt_t3_check');
+    assert.deepEqual([t.raisedByUserId, t.raisedByName, t.contactPhone], ['deleted_user', 'Deleted account', undefined]);
+    assert.deepEqual([t.replies[0].byName, t.replies[0].body], ['Deleted account', 'still waiting']);
   });
   it('...and their refund cases lose their name and phone too (review R2)', () => {
     const r: any = memoryStore.refundRequests.get('rr_r2_check');

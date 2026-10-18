@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 19 Oct 2026: Open review findings closed
+
+- **Email-change codes (Q1).** A daily cap like password reset's: 5 codes and 10 wrong guesses per 24 h, then `CODE_LIMIT_REACHED`.
+- **Account replies (Q2).** One `publicUser()` helper, used at all 8 places, so no reply carries a password hash, a pending code or a daily counter.
+- **Google lookups.** No result is thrown away because another request was refused at the same moment (B2-2). A refused key or a used-up quota (403/429) opens the breaker, so a broken key stops costing a call per keystroke (B2-3). Pin-drag lookups are cached at about 11 m (B2-4).
+- **Admin person record.** It no longer carries every dish photo (B7-1). Its history reads only that person's audit lines (B7-2).
+- **Deleted customers (T3).** Their help requests keep the conversation but not their name, id or phone.
+- **Promised arrival time (S5).** For an online order it is set when the payment lands, not at checkout.
+- **Customer phone on older orders (R5).** Older live orders get the phone once, at start-up. Rider, kitchen and call all read it from the order.
+- **Partner app.** No more "Kitchen not linked yet" flash right after sign-in.
+- **Deferred, with reasons, in `docs/reviews/REVIEW_LOG.md`:** S4 and review L1 (efficiency, fine today), R4 (needs a test database). The dashboard's net-revenue figure (`economicsOf`) differs from the books' split; that goes to the jury.
+
+---
+
 ## [Unreleased] 19 Oct 2026: Security pass, part 2 (master plan Stage F complete)
 
 - **Sign-ins kept in the phone's keystore.** All four apps keep the token in the Android Keystore / iOS Keychain through `expo-secure-store` (`src/lib/tokenVault.ts`). A token saved by an older version is moved there on the first launch, so nobody is signed out. The websites keep the token in the browser as before. Takes effect with the next APK.

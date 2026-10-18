@@ -17,7 +17,6 @@ import { requirePermission } from '../../middlewares/adminAccess.ts';
 import { validate } from '../../middlewares/validate.ts';
 import { AppError } from '../../utils/AppError.ts';
 import { zip } from '../../utils/simpleZip.ts';
-import { memoryStore } from '../../db/client.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { userRepository, rolesOf } from '../../db/repositories/userRepository.ts';
@@ -64,14 +63,14 @@ async function personFor(kind: Kind, id: string): Promise<Person> {
   } else if (kind === 'restaurant') {
     const kitchen = await restaurantRepository.findById(id);
     if (kitchen) {
-      const dishes = (memoryStore.menus.get(id)?.categories || []).flatMap((c: any) => c.items || []);
       return {
         kind, id, userId: kitchen.ownerId, name: kitchen.name,
         documents: await kycRepository.findByEntity('RESTAURANT', id),
         photos: [
           ...(kitchen.bannerUrl ? [{ label: 'Cover', url: kitchen.bannerUrl }] : []),
-          ...(kitchen.galleryUrls || []).map(url => ({ label: 'Gallery', url })),
-          ...dishes.filter((d: any) => d.imageUrl).map((d: any) => ({ label: d.name, url: d.imageUrl }))
+          // Dish photos stay in the menu editor: inline here they made a big kitchen's record
+          // megabytes of JSON on a phone (review B7-1).
+          ...(kitchen.galleryUrls || []).map(url => ({ label: 'Gallery', url }))
         ]
       };
     }
@@ -133,7 +132,7 @@ recordRoutes.get('/records/:kind/:id', ...mayView, async (req, res, next) => {
     // About them: their record, their account, their documents and tickets.
     const about = new Set([p.id, p.userId, ...p.documents.map(d => d.id), ...tickets.map(t => t.id)]);
     const history = can(req, 'admin.audit.view')
-      ? (await auditRepository.list({ limit: Number.MAX_SAFE_INTEGER })).filter(a => a.entityId && about.has(a.entityId)).slice(0, 200)
+      ? await auditRepository.list({ entityIds: about, limit: 200 })
       : null;
     res.json({
       success: true,
