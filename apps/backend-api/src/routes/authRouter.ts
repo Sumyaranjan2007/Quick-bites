@@ -465,7 +465,7 @@ authRouter.delete('/me', authMiddleware(), validate({ body: DeleteAccountSchema 
  * factory; `/auth/register` learned that lesson already.
  */
 
-const PartnerRegistrationSchema = z.object({
+export const PartnerRegistrationSchema = z.object({
   fullName: z.string().trim().min(2, 'Enter your name.').max(120),
   email: z.string().email('A valid email address is required.').max(254),
   phone: phoneSchema,
@@ -524,7 +524,7 @@ const PartnerRegistrationSchema = z.object({
   cuisineType: z.enum(CUISINE_TYPES).optional()
 });
 
-const RiderRegistrationSchema = z.object({
+export const RiderRegistrationSchema = z.object({
   fullName: z.string().trim().min(2, 'Enter your name.').max(120),
   email: z.string().email('A valid email address is required.').max(254),
   phone: phoneSchema,
@@ -829,7 +829,7 @@ async function askToConfirmByEmail(user: { id: string; email: string }, role: Pe
 }
 
 /** The restaurant record for a partner sign-up (also run by a confirmed email link). */
-async function openRestaurant(user: { id: string }, body: Record<string, any>) {
+export async function openRestaurant(user: { id: string }, body: Record<string, any>) {
   const { phone, restaurantName } = body;
   const slug = restaurantName
     .toLowerCase()
@@ -898,7 +898,7 @@ async function openRestaurant(user: { id: string }, body: Record<string, any>) {
 }
 
 /** The delivery-partner record for a rider sign-up (also run by a confirmed email link). */
-async function openRiderRecord(user: { id: string }, body: Record<string, any>) {
+export async function openRiderRecord(user: { id: string }, body: Record<string, any>) {
   const { phone, fullName, vehicleType, licenseNumber } = body;
   const rider = await riderRepository.create({
     userId: user.id,

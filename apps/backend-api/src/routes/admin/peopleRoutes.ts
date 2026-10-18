@@ -2,6 +2,11 @@
  * The people on the platform: customers, delivery partners, restaurant partners,
  * and the documents that qualify the last two to trade.
  */
+import crypto from 'crypto';
+import { config } from '../../config/env.ts';
+import { sendEmail } from '../../modules/auth/otpDrivers.ts';
+import { assertNotBanned } from '../../modules/platform/blockedIdentifiers.ts';
+import { PartnerRegistrationSchema, RiderRegistrationSchema, openRestaurant, openRiderRecord } from '../authRouter.ts';
 import { banAccount, unbanAccount } from '../../modules/platform/blockedIdentifiers.ts';
 import { cashSwitchedOffFor, lateCashCancels } from '../../modules/orders/cancellationFee.ts';
 import { listDeletionRequests, completeStaffDeletion, cancelStaffDeletion, removeAccount } from '../../modules/platform/staffDeletion.ts';
@@ -975,6 +980,92 @@ peopleRoutes.post(
         success: true,
         data: { document: doc, outcome },
         message: outcome?.summary
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/admin/accounts/create (owner item 8, master plan B6, 18 Oct 2026)
+ *
+ * Operations builds a partner's (kitchen) or rider's account for them, with the
+ * same fields and the same record builders as self sign-up (no second path).
+ * A temporary password is generated and emailed to the person, never shown on
+ * screen (design spec); they change it after signing in, or use Forgot password.
+ * Documents are then uploaded with the existing /api/kyc/submit (admins may
+ * submit for anyone) and approved with the existing review, so verification
+ * stays one flow. Needs the "manage" permission for that kind of account.
+ */
+const CreateAccountSchema = z.discriminatedUnion('kind', [
+  PartnerRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('restaurant') }),
+  RiderRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('rider') })
+]);
+
+peopleRoutes.post(
+  '/accounts/create',
+  requirePermission('users.restaurants.manage', 'users.drivers.manage'),
+  validate({ body: CreateAccountSchema }),
+  async (req, res, next) => {
+    try {
+      const body = req.body as any;
+      const kitchen = body.kind === 'restaurant';
+      const access = req.adminAccess!;
+      const needed = kitchen ? 'users.restaurants.manage' : 'users.drivers.manage';
+      if (!access.isSuperAdmin && !access.permissions.includes(needed as any)) {
+        throw new AppError('Your role does not manage this kind of account.', 403, 'FORBIDDEN');
+      }
+      const email = String(body.email).trim().toLowerCase();
+      assertNotBanned({ email, phone: body.phone, fssai: body.fssaiLicenseNumber, gstin: body.gstin, license: body.licenseNumber });
+      if (await userRepository.findByEmail(email)) {
+        throw new AppError('That email already has a Quick Bites account. They can add this role by signing up in the app.', 409, 'EMAIL_IN_USE');
+      }
+      if (await userRepository.findByPhone(body.phone)) {
+        throw new AppError('That mobile number already has a Quick Bites account.', 409, 'PHONE_IN_USE');
+      }
+
+      // 12 characters from a 54-letter alphabet without look-alikes (0/O, 1/l/I).
+      const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+      const temporary = Array.from(crypto.randomBytes(12), b => alphabet[b % alphabet.length]).join('');
+      const role = kitchen ? 'restaurant_owner' : 'rider';
+      const user = await userRepository.create({
+        id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        email,
+        passwordHash: await bcrypt.hash(temporary, 10),
+        fullName: body.fullName,
+        phone: body.phone,
+        role,
+        roles: [role],
+        createdByAdmin: req.user!.id
+      } as any);
+      const record = kitchen ? await openRestaurant(user, body) : await openRiderRecord(user, body);
+
+      const app = kitchen ? 'Quick Bites Partner' : 'Quick Bites Rider';
+      const text =
+        `Quick Bites has set up your ${kitchen ? 'restaurant' : 'rider'} account. Sign in to the ${app} app with ` +
+        `${email} and this temporary password: ${temporary} . Then change it in your profile. ` +
+        'If you did not expect this, reply to this email.';
+      const sent = await sendEmail(email, 'Your Quick Bites account is ready', text, `<p>${text}</p>`);
+      if (config.NODE_ENV !== 'production') {
+        console.log(JSON.stringify({ level: 'INFO', event: 'ADMIN_CREATED_ACCOUNT_PASSWORD', email, temporary }));
+      }
+      recordAudit(req, {
+        action: 'ACCOUNT_CREATED_BY_ADMIN',
+        entityType: kitchen ? 'RESTAURANT_PARTNER' : 'RIDER',
+        entityId: user.id,
+        summary: `Created ${body.fullName} (${email}) as a ${kitchen ? 'partner' : 'rider'}`
+      });
+      res.status(201).json({
+        success: true,
+        data: {
+          userId: user.id,
+          [kitchen ? 'restaurantId' : 'riderId']: (record as any).id,
+          passwordEmailed: Boolean(sent.accepted)
+        },
+        message: sent.accepted
+          ? 'Account created and the temporary password emailed to them. Next: upload their documents and approve them.'
+          : 'Account created, but the email did not go out. Ask them to use "Forgot password" with this email.'
       });
     } catch (err) {
       next(err);

@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-18] -- Claude Opus 5.5 -- B6 step 4: Operations creates a partner or rider account (server)
+
+> **For the owner.** Operations can now build a kitchen's or a rider's whole account for them: the
+> same details they would type at sign-up, then a temporary password is emailed to them (your
+> staff never see it) and they change it after signing in. You then upload their documents and
+> approve them exactly as for anyone else. Only staff whose role manages that kind of account can
+> do it, and it is logged. The Operations screen comes in the next app build (Stage E).
+
+- `POST /api/admin/accounts/create` (`routes/admin/peopleRoutes.ts`), reusing the sign-up schemas and
+  `openRestaurant` / `openRiderRecord` (now exported from `authRouter.ts`).
+- New suite `adminCreate` (10 checks; 5 guards mutation-checked).
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- B6 step 3: deletion requests as you decided (Q2)
 
 > **For the owner.** A partner or rider who asks to delete their account can now still sign in to

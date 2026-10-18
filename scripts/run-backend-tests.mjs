@@ -106,6 +106,7 @@ const SUITES = [
   'deliveryRadius',
   'passwordReset',
   'removeAndBlock',
+  'adminCreate',
   'helpChat',
   'kitchenTicket',
   'personRecord',

@@ -42,6 +42,13 @@ Checked by `authMiddleware` (`middlewares/auth.ts`): password changed → `SESSI
 
 Suite `removeAndBlock`.
 
+**Create (owner item 8):** `POST /api/admin/accounts/create` `{ kind: 'restaurant' | 'rider', …the sign-up
+fields without a password }` builds the account with the sign-up's own record builders (`openRestaurant`,
+`openRiderRecord`), checks the ban list and existing email/phone, emails a generated temporary password
+(never in the response) and audit-logs it; the kitchen/rider then waits for review. Documents: existing
+`POST /api/kyc/submit` (admins may submit for anyone); approval: existing review. Permission per kind.
+Suite `adminCreate`.
+
 ## Forgot password (18 Oct 2026, master plan B6)
 
 Partners, riders and staff: `POST /api/auth/password/forgot` `{ email }` → the same reply for every
