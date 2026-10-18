@@ -5,6 +5,13 @@ import { Platform } from 'react-native';
  * Warm cream canvas, deep maroon brand, amber accent — matched to the Quickbits mark.
  * Spacing and radii are numbers because React Native styles reject "px" strings.
  */
+/**
+ * Lexend Deca (owner, 17 Oct 2026; SIL Open Font License, assets/fonts). One family with
+ * weights 400-800, so `fontWeight` picks the right file: registered as "LexendDeca" on
+ * Android (expo-font XML family) and found by its own name "Lexend Deca" on iPhone.
+ */
+const FONT_FAMILY = Platform.OS === 'ios' ? 'Lexend Deca' : 'LexendDeca';
+
 export const tokens = {
   colors: {
     // Deep maroon carries the brand: headers, primary buttons, hero type.
@@ -66,6 +73,7 @@ export const tokens = {
   spacing: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 7: 28, 8: 32, 10: 40, 12: 48, 16: 64 },
   radii: { sm: 8, md: 12, lg: 16, xl: 20, '2xl': 28, full: 999 },
   font: {
+    family: FONT_FAMILY,
     size: { xs: 11, sm: 13, base: 15, md: 17, lg: 20, xl: 24, '2xl': 30, '3xl': 34 },
     weight: {
       regular: '400' as const,
@@ -103,6 +111,6 @@ export const iosLargeTitle =
   Platform.OS === 'ios'
     ? {
         header: { flexWrap: 'wrap' as const },
-        title: { width: '100%' as const, fontSize: 34, fontWeight: '800' as const, letterSpacing: 0.37, marginTop: 6 }
+        title: { width: '100%' as const, fontFamily: FONT_FAMILY, fontSize: 34, fontWeight: '800' as const, letterSpacing: 0.37, marginTop: 6 }
       }
     : { header: {}, title: {} };

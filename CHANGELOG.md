@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Kitchen ticket is a clear button; Customer app in Lexend Deca (D1 start)
+
+> **For the owner.** Partner → Orders: every accepted order now has a clear **Print kitchen ticket**
+> button with a printer icon and one line saying what it is ("For your cooks: dishes, options and the
+> pickup code. No prices."), and a **Printer roll 80 mm / 58 mm** choice remembered on that phone or
+> browser. The same button is on each order in **History** to reprint. The Customer app now uses the
+> **Lexend Deca** font everywhere (free licence, included).
+
+- `restaurant-mobile/src/components/KitchenTicketButton.tsx` (Live orders + History).
+- Customer: `assets/fonts/LexendDeca_400–800.ttf` + `OFL-LexendDeca.txt`; `expo-font` plugin registers one
+  family by weight (Android "LexendDeca", iPhone "Lexend Deca", `tokens.font.family`); every text style
+  carries it (one mechanical edit, 358 styles). Emulator-checked.
+
+---
+
 ## [2026-10-18] -- Claude Opus 5.5 -- Stage C3: the Partner app prints the kitchen ticket
 
 > **For the owner.** On an accepted order, Partner → Orders → **Print kitchen ticket** (or **58 mm roll**)

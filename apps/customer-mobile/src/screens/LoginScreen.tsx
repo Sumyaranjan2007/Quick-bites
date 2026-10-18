@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 20, paddingTop: 56, paddingBottom: 40 },
   notNow: { position: 'absolute', top: 8, right: 20, minHeight: 44, justifyContent: 'center' },
-  notNowText: { fontSize: 16, fontWeight: '600', color: c.primary[500] },
+  notNowText: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '600', color: c.primary[500] },
 
   brand: { alignItems: 'center', marginBottom: 26 },
   /**
@@ -454,26 +454,26 @@ const styles = StyleSheet.create({
   },
   logo: { width: 68, height: 68 },
   brandName: {
-    fontSize: tokens.font.size['2xl'],
+    fontFamily: tokens.font.family, fontSize: tokens.font.size['2xl'],
     fontWeight: tokens.font.weight.extrabold,
     color: c.primary[500],
     marginTop: 10,
     letterSpacing: -0.6
   },
-  brandTag: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 5 },
+  brandTag: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 5 },
 
   card: { padding: 20 },
 
   stepTitle: {
-    fontSize: tokens.font.size.lg,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     marginBottom: 6
   },
-  stepBody: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 20 },
+  stepBody: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 20 },
 
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
-  backLinkText: { fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: '700' },
+  backLinkText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, fontWeight: '700' },
 
   noticeBox: {
     backgroundColor: c.dietary.vegBg,
@@ -481,18 +481,18 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 12
   },
-  noticeText: { color: c.dietary.veg, fontSize: 13, lineHeight: 18 },
+  noticeText: { color: c.dietary.veg, fontFamily: tokens.font.family, fontSize: 13, lineHeight: 18 },
   noticeBoxWarn: { backgroundColor: c.accent[50] },
   noticeTextWarn: { color: c.accent[600] },
 
   recoveryLink: { alignItems: 'center', paddingVertical: 14 },
-  recoveryLinkText: { color: c.primary[500], fontSize: 14, fontWeight: '700' },
+  recoveryLinkText: { color: c.primary[500], fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700' },
   recoveryLinkMuted: { color: c.text.muted },
 
   fieldError: { borderColor: c.semantic.error, backgroundColor: '#FDECEC' },
   fieldErrorText: {
     color: c.semantic.error,
-    fontSize: 12.5,
+    fontFamily: tokens.font.family, fontSize: 12.5,
     fontWeight: '600',
     marginTop: 6
   },
@@ -505,10 +505,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.semantic.error
   },
-  formErrorText: { color: c.semantic.error, fontSize: 13, fontWeight: '600' },
+  formErrorText: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 13, fontWeight: '600' },
 
   label: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.bold,
     color: c.text.secondary,
     marginBottom: 6,
@@ -525,8 +525,8 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.md,
     paddingHorizontal: 13
   },
-  dialCode: { fontSize: tokens.font.size.base, color: c.text.secondary, fontWeight: '700' },
-  input: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, padding: 0 },
+  dialCode: { fontFamily: tokens.font.family, fontSize: tokens.font.size.base, color: c.text.secondary, fontWeight: '700' },
+  input: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.base, color: c.text.primary, padding: 0 },
   codeInput: { letterSpacing: 8, fontWeight: '800' },
 
   primaryBtn: {
@@ -538,9 +538,9 @@ const styles = StyleSheet.create({
     marginTop: 22
   },
   btnDisabled: { opacity: 0.7 },
-  primaryBtnText: { color: '#FFFFFF', fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.extrabold },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.extrabold },
 
   serverToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 18 },
-  serverToggleText: { fontSize: tokens.font.size.xs, color: c.text.muted, fontWeight: tokens.font.weight.semibold },
+  serverToggleText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted, fontWeight: tokens.font.weight.semibold },
   serverBox: { marginTop: 6 }
 });

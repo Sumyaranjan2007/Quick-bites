@@ -202,13 +202,13 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.border.subtle
   },
-  title: { color: c.text.primary, fontSize: 17, fontWeight: '800', flex: 1 },
+  title: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', flex: 1 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  backText: { color: c.text.secondary, fontSize: 14, fontWeight: '600' },
+  backText: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '600' },
 
   body: { padding: 20, paddingBottom: 36 },
   centre: { paddingVertical: 40, alignItems: 'center' },
-  error: { color: c.semantic.error, fontSize: 14, lineHeight: 20, textAlign: 'center', paddingVertical: 20 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 14, lineHeight: 20, textAlign: 'center', paddingVertical: 20 },
 
   gapBox: {
     flexDirection: 'row',
@@ -218,7 +218,7 @@ const s = StyleSheet.create({
     padding: 14,
     marginBottom: 16
   },
-  gapText: { color: c.text.secondary, fontSize: 12, lineHeight: 17, flex: 1 },
+  gapText: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 12, lineHeight: 17, flex: 1 },
 
   row: {
     flexDirection: 'row',
@@ -228,16 +228,16 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.border.subtle
   },
-  rowTitle: { color: c.text.primary, fontSize: 15, fontWeight: '700' },
-  rowSummary: { color: c.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  rowTitle: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 15, fontWeight: '700' },
+  rowSummary: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 12, lineHeight: 17, marginTop: 3 },
 
-  docTitle: { color: c.text.primary, fontSize: 20, fontWeight: '800' },
-  docDate: { color: c.text.muted, fontSize: 12, marginTop: 4, marginBottom: 8 },
+  docTitle: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800' },
+  docDate: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 12, marginTop: 4, marginBottom: 8 },
   section: { marginTop: 18 },
-  sectionHeading: { color: c.text.primary, fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  sectionBody: { color: c.text.secondary, fontSize: 14, lineHeight: 21 },
+  sectionHeading: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  sectionBody: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 14, lineHeight: 21 },
 
-  footnote: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 18, textAlign: 'center' }
+  footnote: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 11, lineHeight: 16, marginTop: 18, textAlign: 'center' }
 });
 
 export default PaymentPoliciesSheet;

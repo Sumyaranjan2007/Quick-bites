@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  badgeText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 10, fontWeight: '800' },
   backdrop: { flex: 1, backgroundColor: 'rgba(26,16,20,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface.app,
@@ -123,8 +123,8 @@ const styles = StyleSheet.create({
     paddingBottom: 26
   },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  title: { flex: 1, fontSize: 18, fontWeight: '800', color: c.text.primary },
-  clear: { fontSize: 13, fontWeight: '700', color: c.primary[500] },
+  title: { flex: 1, fontFamily: tokens.font.family, fontSize: 18, fontWeight: '800', color: c.text.primary },
+  clear: { fontFamily: tokens.font.family, fontSize: 13, fontWeight: '700', color: c.primary[500] },
   closeBtn: {
     width: 34,
     height: 34,
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     backgroundColor: c.surface.sunken
   },
   mutedNote: {
-    fontSize: 12.5,
+    fontFamily: tokens.font.family, fontSize: 12.5,
     color: c.accent[600],
     backgroundColor: c.accent[50],
     borderRadius: 10,
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     lineHeight: 17
   },
-  empty: { color: c.text.muted, fontSize: 13.5, textAlign: 'center', paddingVertical: 30, lineHeight: 20 },
+  empty: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 13.5, textAlign: 'center', paddingVertical: 30, lineHeight: 20 },
   item: {
     flexDirection: 'row',
     gap: 10,
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle
   },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.primary[500], marginTop: 6 },
-  itemTitle: { fontSize: 14.5, fontWeight: '800', color: c.text.primary },
-  itemBody: { fontSize: 13, color: c.text.secondary, marginTop: 3, lineHeight: 18 },
-  itemTime: { fontSize: 11, color: c.text.muted, marginTop: 5 }
+  itemTitle: { fontFamily: tokens.font.family, fontSize: 14.5, fontWeight: '800', color: c.text.primary },
+  itemBody: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, marginTop: 3, lineHeight: 18 },
+  itemTime: { fontFamily: tokens.font.family, fontSize: 11, color: c.text.muted, marginTop: 5 }
 });

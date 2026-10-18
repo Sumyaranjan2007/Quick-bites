@@ -271,26 +271,26 @@ const styles = StyleSheet.create({
     borderBottomColor: c.border.subtle
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: c.text.primary },
+  headerTitle: { fontFamily: tokens.font.family, fontSize: 17, fontWeight: '700', color: c.text.primary },
 
   content: { padding: 16, gap: 12, paddingBottom: 32 },
 
   activeCard: { backgroundColor: c.dietary.goldBg, borderColor: c.dietary.gold, borderWidth: 1 },
   activeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  activeTitle: { fontSize: 16, fontWeight: '800', color: c.text.primary },
-  activeSub: { fontSize: 13, color: c.text.secondary, marginTop: 6, lineHeight: 19 },
+  activeTitle: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '800', color: c.text.primary },
+  activeSub: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, marginTop: 6, lineHeight: 19 },
 
-  notice: { fontSize: 13, color: c.dietary.veg, fontWeight: '600' },
-  error: { fontSize: 13, color: c.semantic.error, fontWeight: '600' },
+  notice: { fontFamily: tokens.font.family, fontSize: 13, color: c.dietary.veg, fontWeight: '600' },
+  error: { fontFamily: tokens.font.family, fontSize: 13, color: c.semantic.error, fontWeight: '600' },
 
   planCard: { gap: 8 },
   planHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  planName: { fontSize: 16, fontWeight: '700', color: c.text.primary },
-  planPrice: { fontSize: 24, fontWeight: '800', color: c.text.primary },
-  planPer: { fontSize: 13, fontWeight: '500', color: c.text.secondary },
+  planName: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '700', color: c.text.primary },
+  planPrice: { fontFamily: tokens.font.family, fontSize: 24, fontWeight: '800', color: c.text.primary },
+  planPer: { fontFamily: tokens.font.family, fontSize: 13, fontWeight: '500', color: c.text.secondary },
   benefits: { gap: 6, marginTop: 4 },
   benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  benefitText: { fontSize: 13, color: c.text.secondary },
+  benefitText: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary },
   buyBtn: {
     marginTop: 8,
     backgroundColor: c.primary[500],
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   buyBtnOff: { opacity: 0.5 },
-  buyText: { color: c.text.inverse, fontSize: 15, fontWeight: '700' },
+  buyText: { color: c.text.inverse, fontFamily: tokens.font.family, fontSize: 15, fontWeight: '700' },
 
-  unavailable: { fontSize: 12, color: c.text.muted, lineHeight: 18, textAlign: 'center' }
+  unavailable: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, lineHeight: 18, textAlign: 'center' }
 });

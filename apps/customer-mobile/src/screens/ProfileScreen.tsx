@@ -899,9 +899,9 @@ export const ProfileScreen: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   secondaryInline: { paddingVertical: 10, alignItems: 'flex-start', marginBottom: 8 },
-  secondaryInlineText: { color: c.primary[600], fontWeight: '700', fontSize: 15 },
+  secondaryInlineText: { color: c.primary[600], fontWeight: '700', fontFamily: tokens.font.family, fontSize: 15 },
   deleteLink: { alignSelf: 'center', paddingVertical: 10, marginTop: 4 },
-  deleteLinkText: { fontSize: 13, color: c.semantic.error, textDecorationLine: 'underline' },
+  deleteLinkText: { fontFamily: tokens.font.family, fontSize: 13, color: c.semantic.error, textDecorationLine: 'underline' },
   dangerBtn: { backgroundColor: c.semantic.error },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 40 },
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.subtle
   },
-  title: { fontSize: 20, fontWeight: '800', color: c.text.primary, ...iosLargeTitle.title },
+  title: { fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800', color: c.text.primary, ...iosLargeTitle.title },
 
   identity: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   avatar: {
@@ -927,7 +927,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  avatarText: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  avatarText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 19, fontWeight: '800' },
   avatarImage: { width: '100%', height: '100%', borderRadius: 999 },
   avatarBadge: {
     position: 'absolute',
@@ -942,9 +942,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  avatarErrorText: { color: c.semantic.error, fontSize: 11, marginTop: 6 },
+  avatarErrorText: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 11, marginTop: 6 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  name: { fontSize: 17, fontWeight: '800', color: c.text.primary, flexShrink: 1 },
+  name: { fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', color: c.text.primary, flexShrink: 1 },
   goldChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -954,8 +954,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 999
   },
-  goldChipText: { fontSize: 9.5, fontWeight: '900', color: c.dietary.gold, letterSpacing: 0.4 },
-  email: { fontSize: 12.5, color: c.text.muted, marginTop: 2 },
+  goldChipText: { fontFamily: tokens.font.family, fontSize: 9.5, fontWeight: '900', color: c.dietary.gold, letterSpacing: 0.4 },
+  email: { fontFamily: tokens.font.family, fontSize: 12.5, color: c.text.muted, marginTop: 2 },
   editBtn: {
     borderWidth: 1,
     borderColor: c.primary[500],
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8
   },
-  editBtnText: { color: c.primary[500], fontSize: 13, fontWeight: '800' },
+  editBtnText: { color: c.primary[500], fontFamily: tokens.font.family, fontSize: 13, fontWeight: '800' },
 
   savedBanner: {
     flexDirection: 'row',
@@ -975,10 +975,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 14
   },
-  savedText: { color: c.dietary.veg, fontWeight: '700', fontSize: 13 },
+  savedText: { color: c.dietary.veg, fontWeight: '700', fontFamily: tokens.font.family, fontSize: 13 },
 
   sectionLabel: {
-    fontSize: 11.5,
+    fontFamily: tokens.font.family, fontSize: 11.5,
     fontWeight: '800',
     color: c.text.muted,
     letterSpacing: 0.7,
@@ -997,8 +997,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  rowTitle: { fontSize: 14.5, fontWeight: '700', color: c.text.primary },
-  rowSub: { fontSize: 12, color: c.text.muted, marginTop: 2 },
+  rowTitle: { fontFamily: tokens.font.family, fontSize: 14.5, fontWeight: '700', color: c.text.primary },
+  rowSub: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, marginTop: 2 },
 
   logout: {
     flexDirection: 'row',
@@ -1012,8 +1012,8 @@ const styles = StyleSheet.create({
     backgroundColor: c.surface.card,
     marginTop: 4
   },
-  logoutText: { color: c.semantic.error, fontSize: 14.5, fontWeight: '800' },
-  version: { textAlign: 'center', color: c.text.muted, fontSize: 11.5, marginTop: 18 },
+  logoutText: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 14.5, fontWeight: '800' },
+  version: { textAlign: 'center', color: c.text.muted, fontFamily: tokens.font.family, fontSize: 11.5, marginTop: 18 },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(26,16,20,0.45)', justifyContent: 'flex-end' },
   sheet: {
@@ -1024,7 +1024,7 @@ const styles = StyleSheet.create({
     paddingBottom: 28
   },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  sheetTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: c.text.primary },
+  sheetTitle: { flex: 1, fontFamily: tokens.font.family, fontSize: 18, fontWeight: '800', color: c.text.primary },
   closeBtn: {
     width: 34,
     height: 34,
@@ -1033,7 +1033,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: c.surface.sunken
   },
-  label: { fontSize: 12.5, fontWeight: '700', color: c.text.secondary, marginBottom: 6, marginTop: 8 },
+  label: { fontFamily: tokens.font.family, fontSize: 12.5, fontWeight: '700', color: c.text.secondary, marginBottom: 6, marginTop: 8 },
   input: {
     backgroundColor: c.surface.card,
     borderRadius: 12,
@@ -1041,12 +1041,12 @@ const styles = StyleSheet.create({
     borderColor: c.border.medium,
     paddingHorizontal: 13,
     paddingVertical: 12,
-    fontSize: 15,
+    fontFamily: tokens.font.family, fontSize: 15,
     color: c.text.primary
   },
-  helper: { fontSize: 11.5, color: c.text.muted, marginTop: 10, lineHeight: 16 },
-  error: { color: c.semantic.error, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
-  codeLink: { color: c.primary[600], fontSize: 13, fontWeight: '700', marginTop: 10 },
+  helper: { fontFamily: tokens.font.family, fontSize: 11.5, color: c.text.muted, marginTop: 10, lineHeight: 16 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
+  codeLink: { color: c.primary[600], fontFamily: tokens.font.family, fontSize: 13, fontWeight: '700', marginTop: 10 },
   primaryBtn: {
     backgroundColor: c.primary[500],
     borderRadius: 13,
@@ -1054,7 +1054,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 15, fontWeight: '800' },
 
   langRow: {
     flexDirection: 'row',
@@ -1068,6 +1068,6 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   langRowActive: { borderColor: c.primary[500], backgroundColor: c.primary[50] },
-  langNative: { fontSize: 16, fontWeight: '700', color: c.text.primary },
-  langLabel: { fontSize: 12, color: c.text.muted, marginTop: 2 }
+  langNative: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '700', color: c.text.primary },
+  langLabel: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, marginTop: 2 }
 });

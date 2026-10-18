@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderTopLeftRadius: 6
   },
-  attributionText: { fontSize: 9, color: c.text.secondary },
+  attributionText: { fontFamily: tokens.font.family, fontSize: 9, color: c.text.secondary },
   placeholder: {
     borderRadius: tokens.radii.md,
     backgroundColor: c.surface.sunken,
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20
   },
   placeholderText: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.sm,
     color: c.text.muted,
     textAlign: 'center',
     lineHeight: 19
@@ -423,9 +423,9 @@ const styles = StyleSheet.create({
   },
   legendLeft: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   distance: {
-    fontSize: tokens.font.size.base,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary
   },
-  freshness: { fontSize: tokens.font.size.xs, color: c.text.muted }
+  freshness: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted }
 });

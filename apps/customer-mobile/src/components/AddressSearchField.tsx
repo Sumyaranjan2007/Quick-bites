@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     height: 46,
     backgroundColor: c.surface.card
   },
-  input: { flex: 1, fontSize: 14, color: c.text.primary, padding: 0 },
+  input: { flex: 1, fontFamily: tokens.font.family, fontSize: 14, color: c.text.primary, padding: 0 },
   suggestion: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: c.surface.subtle
   },
-  primary: { fontSize: 14, fontWeight: '600', color: c.text.primary },
-  secondary: { fontSize: 12, color: c.text.secondary, marginTop: 1 },
-  hint: { fontSize: 12, color: c.text.secondary, paddingHorizontal: 2 }
+  primary: { fontFamily: tokens.font.family, fontSize: 14, fontWeight: '600', color: c.text.primary },
+  secondary: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.secondary, marginTop: 1 },
+  hint: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.secondary, paddingHorizontal: 2 }
 });

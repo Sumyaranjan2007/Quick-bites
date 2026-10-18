@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     gap: 6
   },
   heading: {
-    fontSize: 11,
+    fontFamily: tokens.font.family, fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.6,
     color: c.text.muted,
@@ -149,6 +149,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: c.surface.card
   },
-  name: { fontSize: 14, fontWeight: '700', color: c.text.primary },
-  status: { fontSize: 12, color: c.text.secondary, marginTop: 1 }
+  name: { fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700', color: c.text.primary },
+  status: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.secondary, marginTop: 1 }
 });

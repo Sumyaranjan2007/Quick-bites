@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   centre: { alignItems: 'center', justifyContent: 'center' },
   initials: {
     color: '#FFFFFF',
-    fontSize: 34,
+    fontFamily: tokens.font.family, fontSize: 34,
     fontWeight: '800',
     letterSpacing: 1.5,
     opacity: 0.92

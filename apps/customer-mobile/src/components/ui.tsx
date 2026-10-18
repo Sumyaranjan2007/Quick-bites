@@ -192,7 +192,7 @@ export const Button: React.FC<{
       ) : (
         <>
           {left}
-          <Text style={[s.buttonText, { color: tone.fg, fontSize: dims.fs }, left ? { marginLeft: 8 } : null]}>
+          <Text style={[s.buttonText, { color: tone.fg, fontFamily: tokens.font.family, fontSize: dims.fs }, left ? { marginLeft: 8 } : null]}>
             {label}
           </Text>
         </>
@@ -248,13 +248,13 @@ const s = StyleSheet.create({
     marginBottom: tokens.spacing[3]
   },
   sectionTitle: {
-    fontSize: tokens.font.size.lg,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     letterSpacing: -0.3
   },
   sectionAction: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.sm,
     fontWeight: tokens.font.weight.semibold,
     color: c.text.secondary
   },
@@ -269,7 +269,7 @@ const s = StyleSheet.create({
     borderColor: c.border.medium
   },
   chipActive: { backgroundColor: c.primary[600], borderColor: c.primary[600] },
-  chipText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.secondary },
+  chipText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.secondary },
   chipTextActive: { color: c.text.inverse },
   dietMark: {
     borderWidth: 1.5,
@@ -286,11 +286,11 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6
   },
-  ratingStar: { color: c.rating.text, fontSize: 10, marginRight: 3 },
-  ratingValue: { color: c.rating.text, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
-  ratingCount: { color: c.text.muted, fontSize: tokens.font.size.sm, marginLeft: 6 },
+  ratingStar: { color: c.rating.text, fontFamily: tokens.font.family, fontSize: 10, marginRight: 3 },
+  ratingValue: { color: c.rating.text, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold },
+  ratingCount: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, marginLeft: 6 },
   pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
-  pillText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, letterSpacing: 0.2 },
+  pillText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, letterSpacing: 0.2 },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -300,14 +300,14 @@ const s = StyleSheet.create({
   buttonText: { fontWeight: tokens.font.weight.bold, letterSpacing: 0.1 },
   stateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, paddingHorizontal: 24 },
   stateTitle: {
-    fontSize: tokens.font.size.md,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.bold,
     color: c.text.primary,
     marginTop: 10,
     textAlign: 'center'
   },
   stateSubtitle: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.sm,
     color: c.text.secondary,
     marginTop: 4,
     textAlign: 'center',

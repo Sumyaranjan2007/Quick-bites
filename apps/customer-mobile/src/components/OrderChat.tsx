@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.border.subtle
   },
-  title: { fontSize: 16.5, fontWeight: '800', color: c.text.primary },
-  subtitle: { fontSize: 12, color: c.text.muted, marginTop: 2 },
+  title: { fontFamily: tokens.font.family, fontSize: 16.5, fontWeight: '800', color: c.text.primary },
+  subtitle: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, marginTop: 2 },
   closeBtn: {
     width: 34,
     height: 34,
@@ -173,18 +173,18 @@ const styles = StyleSheet.create({
   },
   thread: { flex: 1 },
   threadContent: { padding: 16, gap: 10 },
-  empty: { color: c.text.muted, fontSize: 13.5, textAlign: 'center', marginTop: 28, lineHeight: 20 },
+  empty: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 13.5, textAlign: 'center', marginTop: 28, lineHeight: 20 },
   bubbleRow: { flexDirection: 'row', justifyContent: 'flex-start' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubble: { maxWidth: '80%', borderRadius: 14, paddingHorizontal: 13, paddingVertical: 9 },
   bubbleTheirs: { backgroundColor: c.surface.card, borderWidth: 1, borderColor: c.border.subtle },
   bubbleMine: { backgroundColor: c.primary[500] },
-  sender: { fontSize: 11.5, fontWeight: '700', color: c.text.secondary, marginBottom: 3 },
-  body: { fontSize: 14.5, color: c.text.primary, lineHeight: 20 },
+  sender: { fontFamily: tokens.font.family, fontSize: 11.5, fontWeight: '700', color: c.text.secondary, marginBottom: 3 },
+  body: { fontFamily: tokens.font.family, fontSize: 14.5, color: c.text.primary, lineHeight: 20 },
   bodyMine: { color: '#FFFFFF' },
-  time: { fontSize: 10.5, color: c.text.muted, marginTop: 4, alignSelf: 'flex-end' },
+  time: { fontFamily: tokens.font.family, fontSize: 10.5, color: c.text.muted, marginTop: 4, alignSelf: 'flex-end' },
   timeMine: { color: 'rgba(255,255,255,0.75)' },
-  error: { color: c.semantic.error, fontSize: 12.5, paddingHorizontal: 18, paddingBottom: 6, fontWeight: '600' },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 12.5, paddingHorizontal: 18, paddingBottom: 6, fontWeight: '600' },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingTop: 11,
     paddingBottom: 11,
-    fontSize: 14.5,
+    fontFamily: tokens.font.family, fontSize: 14.5,
     color: c.text.primary
   },
   sendBtn: {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   closedNote: {
     color: c.text.muted,
-    fontSize: 12.5,
+    fontFamily: tokens.font.family, fontSize: 12.5,
     textAlign: 'center',
     paddingHorizontal: 18,
     paddingTop: 12

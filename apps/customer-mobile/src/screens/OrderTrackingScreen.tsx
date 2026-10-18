@@ -420,7 +420,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           {isCancelled ? null : isDelivered ? (
             <View style={[styles.etaBox, styles.deliveredBox]}>
               <Text style={[styles.etaLabel, { color: c.dietary.veg }]}>DELIVERED</Text>
-              <Text style={[styles.etaValue, { color: c.dietary.veg, fontSize: 15 }]}>
+              <Text style={[styles.etaValue, { color: c.dietary.veg, fontFamily: tokens.font.family, fontSize: 15 }]}>
                 {order?.deliveredAt ? deliveredTime(order.deliveredAt) : 'Complete'}
               </Text>
             </View>
@@ -783,8 +783,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  doneTitle: { fontSize: 15.5, fontWeight: '800', color: c.text.primary },
-  doneSub: { fontSize: 12.5, color: c.text.secondary, marginTop: 2, lineHeight: 17 },
+  doneTitle: { fontFamily: tokens.font.family, fontSize: 15.5, fontWeight: '800', color: c.text.primary },
+  doneSub: { fontFamily: tokens.font.family, fontSize: 12.5, color: c.text.secondary, marginTop: 2, lineHeight: 17 },
   rateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -795,9 +795,9 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     marginTop: 14
   },
-  rateBtnText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '800' },
+  rateBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 14.5, fontWeight: '800' },
   ratedRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 14 },
-  ratedText: { marginLeft: 8, fontSize: 12.5, color: c.text.secondary, fontWeight: '600' },
+  ratedText: { marginLeft: 8, fontFamily: tokens.font.family, fontSize: 12.5, color: c.text.secondary, fontWeight: '600' },
   contactRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   contactBtn: {
     flex: 1,
@@ -811,9 +811,9 @@ const styles = StyleSheet.create({
     borderColor: c.border.medium,
     backgroundColor: c.surface.card
   },
-  contactText: { fontSize: 14, fontWeight: '700' },
+  contactText: { fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700' },
   billToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  billToggleText: { fontSize: 12.5, fontWeight: '700', color: c.text.secondary },
+  billToggleText: { fontFamily: tokens.font.family, fontSize: 12.5, fontWeight: '700', color: c.text.secondary },
   billHiddenBox: {
     backgroundColor: c.surface.sunken,
     borderRadius: 12,
@@ -821,7 +821,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4
   },
-  billHiddenText: { color: c.text.muted, fontSize: 13, fontWeight: '600' },
+  billHiddenText: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 13, fontWeight: '600' },
   blockHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -842,11 +842,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: tokens.radii.full
   },
-  backText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  backText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
   liveTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.dietary.veg },
   liveText: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.dietary.veg,
     letterSpacing: 0.4
@@ -855,19 +855,19 @@ const styles = StyleSheet.create({
   heroCard: { marginBottom: 14 },
   heroTop: { flexDirection: 'row', gap: 12 },
   orderNo: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.bold,
     color: c.text.muted,
     letterSpacing: 0.6
   },
   statusTitle: {
-    fontSize: tokens.font.size.xl,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xl,
     fontWeight: tokens.font.weight.extrabold,
     color: c.primary[500],
     marginTop: 5,
     letterSpacing: -0.4
   },
-  statusSub: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4 },
+  statusSub: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4 },
   etaBox: {
     backgroundColor: c.accent[50],
     borderRadius: tokens.radii.md,
@@ -876,9 +876,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start'
   },
-  etaLabel: { fontSize: 9, fontWeight: tokens.font.weight.extrabold, color: c.accent[600], letterSpacing: 0.4 },
+  etaLabel: { fontFamily: tokens.font.family, fontSize: 9, fontWeight: tokens.font.weight.extrabold, color: c.accent[600], letterSpacing: 0.4 },
   etaValue: {
-    fontSize: tokens.font.size.md,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.extrabold,
     color: c.accent[600],
     marginTop: 2
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
   stepDotDone: { backgroundColor: c.dietary.veg, borderColor: c.dietary.veg },
   stepDotActive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
   stepLabel: {
-    fontSize: 9,
+    fontFamily: tokens.font.family, fontSize: 9,
     color: c.text.muted,
     marginTop: 7,
     textAlign: 'center',
@@ -918,24 +918,24 @@ const styles = StyleSheet.create({
     marginBottom: 14
   },
   otpLabel: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.accent[400],
     letterSpacing: 1.2
   },
   otpValue: {
-    fontSize: tokens.font.size['2xl'],
+    fontFamily: tokens.font.family, fontSize: tokens.font.size['2xl'],
     fontWeight: tokens.font.weight.extrabold,
     color: c.accent[500],
     marginTop: 8,
     letterSpacing: 2
   },
-  otpHint: { fontSize: tokens.font.size.xs, color: '#D9C4BB', marginTop: 8 },
+  otpHint: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: '#D9C4BB', marginTop: 8 },
 
-  etaCaption: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
+  etaCaption: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
   cancelLink: { marginTop: 12, alignSelf: 'flex-start' },
   cancelLinkText: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.sm,
     fontWeight: tokens.font.weight.bold,
     color: c.semantic.error
   },
@@ -947,14 +947,14 @@ const styles = StyleSheet.create({
     padding: 20
   },
   cancelTitle: {
-    fontSize: tokens.font.size.lg,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary
   },
-  cancelBody: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, marginBottom: 14 },
+  cancelBody: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, marginBottom: 14 },
   cancelQuote: { borderRadius: 10, padding: 12, marginBottom: 12, backgroundColor: c.surface.subtle ?? '#F4F1EE' },
   cancelQuoteFee: { backgroundColor: '#FFF4E5' },
-  cancelQuoteText: { fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 19 },
+  cancelQuoteText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.primary, lineHeight: 19 },
   cancelReason: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -972,7 +972,7 @@ const styles = StyleSheet.create({
     borderColor: c.border.strong
   },
   cancelRadioOn: { borderColor: c.primary[500], backgroundColor: c.primary[500] },
-  cancelReasonText: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary },
+  cancelReasonText: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.primary },
   cancelNote: {
     marginTop: 12,
     borderWidth: 1,
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
     padding: 12,
     minHeight: 72,
     textAlignVertical: 'top',
-    fontSize: tokens.font.size.sm,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.sm,
     color: c.text.primary
   },
   cancelConfirm: {
@@ -992,13 +992,13 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   cancelDisabled: { opacity: 0.45 },
-  cancelConfirmText: { color: '#FFFFFF', fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
+  cancelConfirmText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
   cancelKeep: { marginTop: 10, paddingVertical: 12, alignItems: 'center' },
-  cancelKeepText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.secondary },
+  cancelKeepText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.secondary },
 
   block: { marginBottom: 14 },
   blockTitle: {
-    fontSize: tokens.font.size.base,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     marginBottom: 6
@@ -1014,9 +1014,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   riderTrackRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  riderTrackText: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19 },
-  riderName: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
-  riderMeta: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 2 },
+  riderTrackText: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19 },
+  riderName: { fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  riderMeta: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 2 },
   callBtn: {
     width: 42,
     height: 42,
@@ -1025,11 +1025,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  pendingRider: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 20 },
+  pendingRider: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 20 },
 
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9, gap: 12 },
-  summaryLabel: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.secondary },
-  summaryValue: { fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
+  summaryLabel: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary },
+  summaryValue: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.primary, fontWeight: tokens.font.weight.semibold },
   summaryTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1038,6 +1038,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  summaryTotalLabel: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
-  summaryTotalValue: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.extrabold, color: c.primary[500] }
+  summaryTotalLabel: { fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  summaryTotalValue: { fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.extrabold, color: c.primary[500] }
 });

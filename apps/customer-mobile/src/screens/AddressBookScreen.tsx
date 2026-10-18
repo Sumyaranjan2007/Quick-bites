@@ -499,9 +499,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.border.subtle
   },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: c.text.primary },
+  headerTitle: { fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', color: c.text.primary },
   body: { padding: 20, gap: 14, paddingBottom: 48 },
-  error: { color: c.semantic.error, fontSize: 13, lineHeight: 19 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 13, lineHeight: 19 },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     backgroundColor: c.surface.subtle
   },
-  addButtonText: { color: c.primary[500], fontWeight: '800', fontSize: 14 },
+  addButtonText: { color: c.primary[500], fontWeight: '800', fontFamily: tokens.font.family, fontSize: 14 },
   addressCard: { gap: 12 },
   addressTop: { flexDirection: 'row', gap: 12 },
   addressIcon: {
@@ -527,11 +527,11 @@ const styles = StyleSheet.create({
   },
   addressText: { flex: 1, gap: 3 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  addressLabel: { fontSize: 14, fontWeight: '800', color: c.text.primary },
+  addressLabel: { fontFamily: tokens.font.family, fontSize: 14, fontWeight: '800', color: c.text.primary },
   defaultTag: { backgroundColor: c.dietary.vegBg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
-  defaultTagText: { fontSize: 9, fontWeight: '800', color: c.dietary.veg, letterSpacing: 0.4 },
-  addressLine: { fontSize: 12, color: c.text.secondary, lineHeight: 18 },
-  noPin: { fontSize: 11, color: c.semantic.warning, marginTop: 2 },
+  defaultTagText: { fontFamily: tokens.font.family, fontSize: 9, fontWeight: '800', color: c.dietary.veg, letterSpacing: 0.4 },
+  addressLine: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.secondary, lineHeight: 18 },
+  noPin: { fontFamily: tokens.font.family, fontSize: 11, color: c.semantic.warning, marginTop: 2 },
   addressActions: {
     flexDirection: 'row',
     gap: 18,
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap'
   },
   action: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  actionText: { fontSize: 12, color: c.text.secondary, fontWeight: '700' },
+  actionText: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.secondary, fontWeight: '700' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface.card,
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: '88%'
   },
-  sheetTitle: { fontSize: 17, fontWeight: '800', color: c.text.primary },
+  sheetTitle: { fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', color: c.text.primary },
   mapButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 13
   },
-  mapButtonText: { color: c.text.inverse, fontSize: 14, fontWeight: '700' },
+  mapButtonText: { color: c.text.inverse, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700' },
   locateButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     backgroundColor: c.primary[50]
   },
   locateButtonDone: { borderColor: c.dietary.veg, backgroundColor: c.dietary.vegBg },
-  locateText: { color: c.primary[500], fontWeight: '700', fontSize: 13 },
+  locateText: { color: c.primary[500], fontWeight: '700', fontFamily: tokens.font.family, fontSize: 13 },
   labelChips: { flexDirection: 'row', gap: 8 },
   labelChip: {
     paddingHorizontal: 16,
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     borderColor: c.border.medium
   },
   labelChipOn: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
-  labelChipText: { fontSize: 12, fontWeight: '700', color: c.text.secondary },
+  labelChipText: { fontFamily: tokens.font.family, fontSize: 12, fontWeight: '700', color: c.text.secondary },
   labelChipTextOn: { color: '#FFFFFF' },
   input: {
     borderWidth: 1,
@@ -590,14 +590,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 14,
+    fontFamily: tokens.font.family, fontSize: 14,
     color: c.text.primary,
     backgroundColor: c.surface.subtle
   },
-  formError: { color: c.semantic.error, fontSize: 12, lineHeight: 18 },
+  formError: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 12, lineHeight: 18 },
   sheetButton: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   sheetCancel: { backgroundColor: c.surface.sunken },
-  sheetCancelText: { color: c.text.secondary, fontWeight: '800', fontSize: 14 },
+  sheetCancelText: { color: c.text.secondary, fontWeight: '800', fontFamily: tokens.font.family, fontSize: 14 },
   sheetSave: { backgroundColor: c.primary[500] },
-  sheetSaveText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 }
+  sheetSaveText: { color: '#FFFFFF', fontWeight: '800', fontFamily: tokens.font.family, fontSize: 14 }
 });

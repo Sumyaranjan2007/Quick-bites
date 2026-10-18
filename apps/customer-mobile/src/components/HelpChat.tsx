@@ -122,7 +122,7 @@ export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () =
 };
 
 const s = StyleSheet.create({
-  greeting: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: c.text.primary, marginBottom: 10 },
+  greeting: { fontFamily: tokens.font.family, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: c.text.primary, marginBottom: 10 },
   bubble: { padding: 12, borderRadius: tokens.radii.lg, marginBottom: 8, maxWidth: '88%' },
   mine: { alignSelf: 'flex-end', backgroundColor: c.primary[600] },
   mineText: { color: c.text.inverse, fontWeight: tokens.font.weight.semibold },
@@ -130,7 +130,7 @@ const s = StyleSheet.create({
   theirsText: { color: c.text.primary, lineHeight: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 10 },
   chip: { borderWidth: 1, borderColor: c.primary[600], borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-  chipText: { color: c.primary[600], fontWeight: tokens.font.weight.semibold, fontSize: tokens.font.size.sm },
+  chipText: { color: c.primary[600], fontWeight: tokens.font.weight.semibold, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm },
   input: {
     borderWidth: 1,
     borderColor: c.border.medium,

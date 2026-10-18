@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     backgroundColor: c.dietary.nonvegBg,
     marginRight: 'auto'
   },
-  problemBtnText: { color: c.dietary.nonveg, fontSize: 12.5, fontWeight: '700' },
+  problemBtnText: { color: c.dietary.nonveg, fontFamily: tokens.font.family, fontSize: 12.5, fontWeight: '700' },
   backdrop: { flex: 1, backgroundColor: 'rgba(20,10,14,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface.card,
@@ -533,9 +533,9 @@ const styles = StyleSheet.create({
     maxHeight: '88%'
   },
   sheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
-  sheetTitle: { fontSize: 18, fontWeight: '800', color: c.text.primary },
-  sheetSub: { fontSize: 12.5, color: c.text.muted, marginTop: 3 },
-  label: { fontSize: 12, fontWeight: '700', color: c.text.secondary, marginBottom: 7, marginTop: 12 },
+  sheetTitle: { fontFamily: tokens.font.family, fontSize: 18, fontWeight: '800', color: c.text.primary },
+  sheetSub: { fontFamily: tokens.font.family, fontSize: 12.5, color: c.text.muted, marginTop: 3 },
+  label: { fontFamily: tokens.font.family, fontSize: 12, fontWeight: '700', color: c.text.secondary, marginBottom: 7, marginTop: 12 },
   input: {
     backgroundColor: c.surface.sunken,
     borderRadius: tokens.radii.md,
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle,
     paddingHorizontal: 14,
     height: 46,
-    fontSize: 15,
+    fontFamily: tokens.font.family, fontSize: 15,
     color: c.text.primary
   },
   inputMultiline: { height: 106, paddingTop: 12 },
@@ -557,10 +557,10 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle
   },
   reasonActive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
-  reasonText: { fontSize: 13, color: c.text.secondary, fontWeight: '600' },
+  reasonText: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, fontWeight: '600' },
   reasonTextActive: { color: '#FFFFFF', fontWeight: '700' },
-  helper: { fontSize: 12, color: c.text.muted, marginTop: 8, lineHeight: 17 },
-  error: { color: c.semantic.error, fontSize: 13, marginTop: 12, lineHeight: 18 },
+  helper: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, marginTop: 8, lineHeight: 17 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 13, marginTop: 12, lineHeight: 18 },
   primaryBtn: {
     backgroundColor: c.primary[500],
     height: 50,
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 8
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 15, fontWeight: '800' },
   content: { padding: 16, paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
   backBtn: {
@@ -593,9 +593,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.subtle
   },
-  title: { flex: 1, fontSize: 20, fontWeight: '800', color: c.text.primary },
+  title: { flex: 1, fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800', color: c.text.primary },
   block: { alignItems: 'center', paddingVertical: 34, gap: 10 },
-  emptyText: { color: c.text.muted, fontSize: 13.5, textAlign: 'center', lineHeight: 20 },
+  emptyText: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 13.5, textAlign: 'center', lineHeight: 20 },
   orderCard: { marginBottom: 12 },
 
   reorderBtn: {
@@ -605,9 +605,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.primary[500]
   },
-  reorderBtnText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, color: c.primary[500] },
+  reorderBtnText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, color: c.primary[500] },
   reorderRestaurant: {
-    fontSize: tokens.font.size.base,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     marginBottom: 10
@@ -620,17 +620,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  reorderName: { flex: 1, fontSize: tokens.font.size.sm, color: c.text.primary, marginRight: 12 },
+  reorderName: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.primary, marginRight: 12 },
   reorderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reorderOldPrice: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     color: c.text.muted,
     textDecorationLine: 'line-through'
   },
-  reorderPrice: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  reorderPrice: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: c.text.primary },
   reorderStruck: { textDecorationLine: 'line-through', color: c.text.muted },
-  reorderWarn: { fontSize: tokens.font.size.xs, color: c.semantic.warning, marginTop: 10 },
-  reorderNote: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
+  reorderWarn: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.semantic.warning, marginTop: 10 },
+  reorderNote: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 10 },
   reorderCta: {
     marginTop: 16,
     backgroundColor: c.primary[500],
@@ -639,10 +639,10 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   reorderCtaDisabled: { opacity: 0.45 },
-  reorderCtaText: { color: '#FFFFFF', fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
+  reorderCtaText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold },
   orderTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  restaurant: { fontSize: 15.5, fontWeight: '800', color: c.text.primary },
-  orderMeta: { fontSize: 12, color: c.text.muted, marginTop: 2 },
+  restaurant: { fontFamily: tokens.font.family, fontSize: 15.5, fontWeight: '800', color: c.text.primary },
+  orderMeta: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, marginTop: 2 },
   statusPill: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -651,8 +651,8 @@ const styles = StyleSheet.create({
   },
   statusPillLive: { backgroundColor: c.accent[50] },
   statusPillDone: { backgroundColor: c.dietary.vegBg },
-  statusText: { fontSize: 11, fontWeight: '800', color: c.text.secondary },
-  itemLine: { fontSize: 13, color: c.text.secondary, marginTop: 2 },
+  statusText: { fontFamily: tokens.font.family, fontSize: 11, fontWeight: '800', color: c.text.secondary },
+  itemLine: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, marginTop: 2 },
   /*
    * WRAPS, because this row outgrew one line.
    *
@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
     borderTopColor: c.border.subtle,
     gap: 10
   },
-  total: { fontSize: 15.5, fontWeight: '800', color: c.text.primary },
+  total: { fontFamily: tokens.font.family, fontSize: 15.5, fontWeight: '800', color: c.text.primary },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -690,12 +690,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 999
   },
-  ratedChipText: { fontSize: 11, fontWeight: '700', color: c.dietary.gold },
+  ratedChipText: { fontFamily: tokens.font.family, fontSize: 11, fontWeight: '700', color: c.dietary.gold },
   openBtn: {
     backgroundColor: c.primary[500],
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 9
   },
-  openBtnText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '800' }
+  openBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 12.5, fontWeight: '800' }
 });

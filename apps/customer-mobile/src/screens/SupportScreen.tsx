@@ -453,20 +453,20 @@ const styles = StyleSheet.create({
   ticketLoading: { paddingVertical: 18, alignItems: 'center' },
   ticket: { borderTopWidth: 1, borderTopColor: c.border.subtle, paddingVertical: 12 },
   ticketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  ticketSubject: { flex: 1, fontSize: 14, fontWeight: '700', color: c.text.primary },
-  ticketStatus: { fontSize: 11, fontWeight: '800', color: c.semantic.warning, textTransform: 'capitalize' },
+  ticketSubject: { flex: 1, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700', color: c.text.primary },
+  ticketStatus: { fontFamily: tokens.font.family, fontSize: 11, fontWeight: '800', color: c.semantic.warning, textTransform: 'capitalize' },
   ticketStatusDone: { color: c.dietary.veg },
   ticketStatusRejected: { color: c.semantic.error },
-  ticketBody: { fontSize: 13, color: c.text.secondary, marginTop: 4, lineHeight: 18 },
-  ticketMeta: { fontSize: 11, color: c.text.muted, marginTop: 6 },
+  ticketBody: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, marginTop: 4, lineHeight: 18 },
+  ticketMeta: { fontFamily: tokens.font.family, fontSize: 11, color: c.text.muted, marginTop: 6 },
   reply: {
     backgroundColor: c.surface.sunken,
     borderRadius: tokens.radii.sm,
     padding: 10,
     marginTop: 8
   },
-  replyWho: { fontSize: 11, color: c.text.muted, fontWeight: '700' },
-  replyBody: { fontSize: 13, color: c.text.primary, marginTop: 3, lineHeight: 18 },
+  replyWho: { fontFamily: tokens.font.family, fontSize: 11, color: c.text.muted, fontWeight: '700' },
+  replyBody: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.primary, marginTop: 3, lineHeight: 18 },
   backdrop: { flex: 1, backgroundColor: 'rgba(20,10,14,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: c.surface.card,
@@ -476,8 +476,8 @@ const styles = StyleSheet.create({
     maxHeight: '86%'
   },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  sheetTitle: { fontSize: 18, fontWeight: '800', color: c.text.primary },
-  label: { fontSize: 12, fontWeight: '700', color: c.text.secondary, marginBottom: 7, marginTop: 10 },
+  sheetTitle: { fontFamily: tokens.font.family, fontSize: 18, fontWeight: '800', color: c.text.primary },
+  label: { fontFamily: tokens.font.family, fontSize: 12, fontWeight: '700', color: c.text.secondary, marginBottom: 7, marginTop: 10 },
   input: {
     backgroundColor: c.surface.sunken,
     borderRadius: tokens.radii.md,
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle,
     paddingHorizontal: 14,
     height: 46,
-    fontSize: 15,
+    fontFamily: tokens.font.family, fontSize: 15,
     color: c.text.primary
   },
   inputMultiline: { height: 108, paddingTop: 12 },
@@ -499,9 +499,9 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle
   },
   categoryActive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
-  categoryText: { fontSize: 13, color: c.text.secondary, fontWeight: '600' },
+  categoryText: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, fontWeight: '600' },
   categoryTextActive: { color: '#FFFFFF', fontWeight: '700' },
-  error: { color: c.semantic.error, fontSize: 13, marginTop: 12, lineHeight: 18 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 13, marginTop: 12, lineHeight: 18 },
   primaryBtn: {
     backgroundColor: c.primary[500],
     height: 50,
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 18
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 15, fontWeight: '800' },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { padding: 16, paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12, ...iosLargeTitle.header },
@@ -524,10 +524,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: c.border.subtle
   },
-  title: { fontSize: 20, fontWeight: '800', color: c.text.primary, ...iosLargeTitle.title },
+  title: { fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800', color: c.text.primary, ...iosLargeTitle.title },
   hero: { backgroundColor: c.primary[500], marginBottom: 14 },
-  heroTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 },
+  heroTitle: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800' },
+  heroSub: { color: 'rgba(255,255,255,0.85)', fontFamily: tokens.font.family, fontSize: 13, marginTop: 4 },
   block: { marginBottom: 14, paddingVertical: 4 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: c.border.subtle },
@@ -539,10 +539,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  rowTitle: { fontSize: 14.5, fontWeight: '700', color: c.text.primary },
-  rowSub: { fontSize: 12, color: c.text.muted, marginTop: 2 },
+  rowTitle: { fontFamily: tokens.font.family, fontSize: 14.5, fontWeight: '700', color: c.text.primary },
+  rowSub: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, marginTop: 2 },
   sectionLabel: {
-    fontSize: 12,
+    fontFamily: tokens.font.family, fontSize: 12,
     fontWeight: '800',
     color: c.text.muted,
     letterSpacing: 0.6,
@@ -550,9 +550,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4
   },
-  faqQ: { fontSize: 14, fontWeight: '700', color: c.text.primary, marginTop: 12 },
-  faqA: { fontSize: 13, color: c.text.secondary, lineHeight: 19, marginTop: 4, marginBottom: 4 },
+  faqQ: { fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700', color: c.text.primary, marginTop: 12 },
+  faqA: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, lineHeight: 19, marginTop: 4, marginBottom: 4 },
   faqDivider: { height: 1, backgroundColor: c.border.subtle, marginTop: 12 },
   trust: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 4 },
-  trustText: { fontSize: 11.5, color: c.text.muted, flex: 1, lineHeight: 16 }
+  trustText: { fontFamily: tokens.font.family, fontSize: 11.5, color: c.text.muted, flex: 1, lineHeight: 16 }
 });

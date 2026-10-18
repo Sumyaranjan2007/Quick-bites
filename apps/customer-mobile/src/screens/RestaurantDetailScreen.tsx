@@ -572,7 +572,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  sectionOff: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: -4, marginBottom: 8 },
+  sectionOff: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: -4, marginBottom: 8 },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { paddingBottom: 120 },
 
@@ -607,20 +607,20 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: tokens.radii.sm
   },
-  heroEtaText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  heroEtaText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
 
   summaryCard: { marginHorizontal: 16, marginTop: -18 },
   summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: {
     flex: 1,
-    fontSize: tokens.font.size.xl,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xl,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     letterSpacing: -0.4
   },
-  cuisine: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6 },
-  onlineOnly: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6, fontWeight: '600' },
-  costLine: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4 },
+  cuisine: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6 },
+  onlineOnly: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 6, fontWeight: '600' },
+  costLine: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 4 },
   fssaiRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.subtle
   },
-  fssaiText: { fontSize: tokens.font.size.xs, color: c.dietary.veg, fontWeight: tokens.font.weight.semibold },
+  fssaiText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.dietary.veg, fontWeight: tokens.font.weight.semibold },
 
   offerRow: { gap: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
   offerCard: {
@@ -644,12 +644,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10
   },
-  offerTitle: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.accent[600] },
-  offerSub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 1 },
+  offerTitle: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.accent[600] },
+  offerSub: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 1 },
 
   tabRow: { gap: 20, paddingHorizontal: 16, paddingTop: 18 },
   tab: { paddingBottom: 8 },
-  tabText: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: c.text.muted },
+  tabText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: c.text.muted },
   tabTextActive: { color: c.primary[500], fontWeight: tokens.font.weight.extrabold },
   tabUnderline: {
     height: 3,
@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
 
   menuList: { paddingHorizontal: 16, paddingTop: 8 },
   sectionHeading: {
-    fontSize: 15,
+    fontFamily: tokens.font.family, fontSize: 15,
     fontWeight: '800',
     color: c.text.primary,
     marginTop: 18,
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
   },
   /** Lifted clear of the cart bar when one is showing. */
   menuFabRaised: { bottom: 96 },
-  menuFabText: { color: c.text.inverse, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
+  menuFabText: { color: c.text.inverse, fontWeight: '800', fontFamily: tokens.font.family, fontSize: 13, letterSpacing: 1 },
   menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   menuSheet: {
     backgroundColor: c.surface.card,
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 30
   },
-  menuSheetTitle: { fontSize: 17, fontWeight: '800', color: c.text.primary, marginBottom: 6 },
+  menuSheetTitle: { fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', color: c.text.primary, marginBottom: 6 },
   menuSheetRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -706,8 +706,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border.subtle
   },
-  menuSheetLabel: { fontSize: 15, color: c.text.primary, fontWeight: '600' },
-  menuSheetCount: { fontSize: 13, color: c.text.secondary },
+  menuSheetLabel: { fontFamily: tokens.font.family, fontSize: 15, color: c.text.primary, fontWeight: '600' },
+  menuSheetCount: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary },
   dishRow: {
     flexDirection: 'row',
     paddingVertical: 18,
@@ -716,18 +716,18 @@ const styles = StyleSheet.create({
   },
   dishRowOut: { opacity: 0.5 },
   dishName: {
-    fontSize: tokens.font.size.base,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.bold,
     color: c.text.primary,
     marginTop: 8
   },
   dishPrice: {
-    fontSize: tokens.font.size.base,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.base,
     fontWeight: tokens.font.weight.bold,
     color: c.text.primary,
     marginTop: 4
   },
-  dishDesc: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, lineHeight: 18 },
+  dishDesc: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6, lineHeight: 18 },
 
   dishRight: { width: 112, alignItems: 'center' },
   dishImage: { width: 112, height: 96, borderRadius: tokens.radii.md },
@@ -742,8 +742,8 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.sm,
     ...tokens.shadow.card
   },
-  addBtnText: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
-  addBtnPlus: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
+  addBtnText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
+  addBtnPlus: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
   soldOutBtn: {
     marginTop: -16,
     backgroundColor: c.surface.sunken,
@@ -753,8 +753,8 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: tokens.radii.sm
   },
-  soldOutText: { fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.extrabold, color: c.text.muted },
-  customisable: { fontSize: 10, color: c.text.muted, marginTop: 5 },
+  soldOutText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.extrabold, color: c.text.muted },
+  customisable: { fontFamily: tokens.font.family, fontSize: 10, color: c.text.muted, marginTop: 5 },
 
   cartBar: {
     position: 'absolute',
@@ -770,8 +770,8 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     ...tokens.shadow.floating
   },
-  cartBarCount: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontSize: tokens.font.size.base },
-  cartBarSub: { color: '#D9C4BB', fontSize: tokens.font.size.xs, marginTop: 2 },
+  cartBarCount: { color: '#FFFFFF', fontWeight: tokens.font.weight.extrabold, fontFamily: tokens.font.family, fontSize: tokens.font.size.base },
+  cartBarSub: { color: '#D9C4BB', fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, marginTop: 2 },
   cartBarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: tokens.radii.sm
   },
-  cartBarBtnText: { fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent, fontSize: tokens.font.size.sm },
+  cartBarBtnText: { fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm },
 
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(26,7,16,0.45)', justifyContent: 'flex-end' },
   sheet: {
@@ -799,8 +799,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16
   },
-  sheetTitle: { fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
-  sheetSub: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4, marginBottom: 14 },
+  sheetTitle: { fontFamily: tokens.font.family, fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.extrabold, color: c.text.primary },
+  sheetSub: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4, marginBottom: 14 },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
   },
   checkboxInner: { width: 9, height: 9, borderRadius: 2, backgroundColor: c.primary[500] },
   radioInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary[500] },
-  optionName: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, fontWeight: tokens.font.weight.medium },
-  optionPrice: { fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
+  optionName: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.base, color: c.text.primary, fontWeight: tokens.font.weight.medium },
+  optionPrice: { fontFamily: tokens.font.family, fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, color: c.text.primary },
   sheetActions: { flexDirection: 'row', gap: 12, marginTop: 8 }
 });

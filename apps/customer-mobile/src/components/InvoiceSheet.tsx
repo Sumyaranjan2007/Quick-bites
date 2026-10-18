@@ -367,15 +367,15 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: c.border.subtle
   },
-  title: { color: c.text.primary, fontSize: 17, fontWeight: '800', flex: 1 },
+  title: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', flex: 1 },
 
   body: { padding: 20, paddingBottom: 36 },
   centre: { paddingVertical: 40, alignItems: 'center' },
-  error: { color: c.semantic.error, fontSize: 14, lineHeight: 20, textAlign: 'center', paddingVertical: 20 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 14, lineHeight: 20, textAlign: 'center', paddingVertical: 20 },
 
-  supplier: { color: c.text.primary, fontSize: 18, fontWeight: '800' },
-  supplierSub: { color: c.text.secondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
-  gstin: { color: c.text.primary, fontSize: 13, fontWeight: '700', marginTop: 6, letterSpacing: 0.4 },
+  supplier: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 18, fontWeight: '800' },
+  supplierSub: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  gstin: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 13, fontWeight: '700', marginTop: 6, letterSpacing: 0.4 },
 
   metaBox: {
     backgroundColor: c.surface.sunken,
@@ -384,29 +384,29 @@ const s = StyleSheet.create({
     marginTop: 16
   },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, gap: 12 },
-  metaLabel: { color: c.text.muted, fontSize: 12 },
-  metaValue: { color: c.text.primary, fontSize: 12, fontWeight: '700', flex: 1, textAlign: 'right' },
+  metaLabel: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 12 },
+  metaValue: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 12, fontWeight: '700', flex: 1, textAlign: 'right' },
 
   sectionLabel: {
     color: c.text.muted,
-    fontSize: 11,
+    fontFamily: tokens.font.family, fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginTop: 20,
     marginBottom: 6
   },
-  recipient: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
+  recipient: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700' },
 
   lineBlock: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border.subtle },
   lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  lineDesc: { color: c.text.primary, fontSize: 14, fontWeight: '600', flex: 1 },
-  lineTotal: { color: c.text.primary, fontSize: 14, fontWeight: '700' },
-  lineMeta: { color: c.text.muted, fontSize: 11, marginTop: 3 },
+  lineDesc: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '600', flex: 1 },
+  lineTotal: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '700' },
+  lineMeta: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 11, marginTop: 3 },
 
   receiptRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  receiptLabel: { color: c.text.secondary, fontSize: 14 },
-  receiptValue: { color: c.text.primary, fontSize: 14, fontWeight: '600' },
+  receiptLabel: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 14 },
+  receiptValue: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 14, fontWeight: '600' },
 
   totalRow: {
     flexDirection: 'row',
@@ -416,18 +416,18 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: c.border.medium
   },
-  totalLabel: { color: c.text.primary, fontSize: 16, fontWeight: '800' },
-  totalValue: { color: c.text.primary, fontSize: 20, fontWeight: '800' },
+  totalLabel: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 16, fontWeight: '800' },
+  totalValue: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800' },
 
-  note: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 12 },
+  note: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 11, lineHeight: 16, marginTop: 12 },
 
   refundBox: { borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1 },
   refundBoxDone: { backgroundColor: c.dietary.vegBg, borderColor: c.dietary.veg },
   refundBoxWaiting: { backgroundColor: c.surface.sunken, borderColor: c.border.medium },
-  refundAmount: { color: c.text.primary, fontSize: 20, fontWeight: '800' },
-  refundTiming: { color: c.text.secondary, fontSize: 13, lineHeight: 19, marginTop: 6 },
-  refundAction: { color: c.text.primary, fontSize: 13, lineHeight: 19, marginTop: 10, fontWeight: '600' },
-  refundReference: { color: c.text.muted, fontSize: 11, lineHeight: 16, marginTop: 8 }
+  refundAmount: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800' },
+  refundTiming: { color: c.text.secondary, fontFamily: tokens.font.family, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  refundAction: { color: c.text.primary, fontFamily: tokens.font.family, fontSize: 13, lineHeight: 19, marginTop: 10, fontWeight: '600' },
+  refundReference: { color: c.text.muted, fontFamily: tokens.font.family, fontSize: 11, lineHeight: 16, marginTop: 8 }
 });
 
 export default InvoiceSheet;

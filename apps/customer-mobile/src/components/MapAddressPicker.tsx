@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     backgroundColor: c.surface.card
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: c.text.primary },
+  headerTitle: { fontFamily: tokens.font.family, fontSize: 16, fontWeight: '700', color: c.text.primary },
 
   mapArea: { flex: 1, backgroundColor: c.surface.sunken },
   pinLayer: {
@@ -347,8 +347,8 @@ const styles = StyleSheet.create({
   pinTipOffset: { height: 36 },
 
   noMap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 10 },
-  noMapTitle: { fontSize: 15, fontWeight: '700', color: c.text.primary },
-  noMapBody: { fontSize: 13, color: c.text.secondary, textAlign: 'center', lineHeight: 19 },
+  noMapTitle: { fontFamily: tokens.font.family, fontSize: 15, fontWeight: '700', color: c.text.primary },
+  noMapBody: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, textAlign: 'center', lineHeight: 19 },
 
   locateFab: {
     position: 'absolute',
@@ -374,11 +374,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: c.border.subtle
   },
-  sheetLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: c.text.muted },
+  sheetLabel: { fontFamily: tokens.font.family, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: c.text.muted },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  looking: { fontSize: 14, color: c.text.secondary },
-  address: { fontSize: 15, fontWeight: '600', color: c.text.primary, lineHeight: 21 },
-  hint: { fontSize: 12, color: c.text.muted, lineHeight: 17 },
+  looking: { fontFamily: tokens.font.family, fontSize: 14, color: c.text.secondary },
+  address: { fontFamily: tokens.font.family, fontSize: 15, fontWeight: '600', color: c.text.primary, lineHeight: 21 },
+  hint: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, lineHeight: 17 },
   confirm: {
     marginTop: 6,
     flexDirection: 'row',
@@ -390,5 +390,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14
   },
   confirmBusy: { opacity: 0.6 },
-  confirmText: { color: c.text.inverse, fontSize: 15, fontWeight: '700' }
+  confirmText: { color: c.text.inverse, fontFamily: tokens.font.family, fontSize: 15, fontWeight: '700' }
 });

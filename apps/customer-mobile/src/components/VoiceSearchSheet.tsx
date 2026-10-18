@@ -193,16 +193,16 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
   micRingLive: { backgroundColor: c.primary[500], borderColor: c.primary[500] },
-  status: { marginTop: 16, fontSize: 15.5, fontWeight: '800', color: c.text.primary },
+  status: { marginTop: 16, fontFamily: tokens.font.family, fontSize: 15.5, fontWeight: '800', color: c.text.primary },
   transcript: {
     marginTop: 10,
-    fontSize: 17,
+    fontFamily: tokens.font.family, fontSize: 17,
     color: c.text.primary,
     textAlign: 'center',
     lineHeight: 24,
     fontWeight: '600'
   },
-  error: { marginTop: 10, fontSize: 13, color: c.semantic.error, textAlign: 'center', lineHeight: 19 },
+  error: { marginTop: 10, fontFamily: tokens.font.family, fontSize: 13, color: c.semantic.error, textAlign: 'center', lineHeight: 19 },
   retry: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 18
   },
-  retryText: { color: c.primary[500], fontSize: 14, fontWeight: '800' },
+  retryText: { color: c.primary[500], fontFamily: tokens.font.family, fontSize: 14, fontWeight: '800' },
   useBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -227,6 +227,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     alignSelf: 'stretch'
   },
-  useBtnText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '800' },
-  hint: { marginTop: 14, fontSize: 11.5, color: c.text.muted, textAlign: 'center' }
+  useBtnText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 14.5, fontWeight: '800' },
+  hint: { marginTop: 14, fontFamily: tokens.font.family, fontSize: 11.5, color: c.text.muted, textAlign: 'center' }
 });

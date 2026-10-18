@@ -177,8 +177,8 @@ const styles = StyleSheet.create({
     paddingBottom: 28
   },
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18 },
-  title: { fontSize: 19, fontWeight: '800', color: c.text.primary },
-  subtitle: { fontSize: 13, color: c.text.secondary, marginTop: 3 },
+  title: { fontFamily: tokens.font.family, fontSize: 19, fontWeight: '800', color: c.text.primary },
+  subtitle: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, marginTop: 3 },
   closeBtn: {
     width: 34,
     height: 34,
@@ -198,14 +198,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: 'center'
   },
-  riderLabel: { fontSize: 13, fontWeight: '700', color: c.text.secondary },
+  riderLabel: { fontFamily: tokens.font.family, fontSize: 13, fontWeight: '700', color: c.text.secondary },
   riderStars: { flexDirection: 'row', marginTop: 6 },
   riderStarTap: { padding: 3 },
   word: {
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 16,
-    fontSize: 14,
+    fontFamily: tokens.font.family, fontSize: 14,
     fontWeight: '700',
     color: c.text.secondary
   },
@@ -217,10 +217,10 @@ const styles = StyleSheet.create({
     padding: 13,
     minHeight: 88,
     textAlignVertical: 'top',
-    fontSize: 14.5,
+    fontFamily: tokens.font.family, fontSize: 14.5,
     color: c.text.primary
   },
-  error: { color: c.semantic.error, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
+  error: { color: c.semantic.error, fontFamily: tokens.font.family, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
   submit: {
     backgroundColor: c.primary[500],
     borderRadius: 14,
@@ -228,5 +228,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16
   },
-  submitText: { color: '#FFFFFF', fontSize: 15.5, fontWeight: '800' }
+  submitText: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: 15.5, fontWeight: '800' }
 });

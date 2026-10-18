@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'ios' ? { minHeight: 44, justifyContent: 'center' as const } : {})
   },
   navText: {
-    fontSize: 11,
+    fontFamily: tokens.font.family, fontSize: 11,
     color: tokens.colors.text.muted,
     fontWeight: '600'
   },
@@ -691,7 +691,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   navBadgeText: {
-    fontSize: 10,
+    fontFamily: tokens.font.family, fontSize: 10,
     fontWeight: '800',
     color: tokens.colors.text.onAccent
   }

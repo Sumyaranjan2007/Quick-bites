@@ -1,3 +1,4 @@
+import { KitchenTicketButton } from '../components/KitchenTicketButton';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { Star } from 'lucide-react-native';
@@ -80,6 +81,9 @@ export const OrderHistoryScreen: React.FC<Props> = ({ restaurantId }) => {
             </Text>
           ))}
         </View>
+
+        {/* Reprint a ticket for an order that went through (B10). */}
+        {!cancelled && <KitchenTicketButton orderId={item.id} />}
 
         <View style={styles.bottom}>
           <View>

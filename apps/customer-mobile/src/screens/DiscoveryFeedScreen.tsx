@@ -1002,13 +1002,13 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14
   },
-  recommendTitle: { fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: c.primary[700] },
-  recommendBody: { fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4 },
+  recommendTitle: { fontFamily: tokens.font.family, fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: c.primary[700] },
+  recommendBody: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, marginTop: 4 },
   favouritesBlock: { marginBottom: 16 },
   favouriteCard: { width: 140 },
   favouritePhoto: { width: 140, height: 90, borderRadius: tokens.radii.lg },
-  favouriteName: { fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.primary, marginTop: 6 },
-  favouriteClosed: { fontSize: tokens.font.size.xs, color: c.text.muted },
+  favouriteName: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: c.text.primary, marginTop: 6 },
+  favouriteClosed: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted },
   suggestBox: {
     marginHorizontal: 16,
     marginTop: -4,
@@ -1019,10 +1019,10 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle
   },
   suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11 },
-  suggestText: { flex: 1, fontSize: 14, color: c.text.primary },
-  suggestSub: { fontSize: 12, color: c.text.muted },
+  suggestText: { flex: 1, fontFamily: tokens.font.family, fontSize: 14, color: c.text.primary },
+  suggestSub: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted },
   dishMatch: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     color: c.dietary.veg,
     fontWeight: '700',
     marginTop: 2
@@ -1036,8 +1036,8 @@ const styles = StyleSheet.create({
     gap: tokens.spacing[3]
   },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sheetTitle: { fontSize: tokens.font.size.md, fontWeight: '700', color: c.text.primary },
-  sheetEmpty: { fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19 },
+  sheetTitle: { fontFamily: tokens.font.family, fontSize: tokens.font.size.md, fontWeight: '700', color: c.text.primary },
+  sheetEmpty: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, lineHeight: 19 },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1049,9 +1049,9 @@ const styles = StyleSheet.create({
     borderColor: c.border.subtle
   },
   addressRowActive: { borderColor: c.primary[500], backgroundColor: c.primary[50] },
-  addressLabel: { fontSize: tokens.font.size.sm, fontWeight: '700', color: c.text.primary },
-  addressLine: { fontSize: tokens.font.size.xs, color: c.text.secondary },
-  addressNoPin: { fontSize: tokens.font.size.xs, color: c.text.muted, fontStyle: 'italic' },
+  addressLabel: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: '700', color: c.text.primary },
+  addressLine: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.secondary },
+  addressNoPin: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted, fontStyle: 'italic' },
   chooseOnMap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1062,18 +1062,18 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing[4],
     marginTop: tokens.spacing[1]
   },
-  chooseOnMapText: { color: c.text.inverse, fontSize: tokens.font.size.sm, fontWeight: '700' },
+  chooseOnMapText: { color: c.text.inverse, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: '700' },
   screen: { flex: 1, backgroundColor: c.surface.app },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 28 },
 
   topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   locationName: {
-    fontSize: tokens.font.size.md,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary
   },
-  locationSub: { fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 1, marginLeft: 21 },
+  locationSub: { fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, color: c.text.muted, marginTop: 1, marginLeft: 21 },
   bellButton: {
     width: 40,
     height: 40,
@@ -1097,14 +1097,14 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    fontSize: tokens.font.size['2xl'],
+    fontFamily: tokens.font.family, fontSize: tokens.font.size['2xl'],
     lineHeight: 34,
     fontWeight: tokens.font.weight.extrabold,
     color: c.primary[500],
     letterSpacing: -0.6
   },
   heroSub: {
-    fontSize: tokens.font.size.md,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.md,
     fontWeight: tokens.font.weight.bold,
     color: c.accent[600],
     fontStyle: 'italic',
@@ -1126,7 +1126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     ...tokens.shadow.card
   },
-  searchInput: { flex: 1, fontSize: tokens.font.size.base, color: c.text.primary, padding: 0 },
+  searchInput: { flex: 1, fontFamily: tokens.font.family, fontSize: tokens.font.size.base, color: c.text.primary, padding: 0 },
   vegToggle: {
     height: 48,
     paddingHorizontal: 12,
@@ -1139,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   vegToggleOn: { backgroundColor: c.dietary.veg },
   vegToggleText: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.dietary.veg,
     letterSpacing: 0.5
@@ -1157,7 +1157,7 @@ const styles = StyleSheet.create({
     borderColor: c.surface.card
   },
   categoryLabel: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.semibold,
     color: c.text.primary,
     marginTop: 6
@@ -1172,19 +1172,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden'
   },
   bannerKicker: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.accent[400],
     letterSpacing: 1
   },
   bannerTitle: {
-    fontSize: tokens.font.size.xl,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xl,
     lineHeight: 28,
     fontWeight: tokens.font.weight.extrabold,
     color: c.accent[500],
     marginTop: 6
   },
-  bannerSub: { fontSize: tokens.font.size.sm, color: '#E8D9CE', marginTop: 6 },
+  bannerSub: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: '#E8D9CE', marginTop: 6 },
   bannerCta: {
     backgroundColor: c.accent[500],
     alignSelf: 'flex-start',
@@ -1194,7 +1194,7 @@ const styles = StyleSheet.create({
     marginTop: 14
   },
   bannerCtaText: {
-    fontSize: tokens.font.size.sm,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.sm,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.onAccent
   },
@@ -1232,12 +1232,12 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.full
   },
   closedPillText: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     letterSpacing: 0.4
   },
-  closedWhen: { color: '#FFFFFF', fontSize: tokens.font.size.xs, fontWeight: '700' },
+  closedWhen: { color: '#FFFFFF', fontFamily: tokens.font.family, fontSize: tokens.font.size.xs, fontWeight: '700' },
   heartButton: {
     position: 'absolute',
     top: 12,
@@ -1259,7 +1259,7 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.sm
   },
   offerBadgeText: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.onAccent
   },
@@ -1275,7 +1275,7 @@ const styles = StyleSheet.create({
   },
   etaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   etaText: {
-    fontSize: tokens.font.size.xs,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.xs,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary
   },
@@ -1283,13 +1283,13 @@ const styles = StyleSheet.create({
   cardBody: { padding: 14 },
   tagRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   restaurantName: {
-    fontSize: tokens.font.size.lg,
+    fontFamily: tokens.font.family, fontSize: tokens.font.size.lg,
     fontWeight: tokens.font.weight.extrabold,
     color: c.text.primary,
     letterSpacing: -0.3
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 7 },
   dot: { color: c.text.muted, marginHorizontal: 7 },
-  metaText: { fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 1 },
-  cuisineText: { fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6 }
+  metaText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.secondary, flexShrink: 1 },
+  cuisineText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, color: c.text.muted, marginTop: 6 }
 });
