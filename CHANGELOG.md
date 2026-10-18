@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [2026-10-19] -- Claude Opus 5.5 -- Dispatch monitor in Operations; rider GPS status chip (Stage E)
+
+> **For the owner.** Operations → Today → Live: an order still looking for a rider now shows
+> **"Offer: With Vikram · 63 s left · 3 asked"** (and "alert sent" once 5 riders were asked), so you
+> see dispatch working one rider at a time. In the Rider app, while on shift, a chip says **"GPS on ·
+> sending your location"**, or in red **"GPS is off: you will not get offers · Turn on"**; the button
+> opens Android's own switch (or Settings if permission was refused). Emulator-checked.
+
+- `/api/admin/deliveries/live`: `offer` (rider, seconds left), `ridersAsked`, `searchAlerted`;
+  `DeliveriesScreen` line; check in `riderTripPush`. Rider `components/GpsChip.tsx` (checks every 15 s).
+
+---
+
 ## [2026-10-19] -- Claude Opus 5.5 -- Customer app: list, add-to-cart and cart-bar motion (D4)
 
 > **For the owner.** Restaurant cards now rise gently into place when the list first loads (the

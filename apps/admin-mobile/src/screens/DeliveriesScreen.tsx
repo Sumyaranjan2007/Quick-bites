@@ -81,6 +81,13 @@ export const DeliveriesScreen: React.FC = () => {
             <Divider />
 
             <KeyValue label="Delivery partner" value={delivery.riderName || 'Waiting for a rider'} tone="strong" />
+            {/* Dispatch monitor (B4): one rider at a time, 108 s each. */}
+            {!delivery.riderId && (delivery.offer || delivery.ridersAsked) ? (
+              <KeyValue
+                label="Offer"
+                value={`${delivery.offer ? `With ${delivery.offer.riderName} · ${delivery.offer.secondsLeft} s left` : 'Finding the next rider'} · ${delivery.ridersAsked} asked${delivery.searchAlerted ? ' · alert sent' : ''}`}
+              />
+            ) : null}
             {delivery.riderStage ? <KeyValue label="Stage" value={humanise(delivery.riderStage)} /> : null}
             <KeyValue label="Dropping at" value={delivery.deliveryAddressText} />
             {delivery.riderCoordinates ? (

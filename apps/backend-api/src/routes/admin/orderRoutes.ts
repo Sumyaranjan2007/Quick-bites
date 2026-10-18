@@ -11,6 +11,7 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { orderService } from '../../modules/orders/orderService.ts';
 import { recordAudit } from '../../modules/admin/audit.ts';
 import { sendOrderInvoicePdf } from '../../modules/payments/orderInvoicePdf.ts';
+import { liveOffer } from '../../modules/orders/tripOffers.ts';
 import { LIVE_STATUSES, IN_TRANSIT_STATUSES, economicsOf } from '../../modules/admin/analytics.ts';
 import { shapeOrderDetail, summariseOrder, matchesQuery, paginate } from './shared.ts';
 import { memoryStore } from '../../db/client.ts';
@@ -150,7 +151,16 @@ orderRoutes.get('/deliveries/live', requirePermission('orders.deliveries.manage'
         // screen can sort the ones that need attention to the top.
         isDelayed: minutesSincePlaced > 45 && order.status !== 'DELIVERED',
         isUnassigned: !order.riderId,
-        inTransit: IN_TRANSIT_STATUSES.has(order.status)
+        inTransit: IN_TRANSIT_STATUSES.has(order.status),
+        // Dispatch monitor (B4): who the trip is offered to now, for how long, how many asked.
+        offer: (() => {
+          const live = !order.riderId ? liveOffer(order, now) : null;
+          if (!live) return null;
+          const offered = memoryStore.riders.get(live.riderId) as any;
+          return { riderName: offered?.fullName || 'A rider', secondsLeft: Math.max(0, Math.round((Date.parse(live.expiresAt) - now) / 1000)) };
+        })(),
+        ridersAsked: new Set(order.offeredToRiderIds || []).size,
+        searchAlerted: Boolean(order.riderSearchAlertedAt)
       };
     });
 

@@ -437,6 +437,16 @@ try {
   });
   const again = await offerTripToNearbyRiders(waveOrder);
   it('Asked again while that offer runs, nobody else is offered it', () => assert.deepEqual(again, []));
+  // Dispatch monitor (B4): operations see who holds the offer, how long is left, how many were asked.
+  const adminLogin = await api('/auth/login', { method: 'POST', body: { email: 'admin@quickbite.app', password: 'pass123' } });
+  const monitor = await api('/admin/deliveries/live', {}, adminLogin.json?.data?.token);
+  const waveRow = (monitor.json?.data?.deliveries || []).find((d: any) => d.orderNumber === 'QB-WAVE');
+  it('Operations see the live offer: the rider, the seconds left, riders asked', () => {
+    assert.ok(waveRow?.offer, JSON.stringify(waveRow).slice(0, 200));
+    assert.ok(waveRow.offer.secondsLeft > 90 && waveRow.offer.secondsLeft <= 108, String(waveRow.offer.secondsLeft));
+    assert.ok(waveRow.offer.riderName);
+    assert.equal(waveRow.ridersAsked, 1);
+  });
   const otherTrip: any = { ...onlineOrder, id: 'ord_other', orderNumber: 'QB-OTHER', offeredToRiderIds: [], declinedByRiderIds: [] };
   memoryStore.orders.set(otherTrip.id, otherTrip);
   const forOther = await offerTripToNearbyRiders(otherTrip);

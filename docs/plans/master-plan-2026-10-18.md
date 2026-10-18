@@ -266,8 +266,8 @@ change and reach the websites at once); the base feel (D1 pieces) and Google map
 deletion rows with kitchen/trips/last active/documents (B6), help chat on tickets (B8), Record per person
 (B7, `PersonDocuments`). Partner: forgot password (B6), kitchen ticket print 80/58 (B10), section switch (B5),
 kitchen type + seal shown (B5), help chat (B8), deletion status (B6). Rider: forgot password, help chat,
-108 s countdown from the server (B4), location consent (#22), deletion status. **Left in E:** dispatch
-monitor screen, rider GPS status chip, masked Call (B9 on hold), base feel and Google map (after C).
+108 s countdown from the server (B4), location consent (#22), deletion status. **Left in E:** masked Call (B9 on hold), base feel in the other apps.
+**Built (part 2, 19 Oct):** dispatch monitor line in Operations Live; rider GPS status chip.
 Decision: no "Allow all the time" location: the shift's foreground service already covers background use.
 
 ## Stage F — Security (#23) · ~1 week, plus checks inside every stage

@@ -12,6 +12,7 @@ import {
   Wallet
 } from 'lucide-react-native';
 import { t } from '../theme';
+import { GpsChip } from '../components/GpsChip';
 import { Button, Card, EmptyState, LoadingBlock, Pill, ProgressBar, Row, SectionTitle, StatTile } from '../components/ui';
 import { dayAndTime, hoursAndMinutes, rupees, rupeesShort } from '../lib/format';
 import type { DashboardResponse, Trip } from '../lib/api';
@@ -106,6 +107,7 @@ export const DashboardScreen: React.FC<{
         {!rider.isOnline && profile.complete ? (
           <Button label="Go online" onPress={onGoOnline} style={{ marginTop: t.space[4] }} />
         ) : null}
+        {rider.isOnline ? <GpsChip /> : null}
       </Card>
 
       {/* Active delivery */}
