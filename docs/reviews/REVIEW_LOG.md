@@ -190,3 +190,15 @@ Still open from earlier: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1; R1, B1-1 
 | B2-2 | Low | `modules/places/placesService.ts` (autocomplete, details, reverse) | `if (!body \|\| lastRefusal?.at !== refusals)` is redundant (`callGoogle` already returns `null` on any refusal) and racy: a refusal on another, concurrent request discards a good result here. | Rely on `body === null` only. | open |
 | B2-3 | Low | `routingService.ts` `googlePost`, `placesService.ts` `callGoogle` | 4xx refusals (wrong key, API not enabled, 429 quota) neither trip the breaker nor back off, so a misconfigured key makes every quote and keystroke call Google and log an ERROR. | Count 403/429 as breaker failures (it opens for its cool-down, quotes use the estimate meanwhile). | open |
 | B2-4 | Low (cost) | `placesService.ts:488` | Reverse-geocode cache key uses 5 decimals (~1 m), so almost every drag of the map pin is a new Geocoding call. | 4 decimals (~11 m, the routing cache's precision). | open |
+
+---
+
+## 18 Oct 2026 — `7542edf` B11 live tracking (server)
+
+**Verdict: approve.** One recorder (`modules/riders/liveLocation.ts` `recordRiderFix`) now serves both the socket and the REST fallback, so a fix sent over the socket is kept, not only relayed. Both paths stay gated the same way: only the assigned rider, only after pickup (socket: `canStreamRiderLocation` → `TRACKABLE_STATUSES`, `socketAuth.ts:174-185`, plus `isPlottableCoordinate`; REST: `NOT_YOUR_DELIVERY` and `status === 'OUT_FOR_DELIVERY'`, with lat/lng/speed now bounded by the schema). Speed is the phone's, else distance over time from the previous fix within 2 minutes, dropped above 100 m/s. The ETA in the relay is computed from the stored order after the update (`orderRepository` mutates in place). The tracking route fix is real and important: `isRider` used to compare a user id with the rider record id, and **any rider account counted as staff, so every rider could read every order's live position**; now only the assigned rider record and admins. Speed and the stale flag are withheld before pickup. No Snap to Roads (D1 respected; the polyline projection is noted for B2 in the module header).
+
+| # | Sev | Where | Finding | Fix | Status |
+|---|---|---|---|---|---|
+| L1 | Low (efficiency) | `liveLocation.ts` `recordRiderFix` | Every fix (every ~4 s per active trip) marks the whole order document and the rider document dirty, so each autosave flush re-writes the full order JSON (items, bill, timeline) to Postgres for every live trip. Bounded by the debounce, fine today. | Keep the live position in memory every fix and mark it dirty at most every ~15–30 s (or on status change); a restart then loses at most that much of a trail it never needed. | open |
+
+Open list unchanged otherwise: R4, R5, R7, S4, S5, B1-2, B7-1, B7-2, T3, D1 (for B2 polyline), Q1, Q2, G4, G2b, B2-1…B2-4; R1, B1-1 with the owner.
