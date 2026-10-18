@@ -7,8 +7,10 @@
  * are written to device storage instead, and cleared deliberately on sign-out.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { forgetToken, readToken, writeToken } from './tokenVault';
 
 const KEY = 'quickbites.rider.session.v1';
+const TOKEN_KEY = `${KEY}.token`;
 
 export interface RiderSession {
   token: string;
@@ -23,7 +25,10 @@ export async function loadSession(): Promise<RiderSession | null> {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RiderSession;
-    if (!parsed?.token || !parsed?.apiUrl) return null;
+    // An older version kept the token in this record: move it to the keystore.
+    if (parsed?.token) await saveSession(parsed);
+    parsed.token = (await readToken(TOKEN_KEY, parsed?.token)) || '';
+    if (!parsed.token || !parsed?.apiUrl) return null;
     return parsed;
   } catch {
     return null;
@@ -32,7 +37,8 @@ export async function loadSession(): Promise<RiderSession | null> {
 
 export async function saveSession(session: Omit<RiderSession, 'savedAt'>): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEY, JSON.stringify({ ...session, savedAt: new Date().toISOString() }));
+    const token = await writeToken(TOKEN_KEY, session.token);
+    await AsyncStorage.setItem(KEY, JSON.stringify({ ...session, token, savedAt: new Date().toISOString() }));
   } catch {
     // A rider who cannot persist their session can still work through this
     // launch; failing the sign-in over it would be worse.
@@ -42,6 +48,7 @@ export async function saveSession(session: Omit<RiderSession, 'savedAt'>): Promi
 export async function clearSession(): Promise<void> {
   try {
     await AsyncStorage.removeItem(KEY);
+    await forgetToken(TOKEN_KEY);
   } catch {
     // Nothing useful to do — the in-memory token is dropped by the caller
     // regardless, so the rider is signed out of this session either way.

@@ -445,6 +445,23 @@ export function emitOrderStatusUpdate(
     riderStage: data.riderStage,
     prepMinutes: data.prepMinutes
   }));
+  void refreshOrderRoom(orderId, data.status);
+}
+
+/**
+ * Takes out of an order's live room everyone who may no longer watch it
+ * (security L15): a rider the order was taken from, and at the end (delivered or
+ * cancelled) the rider too. Rooms are joined once, so without this a released
+ * rider kept hearing the customer's messages and position updates.
+ */
+export async function refreshOrderRoom(orderId: string, status?: OrderStatus): Promise<void> {
+  if (!ioInstance) return;
+  const ended = status === 'DELIVERED' || status === 'CANCELLED';
+  for (const socket of await ioInstance.in(`order:${orderId}`).fetchSockets()) {
+    const identity: SocketIdentity = { userId: socket.data.userId, role: socket.data.role };
+    const keep = !(ended && identity.role === 'DELIVERY_PARTNER') && (await canJoinOrder(identity, orderId)).allowed;
+    if (!keep) socket.leave(`order:${orderId}`);
+  }
 }
 
 /**

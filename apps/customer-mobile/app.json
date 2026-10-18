@@ -268,7 +268,8 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

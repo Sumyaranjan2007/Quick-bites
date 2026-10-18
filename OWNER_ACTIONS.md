@@ -36,6 +36,13 @@ with what you gave in "Sign-in details", so these must be true on the LIVE syste
    15 testers. 12+ must stay opted in for 14 days in a row and use the app.
 7. Keep the passwords for the test kitchen, test rider and reviewer code in your password
    manager, never in this project (it is public).
+8. **Later, not blocking launch (19 Oct, security pass):**
+   - **Play Integrity** makes fake, scripted copies of the apps expensive to run. Play Console →
+     Test and release → App integrity → Play Integrity API → **Link a Google Cloud project**, for
+     each of the four apps. Tell me when it is linked and I connect the server to it.
+   - **Privacy policy**: say how long we keep a rider's last position. The server no longer keeps
+     it after a delivery ends or the rider goes offline. Suggested line: "We keep a rider's location
+     only while they are online and on a delivery." Tell me your wording.
 
 
 ### 0. Sign-in codes by EMAIL (11 October 2026) — do this first; replaces A and J

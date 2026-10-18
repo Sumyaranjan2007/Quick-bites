@@ -54,6 +54,14 @@ function settlePaymentOnDelivery(order: Order): void {
   );
 }
 
+/** A finished trip keeps no record of where the rider was (security L16). */
+export function forgetRiderPosition(order: Order): void {
+  order.riderCoordinates = undefined;
+  order.riderBearing = undefined;
+  order.riderSpeed = undefined;
+  order.riderLocationUpdatedAt = undefined;
+}
+
 export const orderRepository = {
   async findById(id: string): Promise<Order | null> {
     return memoryStore.orders.get(id) || null;
@@ -103,6 +111,8 @@ export const orderRepository = {
     const order = memoryStore.orders.get(id);
     if (!order) return null;
     order.status = status;
+    // DELIVERED is cleared in completeDelivery, after the handover position is checked.
+    if (status === 'CANCELLED') forgetRiderPosition(order);
     if (prepMinutes !== undefined) {
       order.preparationMinutes = prepMinutes;
     }
@@ -164,6 +174,7 @@ export const orderRepository = {
 
     const now = new Date().toISOString();
     order.status = 'CANCELLED';
+    forgetRiderPosition(order);
     order.cancellationReason = detail.reason;
     order.cancellationReasonCode = detail.reasonCode;
     order.cancelledByUserId = detail.byUserId;

@@ -5,6 +5,8 @@
  *   L3  A Customer-app session of a partner cannot read the partner's kitchen record.
  *   L5  Documents are photos sent from the app: no links, no SVG.
  *   L6  Dish photos are a photo or an https link: no javascript:, no http:, no SVG.
+ *   L13 Password checks inside a signed-in account are limited per account, not per address.
+ *   L16 No rider position is kept after a trip ends or while the rider is offline.
  *   (L8, an old link document is not followed for the admin: personRecord.)
  */
 import assert from 'node:assert/strict';
@@ -15,6 +17,9 @@ import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
 import { generateToken } from '../routes/authRouter.ts';
+import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { riderRepository } from '../db/repositories/riderRepository.ts';
+import { completeDelivery } from '../modules/orders/deliveryCompletion.ts';
 
 const PORT = 5317;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -106,6 +111,39 @@ try {
     const res = await dish(good);
     it(`L6: dish photo ${good.slice(0, 22)}: accepted`, () => assert.ok(res.status < 300, `${res.status} ${JSON.stringify(res.json).slice(0, 200)}`));
   }
+
+  // L13: same session, a new address each time (X-Forwarded-For; trust proxy is 1).
+  resetAuthRateLimit();
+  const statuses: number[] = [];
+  for (let i = 0; i < 11; i++) {
+    const res = await fetch(`${API}/auth/contact/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${partner}`, 'X-Forwarded-For': `10.9.0.${i + 1}` },
+      body: JSON.stringify({ kind: 'email', value: `new${i}@example.test`, currentPassword: 'wrong-password' })
+    });
+    statuses.push(res.status);
+  }
+  it('L13: password guesses inside one account hit the limit from any address', () => assert.ok(statuses.includes(429), statuses.join(',')));
+  resetAuthRateLimit();
+
+  // L16
+  const at = { latitude: 12.68, longitude: 77.47 };
+  for (const end of ['DELIVERED', 'CANCELLED'] as const) {
+    const order = { id: `ord_l16_${end}`, status: 'OUT_FOR_DELIVERY' } as any;
+    memoryStore.orders.set(order.id, order);
+    await orderRepository.updateRiderLocation(order.id, at, 90, new Date().toISOString(), 5);
+    if (end === 'DELIVERED') {
+      await orderRepository.updateStatus(order.id, end);
+      await completeDelivery(order);
+    }
+    else await orderRepository.recordCancellation(order.id, { reason: 'test', reasonCode: 'OTHER', byUserId: 'usr_admin_01', byRole: 'admin' } as any);
+    it(`L16: a ${end.toLowerCase()} order keeps no rider position`, () =>
+      assert.deepEqual([order.riderCoordinates, order.riderBearing, order.riderLocationUpdatedAt], [undefined, undefined, undefined]));
+  }
+  const vikram = memoryStore.riders.get('rdr_vikram_01') as any;
+  await riderRepository.updateLocation(vikram.id, at);
+  await riderRepository.updateOnlineStatus(vikram.id, false);
+  it('L16: a rider going offline keeps no position', () => assert.equal(vikram.currentCoordinates, undefined));
 } finally {
   server.close();
 }

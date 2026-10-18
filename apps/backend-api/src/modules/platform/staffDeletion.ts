@@ -59,6 +59,7 @@ export async function requestStaffDeletion(userId: string): Promise<void> {
   }
   if (rider) {
     rider.isOnline = false;
+    rider.currentCoordinates = undefined;
     memoryStore.riders.set(rider.id, rider);
     setRiderOfferPoolMembership(userId, false);
   }
@@ -165,6 +166,7 @@ export async function completeStaffDeletion(userId: string): Promise<void> {
   if (rider) {
     rider.phone = '';
     rider.isOnline = false;
+    rider.currentCoordinates = undefined;
     memoryStore.riders.set(rider.id, rider);
   }
   await userRepository.deleteAccount(userId);
@@ -221,6 +223,7 @@ export async function removeAccount(userId: string, reason: string, byUserId: st
   }
   if (rider) {
     rider.isOnline = false;
+    rider.currentCoordinates = undefined;
     memoryStore.riders.set(rider.id, rider);
     setRiderOfferPoolMembership(userId, false);
   }

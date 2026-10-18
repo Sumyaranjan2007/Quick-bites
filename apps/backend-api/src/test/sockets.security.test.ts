@@ -283,6 +283,35 @@ async function run() {
   );
 
   // ---------------------------------------------------------------------
+  console.log('\n--- leaving the order room (security L15) ---');
+  const status = (st: any) => emitOrderStatusUpdate(order.id, { orderId: order.id, status: st });
+  assignedRider.emit('join:order', { orderId: order.id });
+  await settle();
+  const riderInRoom = received(assignedRider, 'order:status_update');
+  status('OUT_FOR_DELIVERY');
+  check('The assigned rider is in the order room', await riderInRoom);
+
+  (await orderRepository.findById(order.id) as any).riderId = undefined; // taken off the rider
+  status('OUT_FOR_DELIVERY');
+  await settle();
+  const releasedHears = received(assignedRider, 'order:status_update');
+  const customerHears = received(customerSocket, 'order:status_update');
+  status('OUT_FOR_DELIVERY');
+  check('A rider the order was taken from hears nothing more about it', (await releasedHears) === false);
+  check('...while the customer still does', await customerHears);
+
+  await orderRepository.assignRider(order.id, 'rdr_vikram_01', 'Vikram Singh', '+91-98765-43211', 45);
+  assignedRider.emit('join:order', { orderId: order.id });
+  await settle();
+  const riderSeesEnd = received(assignedRider, 'order:status_update');
+  status('DELIVERED');
+  check('The rider hears the order was delivered', await riderSeesEnd);
+  await settle();
+  const riderAfterEnd = received(assignedRider, 'order:status_update');
+  status('DELIVERED');
+  check('...and then leaves the room: nothing after the end', (await riderAfterEnd) === false);
+
+  // ---------------------------------------------------------------------
   for (const s of [valid, outsiderSocket, adminSocket, customerSocket, partnerSocket, riderAtKitchen, onShift, assignedRider]) {
     s.close();
   }

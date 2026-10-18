@@ -45,7 +45,7 @@
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { recordOrderEarnings } from '../payments/earnings.ts';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../../db/client.ts';
-import { orderRepository } from '../../db/repositories/orderRepository.ts';
+import { orderRepository, forgetRiderPosition } from '../../db/repositories/orderRepository.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
 import { config } from '../../config/env.ts';
 import { emitOpsAlert } from '../../sockets/socketServer.ts';
@@ -98,6 +98,12 @@ export async function completeDelivery(order: Order): Promise<CompletionOutcome>
         reason: error instanceof Error ? error.message : String(error)
       })
     );
+  }
+  // Checked; the rider's position is not kept after the trip (security L16).
+  const stored = memoryStore.orders.get(order.id) as Order | undefined;
+  if (stored) {
+    forgetRiderPosition(stored);
+    triggerAutoSave();
   }
 
   /* ---------------------------------------------------------------- *

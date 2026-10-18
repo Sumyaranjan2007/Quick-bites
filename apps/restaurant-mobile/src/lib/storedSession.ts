@@ -12,8 +12,10 @@
  * being unable to remember a session is never a reason to refuse one.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { forgetToken, readToken, writeToken } from './tokenVault';
 
 const KEY = 'quickbites.partner.session.v1';
+const TOKEN_KEY = `${KEY}.token`;
 
 export interface StoredSession {
   token: string;
@@ -33,9 +35,12 @@ export async function loadStoredSession(): Promise<StoredSession | null> {
       return null;
     }
     const parsed = JSON.parse(raw) as StoredSession;
-    if (!parsed?.token || !parsed?.apiUrl) {
+    // An older version kept the token in this record: move it to the keystore.
+    if (parsed?.token) await saveStoredSession(parsed);
+    parsed.token = (await readToken(TOKEN_KEY, parsed?.token)) || '';
+    if (!parsed.token || !parsed?.apiUrl) {
       console.log('[session] stored record is unusable, ignoring it', {
-        hasToken: Boolean(parsed?.token),
+        hasToken: Boolean(parsed.token),
         hasApiUrl: Boolean(parsed?.apiUrl)
       });
       return null;
@@ -55,7 +60,8 @@ export async function loadStoredSession(): Promise<StoredSession | null> {
 
 export async function saveStoredSession(session: Omit<StoredSession, 'savedAt'>): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEY, JSON.stringify({ ...session, savedAt: new Date().toISOString() }));
+    const token = await writeToken(TOKEN_KEY, session.token);
+    await AsyncStorage.setItem(KEY, JSON.stringify({ ...session, token, savedAt: new Date().toISOString() }));
     console.log('[session] saved');
   } catch (error) {
     // This launch still works; the next one will ask again. Logged because a
@@ -68,6 +74,7 @@ export async function saveStoredSession(session: Omit<StoredSession, 'savedAt'>)
 export async function clearStoredSession(): Promise<void> {
   try {
     await AsyncStorage.removeItem(KEY);
+    await forgetToken(TOKEN_KEY);
   } catch {
     // The in-memory token is dropped by the caller regardless.
   }

@@ -5,6 +5,16 @@ import { routingStatus } from '../modules/places/routingService.ts';
 import { pushIsConfigured } from '../notifications/fcmTransport.ts';
 import { apnsIsConfigured } from '../notifications/apnsTransport.ts';
 
+/**
+ * The provider's own refusal text stays in the server log, not on this page,
+ * which answers anybody (security L14): status and time say enough to act on.
+ */
+function publicStatus<T extends { lastRefusal?: { detail?: string } | null }>(status: T): T {
+  if (!status.lastRefusal) return status;
+  const { detail: _detail, ...refusal } = status.lastRefusal;
+  return { ...status, lastRefusal: refusal };
+}
+
 export function getHealth(req: Request, res: Response): void {
   const uptimeSeconds = Math.floor(process.uptime());
   const memUsage = process.memoryUsage();
@@ -66,8 +76,8 @@ export function getHealth(req: Request, res: Response): void {
        * states. No key material passes through either, which the routing suite
        * asserts rather than assumes.
        */
-      addressLookup: placesStatus(),
-      roadDistance: routingStatus(),
+      addressLookup: publicStatus(placesStatus()),
+      roadDistance: publicStatus(routingStatus()),
       /**
        * Whether this deployment can actually deliver a push notification.
        *

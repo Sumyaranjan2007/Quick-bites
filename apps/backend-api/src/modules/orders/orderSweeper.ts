@@ -32,7 +32,7 @@ import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
 import { orderService } from './orderService.ts';
-import { emitOpsAlert, emitMenuUpdated } from '../../sockets/socketServer.ts';
+import { emitOpsAlert, emitMenuUpdated, refreshOrderRoom } from '../../sockets/socketServer.ts';
 import { reopenSectionsDue } from '../restaurants/menuSections.ts';
 import { pruneExpiredConfirmLinks } from '../auth/confirmLinks.ts';
 import {
@@ -303,6 +303,7 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
       // hands.
       const released = await orderRepository.releaseRider(order.id, riderId);
       if (!released) continue;
+      void refreshOrderRoom(order.id);
 
       await riderRepository.recordNoShow(riderId);
       result.released.push(order.id);

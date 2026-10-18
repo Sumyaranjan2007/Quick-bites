@@ -59,8 +59,14 @@ export function authRateLimiterMiddleware(req: Request, res: Response, next: Nex
   // and a six-digit code and send no email at all, so keying on email alone left
   // the entire customer front door with only a per-IP limit — which is the one
   // limit a distributed attacker does not care about.
-  const account =
-    typeof req.body?.email === 'string'
+  //
+  // A signed-in request (a password check inside the account, such as a contact
+  // change) is keyed on the account itself: its body names a NEW address, which
+  // an attacker holding a stolen session could vary at will (security L13).
+  const signedIn = (req as any).user?.id as string | undefined;
+  const account = signedIn
+    ? `user:${signedIn}`
+    : typeof req.body?.email === 'string'
       ? req.body.email.toLowerCase()
       : typeof req.body?.phone === 'string'
         ? `phone:${String(req.body.phone).replace(/\D/g, '')}`

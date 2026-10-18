@@ -73,7 +73,7 @@ export async function ensureBootstrapAdmin(): Promise<void> {
       adminRoleId: 'rol_super_admin',
       isBlocked: false
     } as any);
-    console.log(`[INFO] Bootstrap administrator re-applied for ${email}.`);
+    console.log('[INFO] Bootstrap administrator re-applied (ADMIN_EMAIL).'); // no address in logs (security pass)
   } else {
     await userRepository.create({
       id: `usr_admin_bootstrap_${Date.now().toString(36)}`,
@@ -87,7 +87,7 @@ export async function ensureBootstrapAdmin(): Promise<void> {
       preferredLanguage: 'en'
     } as any);
 
-    console.log(`[INFO] Bootstrap administrator created for ${email}.`);
+    console.log('[INFO] Bootstrap administrator created (ADMIN_EMAIL).'); // no address in logs (security pass)
   }
 
   triggerAutoSave();

@@ -64,6 +64,7 @@ export class RiderRepository {
     if (!rider) return null;
     const now = new Date().toISOString();
     rider.isOnline = isOnline;
+    if (!isOnline) rider.currentCoordinates = undefined; // not kept while offline (security L16)
     rider.lastPingAt = now;
     rider.lastShiftChangeAt = now;
     // Kept from the previous shift only while the rider stays on it, so "hours
@@ -92,6 +93,7 @@ export class RiderRepository {
     if (status !== 'ACTIVE') {
       rider.isOnline = false;
       rider.onlineSince = undefined;
+      rider.currentCoordinates = undefined;
     }
     memoryStore.riders.set(id, rider);
     triggerAutoSave();

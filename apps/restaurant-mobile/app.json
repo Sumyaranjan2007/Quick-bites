@@ -199,7 +199,8 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "baseUrl": "/partner"

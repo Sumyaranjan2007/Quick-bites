@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 19 Oct 2026: Security pass, part 2 (master plan Stage F complete)
+
+- **Sign-ins kept in the phone's keystore.** All four apps keep the token in the Android Keystore / iOS Keychain through `expo-secure-store` (`src/lib/tokenVault.ts`). A token saved by an older version is moved there on the first launch, so nobody is signed out. The websites keep the token in the browser as before. Takes effect with the next APK.
+- **Password guesses inside an account (L13).** These are now limited per account, from any address.
+- **`/health` (L14).** Shows only that Google refused and when. The refusal text goes to the server log.
+- **Live order updates (L15).** A rider taken off an order stops receiving its updates and chat at once. Every rider leaves the room at delivery or cancellation.
+- **Rider positions (L16).** Not kept after a delivery (cleared after the handover check), a cancellation, going offline, KYC withdrawal or deletion.
+- **Logs.** The admin email is no longer printed at boot.
+- **Records.** `docs/SECURITY.md` §1j covers the decisions: no certificate pinning; Play Integrity waits for the owner (`OWNER_ACTIONS.md` 00.8); build-tool audit findings wait for the next Expo SDK.
+
+---
+
 ## [Unreleased] 19 Oct 2026: Security pass, part 1 (master plan Stage F)
 
 - **Documents are photos only (L5).** Partner, rider and `/kyc/submit` uploads must be a JPG/PNG/WebP photo sent from the app. Links and SVG are refused. One rule in `utils/imageInput.ts`.

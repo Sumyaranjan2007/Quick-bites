@@ -6,6 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { config } from '../config/env.ts';
+import { getHealth } from '../controllers/healthController.ts';
 import { suggestAddresses, resolvePlace, reverseGeocode, clearPlacesCache, placesStatus } from '../modules/places/placesService.ts';
 
 let passed = 0;
@@ -103,6 +104,12 @@ await it('A refused key (REQUEST_DENIED) answers nothing, is reported, and is no
   const refused = await reverseGeocode(12.69, 77.48, 'caller-2');
   assert.equal(refused, null);
   assert.equal(placesStatus().lastRefusal?.status, 'REQUEST_DENIED');
+  // The public /health says it was refused, not Google's text (security L14).
+  let health: any = null;
+  const res: any = { status: () => res, json: (body: unknown) => { health = body; } };
+  getHealth({} as any, res);
+  assert.equal(health?.services?.addressLookup?.lastRefusal?.status, 'REQUEST_DENIED');
+  assert.ok(!JSON.stringify(health).includes('API key not valid'), 'the refusal text reached /health');
   stub(() => ({ body: { status: 'OK', results: [{ formatted_address: 'Fixed', geometry: { location: { lat: 12.69, lng: 77.48 } }, address_components: [] }] } }));
   const later = await reverseGeocode(12.69, 77.48, 'caller-2');
   assert.equal(later?.formattedAddress, 'Fixed', 'the refusal was cached');

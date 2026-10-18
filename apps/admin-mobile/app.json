@@ -197,7 +197,8 @@
             ]
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "baseUrl": "/admin"

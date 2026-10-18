@@ -100,7 +100,7 @@ async function callGoogle(url: string, init: { method?: string; body?: unknown; 
         detail: body?.error?.message || body?.error_message,
         at: new Date().toISOString()
       };
-      console.log(JSON.stringify({ level: 'ERROR', timestamp: new Date().toISOString(), event: 'PLACES_API_REFUSED', api: 'google', status: lastRefusal.status }));
+      console.log(JSON.stringify({ level: 'ERROR', timestamp: new Date().toISOString(), event: 'PLACES_API_REFUSED', api: 'google', status: lastRefusal.status, detail: lastRefusal.detail }));
       return null;
     }
     return body || null;
