@@ -81,21 +81,23 @@ npx eas-cli@latest init
 `init` writes the Expo project id into `app.json`. **Commit that change** (or ask the developer
 to): every later build needs it.
 
-### 2.3 The two map tokens on Expo (they are not in git)
+### 2.3 The Google Maps iPhone key on Expo (not in git) — changed 19 Oct 2026
 
-expo.dev → your project → **Environment variables** → **Add**, for the **production** and
-**preview/development** environments:
+Since 18 Oct the apps use **Google Maps** (Mapbox is gone). expo.dev → your project →
+**Environment variables** → **Add**, for **production** and **preview/development**:
 
 | Name | Value | Visibility |
 |---|---|---|
-| `MAPBOX_PUBLIC_TOKEN` | the `pk.…` token from the root `.env` on this PC | Plain text |
-| `MAPBOX_DOWNLOAD_TOKEN` | the `sk.…` token from the root `.env` on this PC | **Secret** |
+| `GOOGLE_MAPS_IOS_KEY` | the iOS key from the root `.env` on this PC (restricted to `in.quickbites.app`) | Plain text |
 
-The `sk.` token only lets the build machine download the map library
-(`scripts/eas-mapbox-netrc.mjs` writes it to that machine's `~/.netrc`). It is never put inside
-the app. **The iPhone build does not actually need it** (checked 14 Oct 2026): CocoaPods
-downloads the Mapbox iOS SDK (MapboxMaps 10.19) without a token. Only Android's Gradle download
-does. Setting it on Expo does no harm.
+`app.config.js` puts it in `ios.config.googleMapsApiKey`; Expo's build then adds the Google Maps
+library and the key to the app by itself. Without it the iPhone map shows the "Map not available in
+this build" note instead of a map. The old `MAPBOX_*` variables can be deleted.
+
+**Build 39 (19 Oct 2026) lines up with Android build 39**: same features (help chat, notifications,
+Zomato-style maps, cart stepper), `buildNumber` 39, New Architecture, sign-in kept in the iPhone
+Keychain (no Face ID text: the app never asks for Face ID). Build it with section 3, then run the
+section 5 checklist before sending it for review.
 
 ### 2.4 The app record in App Store Connect
 
