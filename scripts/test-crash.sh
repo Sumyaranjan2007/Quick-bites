@@ -12,7 +12,7 @@
 #   bash scripts/test-crash.sh 2
 set -uo pipefail
 
-ANDROID_HOME="${ANDROID_HOME:-$HOME/AppData/Local/Android/Sdk}"
+ANDROID_HOME="${ANDROID_HOME:-D:/dev-data/android-sdk}"
 ADB="$ANDROID_HOME/platform-tools/adb.exe"
 [[ -x "$ADB" ]] || ADB="$ANDROID_HOME/platform-tools/adb"
 

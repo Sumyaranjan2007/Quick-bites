@@ -195,7 +195,7 @@ Also builds the Play Store bundles (`.aab`) for Customer, Partner and Rider into
 `build/aab/`. The Admin app is never published, so it has no bundle.
 
 Every build takes the next versionCode (recorded in `release/version.json`),
-restores each `keystore.properties` from `C:\Users\priya\quickbites-keystores`,
+restores each `keystore.properties` from `D:\dev-data\quickbites-keystores`,
 and refuses to finish with the wrong key, the debug key or a lower version. See
 `SIGNING_KEYS.md`.
 

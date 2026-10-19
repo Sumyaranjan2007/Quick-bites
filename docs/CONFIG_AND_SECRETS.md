@@ -58,7 +58,7 @@ server). Local values: root `.env` (gitignored); names in `.env.example`. Most a
 
 | What | Where |
 |---|---|
-| Android upload keys + passwords | `C:\Users\priya\quickbites-keystores\` (`SIGNING_KEYS.md`) |
+| Android upload keys + passwords | `D:\dev-data\quickbites-keystores\` (`SIGNING_KEYS.md`) |
 | `apps/*/google-services.json` | gitignored; recreate from Firebase console |
 | Firebase service-account JSON | Railway `FCM_SERVICE_ACCOUNT_JSON`; owner's password manager (a copy sits in Downloads: move it) |
 | Apple `.p8` push key, App Store Connect API key | outside the repo (`~/.appstoreconnect/private_keys/` on the Mac) |

@@ -86,6 +86,7 @@ fi
 
 if [[ -z "${ANDROID_HOME:-}" ]]; then
   ANDROID_HOME="${ANDROID_SDK_ROOT:-$(first_existing \
+    "D:/dev-data/android-sdk" \
     "$HOME/AppData/Local/Android/Sdk" \
     "$HOME/Library/Android/sdk" \
     "$HOME/Android/Sdk" \
@@ -249,7 +250,7 @@ for entry in "${APPS[@]}"; do
   # The vault holds the .jks files too, is outside the repository, and is
   # never committed - this repository is public.
   #
-  KEYSTORE_VAULT="${QB_KEYSTORE_VAULT:-$HOME/quickbites-keystores}"
+  KEYSTORE_VAULT="${QB_KEYSTORE_VAULT:-D:/dev-data/quickbites-keystores}"
   vault_config="$KEYSTORE_VAULT/$artifact_key.keystore.properties"
 
   if [[ "$PREBUILD" == "1" ]]; then

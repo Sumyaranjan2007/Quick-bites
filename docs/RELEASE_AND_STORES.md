@@ -14,7 +14,7 @@ iPhone: `docs/app-store/IOS.md`. What the owner must do: `OWNER_ACTIONS.md` Part
 | Every APK installs as an **update**: same package, same key, rising versionCode — the script enforces all three and refuses the debug key | `scripts/build-apks.sh`, `scripts/release/releaseGuards.mjs` |
 | Pinned certificates (never edit to make a build pass) | `release/signing-certificates.json` |
 | Last versionCode (next build takes +1) — **commit it and the four `app.json` files after a build** | `release/version.json` (33, 16 Oct) |
-| Keys restored from the vault on every build | `C:\Users\priya\quickbites-keystores\` → `apps/<app>/android/keystore.properties` |
+| Keys restored from the vault on every build | `D:\dev-data\quickbites-keystores\` → `apps/<app>/android/keystore.properties` |
 | Check the signature, not the exit code (`apksigner verify --print-certs`, must read `CN=Quick Bites`) | `SIGNING_KEYS.md` |
 | Never edit app files during a build, never two builds at once; `./gradlew --stop` if `EBUSY`; stopping a build leaves Gradle running | `CLAUDE.md` §6, memory |
 | Archive each release (contents never edited afterwards) | `D:\my all projects\quick-bites-release-archive\vNN-<what>-YYYY-MM-DD\` (`docs/FOLDER_MAP.md` §2) |

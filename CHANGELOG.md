@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 19 Oct 2026: APK build 36, development tools moved to D:
+
+- **Build 36** of all four apps (APKs and Play bundles), archived in `quick-bites-release-archive/v36-maps-security-2026-10-19`. `check-apk-secrets` passes: no credentials in any built file.
+- **All development tools are now on D:** (`D:\dev-data`): Android SDK, emulators, Gradle and npm caches, temp, and the signing-key vault. User environment variables point there, and the scripts fall back to the same paths. C: was full (0.2 GB free) and a build failed on it.
+- **APKs build from `D:\qbx`.** On the New Architecture the native object paths inside the project folder pass Windows' 260-character limit, so builds run from a git worktree at that short path. Steps are in `docs/FOLDER_MAP.md`.
+
+---
+
 ## [Unreleased] 19 Oct 2026: Maps drawn as in the leading delivery apps
 
 - **Tracking.** A taller map shows the kitchen and the home as labelled markers, joined by the real road line. Google returns that line once per order, which is saved on the order (`routePolyline`, `roadPath`). Once the food is collected, the bike glides along the route. Without Google, a straight line is drawn.

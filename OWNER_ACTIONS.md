@@ -146,7 +146,7 @@ and back again the day DLT is approved — step by step in **J** below.
 
 ### D. Keep these safe
 
-- Copy `C:\Users\priya\quickbites-keystores\` to a USB drive or encrypted cloud
+- Copy `D:\dev-data\quickbites-keystores\` to a USB drive or encrypted cloud
   folder. Without it the apps can never be updated again (`SIGNING_KEYS.md`).
 - Never paste a key or password into a chat with an AI. Paste it straight into
   Railway.
@@ -342,7 +342,7 @@ There are now **four** of those refusals, and each is deliberate:
 Four upload keystores were created on this machine:
 
 ```
-C:\Users\priya\quickbites-keystores\
+D:\dev-data\quickbites-keystores\
     quickbites-customer.jks
     quickbites-partner.jks
     quickbites-rider.jks

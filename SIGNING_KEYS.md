@@ -26,10 +26,10 @@ applications, and there is exactly one copy of each.
 
 | App | Package | Keystore |
 | --- | --- | --- |
-| Customer | `in.quickbites.app` (was `com.quickbite.app` until 16 Oct) | `C:\Users\priya\quickbites-keystores\quickbites-customer-v2.jks` |
-| Partner | `com.quickbite.partner` | `C:\Users\priya\quickbites-keystores\quickbites-partner.jks` |
-| Rider | `in.quickbite.rider` (was `com.quickbite.rider`, then `in.quickbites.rider`) | `C:\Users\priya\quickbites-keystores\quickbites-rider.jks` |
-| Admin | `com.quickbite.admin` | `C:\Users\priya\quickbites-keystores\quickbites-admin.jks` |
+| Customer | `in.quickbites.app` (was `com.quickbite.app` until 16 Oct) | `D:\dev-data\quickbites-keystores\quickbites-customer-v2.jks` |
+| Partner | `com.quickbite.partner` | `D:\dev-data\quickbites-keystores\quickbites-partner.jks` |
+| Rider | `in.quickbite.rider` (was `com.quickbite.rider`, then `in.quickbites.rider`) | `D:\dev-data\quickbites-keystores\quickbites-rider.jks` |
+| Admin | `com.quickbite.admin` | `D:\dev-data\quickbites-keystores\quickbites-admin.jks` |
 
 Each app reads its own `apps/<app>/android/keystore.properties`, which holds
 the path, the alias and **two passwords**.
@@ -37,7 +37,7 @@ the path, the alias and **two passwords**.
 **The copy inside `android/` is disposable. The vault is the source of truth.**
 
 ```
-C:/Users/priya/quickbites-keystores/
+D:/dev-data/quickbites-keystores/
   quickbites-customer-v2.jks    customer.keystore.properties
   quickbites-partner.jks        partner.keystore.properties
   quickbites-rider.jks          rider.keystore.properties
@@ -105,7 +105,7 @@ If a password is ever found again, it goes back like this and nothing else chang
 
 ```bash
 mkdir -p "apps/customer-mobile/android"
-printf 'storeFile=C:/Users/priya/quickbites-keystores/quickbites-customer.jks\nstorePassword=THE_PASSWORD\nkeyAlias=quickbites-customer\nkeyPassword=THE_PASSWORD\n' > "apps/customer-mobile/android/keystore.properties"
+printf 'storeFile=D:/dev-data/quickbites-keystores/quickbites-customer.jks\nstorePassword=THE_PASSWORD\nkeyAlias=quickbites-customer\nkeyPassword=THE_PASSWORD\n' > "apps/customer-mobile/android/keystore.properties"
 ```
 
 If it cannot be found, a replacement key is generated **by the owner** — key
@@ -114,7 +114,7 @@ generation is deliberately not something this tooling does:
 ```bash
 "C:/Program Files/Eclipse Adoptium/jdk-17.0.20.101-hotspot/bin/keytool.exe" \
   -genkeypair -v \
-  -keystore "C:/Users/priya/quickbites-keystores/quickbites-customer-v2.jks" \
+  -keystore "D:/dev-data/quickbites-keystores/quickbites-customer-v2.jks" \
   -alias quickbites-customer -keyalg RSA -keysize 2048 -validity 10000 \
   -storepass "CHOOSE_ONE" -keypass "CHOOSE_ONE" \
   -dname "CN=Quick Bites, OU=customer, O=Quick Bites, L=Bengaluru, ST=Karnataka, C=IN"

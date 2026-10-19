@@ -23,7 +23,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ANDROID_HOME="${ANDROID_HOME:-$HOME/AppData/Local/Android/Sdk}"
+ANDROID_HOME="${ANDROID_HOME:-D:/dev-data/android-sdk}"
 ADB="$ANDROID_HOME/platform-tools/adb.exe"
 [[ -x "$ADB" ]] || ADB="$ANDROID_HOME/platform-tools/adb"
 

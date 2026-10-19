@@ -181,7 +181,7 @@ Encryption in transit: yes. Deletion path: yes, in app.
 The four upload keystores live **outside the repository** and are not in git:
 
 ```
-C:\Users\priya\quickbites-keystores\quickbites-{customer,partner,rider,admin}.jks
+D:\dev-data\quickbites-keystores\quickbites-{customer,partner,rider,admin}.jks
 ```
 
 Each app is signed by its own key. If a keystore is lost:

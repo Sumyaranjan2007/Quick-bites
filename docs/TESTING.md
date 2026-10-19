@@ -56,7 +56,7 @@ OTP_FIXED_CODE=123456`, every live service variable blank, `DATABASE_URL` unset,
   leaves the device "offline"), API at `http://10.0.2.2:7071/api`. Drive it with `adb`
   (`uiautomator dump` fails during continuous animations: use `screencap`). The Android 16 AVD
   `qb-test` never comes online; leftover `emulator`/`qemu` processes and `*.lock` files in
-  `~/.android/avd/*.avd` block the next boot; Mapbox renders black in software mode (fine on phones);
+  `D:dev-datandroid-avd*.avd` block the next boot; Mapbox renders black in software mode (fine on phones);
   Razorpay's payment page crashes the emulator; **the emulator never feeds Mapbox a GPS fix**, so
   GPS-dependent crashes only show on a phone.
 - **Owner's phone (Vivo V2312, Android 15):** `adb reverse tcp:7071 tcp:7071` → `http://localhost:7071/api`.

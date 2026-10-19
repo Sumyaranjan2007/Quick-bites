@@ -85,7 +85,8 @@ clearly first, then do the work** (they complained when an answer was buried).
 | --- | --- |
 | **Railway → backend service → Variables** | All production secrets and settings (names: `docs/CONFIG_AND_SECRETS.md`). Changing one and clicking **Deploy** restarts the server. |
 | **`.env` at the repo root** (gitignored, this PC only) | Local build/test values: Mapbox public + download tokens, Google Maps Android key, Razorpay **test** keys, etc. `.env.example` lists the names. |
-| **`C:\Users\priya\quickbites-keystores\`** (outside the repo) | The four Android signing keystores and their `*.keystore.properties` (passwords). Losing these = the app can never be updated. See `SIGNING_KEYS.md`. |
+| **`D:\dev-data\quickbites-keystores\`** (outside the repo) | The four Android signing keystores and their `*.keystore.properties` (passwords). Losing these = the app can never be updated. See `SIGNING_KEYS.md`. |
+| **`D:\dev-data\`** (19 Oct 2026, C: was full) | Android SDK, emulators, Gradle and npm caches, temp, and the keystore vault. User environment variables `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `ANDROID_AVD_HOME`, `GRADLE_USER_HOME`, `QB_KEYSTORE_VAULT` point here. **Build APKs from the short-path worktree `D:\qbx`** (New Architecture paths pass 260 characters in the project folder): `docs/FOLDER_MAP.md`. Keep nothing new on C:. |
 | **`D:\my all projects\quick-bites-release-archive\`** | Archived signed APKs per release. |
 | **Expo (expo.dev) → project → Environment variables** | `MAPBOX_PUBLIC_TOKEN`, `MAPBOX_DOWNLOAD_TOKEN` (secret) for iPhone cloud builds (EAS). Not needed for Android. |
 | **The owner's own accounts** | Railway, GitHub, MSG91, the DLT portal (Jio TrueConnect), Razorpay, Google Play Console, Firebase, Mapbox, Groq, Apple Developer / App Store Connect, Expo. Only the owner signs in to these. |
