@@ -2,7 +2,7 @@
 
 > **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
 
-**Last updated:** 18 October 2026 (B4 one-rider dispatch + B3 honest ETA built by the main session; B8 help chat, B10 kitchen ticket, B7 person record and Stage F L2/L4/R6 by the parallel session `b8-help-chat`; who owns which files: master plan "Who builds what" · earlier: B5 built: kitchen type + admin-only Pure Veg seal, menu section switch, recommended restaurants; B8 help chat being built by a parallel session `b8-help-chat` in this folder — check `git status` and `docs/reviews/REVIEW_LOG.md` before editing support files · earlier: master plan Stage B1 built: one 35 km radius, rider ₹/km sliding ₹12→₹8, cash only up to 15 km — `CHANGELOG.md` top; next step **B2** Google Maps on the server, waits for the owner's keys, else **B3/B4/B5**; seniordev + cleancode are the main skills, §10) · previously 17 October 2026 (folders organised and the whole project mapped in `docs/` — start at `docs/FOLDER_MAP.md` and `docs/README.md`; one email across the apps, server only; Play Console: Customer in review, Rider `in.quickbite.rider` v33) · **Last release:** versionCode 32 (1.4.0), all four apps, built 16 Oct (Customer `in.quickbites.app` from 30, map crash fixed in 31, Rider `in.quickbites.rider` in 32; Rider alone rebuilt as 33 with `in.quickbite.rider`, the name the Play Console app was created with) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 20 October 2026 (**A new session starts at `docs/plans/master-plan-2026-10-18.md` → START HERE → ▶ CURRENT STATE**: everything built through Stage H; the Tester ↔ builder loop is on round 2 (build 39, findings R2-1…R2-22, part 1 fixed in `080437a`); APK + AAB are built from the short-path worktree `D:\qbx`; dev tools live in `D:\dev-data`; owner 20 Oct: do not act on a Tester report until the owner says so · earlier, 19 Oct: Owner uploaded/tested Build 36 AABs to Play Console Closed Testing; instructions for Claude: keep building and working without stopping · earlier: Jury round 1 build 36 reviews, APK build 36, dev tools moved to D:\dev-data · earlier: 18 October 2026 B4 one-rider dispatch + B3 honest ETA; B8 help chat, B10 kitchen ticket, B7 person record and Stage F L2/L4/R6) · **Last release:** versionCode 36 (1.4.0), all four apps, built 19 Oct (Customer `in.quickbites.app`, Partner `com.quickbite.partner`, Rider `in.quickbite.rider`, Operations `com.quickbite.admin`) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -204,16 +204,20 @@ signed in to LIVE accounts: never order or change anything with them) — is in
 
 **Plan (11 Oct, owner):** launch from an **individual** Play account first (closed test: 12+ testers opted in for 14 days per app, then "Apply for production"), and change the same account to Organization once the D-U-N-S number arrives (Google requires a verified business website for that switch).
 
-**Where each app stands (17 Oct):**
+**Where each app stands (19 Oct 2026):**
 
 | App | Package (final) | Bundle | Play Console |
 |---|---|---|---|
-| Customer | `in.quickbites.app` | versionCode 32 | Closed test **sent for review** 16 Oct |
-| Partner | `com.quickbite.partner` | versionCode 32 | Release saved; send once the test kitchen exists on live |
-| Rider | `in.quickbite.rider` | versionCode 33 | Release ready; foreground-service declaration + video, then send |
+| Customer | `in.quickbites.app` | versionCode 36 | Closed test updated by owner 19 Oct (in review / active test) |
+| Partner | `com.quickbite.partner` | versionCode 36 | Closed test updated by owner 19 Oct |
+| Rider | `in.quickbite.rider` | versionCode 36 | Closed test updated by owner 19 Oct |
 
-All bundles are in `build/aab/` (Rider 33 archived in `quick-bites-release-archive/v33-rider-in.quickbite.rider-2026-10-17`,
-Customer/Partner 32 in `v32-rider-package-2026-10-16`). Signing is Google-managed (see §6).
+> **IMPORTANT NOTICE FOR CLAUDE / ALL AI SESSIONS (19 Oct 2026):**
+> The owner uploaded Build 36 `.aab` bundles to Google Play Console Closed Testing to test the self-upload and update process.
+> **DO NOT STOP BUILDING, UPDATING, OR WORKING.**
+> Claude and all AI sessions must continue working at full speed on remaining Jury Round 1 fixes, ongoing feature enhancements, code optimizations, and version code bumps. The owner testing an upload is never a reason to halt progress.
+
+All bundles are in `build/aab/` and archived in `quick-bites-release-archive/v36-maps-security-2026-10-19/`. Signing is Google-managed (see §6).
 Closed test: India, email list "Quick Bites testers" (15 people, CSV in `build/play-store/testers.csv`,
 gitignored). Managed publishing off until production.
 

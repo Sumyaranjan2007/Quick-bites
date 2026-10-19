@@ -4,6 +4,74 @@
 
 ## START HERE — any new session (AI or developer) continues from this file
 
+> ### ▶ CURRENT STATE — 20 Oct 2026 (read this first; it overrides older status lines below)
+>
+> **Everything in Stages A–H is built and on `main`** (last commit `080437a`, gate green apart from the
+> two known local failures `health` and `fssaiBadge`). Only B9 masked calls (owner: later; plain calling
+> is used) and phone change by SMS code are not built.
+>
+> **The work now is a loop (owner, 19–20 Oct):** this session builds; ONE session named **Tester**
+> (`local_70a4d56b-f4cb-4c9a-8565-ee5330fd9bdb`) tests all four apps on the emulator against the
+> private QA server in every case (end-to-end flows across the apps, cancellations by each party,
+> help chat, refunds, payouts, money maths by hand, notifications in all 4 apps) and writes one report
+> `docs/qa/TEST_REPORT-<date>-build<N>.md`. The builder then researches each finding, plans, fixes with
+> a check, rebuilds APK + AAB, and sends the Tester back. Repeat until the Tester's VERDICT is ALL GOOD.
+> The jury sessions are dropped. Only one session runs at a time.
+> **Owner, 20 Oct: when the Tester sends a report, do NOT act on it until the owner says so.**
+>
+> **Where the loop stands:**
+> | Round | Build | Report | Status |
+> |---|---|---|---|
+> | 1 | 36 | `docs/qa/TEST_REPORT-2026-10-19-build36.md` (T-1…T-19) + code review `docs/reviews/REVIEW_LOG.md` (J-C1…J-C18) | fixed in `ed4886a` (Stage H) |
+> | 2 | 39 | `docs/qa/TEST_REPORT-2026-10-19-build39.md` (R2-1…R2-22, VERDICT ISSUES FOUND) | part 1 fixed in `080437a` (R2-1, R2-2, R2-3*, R2-4, R2-5, R2-6, R2-7, R2-15, R2-16 part, R2-21); *R2-3 needs a phone check |
+>
+> **Next steps, in order:**
+> 1. Fix the rest of round 2 (each: read the report entry, find the root cause, fix, add a check, mutate it):
+>    - R2-8 customer offline shows "No saved addresses" → `customer-mobile/src/screens/DiscoveryFeedScreen.tsx`: tell
+>      a network failure from "none", show an offline note + retry, reload on reconnect.
+>    - R2-9 Operations "Forgot password?" still shows the old "ADMIN_PASSWORD" text → `admin-mobile/src/screens/LoginScreen.tsx:121-131`:
+>      use the same email-code flow as Partner/Rider (`/auth/password/forgot`, `/auth/password/reset`).
+>    - R2-10 Create-with-password dialog says "email sent" → `admin-mobile/src/components/AccountTools.tsx:56`: the api client
+>      returns only `payload.data`, so `result.message` is undefined; word the alert from whether a password was typed.
+>    - R2-11 rider in-trip chat keyboard covers the box → `delivery-mobile/src/components/TripChat.tsx` (KeyboardAvoidingView "padding").
+>    - R2-12 Partner header stays "Awaiting verification" after approval → refresh the kitchen on pull-to-refresh / app focus (`restaurant-mobile/App.tsx` loadProfile).
+>    - R2-13 Kitchen Location: Ops-created kitchen starts at the Bengaluru placeholder; no "no results" text; `maps.app.goo.gl` share
+>      links cannot be read (explain: open the link, copy the coordinates); no "Saved" confirmation → `admin-mobile/src/components/KitchenLocation.tsx`.
+>    - R2-14 new kitchen card shows "Non-Veg" with only veg dishes, and a default "₹400 for two" → card uses `cuisineType`/defaults; show nothing when unset.
+>    - R2-17 Partner dish request error shown far from the button → show the form error next to "Send for approval".
+>    - R2-18 customer Home active-order strip only after restart → `customer-mobile/src/lib/useActiveOrders.ts`: refresh on focus/socket.
+>    - R2-19 customer app never asks notification permission on Android 14 → `customer-mobile/src/lib/pushRegistration.ts:31-44`: create the
+>      `order-updates` channel BEFORE `requestPermissionsAsync`.
+>    - R2-20 fully refunded delivered order counted as "cancelled" on the Partner dashboard (completion rate) → server dashboard stats.
+>    - R2-22 one owner, two kitchens: payee account is per kitchen → say so in the Partner bank screen.
+>    - R2-16 rest: server texts still "Rs" (formatPaise in `modules/payments/money.ts`, ~100 uses, 29 test files); PDFs must keep "Rs" (font).
+> 2. Gate, push, then build APK + AAB (rules below), copy back, archive, commit `release/version.json` + 4 `app.json`.
+> 3. Message the Tester for round 3 (same brief as round 2: see its session), then STOP and wait for the owner.
+>
+> **How to build APK + AAB (19 Oct, Windows 260-char limit, C: is full):** never build in the project folder.
+> Use the git worktree `D:\qbx` (`D:\qb` is a junction to the project — do not use). Steps:
+> `git -C D:/qbx checkout -- release/version.json apps/*/app.json` → `git -C D:/qbx checkout --detach main` →
+> copy `release/version.json` from the project → in `D:/qbx`: `export TEMP=D:/dev-data/temp TMP=D:/dev-data/temp
+> GRADLE_USER_HOME=D:/dev-data/gradle ANDROID_HOME=D:/dev-data/android-sdk QB_KEYSTORE_VAULT=D:/dev-data/quickbites-keystores`
+> → `npm ci` → `bash scripts/build-apks.sh --aab` (run in the background, ~25 min) → copy `D:/qbx/build/apk/*.apk`,
+> `D:/qbx/build/aab/*.aab`, `release/version.json` and the four `app.json` back → archive in
+> `D:\my all projects\quick-bites-release-archive\vNN-<what>-YYYY-MM-DD\` → `node scripts/check-apk-secrets.mjs` → commit.
+> **Owner rule: every build updates the AABs together with the APKs** (same versionCode; Operations has no AAB).
+> Builds so far: 36 (19 Oct), 39 (19 Oct, current APKs/AABs; 37/38 were refused builds). Next build gets 40+.
+>
+> **Machine facts (19 Oct):** all dev tools are in `D:\dev-data` (android-sdk, android-avd, gradle, npm-cache,
+> temp, quickbites-keystores); user env vars point there. `C:\qb` is a dead 5 GB build copy the tool may not delete
+> (owner deletes it). Emulator `qb34` (`D:/dev-data/android-avd`), driven with mobile-mcp. QA server: `docs/TESTING.md`.
+>
+> **iPhone (customer app):** code lines up with Android build 39 (`ios.buildNumber` 39, Google Maps via Expo's built-in
+> maps step when `GOOGLE_MAPS_IOS_KEY` is set, no Face ID text). Not built. Owner must add `GOOGLE_MAPS_IOS_KEY` to
+> expo.dev → Environment variables first (`docs/app-store/IOS.md` §2.3), then build per §3.
+>
+> **Waiting on the owner:** archive the sessions held by "Keep computer awake" (Code reviewer, Security reviewer,
+> Senior dev skills setup); delete `C:\qb`; Play Integrity link (`OWNER_ACTIONS.md` 00.8); privacy-policy line on
+> rider location; Expo `GOOGLE_MAPS_IOS_KEY`; everything in `OWNER_ACTIONS.md` Part 0.
+
+
 The owner may open a fresh session and paste only this file's path. Do this, in order:
 
 1. **Load the main skills first** (Skill tool): `seniordev`, then `cleancode`. Follow them on every
@@ -303,6 +371,7 @@ these), the jury reviews one at a time, fix, rebuild, repeat until every juror s
 | H5 | **Forgot password on every sign-in page** (all 4 apps): email → code by email → new password, as everyone does | ✅ 19 Oct: "Forgot password?" on Partner/Rider/Operations sign-in (Customer signs in by emailed code, no password) |
 | H6 | **Admin can do everything for a person**: set their password when creating an account, menus, and the exact location on a map | ✅ 19 Oct: optional password on Create; Location card (address search, pasted Google Maps pin, View on map) |
 | H7 | Tester build 36 findings T-1…T-19 and code-reviewer J-C1…J-C18 (`docs/reviews/REVIEW_LOG.md`) | ✅ 19 Oct: T-2..T-17 and J-C2..J-C17 fixed; T-1/T-18 seed data left (J-C1); see CHANGELOG |
+| H8 | Tester round 2 (build 39) findings R2-1…R2-22 | 🟨 20 Oct: part 1 fixed (`080437a`); rest listed in START HERE ▶ CURRENT STATE |
 
 ## Stage G — Test, build, release · ~3–4 days
 Gate + all checks (`docs/TESTING.md`); phone tests of every stage's checklist (motion on and off); web check; then **only on "make APK"**: one build of all four apps (versionCode 34+), archive, Play upload, new reviews, update Play Console: Data safety (location, calls), background-location declaration + video, App access (reviewer code), Advertising ID.
