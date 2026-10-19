@@ -4,6 +4,14 @@
 
 ## START HERE — any new session (AI or developer) continues from this file
 
+> ### ▶▶ ROUND 3 — 20 Oct 2026 evening (overrides the block below where they differ)
+>
+> The owner gave 11 new items and restarted the loop: **work list = [`round3-owner-items-2026-10-20.md`](round3-owner-items-2026-10-20.md)**
+> (phases A–H, tracker at its end; round-2 leftovers are its phase H). Build number for this round: **40**.
+> Owner rules 20 Oct: act on each Tester report at once (replaces "wait for the owner"); the loop runs until
+> the Tester's VERDICT is ALL GOOD; new money rule (pickup pay ₹6/km beyond 7 km) is in that file and CLAUDE.md §4.
+> Builder = the session that wrote that file; Tester = the session it started named `tester`.
+>
 > ### ▶ CURRENT STATE — 20 Oct 2026 (read this first; it overrides older status lines below)
 >
 > **Everything in Stages A–H is built and on `main`** (last commit `080437a`, gate green apart from the
