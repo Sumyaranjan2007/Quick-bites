@@ -1,11 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
-import { Bike, Store } from 'lucide-react-native';
+import { Bike, Store, Home } from 'lucide-react-native';
 import { canRenderNativeMap, MapCanvas, MapPin, MapMovingPin, MapRoute } from '../lib/nativeMap';
 import { BikeMarker } from './BikeMarker';
 import { distanceMetres, project, fitZoom } from '../lib/mapFit';
+import { decodePolyline } from '../lib/polyline';
+
+/** The real map is tall, as in the leading apps; the drawn fallback keeps its old size. */
+const NATIVE_H = 300;
 
 const c = tokens.colors;
 
@@ -80,6 +84,8 @@ interface Props {
   roadKm?: number | null;
   /** The rider's heading, degrees from north: the bike turns with the road (D5). */
   riderBearing?: number | null;
+  /** Google's encoded road line, kitchen to door (tracking API); a straight line without it. */
+  routePolyline?: string | null;
 }
 
 /** A position older than this shows as "updating…" (the server uses the same 30 s, B11). */
@@ -141,59 +147,51 @@ const MapLegend: React.FC<{
  * rest of the live-tracking work in Stage 4; the camera easing here is most of
  * what makes it read as movement in the meantime.
  */
-const NativeOrderMap: React.FC<{ origin: Coords; destination: Coords; carrying: boolean; bearing?: number | null; stale?: boolean }> = ({
-  origin,
-  destination,
-  carrying,
-  bearing,
-  stale
-}) => {
+const NativeOrderMap: React.FC<{
+  restaurant: Coords | null;
+  rider: Coords | null;
+  destination: Coords;
+  carrying: boolean;
+  bearing?: number | null;
+  stale?: boolean;
+  road: Coords[];
+}> = ({ restaurant, rider, destination, carrying, bearing, stale, road }) => {
   /*
-   * THE CAMERA FITS A BOX NOW, AND THIS IS THE OWNER'S BUG.
-   *
-   * It used to pick a centre and a span in metres, and `zoomForSpan` turned that
-   * into a zoom with `log2(circumference / span)` — the zoom at which the span
-   * fills ONE 256-PIXEL TILE. This map is about 320x190, so the answer was wrong
-   * by the viewport ratio, wrong again by the aspect ratio, wrong again by
-   * cos(latitude), and padded by a guessed 1.6. All four errors grow with
-   * distance, which is exactly what was reported: "when its too far it shows
-   * outside and it dosnt fit in the box".
-   *
-   * `fit` hands both points to Mapbox and lets it frame them. It knows how big
-   * the map is, which is the one thing the old arithmetic could never know.
+   * As the leading delivery apps draw it (owner, 19 Oct): the road from the
+   * kitchen to the door, the kitchen and the home as labelled markers, and once
+   * the food is collected the bike gliding along. The camera frames what matters
+   * now: kitchen and home while cooking, the bike and home once it is on the way.
    */
-  const points = [origin, destination];
+  const line = road.length >= 2 ? road : [restaurant, destination].filter(Boolean) as Coords[];
+  const framed = (carrying && rider ? [rider, destination] : [restaurant ?? destination, destination]) as Coords[];
   const centre = {
-    latitude: (origin.latitude + destination.latitude) / 2,
-    longitude: (origin.longitude + destination.longitude) / 2
+    latitude: (framed[0].latitude + destination.latitude) / 2,
+    longitude: (framed[0].longitude + destination.longitude) / 2
   };
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <MapCanvas
-        style={StyleSheet.absoluteFill}
-        /* Used only when the two points are the same place — a rider at the
-           door — because a zero-area box makes Mapbox zoom to maximum and
-           render blank grey. See `boundsFor`. */
-        centre={centre}
-        spanMetres={400}
-        fit={points}
-        scrollEnabled={false}
-      >
-        <MapRoute id="order-route" points={points} colour={c.primary[500]} width={3} />
-        <MapPin id="destination" at={destination}>
-          <View style={[styles.pin, { backgroundColor: c.primary[500] }]} />
+      <MapCanvas style={StyleSheet.absoluteFill} centre={centre} spanMetres={400} fit={framed} scrollEnabled={false}>
+        {/* A wide light casing under a darker line: reads as a road route on any background. */}
+        <MapRoute id="route-casing" points={line} colour="rgba(255,255,255,0.9)" width={8} />
+        <MapRoute id="route" points={line} colour={c.text.primary} width={4} />
+        {restaurant ? (
+          <MapPin id="kitchen" at={restaurant}>
+            <View style={[styles.chip, { backgroundColor: c.primary[600] }]}>
+              <Store size={14} color="#FFFFFF" />
+            </View>
+          </MapPin>
+        ) : null}
+        <MapPin id="home" at={destination}>
+          <View style={[styles.chip, { backgroundColor: c.text.primary }]}>
+            <Home size={14} color="#FFFFFF" />
+          </View>
         </MapPin>
-        {carrying ? (
-          /* The moving bike (D5): glides from fix to fix and turns to the rider's heading. */
-          <MapMovingPin id="rider" at={origin} rotation={bearing ?? 0}>
+        {carrying && rider ? (
+          <MapMovingPin id="rider" at={rider} rotation={bearing ?? 0}>
             <BikeMarker stale={stale} />
           </MapMovingPin>
-        ) : (
-          <MapPin id="origin" at={origin}>
-            <View style={[styles.pin, { backgroundColor: c.primary[600] }]} />
-          </MapPin>
-        )}
+        ) : null}
       </MapCanvas>
     </View>
   );
@@ -226,10 +224,13 @@ export const LiveOrderMap: React.FC<Props> = ({
   riderName,
   restaurantName,
   roadKm,
-  riderBearing
+  riderBearing,
+  routePolyline
 }) => {
   const W = 320;
   const H = 190;
+  // Decoded once per line, not on every rider fix.
+  const road = useMemo(() => (routePolyline ? decodePolyline(routePolyline) : []), [routePolyline]);
 
   /*
    * Carrying needs BOTH the timestamp and a position.
@@ -262,8 +263,16 @@ export const LiveOrderMap: React.FC<Props> = ({
   if (canRenderNativeMap) {
     return (
       <View>
-        <View style={[styles.mapFrame, { height: H }]}>
-          <NativeOrderMap origin={origin} destination={destination} carrying={carrying} bearing={riderBearing} stale={carrying && isStale(updatedAt)} />
+        <View style={[styles.mapFrame, { height: NATIVE_H }]}>
+          <NativeOrderMap
+            restaurant={restaurant}
+            rider={rider}
+            destination={destination}
+            carrying={carrying}
+            bearing={riderBearing}
+            stale={carrying && isStale(updatedAt)}
+            road={road}
+          />
         </View>
         <MapLegend
           metres={metres}
@@ -399,6 +408,20 @@ const styles = StyleSheet.create({
    * and the white ring is what keeps the dot visible over dark map tiles.
    */
   pin: { width: 14, height: 14, borderRadius: 7, borderWidth: 2.5, borderColor: '#FFFFFF' },
+  chip: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 }
+  },
   mapFrame: {
     width: '100%',
     borderRadius: tokens.radii.md,

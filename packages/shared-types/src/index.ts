@@ -625,6 +625,10 @@ export interface Order {
   /** Metres per second at the last fix (the phone's GPS, else worked out from the fix before; B11). */
   riderSpeed?: number;
   riderLocationUpdatedAt?: string;
+  /** The road from the kitchen to the door, Google's encoded polyline (tracking map line). */
+  routePolyline?: string;
+  /** Asked Google once for the road line, answered or not: never asked per poll. */
+  routeTried?: boolean;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   /**

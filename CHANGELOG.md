@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 19 Oct 2026: Maps drawn as in the leading delivery apps
+
+- **Tracking.** A taller map shows the kitchen and the home as labelled markers, joined by the real road line. Google returns that line once per order, which is saved on the order (`routePolyline`, `roadPath`). Once the food is collected, the bike glides along the route. Without Google, a straight line is drawn.
+- **Choosing an address.** A tooltip over the pin reads "Your order will be delivered here". The pin lifts while you drag the map. A "Use current location" pill sits on the map. The bottom card shows the place name in bold, then the full address.
+- **All maps.** A calmer style, with no shop or bus-stop pins, so our markers stand out.
+- **Calling.** Rider and customer call each other on their normal numbers. The number-protection layer (B9) stays on hold.
+- Checks: `routing` (road line from Google, nothing without it), `orderMap` (the line decoder).
+
+---
+
 ## [Unreleased] 19 Oct 2026: Open review findings closed
 
 - **Email-change codes (Q1).** A daily cap like password reset's: 5 codes and 10 wrong guesses per 24 h, then `CODE_LIMIT_REACHED`.

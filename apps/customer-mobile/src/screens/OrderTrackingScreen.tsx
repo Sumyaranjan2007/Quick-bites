@@ -543,6 +543,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             riderName={tracking?.riderName ?? riderName}
             restaurantName={tracking?.restaurantName ?? order?.restaurantName ?? null}
             riderBearing={tracking?.riderBearing ?? null}
+            routePolyline={tracking?.routePolyline ?? null}
           />
         </Card>
       )}

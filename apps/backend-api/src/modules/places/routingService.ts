@@ -501,3 +501,21 @@ export function routingStatus() {
     dependency: breaker.snapshot()
   };
 }
+
+/**
+ * The road a delivery takes, as Google's encoded polyline, for the tracking map's
+ * line (owner: the map as in the leading apps). One call per order, cached on the
+ * order by the caller; null without Google or on any refusal (the map then draws
+ * a straight line).
+ */
+export async function roadPath(from: Coordinates, to: Coordinates): Promise<string | null> {
+  if (routingProvider() !== 'GOOGLE') return null;
+  const body = await googlePost(GOOGLE_ROUTE, 'routes.polyline.encodedPolyline', {
+    origin: latLng(from),
+    destination: latLng(to),
+    travelMode: 'DRIVE',
+    routingPreference: 'TRAFFIC_UNAWARE'
+  });
+  const line = body?.routes?.[0]?.polyline?.encodedPolyline;
+  return typeof line === 'string' && line ? line : null;
+}

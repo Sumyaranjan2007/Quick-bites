@@ -1,3 +1,4 @@
+import { roadPath } from '../modules/places/routingService.ts';
 import { isStale } from '../modules/riders/liveLocation.ts';
 import { durable } from '../middlewares/durable.ts';
 import { quoteCancellation } from '../modules/orders/cancellationFee.ts';
@@ -328,6 +329,14 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
       ? await restaurantRepository.findById(order.restaurantId).catch(() => null)
       : null;
 
+    // The road line for the map, asked once the kitchen has accepted (never per poll).
+    const accepted = !['PAYMENT_PENDING', 'ORDER_PLACED', 'CANCELLED', 'DELIVERED', 'REFUNDED'].includes(order.status);
+    if (accepted && !order.routeTried && trackedRestaurant?.coordinates && order.deliveryCoordinates) {
+      order.routeTried = true;
+      order.routePolyline = (await roadPath(trackedRestaurant.coordinates, order.deliveryCoordinates)) ?? undefined;
+      await orderRepository.save(order);
+    }
+
     res.json({
       success: true,
       data: {
@@ -375,6 +384,7 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
          */
         restaurantCoordinates: trackedRestaurant?.coordinates ?? null,
         restaurantName: order.restaurantName ?? null,
+        routePolyline: order.routePolyline ?? null,
         // Recomputed on every poll rather than stored, because it is a function
         // of where the rider is right now. A stored ETA is a stale ETA the
         // moment the rider moves, and the tracking screen's whole job is to

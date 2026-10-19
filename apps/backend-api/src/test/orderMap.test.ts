@@ -66,6 +66,7 @@ import {
   zoomForSpanIgnoringViewport,
   FIT_PADDING
 } from '../../../customer-mobile/src/lib/mapFit.ts';
+import { decodePolyline } from '../../../customer-mobile/src/lib/polyline.ts';
 
 const PORT = 5219;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -126,6 +127,12 @@ await seedDatabase();
 const server = createApp().listen(PORT, '127.0.0.1');
 
 try {
+  // The road line on the tracking map: Google's documented example decodes to its three points.
+  check('An encoded road line decodes to the right points', () => {
+    const pts = decodePolyline('_p~iF~ps|U_ulLnnqC_mqNvxq`@');
+    assert.deepEqual(pts.map(p => [p.latitude, p.longitude]), [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]);
+  });
+
   /* ---------------------------------------------------------------- *
    *  THE FIXTURE IS WHAT I SAY IT IS                                 *
    * ---------------------------------------------------------------- */

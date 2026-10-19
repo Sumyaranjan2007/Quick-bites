@@ -57,7 +57,22 @@ function regionFor(centre: LatLng, spanMetres: number) {
 }
 
 const keyOf = (points: LatLng[]) => points.map(p => `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`).join('|');
-const EDGE = { top: 60, right: 60, bottom: 60, left: 60 };
+const EDGE = { top: 70, right: 60, bottom: 70, left: 60 };
+
+/**
+ * A calm map, as the leading delivery apps draw it: no shop and business pins,
+ * no bus stops, softer roads, so our own markers and route are what stands out.
+ */
+const MAP_STYLE = [
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#f3e6d4' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e4f2' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#f5f4f0' }] }
+];
 
 export interface MapCanvasProps {
   /** Where the map is looking. */
@@ -73,6 +88,8 @@ export interface MapCanvasProps {
   scrollEnabled?: boolean;
   /** The device's own position (the rider's trip map). */
   showUserLocation?: boolean;
+  /** Fired while the user drags the map (the picker lifts its pin). */
+  onDrag?: () => void;
 }
 
 export const MapCanvas: React.FC<MapCanvasProps> = ({
@@ -83,7 +100,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   style,
   onSettle,
   scrollEnabled = true,
-  showUserLocation = false
+  showUserLocation = false,
+  onDrag
 }) => {
   const ref = useRef<any>(null);
   const points = (fit || []).filter(plottable);
@@ -110,6 +128,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
       {
         ref,
         provider: RNMaps.PROVIDER_GOOGLE,
+        customMapStyle: MAP_STYLE,
+        onPanDrag: onDrag,
         style: StyleSheet.absoluteFill,
         initialRegion: regionFor(plottable(target) ? target : centre, spanMetres),
         onMapReady: frame,

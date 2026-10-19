@@ -107,6 +107,8 @@ export const MapAddressPicker: React.FC<Props> = ({
   const [cameraTarget, setCameraTarget] = useState(initial || FALLBACK_CENTRE);
   const [resolved, setResolved] = useState<PickedLocation | null>(null);
   const [looking, setLooking] = useState(false);
+  // The pin lifts while the map is dragged and drops when it settles (as in the leading apps).
+  const [dragging, setDragging] = useState(false);
   const { detect, detecting } = useDeviceLocation();
   const mapRef = useRef<any>(null);
 
@@ -199,6 +201,7 @@ export const MapAddressPicker: React.FC<Props> = ({
   const onRegionChange = useCallback(
     (region: { latitude: number; longitude: number }) => {
       const point = { latitude: region.latitude, longitude: region.longitude };
+      setDragging(false);
       setCentre(point);
       setResolved(null);
       if (debounce.current) clearTimeout(debounce.current);
@@ -250,12 +253,23 @@ export const MapAddressPicker: React.FC<Props> = ({
                 centre={cameraTarget}
                 spanMetres={SPAN_METRES}
                 onSettle={onRegionChange}
+                onDrag={() => !dragging && setDragging(true)}
                 showUserLocation
               />
               {/* The fixed pin. Outside the map, centred over it, and
                   pointer-events none so it never swallows a pan gesture. */}
               <View pointerEvents="none" style={styles.pinLayer}>
-                <MapPin size={36} color={c.primary[500]} fill={c.primary[500]} strokeWidth={1.5} />
+                {!dragging ? (
+                  <View style={styles.tooltip}>
+                    <Text style={styles.tooltipTitle}>Your order will be delivered here</Text>
+                    <Text style={styles.tooltipBody}>Move the pin to your exact location</Text>
+                    <View style={styles.tooltipTail} />
+                  </View>
+                ) : null}
+                <View style={dragging ? styles.pinLifted : null}>
+                  <MapPin size={36} color={c.primary[500]} fill={c.primary[500]} strokeWidth={1.5} />
+                </View>
+                {dragging ? <View style={styles.pinShadow} /> : null}
                 {/* Offset by half the icon so the point of the pin, not its
                     centre, marks the chosen spot. */}
                 <View style={styles.pinTipOffset} />
@@ -274,16 +288,17 @@ export const MapAddressPicker: React.FC<Props> = ({
 
           {canRenderNativeMap && (
             <TouchableOpacity
-              style={styles.locateFab}
+              style={styles.locatePill}
               onPress={goToMyLocation}
               disabled={detecting}
-              accessibilityLabel="Centre on my location"
+              accessibilityLabel="Use current location"
             >
               {detecting ? (
                 <ActivityIndicator size="small" color={c.primary[500]} />
               ) : (
-                <Crosshair size={18} color={c.primary[500]} />
+                <Crosshair size={16} color={c.primary[500]} />
               )}
+              <Text style={styles.locateText}>Use current location</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -296,10 +311,18 @@ export const MapAddressPicker: React.FC<Props> = ({
               <Text style={styles.looking}>Finding this address…</Text>
             </View>
           ) : (
-            <Text style={styles.address} numberOfLines={2}>
-              {resolved?.addressLine ||
-                `${centre.latitude.toFixed(5)}, ${centre.longitude.toFixed(5)}`}
-            </Text>
+            <>
+              {/* The place's name first, in bold, then the full line (as in the leading apps). */}
+              <View style={styles.row}>
+                <MapPin size={18} color={c.primary[500]} />
+                <Text style={styles.placeName} numberOfLines={1}>
+                  {resolved?.addressLine ? resolved.addressLine.split(',')[0] : 'Pinned location'}
+                </Text>
+              </View>
+              <Text style={styles.address} numberOfLines={2}>
+                {resolved?.addressLine || `${centre.latitude.toFixed(5)}, ${centre.longitude.toFixed(5)}`}
+              </Text>
+            </>
           )}
           <Text style={styles.hint}>
             {canRenderNativeMap
@@ -350,13 +373,39 @@ const styles = StyleSheet.create({
   noMapTitle: { fontFamily: tokens.font.family, fontSize: 15, fontWeight: '700', color: c.text.primary },
   noMapBody: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, textAlign: 'center', lineHeight: 19 },
 
-  locateFab: {
+  tooltip: {
     position: 'absolute',
-    right: 16,
+    bottom: '50%',
+    marginBottom: 46,
+    backgroundColor: '#1C1C1C',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: 'center'
+  },
+  tooltipTitle: { fontFamily: tokens.font.family, fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  tooltipBody: { fontFamily: tokens.font.family, fontSize: 11, color: '#D6D6D6', marginTop: 2 },
+  tooltipTail: {
+    position: 'absolute',
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: '#1C1C1C',
+    transform: [{ rotate: '45deg' }]
+  },
+  pinLifted: { transform: [{ translateY: -10 }] },
+  pinShadow: { position: 'absolute', width: 10, height: 4, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.3)' },
+  locatePill: {
+    position: 'absolute',
+    alignSelf: 'center',
     bottom: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: c.primary[500],
     backgroundColor: c.surface.card,
     alignItems: 'center',
     justifyContent: 'center',
@@ -377,7 +426,9 @@ const styles = StyleSheet.create({
   sheetLabel: { fontFamily: tokens.font.family, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: c.text.muted },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   looking: { fontFamily: tokens.font.family, fontSize: 14, color: c.text.secondary },
-  address: { fontFamily: tokens.font.family, fontSize: 15, fontWeight: '600', color: c.text.primary, lineHeight: 21 },
+  locateText: { fontFamily: tokens.font.family, fontSize: 13, fontWeight: '700', color: c.primary[500] },
+  placeName: { flex: 1, fontFamily: tokens.font.family, fontSize: 17, fontWeight: '800', color: c.text.primary },
+  address: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, lineHeight: 19 },
   hint: { fontFamily: tokens.font.family, fontSize: 12, color: c.text.muted, lineHeight: 17 },
   confirm: {
     marginTop: 6,

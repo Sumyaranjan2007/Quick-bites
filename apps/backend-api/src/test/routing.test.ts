@@ -21,7 +21,8 @@ import {
   roadDistanceMatrix,
   estimateByRoad,
   clearRoutingCache,
-  routingStatus
+  routingStatus,
+  roadPath
 } from '../modules/places/routingService.ts';
 
 console.log('====================================================');
@@ -539,6 +540,16 @@ await (async () => {
     (config as any).GOOGLE_MAPS_SERVER_KEY = 'g';
     assert.equal(routingStatus().provider, 'GOOGLE');
     offGoogle();
+  });
+
+  await check('The tracking map gets the road line from Google, and nothing without Google', async () => {
+    useGoogle();
+    const calls = stubGoogle(() => ({ body: { routes: [{ polyline: { encodedPolyline: '_p~iF~ps|U_ulLnnqC' } }] } }));
+    assert.equal(await roadPath(A, B), '_p~iF~ps|U_ulLnnqC');
+    assert.match(String(calls[0]?.headers?.['X-Goog-FieldMask']), /polyline/);
+    offGoogle();
+    (config as any).GOOGLE_MAPS_SERVER_KEY = '';
+    assert.equal(await roadPath(A, B), null);
   });
 
   console.log(`\n  ${passed} passed, ${failed} failed`);
