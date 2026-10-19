@@ -349,6 +349,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             hint={mode === 'create' ? 'Use at least 8 characters.' : undefined}
             error={fieldErrors.password}
             textContentType={mode === 'create' ? 'newPassword' : 'password'}
+            onSubmitEditing={mode === 'signin' ? doSignIn : undefined}
           />
         )}
 
@@ -404,7 +405,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             }}
             style={styles.linkRow}
           >
-            <Text style={styles.link}>Trouble signing in?</Text>
+            <Text style={styles.link}>Forgot password?</Text>
           </TouchableOpacity>
         )}
 

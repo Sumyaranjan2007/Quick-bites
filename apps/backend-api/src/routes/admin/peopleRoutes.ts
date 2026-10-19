@@ -18,7 +18,7 @@ import { userRepository, rolesOf, hasRole, publicUser } from '../../db/repositor
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
 import { MANDATORY_RIDER_DOCUMENTS } from '../../db/repositories/riderRepository.ts';
-import { buildDocumentOverview } from '../../modules/restaurants/restaurantDocuments.ts';
+import { buildDocumentOverview, documentNumberError } from '../../modules/restaurants/restaurantDocuments.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { walletRepository } from '../../db/repositories/walletRepository.ts';
 import { kycRepository, documentsByType } from '../../db/repositories/kycRepository.ts';
@@ -614,6 +614,8 @@ const RestaurantUpdateSchema = z.object({
   packagingFee: z.number().min(0).max(200).optional(),
   /** The Pure Veg seal: needs `catalog.restaurants.pureVegSeal` as well (B5). */
   isPureVeg: z.boolean().optional(),
+  /** Give the seal although the menu lists non-veg dishes (T-3: refused without it, with the dish names). */
+  confirmNonVeg: z.boolean().optional(),
   cuisineType: z.enum(CUISINE_TYPES).optional(),
   status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'SUSPENDED', 'CLOSED']).optional(),
   /**
@@ -653,7 +655,7 @@ peopleRoutes.patch(
       const restaurant = await restaurantRepository.findById(req.params.id);
       if (!restaurant) throw new AppError('Restaurant not found.', 404, 'RESTAURANT_NOT_FOUND');
 
-      const { reason, status, isBlocked, blockReason, ...fields } = req.body;
+      const { reason, status, isBlocked, blockReason, confirmNonVeg, ...fields } = req.body;
       const access = req.adminAccess;
       if (
         fields.isPureVeg !== undefined &&
@@ -661,6 +663,19 @@ peopleRoutes.patch(
         !(access?.isSuperAdmin || access?.permissions.includes('catalog.restaurants.pureVegSeal'))
       ) {
         throw new AppError('Only staff allowed to give the Pure Veg seal can change it.', 403, 'PERMISSION_DENIED');
+      }
+      if (fields.isPureVeg === true && !restaurant.isPureVeg && !confirmNonVeg) {
+        const nonVeg = (memoryStore.menus.get(restaurant.id)?.categories || [])
+          .flatMap((c: any) => c.items || [])
+          .filter((d: any) => d.isVeg === false)
+          .map((d: any) => d.name);
+        if (nonVeg.length) {
+          throw new AppError(
+            `This menu has non-veg dishes: ${nonVeg.slice(0, 6).join(', ')}${nonVeg.length > 6 ? ` and ${nonVeg.length - 6} more` : ''}. Remove them first, or give the seal anyway.`,
+            409,
+            'NON_VEG_DISHES'
+          );
+        }
       }
       const owner = await userRepository.findById(restaurant.ownerId);
       const before = {
@@ -795,7 +810,7 @@ async function copyApprovedNumber(doc: KycDocument): Promise<void> {
   const number = String(doc.documentNumber).replace(/\s+/g, '');
   if (doc.entityType === 'RESTAURANT' && doc.documentType === 'FSSAI' && /^\d{14}$/.test(number)) {
     await restaurantRepository.applyProfile(doc.entityId, { fssaiLicenseNumber: number });
-  } else if (doc.entityType === 'RESTAURANT' && doc.documentType === 'GSTIN') {
+  } else if (doc.entityType === 'RESTAURANT' && doc.documentType === 'GSTIN' && !documentNumberError('GSTIN', number)) {
     await restaurantRepository.applyProfile(doc.entityId, { gstin: number.toUpperCase() });
   } else if (doc.entityType === 'RIDER' && doc.documentType === 'DRIVING_LICENSE') {
     await riderRepository.update(doc.entityId, { licenseNumber: doc.documentNumber });
@@ -1025,9 +1040,11 @@ peopleRoutes.post(
  * submit for anyone) and approved with the existing review, so verification
  * stays one flow. Needs the "manage" permission for that kind of account.
  */
+// Owner, 19 Oct 2026: Operations may set the password; left empty, the 24-hour email code (L11) as before.
+const AdminSetPassword = z.string().min(8, 'The password needs at least 8 characters.').max(128).optional();
 const CreateAccountSchema = z.discriminatedUnion('kind', [
-  PartnerRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('restaurant') }),
-  RiderRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('rider') })
+  PartnerRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('restaurant'), password: AdminSetPassword }),
+  RiderRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('rider'), password: AdminSetPassword })
 ]);
 
 peopleRoutes.post(
@@ -1062,11 +1079,12 @@ peopleRoutes.post(
         phone: body.phone,
         role,
         roles: [role],
-        createdByAdmin: req.user!.id
+        createdByAdmin: req.user!.id,
+        ...(body.password ? { passwordHash: await bcrypt.hash(body.password, 10) } : {})
       } as any);
       const record = kitchen ? await openRestaurant(user, body) : await openRiderRecord(user, body);
 
-      const emailed = await issuePasswordCode(user, true);
+      const emailed = body.password ? false : await issuePasswordCode(user, true);
       recordAudit(req, {
         action: 'ACCOUNT_CREATED_BY_ADMIN',
         entityType: kitchen ? 'RESTAURANT_PARTNER' : 'RIDER',
@@ -1080,7 +1098,9 @@ peopleRoutes.post(
           [kitchen ? 'restaurantId' : 'riderId']: (record as any).id,
           setPasswordCodeEmailed: emailed
         },
-        message: emailed
+        message: body.password
+          ? 'Account created with the password you set. Give it to them privately; they can change it in the app. Next: upload their documents and approve them.'
+          : emailed
           ? 'Account created. They got an email with a code to set their own password (24 hours). Next: upload their documents and approve them.'
           : 'Account created, but the email did not go out. Ask them to use "Forgot password" with this email.'
       });

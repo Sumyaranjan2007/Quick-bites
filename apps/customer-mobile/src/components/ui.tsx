@@ -8,7 +8,6 @@ import {
   TextStyle,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { PressableScale } from './PressableScale';
@@ -32,7 +31,8 @@ export const Card: React.FC<{ children: React.ReactNode; style?: ViewStyle; padd
  * keyboard itself, so there this is a plain full-size View and nothing changes.
  */
 export const KeyboardLift: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  // Padding on Android too: since SDK 54 modals are edge-to-edge and the window no longer resizes (T-6).
+  <KeyboardAvoidingView style={s.fill} behavior="padding">
     {children}
   </KeyboardAvoidingView>
 );

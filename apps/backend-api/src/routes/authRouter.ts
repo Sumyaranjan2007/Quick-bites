@@ -205,8 +205,9 @@ authRouter.post('/login', authRateLimiterMiddleware, validate({ body: LoginBodyS
       return res.status(401).json({
         success: false,
         error: role 
-          ? `Invalid credentials or account does not have '${role}' access permissions`
-          : 'Invalid email or password'
+          ? // In plain words, no internal role name (T-9).
+            `Wrong email or password, or this is not a ${({ restaurant_owner: 'Partner', rider: 'Rider', admin: 'Operations' } as Record<string, string>)[role] || 'Quick Bites'} account.`
+          : 'Wrong email or password.'
       });
     }
 
@@ -1352,6 +1353,18 @@ authRouter.post(
         phone: maskPhone(phone)
       }));
 
+      // A blocked account gets the reason, not a token that fails every call (T-8), as password sign-in.
+      if ((user as any).isBlocked) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'ACCOUNT_BLOCKED',
+            message: (user as any).blockReason
+              ? `This account has been blocked: ${(user as any).blockReason}. Contact Quick Bites support.`
+              : 'This account has been blocked. Contact Quick Bites support.'
+          }
+        });
+      }
       res.json({
         success: true,
         data: {

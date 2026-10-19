@@ -6,6 +6,36 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 19 Oct 2026: Owner's round after build 36 (Stage H) and the Tester/jury findings
+
+- **Help is a real chat** (Customer, Partner, Rider). Type a question and the matching ready answer comes back. "Talk to a person" connects you to Operations in the same chat, and both sides keep writing; staff replies appear within seconds.
+- **Notifications** show while the app is open in all four apps. Tapping one opens what it is about: the order, Help, or Payouts.
+- **Rider** Home has a "Set up your phone" card: location, notifications, camera, and battery saver off, one tap each.
+- **Customer cart**: no bounce on every add. The dish card turns into − count + once the dish is in the cart.
+- **Forgot password?** is spelled out on the Partner, Rider and Operations sign-in pages (code by email, then a new password). Customers sign in with an emailed code, so they have no password to forget.
+- **Operations**:
+  - can set a password when creating a partner or rider; left empty, the emailed code goes out as before;
+  - can set a kitchen's exact location: search the address, or paste a Google Maps pin, then "View on map";
+  - is shown the non-veg dishes before giving the Pure Veg seal, with "Give anyway".
+- **Money, one "ours"** (T-4): the dashboard, Pay and the full invoice all use the books' figure. No GST is booked on our commission when the bill shows no GSTIN. The dashboard says "Earned by restaurants".
+- **Fixes**:
+  - The pickup code no longer reaches customers (T-7).
+  - FSSAI, GSTIN and PAN numbers are checked (T-2).
+  - A blocked customer gets the reason instead of a token (T-8).
+  - Sign-in errors are in plain words (T-9).
+  - The keyboard no longer covers sheets on Android (T-6).
+  - The address map opens on Harohalli (T-10).
+  - The map keeps the street when the rider is at the door (T-12).
+  - The rider profile shows the email and "Approved · new copy being checked" (T-14).
+  - "mutton" no longer finds "Button" (T-15).
+  - ₹ everywhere, FSSAI and PAN titles in capitals, buttons no longer cut off, dish options in the order summary (T-16).
+  - Enter submits the Partner sign-in (T-17).
+  - The road line is retried after 5 minutes (J-C16).
+  - A failing phone keystore no longer signs people out (J-C17).
+- **Checks**: new `oneOurs` suite; `helpChat`, `adminCreate`, `catalogueCuration`, `securityInputs` and `search` extended. Every guard was mutated and the change caught.
+
+---
+
 ## [Unreleased] 19 Oct 2026: APK build 36, development tools moved to D:
 
 - **Build 36** of all four apps (APKs and Play bundles), archived in `quick-bites-release-archive/v36-maps-security-2026-10-19`. `check-apk-secrets` passes: no credentials in any built file.

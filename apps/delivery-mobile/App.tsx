@@ -1,4 +1,5 @@
 import { FONT_FAMILY } from './src/theme';
+import { useNotificationTaps } from './src/lib/notificationTaps';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeScreen } from './src/components/SafeScreen';
 import { TripChat } from './src/components/TripChat';
@@ -122,6 +123,13 @@ function DeliveryApp() {
 
   const [tab, setTab] = useState<Tab>('home');
   const [subScreen, setSubScreen] = useState<SubScreen | null>(null);
+
+  // A tapped notification opens what it is about (owner, 19 Oct 2026).
+  useNotificationTaps(data => {
+    if (data.type === 'SUPPORT_REPLY') return setSubScreen('help');
+    setSubScreen(null);
+    setTab(data.type === 'PAYOUT_PAID' ? 'earnings' : 'home');
+  }, Boolean(token));
 
   /**
    * Android's back gesture. A sub-screen closes back to the tab that opened it;

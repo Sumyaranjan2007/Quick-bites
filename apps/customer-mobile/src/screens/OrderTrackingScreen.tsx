@@ -643,6 +643,10 @@ export const OrderTrackingScreen: React.FC<Props> = ({
               <View key={i} style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>
                   {it.quantity}× {it.name}
+                  {/* The chosen size and extras, as the kitchen sees them (T-16). */}
+                  {it.selectedOptions?.length
+                    ? ` · ${it.selectedOptions.map((o: any) => o.optionName).filter(Boolean).join(', ')}`
+                    : ''}
                 </Text>
                 <Text style={styles.summaryValue}>₹{(it.totalPrice ?? 0).toFixed(0)}</Text>
               </View>

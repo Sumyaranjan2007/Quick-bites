@@ -188,7 +188,7 @@ export const RestaurantMenuSheet: React.FC<{
             <View style={{ flex: 1 }}>
               {/* The whole-menu builder: sections, sizes, extras, photos, AI from photos. */}
               <Button
-                label="Upload a menu (or read it from photos)"
+                label="Upload or scan a menu"
                 style={{ alignSelf: 'stretch' }}
                 onPress={() => restaurantId && onOpenBuilder(restaurantId, restaurantName)}
               />

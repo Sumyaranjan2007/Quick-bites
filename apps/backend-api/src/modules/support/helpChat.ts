@@ -80,6 +80,41 @@ export function topicsFor(audience: HelpAudience): Topic[] {
   return TOPICS[audience];
 }
 
+/*
+ * What a person types, matched to a ready answer (owner, 19 Oct: "a real chat").
+ * Plain words, no AI (Q3): the topic whose words appear most in the message wins;
+ * nothing matched means a person should read it.
+ */
+const KEYWORDS: Record<string, string[]> = {
+  ORDER_LATE: ['late', 'delay', 'where is', 'waiting', 'still not', 'not arrived', 'how long', 'slow', 'eta'],
+  ITEM_MISSING: ['missing', 'wrong item', 'wrong food', 'not in the bag', 'forgot', 'spilled', 'damaged', 'cold'],
+  REFUND_STATUS: ['refund', 'money back', 'return'],
+  PAYMENT: ['payment', 'paid', 'charged', 'upi', 'card', 'deducted', 'debited', 'twice'],
+  CHANGE_ADDRESS: ['address', 'location', 'deliver to', 'wrong place'],
+  CANCEL: ['cancel'],
+  ACCOUNT: ['account', 'login', 'log in', 'sign in', 'password', 'email', 'phone number', 'delete', 'otp', 'code'],
+  PAYOUTS: ['payout', 'settlement', 'earnings', 'bank', 'transfer', 'not paid', 'my money'],
+  MENU_CHANGES: ['menu', 'dish', 'price', 'item', 'photo'],
+  ORDERS: ['order', 'customer'],
+  DOCUMENTS: ['document', 'fssai', 'pan', 'gst', 'licence', 'license', 'kyc', 'verify', 'upload', 'rejected'],
+  CASH_DEPOSIT: ['cash', 'deposit', 'collected'],
+  TRIP_ISSUE: ['trip', 'pickup', 'pick up', 'customer not', 'not answering', 'restaurant closed', 'offer']
+};
+
+export function matchTopic(audience: HelpAudience, text: string): Topic | null {
+  const said = ` ${text.toLowerCase().replace(/\s+/g, ' ')} `;
+  let best: Topic | null = null;
+  let bestScore = 0;
+  for (const topic of TOPICS[audience]) {
+    const score = (KEYWORDS[topic.id] || []).filter(word => said.includes(word)).length;
+    if (score > bestScore) {
+      best = topic;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 export function topicFor(audience: HelpAudience, id: string): Topic {
   const topic = TOPICS[audience].find(t => t.id === id);
   if (!topic) throw new AppError('There is no such help topic in this app.', 404, 'TOPIC_NOT_FOUND');

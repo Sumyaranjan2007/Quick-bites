@@ -210,7 +210,7 @@ export const DashboardScreen: React.FC<{ onNavigate: (section: string) => void }
 
             <Divider />
             <KeyValue label="Average order value" value={formatMoney(d.orders.averageOrderValue)} tone="strong" />
-            <KeyValue label="Owed to restaurants" value={formatMoney(d.money.restaurantPayable)} />
+            <KeyValue label="Earned by restaurants" value={formatMoney(d.money.restaurantPayable)} />
             <KeyValue label="Owed to riders" value={formatMoney(d.money.riderPayable)} />
             <KeyValue label="GST collected" value={formatMoney(d.money.taxCollected)} />
             <KeyValue label="Discounts funded" value={formatMoney(d.money.discountsGiven)} />

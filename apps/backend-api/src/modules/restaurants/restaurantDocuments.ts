@@ -151,6 +151,19 @@ export function buildDocumentOverview(documents: KycDocument[]): DocumentOvervie
 export const FSSAI_LICENCE_NUMBER = /^\d{14}$/;
 
 /**
+ * The format each numbered document must have (T-2): FSSAI 14 digits, GSTIN the
+ * 15-character GST pattern, PAN five letters, four digits, a letter. Null when it
+ * is fine or the type has no fixed format. Spaces are ignored, letters any case.
+ */
+export function documentNumberError(type: string, number: unknown): string | null {
+  const n = String(number ?? '').replace(/\s+/g, '').toUpperCase();
+  if ((type === 'FSSAI' || type === 'FSSAI_LICENSE') && !FSSAI_LICENCE_NUMBER.test(n)) return 'The FSSAI licence number is 14 digits.';
+  if (type === 'GSTIN' && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(n)) return 'The GSTIN must be 15 characters, like 29ABCDE1234F1Z5.';
+  if (type === 'PAN' && !/^[A-Z]{5}\d{4}[A-Z]$/.test(n)) return 'The PAN is 10 characters, like ABCDE1234F.';
+  return null;
+}
+
+/**
  * Whether customers may be told this kitchen's FSSAI licence was checked.
  *
  * The customer app used to print "FSSAI verified partner kitchen" on every

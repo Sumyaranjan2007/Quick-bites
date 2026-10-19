@@ -112,6 +112,7 @@ const SUITES = [
   'liveTracking',
   'documentReplace',
   'securityInputs',
+  'oneOurs',
   'deployOverlap',
   'helpChat',
   'kitchenTicket',

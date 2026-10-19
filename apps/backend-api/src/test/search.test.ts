@@ -46,6 +46,11 @@ async function runSearchTests() {
   assert.ok(typo3.restaurants.some(r => r.name === 'Udupi Sri Krishna Bhavan'), 'Typo search should match Udupi');
   console.log('[PASS] Step 3: Typo tolerance handled variations ("biryanii", "paneer buttr", "udpi")');
 
+  // T-15: a one-letter change at the start is another word, not a typo.
+  const mutton = await searchService.searchCatalog({ query: 'mutton' });
+  assert.ok(!mutton.dishes.some(d => /button/i.test(d.name)), '"mutton" must not find a "Button" dish');
+  console.log('[PASS] "mutton" does not find "Button Idli" (T-15)');
+
   // Step 4: Attribute Filtering (isVeg, minRating, city)
   console.log('\nStep 4: Testing filterable attributes...');
   // Veg-only filter

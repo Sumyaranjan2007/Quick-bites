@@ -289,6 +289,21 @@ Truth first: **no app can be made impossible to reverse-engineer** (we read the 
 
 **Built (19 Oct, main session) ✅:** part 1 `ac9d24c`: L1, L3, L5 (documents are photos only), L6 (dish photos photo/https), L8 (no redirect to a link document). Part 2: L13 (password checks limited per account), L14 (no provider text on `/health`), L15 (sockets leave an order's room when taken off it or at the end), L16 (no rider position kept after a trip or while offline), sign-in tokens in `expo-secure-store` in all four apps (old tokens moved, nobody signed out; needs the next APK), admin email out of the boot log, `npm audit` (server 0; build-tool findings wait for the next Expo SDK). Decisions: no certificate pinning; Play Integrity waits for the owner's Play Console link (`OWNER_ACTIONS.md` 00.8). Rules and pre-release checklist: `docs/SECURITY.md` §2–§3, §1j. New suite `securityInputs`; every guard mutated and caught.
 
+## Stage H — Owner's round after build 36 (19 Oct 2026) · do FIRST, then APK, Tester, jury loop
+
+Owner's words, short. Each row: build, check, push; then one APK build, the Tester tests everything (whole plan +
+these), the jury reviews one at a time, fix, rebuild, repeat until every juror says ALL GOOD.
+
+| # | Item | Status |
+|---|---|---|
+| H1 | **Help chat is a real chat**: the person types; a matching ready answer is sent back; still stuck → "Talk to a person" connects them to Operations in the SAME chat, and both keep writing (customer, partner, rider; Operations replies from Support) | ✅ 19 Oct: `SupportChat` in Customer/Partner/Rider, `/support/help/match`, `GET /support/tickets/:id` (polled 6 s) |
+| H2 | **Notifications work properly in all 4 apps** for every notification they receive (channels, shown in foreground, tap opens the right screen, permission asked) | ✅ 19 Oct: shown in foreground in all 4; taps open the order/Help/Payouts (`notificationTaps.ts`) |
+| H3 | **Rider gets every permission it needs** (location while using + background, notifications, camera for documents, battery optimisation off), asked clearly | ✅ 19 Oct: Rider Home "Set up your phone" card (`RiderPermissions.tsx`); GPS chip re-checks on return |
+| H4 | **Customer cart**: ADD bounces far too much → a calm press; the dish card gets − count + in the same place (remove where you add) | ✅ 19 Oct: no pop on each add; − count + on the dish card |
+| H5 | **Forgot password on every sign-in page** (all 4 apps): email → code by email → new password, as everyone does | ✅ 19 Oct: "Forgot password?" on Partner/Rider/Operations sign-in (Customer signs in by emailed code, no password) |
+| H6 | **Admin can do everything for a person**: set their password when creating an account, menus, and the exact location on a map | ✅ 19 Oct: optional password on Create; Location card (address search, pasted Google Maps pin, View on map) |
+| H7 | Tester build 36 findings T-1…T-19 and code-reviewer J-C1…J-C18 (`docs/reviews/REVIEW_LOG.md`) | ✅ 19 Oct: T-2..T-17 and J-C2..J-C17 fixed; T-1/T-18 seed data left (J-C1); see CHANGELOG |
+
 ## Stage G — Test, build, release · ~3–4 days
 Gate + all checks (`docs/TESTING.md`); phone tests of every stage's checklist (motion on and off); web check; then **only on "make APK"**: one build of all four apps (versionCode 34+), archive, Play upload, new reviews, update Play Console: Data safety (location, calls), background-location declaration + video, App access (reviewer code), Advertising ID.
 

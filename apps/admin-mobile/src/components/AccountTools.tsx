@@ -37,6 +37,7 @@ export const CreateAccountSheet: React.FC<{
             addressLine: f.addressLine,
             city: f.city,
             pincode: f.pincode,
+            ...(f.password ? { password: f.password } : {}),
             ...(f.fssai ? { fssaiLicenseNumber: f.fssai } : {})
           })
         : await api.post<any>('/admin/accounts/create', {
@@ -46,6 +47,7 @@ export const CreateAccountSheet: React.FC<{
             phone: f.phone,
             vehicleType: f.vehicleType,
             licenseNumber: f.licenseNumber,
+            ...(f.password ? { password: f.password } : {}),
             ...(f.rc ? { vehicleRegistrationNumber: f.rc } : {})
           });
       setF({ vehicleType: 'BIKE' });
@@ -64,12 +66,20 @@ export const CreateAccountSheet: React.FC<{
       visible={Boolean(kind)}
       onClose={onClose}
       title={kitchen ? 'Create a restaurant' : 'Create a delivery partner'}
-      subtitle="They get an email code to set their own password. Upload and approve their documents afterwards from their record."
+      subtitle="Set their password here, or leave it empty and they get an email code to set their own. Upload and approve their documents afterwards from their record."
     >
       <Card>
         <Field label="Owner's full name" value={f.fullName || ''} onChangeText={set('fullName')} />
         <Field label="Email" value={f.email || ''} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" />
         <Field label="Mobile number" value={f.phone || ''} onChangeText={v => set('phone')(v.replace(/[^0-9]/g, '').slice(0, 10))} keyboardType="phone-pad" />
+        <Field
+          label="Password (optional)"
+          value={f.password || ''}
+          onChangeText={set('password')}
+          secureTextEntry
+          autoCapitalize="none"
+          hint="At least 8 characters. Leave empty and they get an email code to set their own."
+        />
         {kitchen ? (
           <>
             <Field label="Restaurant name" value={f.restaurantName || ''} onChangeText={set('restaurantName')} />

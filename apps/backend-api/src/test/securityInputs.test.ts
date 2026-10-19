@@ -95,6 +95,10 @@ try {
   it('L5: kitchen document as SVG: 400', () => assert.equal(svg.status, 400));
   const photo = await kitchenDoc(PHOTO);
   it('L5: kitchen document as a PNG photo: accepted', () => assert.equal(photo.status, 201, JSON.stringify(photo.json).slice(0, 200)));
+  const shortFssai = await api(`/restaurants/${KITCHEN}/documents`, { method: 'POST', body: { documentType: 'FSSAI', documentNumber: '12345', fileUrl: PHOTO } }, partner);
+  it('T-2: an FSSAI number that is not 14 digits is refused', () => assert.equal(shortFssai.json?.error?.code, 'INVALID_DOCUMENT_NUMBER'));
+  const badPan = await api(`/restaurants/${KITCHEN}/documents`, { method: 'POST', body: { documentType: 'PAN', documentNumber: 'ABC123', fileUrl: PHOTO } }, partner);
+  it('T-2: a PAN in the wrong shape is refused', () => assert.equal(badPan.json?.error?.code, 'INVALID_DOCUMENT_NUMBER'));
   const riderLink = await api('/riders/documents', { method: 'POST', body: { documentType: 'DRIVING_LICENSE', documentNumber: 'KA05 2026 0009999', fileUrl: 'https://example.test/dl.jpg' } }, rider);
   it('L5: rider document as a link: 400', () => assert.equal(riderLink.status, 400));
   const kycLink = await api('/kyc/submit', { method: 'POST', body: { entityType: 'RESTAURANT', entityId: KITCHEN, entityName: 'x', documentType: 'GSTIN', fileUrl: 'http://example.test/g.jpg' } }, partner);

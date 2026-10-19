@@ -50,6 +50,7 @@ import {
   recordOrderEarnings
 } from '../../modules/payments/earnings.ts';
 import { platformMarginPaiseFor } from '../../modules/payments/restaurantCharges.ts';
+import { contributionPaise } from '../../modules/payments/orderMargin.ts';
 import { reviewQueue } from '../../modules/payments/payeeAccounts.ts';
 import { memoryStore } from '../../db/client.ts';
 import {
@@ -1184,6 +1185,8 @@ payoutRoutes.get(
         platformFeePaise: 0,
         extraChargePaise: 0,
         deliveryMarginPaise: 0,
+        /** Tax we owe on our share and other book adjustments, so the lines add up to the books' total (T-4). */
+        adjustmentsPaise: 0,
         totalPaise: 0
       };
 
@@ -1211,7 +1214,9 @@ payoutRoutes.get(
         earned.platformFeePaise += margin.platformFeePaise;
         earned.extraChargePaise += margin.extraChargePaise;
         earned.deliveryMarginPaise += margin.deliveryMarginPaise;
-        earned.totalPaise += margin.totalPaise;
+        const ours = contributionPaise(typed);
+        earned.adjustmentsPaise += ours - margin.totalPaise;
+        earned.totalPaise += ours;
 
         if (!earningsPosted(typed.id)) unposted += 1;
       }
@@ -1435,6 +1440,7 @@ payoutRoutes.get(
               extraCharges: toRupees(earned.extraChargePaise),
               /** Negative when delivery costs more than it is charged for. */
               deliveryMargin: toRupees(earned.deliveryMarginPaise),
+              adjustments: toRupees(earned.adjustmentsPaise),
               total: toRupees(earned.totalPaise)
             }
           },

@@ -1,4 +1,4 @@
-import Reanimated, { FadeInUp, SlideInDown, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Reanimated, { SlideInDown } from 'react-native-reanimated';
 import { FoodImage } from '../components/FoodImage';
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -74,6 +74,8 @@ interface Props {
   restaurant: RestaurantItem;
   cart: CartItem[];
   onAddToCart: (item: CartItem) => void;
+  /** − on a dish card: one fewer of that cart line (removed at zero). */
+  onUpdateQuantity: (cartItemId: string, delta: number) => void;
   onBack: () => void;
   onViewCart: () => void;
   apiUrl: string;
@@ -97,6 +99,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   restaurant,
   cart,
   onAddToCart,
+  onUpdateQuantity,
   onBack,
   onViewCart,
   apiUrl,
@@ -174,11 +177,6 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   useMenuSocket(restaurant.id, apiUrl, token, () => { loadMenu(); });
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const bump = useSharedValue(1);
-  React.useEffect(() => {
-    if (totalCartCount > 0) bump.value = withSequence(withTiming(1.04, { duration: 120 }), withSpring(1, { damping: 12 }));
-  }, [totalCartCount, bump]);
-  const bumpStyle = useAnimatedStyle(() => ({ transform: [{ scale: bump.value }] }));
   const categories = Array.from(new Set(dishes.map(d => d.categoryName).filter(Boolean))) as string[];
 
   // The whole menu, grouped under its headings. Nothing is filtered out.
@@ -432,12 +430,27 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
                 <View style={styles.dishRight}>
                   <FoodImage uri={dish.imageUrl} style={styles.dishImage} isVeg={dish.isVeg} />
 
-                  {dish.isAvailable ? (
+                  {dish.isAvailable && inCart > 0 ? (
+                    /* Remove where you add (owner, 19 Oct): − takes one off the latest line of this dish. */
+                    <View style={[styles.addBtn, styles.stepper]}>
+                      <TouchableOpacity
+                        hitSlop={8}
+                        accessibilityLabel={`Remove one ${dish.name}`}
+                        onPress={() => {
+                          const line = [...cart].reverse().find(x => x.dishId === dish.id);
+                          if (line) onUpdateQuantity(line.id, -1);
+                        }}
+                      >
+                        <Text style={styles.addBtnPlus}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.addBtnText}>{inCart}</Text>
+                      <TouchableOpacity hitSlop={8} accessibilityLabel={`Add one more ${dish.name}`} onPress={() => handleAddDish(dish)}>
+                        <Text style={styles.addBtnPlus}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : dish.isAvailable ? (
                     <TouchableOpacity style={styles.addBtn} onPress={() => handleAddDish(dish)} activeOpacity={0.85}>
-                      {/* The count rolls in from below when it changes (design/motion add-to-cart). */}
-                      <Reanimated.Text key={inCart} entering={FadeInUp.duration(160)} style={styles.addBtnText}>
-                        {inCart > 0 ? `ADD ${inCart}` : 'ADD'}
-                      </Reanimated.Text>
+                      <Text style={styles.addBtnText}>ADD</Text>
                       <Text style={styles.addBtnPlus}>+</Text>
                     </TouchableOpacity>
                   ) : (
@@ -494,8 +507,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
 
       {/* Cart bar */}
       {totalCartCount > 0 && (
-        // Slides up on the first item, bumps on every add (design/motion add-to-cart).
-        <Reanimated.View style={[styles.cartBar, bumpStyle]} entering={SlideInDown.springify().damping(18)}>
+        // Slides up once on the first item; no pop on each add (owner, 19 Oct: too bouncy).
+        <Reanimated.View style={styles.cartBar} entering={SlideInDown.duration(220)}>
           <View>
             <Text style={styles.cartBarCount}>
               {totalCartCount} item{totalCartCount > 1 ? 's' : ''} added
@@ -749,6 +762,7 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radii.sm,
     ...tokens.shadow.card
   },
+  stepper: { gap: 14, paddingHorizontal: 14 },
   addBtnText: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
   addBtnPlus: { fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.extrabold, color: c.text.onAccent },
   soldOutBtn: {

@@ -17,6 +17,7 @@ import { tripTakeHome } from '../riders/tripPayout.ts';
 import { memoryStore } from '../../db/client.ts';
 import { hasRole } from '../../db/repositories/userRepository.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
+import { contributionPaise } from '../payments/orderMargin.ts';
 
 const IST_OFFSET_MINUTES = 330;
 
@@ -97,8 +98,8 @@ export function economicsOf(order: Order): OrderEconomics {
   const deliveryFee = Number(bill.deliveryFee) || 0;
   const riderPayout = Number(order.riderPayout) || 0;
   const discount = Number(bill.couponDiscount) || 0;
-  const netRevenue =
-    Math.round((commission + platformFee + deliveryFee - riderPayout - discount) * 100) / 100;
+  // The books' figure (T-4): the same as Pay and the invoice, so one order has one "ours".
+  const netRevenue = contributionPaise(order) / 100;
 
   return {
     gross: Number(bill.totalAmount) || 0,

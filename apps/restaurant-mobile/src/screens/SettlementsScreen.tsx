@@ -11,7 +11,7 @@ interface Props {
   refreshSignal: number;
 }
 
-const rupees = (n: number) => `Rs ${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const rupees = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const when = (iso?: string | null) => {
   if (!iso) return '—';

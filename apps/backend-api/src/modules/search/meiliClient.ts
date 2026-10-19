@@ -164,7 +164,7 @@ class InMemoryIndex<T extends Record<string, any>> {
                 tokenMaxScore = Math.max(tokenMaxScore, 500);
                 break;
               }
-              const dist = levenshtein(word, token);
+              const dist = word[0] === token[0] ? levenshtein(word, token) : Infinity; // T-15: a typo keeps the first letter ("mutton" is not "button")
               if (dist <= allowedTypos(token.length)) {
                 tokenMaxScore = Math.max(tokenMaxScore, 400 - (dist * 50));
                 break;
@@ -182,7 +182,7 @@ class InMemoryIndex<T extends Record<string, any>> {
             } else if (tagLower.includes(token)) {
               tokenMaxScore = Math.max(tokenMaxScore, 350);
             } else {
-              const dist = levenshtein(tagLower, token);
+              const dist = tagLower[0] === token[0] ? levenshtein(tagLower, token) : Infinity;
               if (dist <= allowedTypos(token.length)) {
                 tokenMaxScore = Math.max(tokenMaxScore, 250 - (dist * 40));
               }
@@ -198,7 +198,7 @@ class InMemoryIndex<T extends Record<string, any>> {
           } else {
             const words = descLower.split(/[\s,.-]+/);
             for (const word of words) {
-              const dist = levenshtein(word, token);
+              const dist = word[0] === token[0] ? levenshtein(word, token) : Infinity; // T-15: a typo keeps the first letter ("mutton" is not "button")
               if (dist <= allowedTypos(token.length)) {
                 tokenMaxScore = Math.max(tokenMaxScore, 100);
                 break;

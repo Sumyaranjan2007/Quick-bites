@@ -329,7 +329,7 @@ export const LoginScreen: React.FC<{
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={s.recoveryLinkText}>
-                {mode === 'signin' ? 'Trouble signing in?' : 'Back to sign in'}
+                {mode === 'signin' ? 'Forgot password?' : 'Back to sign in'}
               </Text>
             </TouchableOpacity>
 

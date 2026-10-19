@@ -88,7 +88,10 @@ export function splitForOrder(order: Order, rates: PricingRates = getActiveRates
   // Tax the PLATFORM owes on its own commission, and tax it collects at source.
   // Neither was recorded anywhere before; both are obligations that accrued
   // whether or not anything wrote them down.
-  const commissionGstPaise = percentOf(commissionPaise, rates.commissionGstPercent);
+  // No GSTIN, no GST on our commission (T-4, §4): the bill froze the platform-fee GST rate at
+  // checkout, and it is 0 exactly when the business had no GSTIN. Older bills keep the old rule.
+  const gstinAtCheckout = bill.platformFeeGstPercent === undefined || Number(bill.platformFeeGstPercent) > 0;
+  const commissionGstPaise = gstinAtCheckout ? percentOf(commissionPaise, rates.commissionGstPercent) : 0;
   const tcsPaise = percentOf(itemsPaise, rates.tcsPercent);
 
   /*

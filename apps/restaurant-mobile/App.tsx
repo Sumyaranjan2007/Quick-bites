@@ -1,4 +1,5 @@
 import { FONT_FAMILY } from './src/theme';
+import { useNotificationTaps } from './src/lib/notificationTaps';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -127,6 +128,13 @@ function PartnerApp() {
   const [restaurant, setRestaurant] = useState<any | null>(null);
 
   const [tab, setTab] = useState<Tab>('dashboard');
+
+  // A tapped notification opens what it is about (owner, 19 Oct 2026).
+  useNotificationTaps(data => {
+    if (data.type === 'SUPPORT_REPLY') setTab('help');
+    else if (data.type === 'PAYOUT_PAID') setTab('settlements');
+    else if (data.orderId) setTab('orders');
+  }, Boolean(token));
 
   // Any tab but the dashboard returns to it; the dashboard leaves the app.
   // Previously the gesture closed the app from wherever the kitchen happened
@@ -409,7 +417,8 @@ function PartnerApp() {
                   ? 'Taking orders'
                   : 'Closed'}
             </Text>
-            {connected && <Text style={styles.liveTag}>LIVE</Text>}
+            {/* LIVE beside "Closed" read as a contradiction (T-16): shown only while taking orders. */}
+            {connected && approved && open && <Text style={styles.liveTag}>LIVE</Text>}
           </View>
         </View>
 

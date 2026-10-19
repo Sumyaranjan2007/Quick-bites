@@ -627,8 +627,8 @@ export interface Order {
   riderLocationUpdatedAt?: string;
   /** The road from the kitchen to the door, Google's encoded polyline (tracking map line). */
   routePolyline?: string;
-  /** Asked Google once for the road line, answered or not: never asked per poll. */
-  routeTried?: boolean;
+  /** When Google was last asked for the road line: at most once per 5 minutes, never per poll. */
+  routeTriedAt?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   /**

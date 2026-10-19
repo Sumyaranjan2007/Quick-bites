@@ -6,7 +6,7 @@ import { Card, SectionTitle, Row, Pill, EmptyState, LoadingBlock, Divider } from
 import { api, type ApiContext, type SettlementsResponse } from '../lib/api';
 
 const rupees = (n: number) =>
-  `Rs ${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const when = (iso?: string | null) => {
   if (!iso) return '—';

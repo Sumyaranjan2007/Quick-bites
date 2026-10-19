@@ -11,7 +11,7 @@ interface Props {
   refreshSignal: number;
 }
 
-const rupees = (n: number) => `Rs ${(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+const rupees = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
 /**
  * The partner's home screen.

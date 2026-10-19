@@ -23,7 +23,8 @@ import {
   isFssaiVerified,
   RESTAURANT_DOCUMENT_TYPES,
   ACCEPTED_FORMATS,
-  MAX_UPLOAD_MB
+  MAX_UPLOAD_MB,
+  documentNumberError
 } from '../modules/restaurants/restaurantDocuments.ts';
 import { kycRepository, replacing } from '../db/repositories/kycRepository.ts';
 import { profileEditRepository } from '../db/repositories/profileEditRepository.ts';
@@ -1086,6 +1087,8 @@ restaurantRouter.post(
     try {
       const restaurant = await assertOwnsRestaurant(req, req.params.id);
       const { documentType, documentNumber, fileUrl } = req.body;
+      const numberProblem = documentNumberError(documentType, documentNumber);
+      if (numberProblem) throw new AppError(numberProblem, 400, 'INVALID_DOCUMENT_NUMBER');
       const banKind = kindForDocument(documentType);
       if (banKind) assertNotBanned({ [banKind]: documentNumber }, restaurant.ownerId);
 

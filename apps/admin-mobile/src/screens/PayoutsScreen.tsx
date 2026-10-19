@@ -682,6 +682,13 @@ export const PayoutsScreen: React.FC = () => {
                         : undefined
                     }
                   />
+                  {overview.data.business.earned.adjustments ? (
+                    <EarnRow
+                      label="Taxes and adjustments"
+                      value={overview.data.business.earned.adjustments}
+                      hint="Tax collected for the government and other book entries, so this matches each order's invoice."
+                    />
+                  ) : null}
                 </Card>
 
                 <Text style={s.footnote}>

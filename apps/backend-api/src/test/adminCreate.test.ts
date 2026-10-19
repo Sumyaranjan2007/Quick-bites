@@ -116,6 +116,23 @@ try {
   }, admin);
   it('...and uploads their document for them (existing upload, admins allowed)', () =>
     assert.equal(doc.status < 300, true, `status ${doc.status} ${JSON.stringify(doc.json).slice(0, 200)}`));
+
+  // Owner, 19 Oct: Operations may set the password; then no code is emailed.
+  const withPassword = await api('/admin/accounts/create', {
+    method: 'POST',
+    body: { kind: 'rider', fullName: 'Ravi', email: 'ravi.rider@example.com', phone: '9100000005', vehicleType: 'BIKE', licenseNumber: 'KA0520260078', password: 'ravi-pass-77' }
+  }, admin);
+  it('A password set by Operations works at once, and no code is emailed', () => {
+    assert.equal(withPassword.status, 201, JSON.stringify(withPassword.json).slice(0, 300));
+    assert.equal(setCodes.has('ravi.rider@example.com'), false);
+  });
+  const raviToken = await login('ravi.rider@example.com', 'ravi-pass-77');
+  it('...the rider signs in with it (token issued)', () => assert.ok(raviToken));
+  const tooShort = await api('/admin/accounts/create', {
+    method: 'POST',
+    body: { kind: 'rider', fullName: 'Short', email: 'short@example.com', phone: '9100000006', vehicleType: 'BIKE', licenseNumber: 'KA0520260079', password: 'abc' }
+  }, admin);
+  it('A password under 8 characters is refused', () => assert.equal(tooShort.status, 400));
 } finally {
   console.log = log;
   await new Promise(r => server.close(() => r(null)));

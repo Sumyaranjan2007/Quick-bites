@@ -358,9 +358,9 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                         const size = (item.optionGroups || []).find((g: any) => g.kind === 'SIZE');
                         return size
                           ? size.options
-                              .map((o: any) => `${o.name} Rs ${(Number(item.price) + Number(o.priceDelta || 0)).toFixed(0)}`)
+                              .map((o: any) => `${o.name} ₹${(Number(item.price) + Number(o.priceDelta || 0)).toFixed(0)}`)
                               .join(' · ')
-                          : `Rs ${Number(item.price).toFixed(2)}`;
+                          : `₹${Number(item.price).toFixed(2)}`;
                       })()}
                       {'  ·  Edit'}
                     </Text>

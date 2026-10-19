@@ -140,7 +140,7 @@ export async function notifyNewOrder(params: {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'New delivery offer',
-        body: `${params.restaurantName} · Rs ${params.payout.toFixed(0)}${
+        body: `${params.restaurantName} · ₹${params.payout.toFixed(0)}${
           params.distanceKm ? ` · ${params.distanceKm} km` : ''
         }. Open Quick Bites Rider to accept.`,
         sound: Platform.OS === 'android' ? 'new_order.wav' : true,

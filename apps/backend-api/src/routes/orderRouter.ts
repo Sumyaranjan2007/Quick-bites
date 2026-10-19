@@ -37,16 +37,19 @@ orderRouter.get('/', authMiddleware(), async (req, res, next) => {
     if (role === 'customer') {
       orders = await orderRepository.listByCustomerId(userId);
     } else if (role === 'rider') {
-      orders = await orderRepository.listByRiderId(userId);
+      // Orders hold the rider RECORD's id, not the account's (review J-C5).
+      const rider = await riderRepository.findByUserId(userId);
+      orders = rider ? await orderRepository.listByRiderId(rider.id) : [];
     } else if (role === 'admin' || role === 'super_admin') {
       orders = await orderRepository.listAll();
     } else {
       orders = await orderRepository.listByCustomerId(userId);
     }
 
+    // Shaped per viewer like a single order: no pickup code or internal fields for a customer (T-7).
     res.json({
       success: true,
-      data: { orders },
+      data: { orders: orders.map(o => shapeOrderForViewer(o, role === 'rider' ? 'rider' : viewerFor(o, req.user))) },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
@@ -282,7 +285,8 @@ orderRouter.post('/', authMiddleware('customer'), validate({ body: CreateOrderSc
 
     res.status(result.isDuplicate ? 200 : 201).json({
       success: true,
-      data: result,
+      // The customer's own view: the delivery code yes, the kitchen's pickup code no (T-7).
+      data: { ...result, order: shapeOrderForViewer(result.order, 'customer') },
       meta: {
         timestamp: new Date().toISOString(),
         correlationId: req.correlationId
@@ -331,8 +335,10 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
 
     // The road line for the map, asked once the kitchen has accepted (never per poll).
     const accepted = !['PAYMENT_PENDING', 'ORDER_PLACED', 'CANCELLED', 'DELIVERED', 'REFUNDED'].includes(order.status);
-    if (accepted && !order.routeTried && trackedRestaurant?.coordinates && order.deliveryCoordinates) {
-      order.routeTried = true;
+    // Retried after 5 minutes while missing, so a passing Google error does not cost the line for good (J-C16).
+    const due = !order.routeTriedAt || Date.now() - Date.parse(order.routeTriedAt) > 5 * 60_000;
+    if (accepted && !order.routePolyline && due && trackedRestaurant?.coordinates && order.deliveryCoordinates) {
+      order.routeTriedAt = new Date().toISOString();
       order.routePolyline = (await roadPath(trackedRestaurant.coordinates, order.deliveryCoordinates)) ?? undefined;
       await orderRepository.save(order);
     }

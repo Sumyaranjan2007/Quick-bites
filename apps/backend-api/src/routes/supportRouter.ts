@@ -18,7 +18,7 @@ import { userRepository } from '../db/repositories/userRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { notifyAdminsSupportTicketOpened, notifyAdminsRefundRaised } from '../notifications/adminNotifier.ts';
 import { refundableRemaining } from '../modules/payments/refundCap.ts';
-import { askerFor, isPartyTo, topicsFor, topicFor, orderInQuestion, orderCard, answerFor, helpChatFor } from '../modules/support/helpChat.ts';
+import { askerFor, isPartyTo, topicsFor, topicFor, matchTopic, orderInQuestion, orderCard, answerFor, helpChatFor } from '../modules/support/helpChat.ts';
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const supportRouter = Router();
@@ -65,6 +65,25 @@ supportRouter.get(
       const topic = topicFor(asker.audience, req.params.topic);
       const order = await orderInQuestion(asker, req.query.orderId ? String(req.query.orderId) : undefined);
       res.json({ success: true, data: { topic, answer: await answerFor(topic.id, asker, order), order: orderCard(order) } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/support/help/match — what the person typed, answered with the ready
+ * answer it matches, or `topic: null` when a person should read it.
+ */
+supportRouter.post(
+  '/help/match',
+  validate({ body: z.object({ text: z.string().trim().min(1).max(2000), orderId: z.string().max(80).optional() }) }),
+  async (req, res, next) => {
+    try {
+      const asker = await askerFor(req.user!);
+      const topic = matchTopic(asker.audience, req.body.text);
+      const order = topic ? await orderInQuestion(asker, req.body.orderId) : null;
+      res.json({ success: true, data: { topic, answer: topic ? await answerFor(topic.id, asker, order) : null } });
     } catch (err) {
       next(err);
     }
@@ -153,6 +172,17 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
 supportRouter.get('/tickets', async (req, res, next) => {
   try {
     res.json({ success: true, data: { tickets: await supportRepository.listByUser(req.user!.id) } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /api/support/tickets/:id — one of the person's own tickets, with the replies (the chat polls it). */
+supportRouter.get('/tickets/:id', async (req, res, next) => {
+  try {
+    const ticket = await supportRepository.findById(req.params.id);
+    if (!ticket || ticket.raisedByUserId !== req.user!.id) throw new AppError('Ticket not found.', 404, 'TICKET_NOT_FOUND');
+    res.json({ success: true, data: { ticket } });
   } catch (err) {
     next(err);
   }

@@ -118,7 +118,9 @@ export function toneForStatus(status: string): 'success' | 'warning' | 'danger' 
 export function humanise(value: string): string {
   if (!value) return '';
   const spaced = String(value).replace(/_/g, ' ').toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  // Abbreviations stay in capitals: "FSSAI licence", not "Fssai licence" (T-16).
+  const words = spaced.replace(/\b(fssai|pan|gstin|gst|rc|kyc|upi|id|cod|otp|tds|tcs|ifsc|utr)\b/g, w => w.toUpperCase());
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** Rupees, grouped the Indian way, because the operators reading this are in India. */

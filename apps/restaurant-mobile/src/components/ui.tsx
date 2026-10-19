@@ -114,7 +114,8 @@ export const PasswordField: React.FC<{
   hint?: string;
   error?: string | null;
   textContentType?: any;
-}> = ({ label, value, onChangeText, placeholder, hint, error, textContentType }) => {
+  onSubmitEditing?: () => void;
+}> = ({ label, value, onChangeText, placeholder, hint, error, textContentType, onSubmitEditing }) => {
   const [visible, setVisible] = React.useState(false);
   return (
     <View style={styles.field}>
@@ -130,6 +131,8 @@ export const PasswordField: React.FC<{
           autoCapitalize="none"
           autoCorrect={false}
           textContentType={textContentType}
+          onSubmitEditing={onSubmitEditing}
+          returnKeyType={onSubmitEditing ? 'go' : undefined}
         />
         <TouchableOpacity
           onPress={() => setVisible(v => !v)}
@@ -197,12 +200,12 @@ const styles = StyleSheet.create({
   sectionSub: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textMuted, marginTop: 2 },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.pill, alignSelf: 'flex-start' },
   pillText: { fontFamily: FONT_FAMILY, fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-  button: { height: 50, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center' },
+  button: { minHeight: 50, paddingHorizontal: 16, paddingVertical: 10, borderRadius: radii.md, justifyContent: 'center', alignItems: 'center' },
   buttonPrimary: { backgroundColor: c.brand },
   buttonGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: c.border },
   buttonDanger: { backgroundColor: c.danger },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800' },
+  buttonText: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontSize: 15, fontWeight: '800', textAlign: 'center' },
   field: { marginBottom: spacing.lg },
   fieldLabel: { fontFamily: FONT_FAMILY, fontSize: 13, color: c.textSoft, marginBottom: spacing.sm, fontWeight: '700' },
   input: {

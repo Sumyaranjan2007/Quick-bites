@@ -90,8 +90,13 @@ try {
   });
   const opsOther = await api(`/admin/restaurants/${KITCHEN}`, { method: 'PATCH', body: { isPureVeg: false, city: 'Harohalli' } }, ops);
   it('...but can still save other fields with the seal unchanged (what the admin app sends)', () => assert.equal(opsOther.status, 200));
-  const sealed = await api(`/admin/restaurants/${KITCHEN}`, { method: 'PATCH', body: { isPureVeg: true } }, superAdmin);
-  it('A super admin gives the seal', () => assert.equal(sealed.status, 200));
+  const meat = await api(`/admin/restaurants/${KITCHEN}`, { method: 'PATCH', body: { isPureVeg: true } }, superAdmin);
+  it('T-3: a menu with non-veg dishes is named before the seal goes on', () => {
+    assert.equal(meat.json?.error?.code, 'NON_VEG_DISHES');
+    assert.equal(kitchen.isPureVeg, false);
+  });
+  const sealed = await api(`/admin/restaurants/${KITCHEN}`, { method: 'PATCH', body: { isPureVeg: true, confirmNonVeg: true } }, superAdmin);
+  it('A super admin gives the seal (confirming the non-veg dishes)', () => assert.equal(sealed.status, 200));
   const shown = (await api(`/restaurants/${KITCHEN}`)).json?.data?.restaurant;
   it('Customers see the seal, and it outranks the partner\'s "both"', () => {
     assert.equal(shown?.isPureVeg, true);

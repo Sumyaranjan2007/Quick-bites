@@ -1,4 +1,5 @@
 import Reanimated, { Easing as ReEasing, FadeInDown } from 'react-native-reanimated';
+import { useNotificationTaps } from './src/lib/notificationTaps';
 import React, { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_API_URL } from './src/config';
 import {
@@ -130,6 +131,15 @@ function AppRoot() {
     });
     setCurrentScreen('tracking');
   }, []);
+
+  // A tapped notification opens what it is about (owner, 19 Oct 2026).
+  useNotificationTaps(data => {
+    if (data.type === 'SUPPORT_REPLY') return setCurrentScreen('support');
+    if (!data.orderId) return;
+    const live = liveOrders.find(o => o.orderId === data.orderId);
+    if (live) openLiveOrder(live);
+    else setCurrentScreen('orders');
+  }, Boolean(authToken));
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   // Null while the stored session is being read. Rendering the login screen
   // during that moment would flash it at someone who is already signed in.
@@ -464,6 +474,7 @@ function AppRoot() {
             restaurant={selectedRestaurant}
             cart={cart}
             onAddToCart={handleAddToCart}
+            onUpdateQuantity={handleUpdateQuantity}
             onBack={() => setCurrentScreen('feed')}
             onViewCart={() => setCurrentScreen('cart')}
             apiUrl={apiUrl}

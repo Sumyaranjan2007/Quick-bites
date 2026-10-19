@@ -110,7 +110,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   const targetKey = keyOf([target]);
 
   const frame = () => {
-    if (points.length >= 2) ref.current?.fitToCoordinates(points, { edgePadding: EDGE, animated: true });
+    const spread = points.length >= 2
+      ? Math.max(...points.map(p => Math.hypot(p.latitude - points[0].latitude, p.longitude - points[0].longitude))) * 111_320
+      : 0;
+    // Under ~150 m apart (the rider at the door) a fit zooms to one building: show the street instead (T-12).
+    if (points.length >= 2 && spread < 150) ref.current?.animateToRegion(regionFor(points[points.length - 1], 600), 350);
+    else if (points.length >= 2) ref.current?.fitToCoordinates(points, { edgePadding: EDGE, animated: true });
     else if (plottable(target)) ref.current?.animateToRegion(regionFor(target, spanMetres), 350);
   };
   // Re-framed only when the points really move (5 decimals, about a metre), so a

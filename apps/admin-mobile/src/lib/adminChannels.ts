@@ -45,6 +45,15 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
+// Shown while Operations is open too (owner, 19 Oct 2026: notifications work properly).
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false })
+  });
+} catch {
+  // A browser build has no notification handler.
+}
+
 /** An SOS or a failed payout. Rings, wakes the phone, bypasses Do Not Disturb. */
 export const URGENT_CHANNEL = 'admin-urgent';
 

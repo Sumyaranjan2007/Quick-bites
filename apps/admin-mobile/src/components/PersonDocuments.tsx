@@ -219,5 +219,6 @@ const s = StyleSheet.create({
     backgroundColor: c.bg.sunken,
     marginVertical: tokens.space[3]
   },
-  actionRow: { flexDirection: 'row', gap: tokens.space[3] }
+  // Stacked: side by side, 'Ask for a re-upload' was cut off on a phone (T-16).
+  actionRow: { gap: tokens.space[2] }
 });

@@ -154,7 +154,7 @@ export async function notifyNewOrder(params: {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `New order ${params.orderNumber}`,
-        body: `${params.itemCount} item${params.itemCount === 1 ? '' : 's'} · Rs ${params.total.toFixed(
+        body: `${params.itemCount} item${params.itemCount === 1 ? '' : 's'} · ₹${params.total.toFixed(
           0
         )}. Open Quick Bites Partner to accept.`,
         sound: Platform.OS === 'android' ? 'new_order.wav' : true,

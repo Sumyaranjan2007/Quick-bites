@@ -252,6 +252,12 @@ document must now be a photo, not a link.
 
 ---
 
+### 19 Oct 2026, owner decision: Operations may set a password at Create
+
+`POST /api/admin/accounts/create` takes an optional `password` (8+ characters, bcrypt like sign-up). When it is
+given, no code is emailed. Left empty, the L11 behaviour stands (a 24-hour code by email; nobody is ever sent a
+password). Operations hands the password over privately, and the person can change it in the app.
+
 ## 2. Rules every change must follow
 
 ### Server

@@ -34,8 +34,8 @@ interface Props {
   token?: string;
 }
 
-/** Bengaluru. Only ever used when there is no position of any kind to open on. */
-const FALLBACK_CENTRE = { latitude: 12.9716, longitude: 77.5946 };
+/** Harohalli, the service area (T-10). Only used when there is no position of any kind to open on. */
+const FALLBACK_CENTRE = { latitude: 12.6818, longitude: 77.4751 };
 
 /**
  * ~1.1 km across. Close enough to see individual buildings and pick a gate,

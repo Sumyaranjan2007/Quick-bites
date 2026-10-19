@@ -390,6 +390,26 @@ export const api = {
     });
   },
 
+  /** Help chat (owner, 19 Oct): what was typed, matched to a ready answer, or `topic: null`. */
+  helpMatch(ctx: ApiContext, text: string) {
+    return request<{ topic: { id: string; label: string; category: string } | null; answer: string | null }>(ctx, '/support/help/match', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    });
+  },
+
+  supportTickets(ctx: ApiContext) {
+    return request<{ tickets: any[] }>(ctx, '/support/tickets');
+  },
+
+  supportTicket(ctx: ApiContext, id: string) {
+    return request<{ ticket: any }>(ctx, `/support/tickets/${id}`);
+  },
+
+  replySupportTicket(ctx: ApiContext, id: string, body: string) {
+    return request<{ ticket: any }>(ctx, `/support/tickets/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
+  },
+
   /** Opens a refund/return case, e.g. a rider reporting a spilled order. */
   raiseRefundRequest(
     ctx: ApiContext,

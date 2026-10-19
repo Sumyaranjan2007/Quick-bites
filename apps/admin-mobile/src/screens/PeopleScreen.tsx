@@ -1,6 +1,7 @@
 import { FONT_FAMILY } from '../theme/tokens';
 import { PersonDocuments } from '../components/PersonDocuments';
 import { CreateAccountSheet, RemoveAccountCard } from '../components/AccountTools';
+import { KitchenLocation } from '../components/KitchenLocation';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Users, Bike, Store } from 'lucide-react-native';
@@ -1163,6 +1164,15 @@ const RestaurantSheet: React.FC<{
             <KeyValue label="Rating" value={restaurant.ratingAverage ? `${restaurant.ratingAverage} from ${restaurant.ratingCount}` : 'Not rated yet'} />
           </Card>
 
+          <KitchenLocation
+            restaurantId={id!}
+            current={restaurant?.coordinates}
+            onSaved={() => {
+              void resource.reload();
+              onChanged();
+            }}
+          />
+
           <Card>
             <Text style={s.cardHeading}>Payments</Text>
             {canSetCash ? (
@@ -1199,7 +1209,7 @@ const RestaurantSheet: React.FC<{
               <Button label="Edit their live menu" onPress={() => id && onOpenMenu(id)} />
               <View style={{ height: tokens.space[2] }} />
               <Button
-                label="Upload a menu (or read it from photos)"
+                label="Upload or scan a menu"
                 variant="secondary"
                 onPress={() => id && onOpenUpload(id, restaurant.name)}
               />
@@ -1306,7 +1316,19 @@ const ListingCard: React.FC<{ restaurant: any; onChanged: () => void }> = ({ res
       Alert.alert('Not changed', err?.message || 'Nothing was changed.');
     }
   };
-  const setSeal = (isPureVeg: boolean) => run(() => api.patch(`/admin/restaurants/${restaurant.id}`, { isPureVeg }));
+  // A menu with meat on it is named before the seal goes on (T-3); "Give anyway" sends the confirmation.
+  const setSeal = async (isPureVeg: boolean) => {
+    try {
+      await api.patch(`/admin/restaurants/${restaurant.id}`, { isPureVeg });
+      onChanged();
+    } catch (err: any) {
+      if (err?.code !== 'NON_VEG_DISHES') return Alert.alert('Not changed', err?.message || 'Nothing was changed.');
+      Alert.alert('Non-veg dishes on this menu', err.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Give anyway', onPress: () => void run(() => api.patch(`/admin/restaurants/${restaurant.id}`, { isPureVeg: true, confirmNonVeg: true })) }
+      ]);
+    }
+  };
   const setRecommended = (on: boolean) =>
     run(async () => {
       await api.put('/admin/recommended-restaurants', {

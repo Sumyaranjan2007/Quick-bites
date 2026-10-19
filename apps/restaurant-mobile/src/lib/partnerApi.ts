@@ -420,6 +420,23 @@ export function fetchSupportTickets() {
   return request<{ tickets: any[] }>('/support/tickets');
 }
 
+/** Help chat (owner, 19 Oct): what was typed, matched to a ready answer, or `topic: null`. */
+export function matchHelp(text: string) {
+  return request<{ topic: { id: string; label: string; category: string } | null; answer: string | null }>(
+    '/support/help/match',
+    { method: 'POST', body: JSON.stringify({ text }) },
+    'That message could not be sent.'
+  );
+}
+
+export function fetchSupportTicket(id: string) {
+  return request<{ ticket: any }>(`/support/tickets/${id}`);
+}
+
+export function replySupportTicket(id: string, body: string) {
+  return request<{ ticket: any }>(`/support/tickets/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }, 'Your message could not be sent.');
+}
+
 // ---------------------------------------------------------------------------
 // Password and profile
 //

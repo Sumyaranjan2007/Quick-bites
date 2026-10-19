@@ -282,6 +282,22 @@ try {
   await api(`/admin/support/tickets/${riderTkt.id}/status`, { method: 'POST', body: { status: 'RESOLVED' } }, admin);
   const reopen = await api(`/support/tickets/${riderTkt.id}/reply`, { method: 'POST', body: { body: 'It happened again' } }, rider);
   it('A rider replying to a solved ticket reopens it', () => assert.equal(reopen.json?.data?.ticket?.status, 'IN_PROGRESS'));
+
+  console.log('\n-- Typing in the chat (owner, 19 Oct: a real chat)');
+  const typed = await api('/support/help/match', { method: 'POST', body: { text: 'I want a refund for my order' } }, customer);
+  it('A typed question gets the matching ready answer', () => {
+    assert.equal(typed.json?.data?.topic?.id, 'REFUND_STATUS');
+    assert.ok(String(typed.json?.data?.answer || '').length > 10);
+  });
+  const riderTyped = await api('/support/help/match', { method: 'POST', body: { text: 'when is my payout coming' } }, rider);
+  it('...from the rider\'s own topics', () => assert.equal(riderTyped.json?.data?.topic?.id, 'PAYOUTS'));
+  const unknown = await api('/support/help/match', { method: 'POST', body: { text: 'hello there' } }, customer);
+  it('Nothing matched: no answer, a person should read it', () => assert.equal(unknown.json?.data?.topic, null));
+  const thread = await api(`/support/tickets/${made.id}`, {}, customer);
+  it('The person reads their own ticket with the staff reply (the chat polls this)', () =>
+    assert.ok(thread.json?.data?.ticket?.replies?.some((r: any) => r.body === 'The rider is two minutes away.')));
+  const notMine = await api(`/support/tickets/${made.id}`, {}, rider);
+  it('...and nobody else can', () => assert.equal(notMine.status, 404));
 } finally {
   // Wait for the close: exiting while it is in flight crashes Node on Windows (UV_HANDLE_CLOSING).
   await new Promise(r => server.close(() => r(null)));

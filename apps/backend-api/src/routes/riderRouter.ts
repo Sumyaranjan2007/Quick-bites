@@ -1,3 +1,4 @@
+import { documentNumberError } from '../modules/restaurants/restaurantDocuments.ts';
 import { isPhotoData } from '../utils/imageInput.ts';
 import { recordRiderFix, MAX_SPEED_MPS } from '../modules/riders/liveLocation.ts';
 import { assertNotBanned, kindForDocument } from '../modules/platform/blockedIdentifiers.ts';
@@ -167,9 +168,12 @@ async function assessProfile(rider: DeliveryRider): Promise<ProfileCompletion> {
       key: type,
       label: type === 'DRIVING_LICENSE' ? 'Driving licence' : 'Vehicle registration (RC)',
       satisfied: Boolean(approved(type)),
-      detail: submitted(type)
-        ? `${submitted(type)!.status.charAt(0) + submitted(type)!.status.slice(1).toLowerCase()}`
-        : 'Not uploaded'
+      // An approved copy standing while a new one is reviewed says both (T-14: "Pending" beside a tick read as wrong).
+      detail: approved(type) && submitted(type)?.id !== approved(type)!.id
+        ? 'Approved · new copy being checked'
+        : submitted(type)
+          ? `${submitted(type)!.status.charAt(0) + submitted(type)!.status.slice(1).toLowerCase()}`
+          : 'Not uploaded'
     }))
   ];
 
@@ -442,6 +446,8 @@ riderRouter.post('/documents', validate({ body: DocumentUploadSchema }), async (
   try {
     const rider = await requireRiderSelf(req);
     const { documentType, documentNumber, fileUrl } = req.body;
+    const numberProblem = documentNumberError(documentType, documentNumber);
+    if (numberProblem) throw new AppError(numberProblem, 400, 'INVALID_DOCUMENT_NUMBER');
     const banKind = kindForDocument(documentType);
     if (banKind) assertNotBanned({ [banKind]: documentNumber }, rider.userId);
 
@@ -632,7 +638,8 @@ riderRouter.get('/dashboard', async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        rider,
+        // The email lives on the account, not the rider record (T-14).
+        rider: { ...rider, email: (memoryStore.users.get(req.user!.id) as any)?.email },
         wallet,
         profile: completion,
         metrics: { ...metrics, walletBalance: riderEarningsBalance(rider.id), codCashInHand: rider.codCashInHand || 0 },

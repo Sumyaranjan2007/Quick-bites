@@ -2,12 +2,12 @@
 
 export function rupees(value: number | null | undefined, decimals = 2): string {
   const amount = Number(value) || 0;
-  return `Rs ${amount.toFixed(decimals)}`;
+  return `₹${amount.toFixed(decimals)}`;
 }
 
 /** Money on the dashboard is read at a glance; paise are noise there. */
 export function rupeesShort(value: number | null | undefined): string {
-  return `Rs ${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
+  return `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
 }
 
 export function distance(km: number | null | undefined): string {

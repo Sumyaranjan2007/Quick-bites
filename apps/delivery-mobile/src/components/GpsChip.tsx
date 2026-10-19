@@ -1,6 +1,6 @@
 import { FONT_FAMILY } from '../theme';
 import React, { useEffect, useState } from 'react';
-import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppState, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
 import { MapPin, MapPinOff } from 'lucide-react-native';
 import { t } from '../theme';
@@ -29,7 +29,12 @@ export const GpsChip: React.FC = () => {
   useEffect(() => {
     void check();
     const timer = setInterval(() => void check(), 15_000);
-    return () => clearInterval(timer);
+    // The permission dialog hands the app back as 'active': read the answer then, not 15 s later (T-11).
+    const sub = AppState.addEventListener('change', state => state === 'active' && void check());
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
   }, []);
 
   const fix = async () => {

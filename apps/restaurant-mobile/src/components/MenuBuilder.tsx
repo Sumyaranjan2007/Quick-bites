@@ -530,9 +530,9 @@ export const MenuBuilder: React.FC<MenuBuilderProps> = props => {
               const sizes = filled(d.sizes);
               const priceText =
                 sizes.length >= 2
-                  ? sizes.map(x => `${x.name} Rs ${x.price}`).join(' · ')
+                  ? sizes.map(x => `${x.name} ₹${x.price}`).join(' · ')
                   : d.price
-                    ? `Rs ${d.price}`
+                    ? `₹${d.price}`
                     : 'No price';
               const bad = dishProblems(d, sec.name).length > 0;
               return (
@@ -739,7 +739,7 @@ const DishEditor: React.FC<{
             {d.sizes.map((r, i) => (
               <View key={`size-${i}`} style={s.choiceRow}>
                 <TextInput style={[s.input, { flex: 1.4 }]} value={r.name} onChangeText={v => setRow('sizes', i, { name: v })} placeholder="Size" placeholderTextColor={p.muted} maxLength={40} />
-                <TextInput style={[s.input, { flex: 1 }]} value={r.price} onChangeText={v => setRow('sizes', i, { price: v.replace(/[^0-9.]/g, '') })} placeholder="Rs" placeholderTextColor={p.muted} keyboardType="decimal-pad" />
+                <TextInput style={[s.input, { flex: 1 }]} value={r.price} onChangeText={v => setRow('sizes', i, { price: v.replace(/[^0-9.]/g, '') })} placeholder="₹" placeholderTextColor={p.muted} keyboardType="decimal-pad" />
                 <TouchableOpacity onPress={() => setD(x => ({ ...x, sizes: x.sizes.filter((_, j) => j !== i) }))}>
                   <Text style={s.removeText}>✕</Text>
                 </TouchableOpacity>
@@ -762,7 +762,7 @@ const DishEditor: React.FC<{
             {d.extras.map((r, i) => (
               <View key={`extra-${i}`} style={s.choiceRow}>
                 <TextInput style={[s.input, { flex: 1.4 }]} value={r.name} onChangeText={v => setRow('extras', i, { name: v })} placeholder="Extra" placeholderTextColor={p.muted} maxLength={40} />
-                <TextInput style={[s.input, { flex: 1 }]} value={r.price} onChangeText={v => setRow('extras', i, { price: v.replace(/[^0-9.]/g, '') })} placeholder="Rs" placeholderTextColor={p.muted} keyboardType="decimal-pad" />
+                <TextInput style={[s.input, { flex: 1 }]} value={r.price} onChangeText={v => setRow('extras', i, { price: v.replace(/[^0-9.]/g, '') })} placeholder="₹" placeholderTextColor={p.muted} keyboardType="decimal-pad" />
                 <TouchableOpacity onPress={() => setD(x => ({ ...x, extras: x.extras.filter((_, j) => j !== i) }))}>
                   <Text style={s.removeText}>✕</Text>
                 </TouchableOpacity>

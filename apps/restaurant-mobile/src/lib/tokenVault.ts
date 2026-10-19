@@ -21,8 +21,14 @@ export async function readToken(key: string, plain?: string): Promise<string | u
 /** Saves the token; returns what the plain session record may still hold (nothing on a phone). */
 export async function writeToken(key: string, token: string): Promise<string | undefined> {
   if (!SECURE) return token;
-  await SecureStore.setItemAsync(key, token);
-  return undefined;
+  try {
+    await SecureStore.setItemAsync(key, token);
+    return undefined;
+  } catch (error) {
+    // A keystore that refuses (some phones after a restore) must not sign the person out every launch.
+    console.warn('[session] keystore unavailable, token kept in app storage', error);
+    return token;
+  }
 }
 
 export async function forgetToken(key: string): Promise<void> {

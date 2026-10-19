@@ -115,7 +115,7 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
                   }}
                   style={s.linkRow}
                 >
-                  <Text style={s.link}>Trouble signing in?</Text>
+                  <Text style={s.link}>Forgot password?</Text>
                 </TouchableOpacity>
               </>
             ) : (
