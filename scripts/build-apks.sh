@@ -263,7 +263,9 @@ for entry in "${APPS[@]}"; do
 
   # Restored whether or not a prebuild ran, because the file can go missing
   # for reasons this script never sees.
-  if [[ ! -f android/keystore.properties && -f "$vault_config" ]]; then
+  # Always from the vault when it has one: a stale copy (keys moved to D:\dev-data on 19 Oct)
+  # pointed at a missing file, and the release build quietly fell back to the debug key.
+  if [[ -f "$vault_config" ]]; then
     cp "$vault_config" android/keystore.properties
     echo "  restored signing config from the vault: $vault_config"
   fi
