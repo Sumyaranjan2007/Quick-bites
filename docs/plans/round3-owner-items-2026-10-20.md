@@ -196,7 +196,9 @@ server texts (PDFs keep "Rs"). Details: `docs/qa/TEST_REPORT-2026-10-19-build39.
 4. Builder researches every finding, appends a "Round N+1" section to this file (or a new round file), fixes,
    rebuilds, back to 2. **The owner's 20 Oct rule replaces "wait for the owner": act on each report at once.**
 5. Ends when the Tester's VERDICT is ALL GOOD and the builder has nothing open.
-6. If a session stops (usage limit, restart), a timer in the builder session re-checks every 2 hours and
+6. **Only one session works at a time (owner, 20 Oct):** the builder never builds while the Tester is
+   working, and the Tester never tests while the builder is working. Hand over by message, then stop.
+7. If a session stops (usage limit, restart), a timer in the builder session re-checks every 2 hours and
    continues from CURRENT STATE; the Tester resumes from its report file.
 
 ## Tracker
