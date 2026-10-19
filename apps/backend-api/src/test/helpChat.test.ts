@@ -159,14 +159,30 @@ try {
   } as any);
   const rs = await api(`/support/help/REFUND_STATUS?orderId=${delivered.id}`, {}, customer);
   it('"Refund status" reads the live case: received, waiting for review', () =>
-    assert.match(rs.json.data.answer, new RegExp(`${delivered.orderNumber}.*Rs 40.*received`)));
+    assert.match(rs.json.data.answer, new RegExp(`${delivered.orderNumber}.*₹40.*received`)));
   const stored: any = memoryStore.refundRequests.get(refund.id);
   stored.status = 'REFUNDED';
   stored.approvedAmount = 40;
   stored.resolvedAt = new Date().toISOString();
   const rs2 = await api(`/support/help/REFUND_STATUS?orderId=${delivered.id}`, {}, customer);
   it('...and follows it to "sent back", with how long the bank takes', () =>
-    assert.match(rs2.json.data.answer, /Rs 40\.00 was sent back.*UPI usually arrives within a day/s));
+    assert.match(rs2.json.data.answer, /₹40\.00 was sent back.*UPI usually arrives within a day/s));
+  // R2-7: a rejection reaches the customer; reopening a rejected case needs a note.
+  const superAdmin = await login('admin@quickbite.app');
+  const second = await refundRepository.create({
+    orderId: delivered.id, orderNumber: delivered.orderNumber, raisedByUserId: 'usr_customer_01', raisedByRole: 'customer',
+    raisedByName: 'Test Customer', customerId: 'usr_customer_01', restaurantId: 'rst_bbh_01', reasonCode: 'FOOD_QUALITY',
+    description: 'The rice was cold', attachments: [], requestedAmount: 20, orderTotal: 300
+  } as any);
+  pushes.length = 0;
+  await api(`/admin/refund-requests/${second.id}/decision`, { method: 'POST', body: { action: 'REJECT', note: 'Photo shows hot food' } }, superAdmin);
+  it('R2-7: a rejected refund tells the customer why', () => {
+    const push = pushes.find(p => p.data?.type === 'REFUND_REJECTED');
+    assert.equal(push?.userId, 'usr_customer_01');
+    assert.match(String(push?.body), /Photo shows hot food/);
+  });
+  const reopenRefund = await api(`/admin/refund-requests/${second.id}/decision`, { method: 'POST', body: { action: 'APPROVE' } }, superAdmin);
+  it('R2-7: approving a rejected case without a note is refused', () => assert.equal(reopenRefund.json?.error?.code, 'REOPEN_NOTE_REQUIRED'));
   const missing = await api(`/support/help/ITEM_MISSING?orderId=${delivered.id}`, {}, customer);
   it('"Item missing" mentions the problem already reported on that order', () =>
     assert.match(missing.json.data.answer, /already reported/));
@@ -180,14 +196,14 @@ try {
   }) as any);
   memoryStore.riders.get('rdr_vikram_01').codCashInHand = 850;
   const cash = await api('/support/help/CASH_DEPOSIT', {}, rider);
-  it('Rider "Cash deposit" shows the cash they carry', () => assert.match(cash.json?.data?.answer, /Rs 850\.00/));
+  it('Rider "Cash deposit" shows the cash they carry', () => assert.match(cash.json?.data?.answer, /₹850\.00/));
   const rPay = await api('/support/help/PAYOUTS', {}, rider);
   it('Rider "Payouts" shows what is owed, and why it cannot be sent while carrying cash', () => {
-    assert.match(rPay.json?.data?.answer, /^Rs 40\.00 owed/);
-    assert.match(rPay.json?.data?.answer, /Holding Rs 850\.00 of platform cash/);
+    assert.match(rPay.json?.data?.answer, /^₹40\.00 owed/);
+    assert.match(rPay.json?.data?.answer, /Holding ₹850\.00 of platform cash/);
   });
   const pPay = await api('/support/help/PAYOUTS', {}, partner);
-  it('Partner "Payouts" lists each kitchen they own', () => assert.match(pPay.json?.data?.answer, /Bangalore Biryani House: Rs 440\.00 owed.*Udupi Sri Krishna Bhavan: Nothing is owed/));
+  it('Partner "Payouts" lists each kitchen they own', () => assert.match(pPay.json?.data?.answer, /Bangalore Biryani House: ₹440\.00 owed.*Udupi Sri Krishna Bhavan: Nothing is owed/));
   memoryStore.restaurants.get('rst_bbh_01').kycStatus = 'PENDING_APPROVAL';
   const docs = await api('/support/help/DOCUMENTS', {}, partner);
   it('Partner "Documents" reads the kitchen\'s live review state', () => assert.match(docs.json?.data?.answer, /Bangalore Biryani House.*being checked/));
@@ -289,6 +305,8 @@ try {
     assert.equal(typed.json?.data?.topic?.id, 'REFUND_STATUS');
     assert.ok(String(typed.json?.data?.answer || '').length > 10);
   });
+  const whereRefund = await api('/support/help/match', { method: 'POST', body: { text: 'where is my refund' } }, customer);
+  it('R2-6: "where is my refund" is about the refund, not a late order', () => assert.equal(whereRefund.json?.data?.topic?.id, 'REFUND_STATUS'));
   const riderTyped = await api('/support/help/match', { method: 'POST', body: { text: 'when is my payout coming' } }, rider);
   it('...from the rider\'s own topics', () => assert.equal(riderTyped.json?.data?.topic?.id, 'PAYOUTS'));
   const unknown = await api('/support/help/match', { method: 'POST', body: { text: 'hello there' } }, customer);

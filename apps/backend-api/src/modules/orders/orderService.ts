@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { calculateDistanceKm } from '../../db/client.ts';
+import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { ratesForRestaurant } from '../payments/riderCityRates.ts';
 import { restaurantRepository } from '../../db/repositories/restaurantRepository.ts';
@@ -792,6 +793,9 @@ export const orderService = {
       commissionPercent: charges.commissionPercent
     };
     const bill = holdMarginFloor(pricingInput, calculateOrderPricing(pricingInput), tripDistanceKm);
+    // Frozen on the bill: 0 means the business had no GSTIN at checkout, so no GST is booked on our
+    // commission either (R2-2: the rate was priced in but never kept, and every bill looked "with GSTIN").
+    bill.platformFeeGstPercent = pricingInput.platformFeeGstPercent;
 
     // 7. Generate Delivery OTP (Rule 40)
     const deliveryOtp = crypto.randomInt(1000, 10000).toString();
@@ -1110,6 +1114,14 @@ export const orderService = {
       updated.orderNumber,
       reasonText
     );
+
+    // The rider on the trip is told, at any stage (R2-1: cancelled after pickup, he was never told).
+    if (updated.riderId) {
+      const rider = await riderRepository.findById(updated.riderId);
+      if (rider?.userId) {
+        void fcmDispatcher.notifyRiderTripTakenOff(rider.userId, updated.id, updated.orderNumber, `It was cancelled: ${reasonText}`);
+      }
+    }
 
     // The kitchen may already be cooking it. This is the one notification here
     // where the delay is measured in wasted food.

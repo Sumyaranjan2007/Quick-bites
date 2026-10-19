@@ -2,6 +2,7 @@
  * Money: what was paid, what the platform earned, what is owed to riders, and
  * the return/refund cases that give some of it back.
  */
+import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { lossMakingOrders } from '../../modules/payments/orderMargin.ts';
 import { refundableRemaining } from '../../modules/payments/refundCap.ts';
 import { Router } from 'express';
@@ -226,6 +227,10 @@ financeRoutes.post(
         );
       }
 
+      if (action === 'APPROVE' && request.status === 'REJECTED' && !note) {
+        throw new AppError('This case was rejected. Write why it is now approved; it is kept with the case.', 400, 'REOPEN_NOTE_REQUIRED');
+      }
+
       // Approving commits money: it is capped by what the OTHER committed cases
       // on the order have not already taken (refundCap counts APPROVED too).
       if (action === 'APPROVE' && !duplicateOf) {
@@ -259,6 +264,17 @@ financeRoutes.post(
           before: { status: request.status },
           after: { status }
         });
+        if (status === 'REJECTED' && request.customerId) {
+          void fcmDispatcher.sendPushNotification({
+            userId: request.customerId,
+            orderId: request.orderId,
+            orderNumber: request.orderNumber,
+            title: 'Your refund request was not approved',
+            body: `Order #${request.orderNumber}: ${note}`,
+            androidChannelId: 'order-updates',
+            data: { type: 'REFUND_REJECTED', orderId: request.orderId, orderNumber: request.orderNumber }
+          });
+        }
         return res.json({ success: true, data: { request: updated } });
       }
 

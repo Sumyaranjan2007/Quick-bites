@@ -229,8 +229,11 @@ export function statementFor(
   ownerName: string,
   options: { from?: string; to?: string } = {}
 ): Statement {
-  const to = options.to || new Date().toISOString();
-  const from = options.from || new Date(Date.now() - 30 * 86_400_000).toISOString();
+  // A bare date is a whole Indian day: "to=2026-10-19" ends at its midnight, not its start (R2-15).
+  const day = (d: string | undefined, edge: string) =>
+    d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T${edge}+05:30`).toISOString() : d;
+  const to = day(options.to, '23:59:59.999') || new Date().toISOString();
+  const from = day(options.from, '00:00:00.000') || new Date(Date.now() - 30 * 86_400_000).toISOString();
 
   const rates = getActiveRates();
   const holdDays = ownerType === 'RESTAURANT' ? rates.partnerHoldDays : rates.riderHoldDays;

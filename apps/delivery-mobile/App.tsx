@@ -421,6 +421,7 @@ function DeliveryApp() {
       startOrderAlert();
       if (appState.current !== 'active') {
         notifyNewOrder({
+          orderId: fresh.id,
           restaurantName: fresh.restaurantName,
           payout: fresh.estimatedEarnings,
           distanceKm: fresh.distanceKm
@@ -655,15 +656,15 @@ function DeliveryApp() {
       setTab('home');
 
       const bonusLine = result.incentivesAwarded.length
-        ? `\n\nBonus unlocked: ${result.incentivesAwarded.map(i => `${i.title} (Rs ${i.reward})`).join(', ')}`
+        ? `\n\nBonus unlocked: ${result.incentivesAwarded.map(i => `${i.title} (₹${i.reward})`).join(', ')}`
         : '';
       const cashLine =
         result.cashCollected > 0
-          ? `\nCash collected: Rs ${result.cashCollected.toFixed(2)} — this is in your bag until you deposit it.`
+          ? `\nCash collected: ₹${result.cashCollected.toFixed(2)} — this is in your bag until you deposit it.`
           : '';
       Alert.alert(
         'Delivery complete',
-        `Rs ${result.payout.toFixed(2)} earned. It is paid out to your bank account, not held here.${cashLine}${bonusLine}`
+        `₹${result.payout.toFixed(2)} earned. It is paid out to your bank account, not held here.${cashLine}${bonusLine}`
       );
       return true;
     } catch (err: any) {

@@ -107,10 +107,10 @@ export const OrderHistoryScreen: React.FC<Props> = ({ restaurantId }) => {
             )}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.total}>Rs {(Number(item.bill?.totalAmount) || 0).toFixed(2)}</Text>
+            <Text style={styles.total}>₹{(Number(item.bill?.totalAmount) || 0).toFixed(2)}</Text>
             {!cancelled && (
               <Text style={styles.payout}>
-                you earned Rs {(Number(item.bill?.restaurantNetPayout) || 0).toFixed(2)}
+                you earned ₹{(Number(item.bill?.restaurantNetPayout) || 0).toFixed(2)}
               </Text>
             )}
           </View>

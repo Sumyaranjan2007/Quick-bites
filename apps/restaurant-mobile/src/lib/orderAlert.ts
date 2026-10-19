@@ -146,6 +146,8 @@ export async function stopOrderAlert(): Promise<void> {
 
 /** Raises the shade notification for an order nobody is looking at. */
 export async function notifyNewOrder(params: {
+  /** So a tap opens the order (R2-4). */
+  orderId?: string;
   orderNumber: string;
   itemCount: number;
   total: number;
@@ -160,9 +162,11 @@ export async function notifyNewOrder(params: {
         sound: Platform.OS === 'android' ? 'new_order.wav' : true,
         vibrate: VIBRATION_PATTERN,
         priority: Notifications.AndroidNotificationPriority.MAX,
-        ...(Platform.OS === 'android' ? { channelId: NEW_ORDER_CHANNEL } : {})
+        data: { type: 'RESTAURANT_NEW_ORDER', orderId: params.orderId }
       },
-      trigger: null
+      // The Android channel goes in the trigger: in `content` it was ignored and the alert fell into the
+      // silent fallback channel (R2-5). An empty trigger with a channel shows it at once.
+      trigger: Platform.OS === 'android' ? { channelId: NEW_ORDER_CHANNEL } : null
     });
   } catch {
     /* the in-app alert has already fired */
@@ -219,6 +223,7 @@ export async function announceOrder(order: NewOrderSummary): Promise<boolean> {
 
   await startOrderAlert();
   await notifyNewOrder({
+    orderId: order.id,
     orderNumber: order.orderNumber,
     itemCount: order.itemCount,
     total: order.total

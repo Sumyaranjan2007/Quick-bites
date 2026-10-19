@@ -283,7 +283,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.requestName}>{r.payload.name}</Text>
                   <Text style={styles.requestMeta}>
-                    Rs {Number(r.payload.price).toFixed(2)} · {r.payload.categoryName}
+                    ₹{Number(r.payload.price).toFixed(2)} · {r.payload.categoryName}
                   </Text>
                 </View>
               </View>

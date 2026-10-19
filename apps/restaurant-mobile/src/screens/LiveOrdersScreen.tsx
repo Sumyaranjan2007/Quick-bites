@@ -299,7 +299,7 @@ export const LiveOrdersScreen: React.FC<Props> = ({
         </View>
 
         <View style={styles.orderFooter}>
-          <Text style={styles.billTotal}>Rs {(Number(item.bill?.totalAmount) || 0).toFixed(2)}</Text>
+          <Text style={styles.billTotal}>₹{(Number(item.bill?.totalAmount) || 0).toFixed(2)}</Text>
           {!!item.pickupCode && <Text style={styles.pickupCode}>Pickup {item.pickupCode}</Text>}
         </View>
 

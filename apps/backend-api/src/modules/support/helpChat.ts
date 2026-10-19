@@ -86,7 +86,7 @@ export function topicsFor(audience: HelpAudience): Topic[] {
  * nothing matched means a person should read it.
  */
 const KEYWORDS: Record<string, string[]> = {
-  ORDER_LATE: ['late', 'delay', 'where is', 'waiting', 'still not', 'not arrived', 'how long', 'slow', 'eta'],
+  ORDER_LATE: ['late', 'delay', 'where is my order', 'where is my food', 'waiting', 'still not', 'not arrived', 'how long', 'slow', 'eta'],
   ITEM_MISSING: ['missing', 'wrong item', 'wrong food', 'not in the bag', 'forgot', 'spilled', 'damaged', 'cold'],
   REFUND_STATUS: ['refund', 'money back', 'return'],
   PAYMENT: ['payment', 'paid', 'charged', 'upi', 'card', 'deducted', 'debited', 'twice'],
@@ -177,7 +177,9 @@ const CANNOT_CANCEL_FROM: OrderStatus[] = ['HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'
 const statusLine = (o: Order) => `Order #${o.orderNumber} from ${o.restaurantName} ${STATUS_WORDS[o.status] || 'is open'}.`;
 const day = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }) : '';
-const rs = (rupees: number) => formatPaise(toPaise(Number(rupees) || 0));
+// Shown in the apps' help chat, so the rupee sign like the rest of the apps (R2-16); PDFs keep "Rs" (no ₹ in their font).
+const inr = (paise: number) => formatPaise(paise).replace('Rs ', '₹');
+const rs = (rupees: number) => inr(toPaise(Number(rupees) || 0));
 const NO_ORDER = 'We cannot see an order on this account.';
 const OTHER = 'Tell us what happened and a person will reply here.';
 const STAFF_ACCOUNT =
@@ -223,18 +225,21 @@ async function refundLine(asker: Asker, order: Order | null): Promise<string | n
 
 function duesLine(ownerType: 'RESTAURANT' | 'RIDER', ownerId: string, name: string, prefix: string): string {
   const due = duesFor(ownerType, ownerId, name);
+  // Without a verified account nothing "can be sent now": say what is owed and what unblocks it (R2-21).
+  const noAccount = due.blockers.some(b => b.code === 'NO_ACCOUNT');
   const lines = [
-    due.outstandingPaise > 0
-      ? `${prefix}${formatPaise(due.outstandingPaise)} owed, ${formatPaise(due.payablePaise)} of it can be sent now.`
-      : `${prefix}Nothing is owed right now.`
+    due.outstandingPaise <= 0
+      ? `${prefix}Nothing is owed right now.`
+      : noAccount
+        ? `${prefix}${inr(due.outstandingPaise)} owed. It is sent once you add a bank or UPI account and it is verified.`
+        : `${prefix}${inr(due.outstandingPaise)} owed, ${inr(due.payablePaise)} of it can be sent now.`
   ];
   for (const b of due.blockers) {
-    if (b.code === 'NO_ACCOUNT') lines.push('We have no verified bank or UPI account to pay into yet.');
-    else if (b.code !== 'NOTHING_OWED') lines.push(b.reason);
+    if (b.code !== 'NOTHING_OWED' && b.code !== 'NO_ACCOUNT') lines.push(b.reason.replace(/Rs /g, '₹'));
   }
   const last = listPayouts({ ownerId }).filter(p => p.state === 'PAID' && p.ownerType === ownerType)
     .sort((a, b) => String(b.executedAt).localeCompare(String(a.executedAt)))[0];
-  if (last) lines.push(`Last payment: ${formatPaise(last.amountPaise)} on ${day(last.executedAt)}.`);
+  if (last) lines.push(`Last payment: ${inr(last.amountPaise)} on ${day(last.executedAt)}.`);
   return lines.join(' ');
 }
 
@@ -260,7 +265,7 @@ export async function answerFor(topicId: string, asker: Asker, order: Order | nu
         return open ? `You already reported a problem on this order. ${open}` : how;
       }
       case 'REFUND_STATUS':
-        return (await refundLine(asker, order)) ||
+        return (await refundLine(asker, order)) || (await refundLine(asker, null)) ||
           'You have no refund requests. If something was wrong with an order, choose "Item missing or wrong".';
       case 'PAYMENT': {
         const dup = (await refundRepository.listByUser(asker.user.id)).find(r => r.duplicatePaymentId);
@@ -333,9 +338,9 @@ export async function answerFor(topicId: string, asker: Asker, order: Order | nu
       case 'CASH_DEPOSIT': {
         const cash = cashStanding(rider.id);
         return [
-          `You are carrying ${formatPaise(cash.cashInHandPaise)} of Quick Bites cash.`,
+          `You are carrying ${inr(cash.cashInHandPaise)} of Quick Bites cash.`,
           cash.message || '',
-          cash.pendingDeposit ? `Your deposit of ${formatPaise(cash.pendingDeposit.declaredPaise)} is waiting to be counted.` : ''
+          cash.pendingDeposit ? `Your deposit of ${inr(cash.pendingDeposit.declaredPaise)} is waiting to be counted.` : ''
         ].filter(Boolean).join(' ');
       }
       case 'TRIP_ISSUE':

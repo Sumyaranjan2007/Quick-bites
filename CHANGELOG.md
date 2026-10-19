@@ -6,6 +6,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 20 Oct 2026: Tester round 2 (build 39), fixes part 1, not yet in an APK
+
+- **R2-1 (High).** A rider was stuck forever when Operations cancelled an order after pickup. Now an ended order (cancelled, delivered, refunded) frees its rider whatever the stage says (`hasActiveTrip`), and the rider is told on any cancellation.
+- **R2-2 (High, money).** GST was booked on our commission for every new order because the bill never kept the GSTIN fact. Checkout now freezes `platformFeeGstPercent` on the bill (0 without a GSTIN).
+- **R2-3.** Rider crash on relaunch after a kill: the location task is defined first, in `index.ts`. A phone check is needed to confirm.
+- **R2-4 and R2-5.** Partner and Rider new-order alerts now use the ringing channel (the Android channel goes in the trigger, not the content) and carry the order id, so a tap opens it.
+- **R2-6.** "Where is my refund" now gets the refund answer, and refund status falls back to the person's latest case.
+- **R2-7.** A rejected refund tells the customer why. Approving a rejected case needs a note. A hand-paid refund no longer mentions a link.
+- **R2-15.** A one-day statement includes that whole day, in Indian time.
+- **R2-16 (part).** ₹ on Partner order cards and history, Rider delivery-complete and the help answers. PDFs keep "Rs": their font has no ₹ sign.
+- **R2-21.** The payout help answer no longer says "can be sent now" when no bank account is verified.
+- **Checks:** `oneOurs` (R2-1, R2-2), `helpChat` (R2-6, R2-7), `statements` (R2-15). Guards mutated and caught. Gate green apart from the two known local failures.
+- **Still open from round 2:** R2-8 to R2-14, R2-17 to R2-20 and R2-22. The list and next steps are in the master plan, Stage H, "Where the loop stands".
+
+---
+
 ## [Unreleased] 19 Oct 2026: Owner's round after build 36 (Stage H) and the Tester/jury findings
 
 - **Help is a real chat** (Customer, Partner, Rider). Type a question and the matching ready answer comes back. "Talk to a person" connects you to Operations in the same chat, and both sides keep writing; staff replies appear within seconds.

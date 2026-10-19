@@ -11,6 +11,8 @@ import { seedDatabase } from '../db/seed.ts';
 import { economicsOf } from '../modules/admin/analytics.ts';
 import { contributionPaise } from '../modules/payments/orderMargin.ts';
 import { splitForOrder } from '../modules/payments/earnings.ts';
+import { orderService } from '../modules/orders/orderService.ts';
+import { hasActiveTrip } from '../modules/orders/riderTrip.ts';
 
 let passed = 0;
 let failed = 0;
@@ -42,6 +44,20 @@ it('The dashboard figure is the books\' figure (one "ours")', () =>
 it('No GSTIN at checkout: no GST booked on our commission', () => assert.equal(splitForOrder(noGstin).commissionGstPaise, 0));
 it('With a GSTIN at checkout: GST on commission is booked', () => assert.ok(splitForOrder(order(18)).commissionGstPaise > 0));
 it('An old bill without the field keeps the old rule', () => assert.ok(splitForOrder(order()).commissionGstPaise > 0));
+
+// R2-2: a real checkout keeps the GST rate on the bill, so the rule above actually applies.
+const { order: placed } = await orderService.createOrder({
+  customerId: 'usr_customer_01', restaurantId: 'rst_bbh_01', deliveryAddressId: 'addr_sample_01',
+  items: [{ dishId: 'dish_ck_biryani', quantity: 1 }], paymentMethod: 'CASH_ON_DELIVERY', idempotencyKey: 'idemp_one_ours_' + Date.now()
+} as any);
+it('R2-2: checkout freezes the platform-fee GST rate on the bill (0 without a GSTIN)', () =>
+  assert.equal((placed as any).bill.platformFeeGstPercent, 0));
+it('R2-2: ...so no GST is booked on our commission for that order', () => assert.equal(splitForOrder(placed as any).commissionGstPaise, 0));
+
+// R2-1: an ended order frees its rider whatever the stage says.
+it('R2-1: a cancelled order after pickup is not an active trip', () =>
+  assert.equal(hasActiveTrip({ riderId: 'rdr_x', riderStage: 'PICKED_UP', status: 'CANCELLED' } as any), false));
+it('...while a live one still is', () => assert.equal(hasActiveTrip({ riderId: 'rdr_x', riderStage: 'PICKED_UP', status: 'OUT_FOR_DELIVERY' } as any), true));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

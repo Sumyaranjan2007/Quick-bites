@@ -400,7 +400,7 @@ export async function sendRefund(input: {
       orderId: order.id,
       orderNumber: order.orderNumber,
       amountLabel: formatPaise(amountPaise),
-      timing: timingFor(route)
+      timing: input.manualReference ? 'Our team sent it to you directly; check your bank or UPI app.' : timingFor(route)
     });
   }
 

@@ -152,6 +152,12 @@ async function run() {
     assert.deepEqual(numbers, [first.id, second.id].sort());
   });
 
+  await check('R2-15: a one-day statement (from = to = that day, Indian time) includes that day', () => {
+    const fiveDaysAgo = new Date(Date.now() - 5 * 86_400_000 + 5.5 * 3_600_000).toISOString().slice(0, 10); // the fixtures' day
+    const statement = statementFor('RESTAURANT', RESTAURANT, 'Ganesh Bhavan', { from: fiveDaysAgo, to: fiveDaysAgo });
+    assert.equal(statement.orders.length, 2);
+  });
+
   await check('Every order’s lines add up to what the ledger says it earned', () => {
     const statement = statementFor('RESTAURANT', RESTAURANT, 'Ganesh Bhavan');
     for (const order of statement.orders) {

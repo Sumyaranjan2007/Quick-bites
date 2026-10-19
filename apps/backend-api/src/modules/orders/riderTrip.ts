@@ -38,8 +38,11 @@ const CARRYING: readonly RiderTripStage[] = ['PICKED_UP', 'AT_DOORSTEP'];
  * forever, and the symptom - a rider who is never offered anything again - is
  * invisible from the rider's side.
  */
-export function hasActiveTrip(order: Pick<Order, 'riderId' | 'riderStage'>): boolean {
+export function hasActiveTrip(order: Pick<Order, 'riderId' | 'riderStage'> & { status?: Order['status'] }): boolean {
   if (!order.riderId || !order.riderStage) return false;
+  // An order that has ended frees its rider, whatever the stage says: an order cancelled after
+  // pickup left the rider "on a trip" for good and nothing could release him (R2-1).
+  if (order.status === 'CANCELLED' || order.status === 'DELIVERED' || order.status === 'REFUNDED') return false;
   return BEFORE_PICKUP.includes(order.riderStage) || CARRYING.includes(order.riderStage);
 }
 
