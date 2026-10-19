@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 20 Oct 2026: Round 3, part 1 (phases A-D), live on the server, apps in build 40
+
+**For the owner:** every screen in all four apps now updates by itself when anything changes (no pull-to-refresh). Customers see no delivery time until the restaurant accepts, then cooking time + ride, counting down live and "+N min" when late; they can cancel for 2 minutes after the restaurant accepts, then only through support. Riders are offered the trip at 10 minutes of cooking left and see both distances. **New money rule:** a rider more than 7 km from the restaurant gets all those km x Rs 6 from Quick Bites (never on the bill). **Bug found and fixed:** a trip Operations hand-assigned paid the rider Rs 0 (pay was never frozen on the order). Help is one chat with a Request history in Customer, Partner and Rider; "My issue is solved" closes it. A trip Operations assigns rings on the rider's phone with a full-screen "you have been assigned" card.
+
+- **A, real time (item 1).** Server: after every successful write, a `sync` event reaches the accounts the write touched (resolved from the ids in the path and body) and every Operations console; platform settings reach everyone (`sockets/liveSync.ts`, `emitSync`). Apps: one `src/lib/liveSync.ts` per app; screens reload quietly on `sync`, on reconnect, on returning to the front and on a push that arrives while open. Operations: inside `useResource`, so every admin screen.
+- **B, order clock (items 2, 3).** `eta.ts`: no time before accept (`AWAITING_ACCEPT`); the promise is set at acceptance (`promiseAtAcceptance`: cook + ride), `lateMinutes` past it; the quote uses `quotedMinutes`. Customer cancel closes 2 min after accept (`CUSTOMER_CANCEL_WINDOW_OVER`, `cancelUntil` on the quote); the tracking screen counts it down, then shows "Ask support to cancel". Offers start at 10 min of cooking left (`offerableNow`, `cookingMinutesLeft`); the no-rider alert counts from then. Partner rings on a cancellation by someone else. Offer card: both legs + pickup pay.
+- **Pickup pay.** `riderPayWithPickup` freezes trip + pickup pay at claim and at Operations assignment (`riderPickupKm`, `riderPickupPay`); rates `riderPickupPayFromKm` (7) and `riderPickupPerKmFee` (6) editable with rider pay. Comes out of the platform's share in the ledger.
+- **C, help (item 6).** Shared `SupportChat`: live replies, sending/sent ticks, "My issue is solved" (`POST /support/tickets/:id/resolve`), Request history tab. Customer "Raise a request" removed; refund requests under History. Partner chat opens full screen. Operations sees kitchen / rider code, earlier requests, who closed it.
+- **D, assigned trip (item 9).** `assignedByOperations` on the rider's trip until `POST /riders/orders/:id/acknowledge`; full-screen ringing card in the Rider app; push reworded.
+- **Checks:** `liveSync`, `orderClock`, `pickupPay` (pays the same rider twice; hand-assigned pay; alarm), `helpHistory`; each guard mutated and caught. `honestEta`, `features`, `qaAppText`, `bodyContract` updated to the new rules. Gate green apart from the two known local failures.
+
+---
+
 ## [Unreleased] 20 Oct 2026: Tester round 2 (build 39), fixes part 1, not yet in an APK
 
 - **R2-1 (High).** A rider was stuck forever when Operations cancelled an order after pickup. Now an ended order (cancelled, delivered, refunded) frees its rider whatever the stage says (`hasActiveTrip`), and the rider is told on any cancellation.

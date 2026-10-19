@@ -114,7 +114,8 @@ async function requireRiderSelf(req: any): Promise<DeliveryRider> {
  */
 // Moved to modules/riders/tripPayout.ts so checkout can estimate a trip's cost
 // without importing a router; re-exported so every existing caller is unchanged.
-import { calculateTripPayout, tripTakeHome } from '../modules/riders/tripPayout.ts';
+import { calculateTripPayout, tripTakeHome, riderPayWithPickup, pickupPayFor } from '../modules/riders/tripPayout.ts';
+import { estimateByRoad } from '../modules/places/routingService.ts';
 export { calculateTripPayout };
 
 // ---------------------------------------------------------------------------
@@ -272,9 +273,29 @@ async function shapeTripForRider(order: Order) {
     handoverNote: (() => {
       const last = order.riderReassignments?.at(-1);
       return last?.afterPickup && last.toRiderId === order.riderId ? last.handoverNote : undefined;
-    })()
+    })(),
+    // Operations gave this trip to this rider and they have not opened it yet: the app
+    // rings and shows "you have been assigned" until they do (owner, 20 Oct).
+    assignedByOperations: Boolean(
+      order.riderId && order.riderReassignments?.at(-1)?.toRiderId === order.riderId && !(order as any).riderAckAt
+    ),
+    pickupPay: (order as any).riderPickupPay || 0
   };
 }
+
+/** POST /api/riders/orders/:id/acknowledge — the rider opened a trip Operations gave them. */
+riderRouter.post('/orders/:id/acknowledge', async (req, res, next) => {
+  try {
+    const self = await requireRiderSelf(req);
+    const order = await orderRepository.findById(req.params.id);
+    if (!order || order.riderId !== self.id) throw new AppError('Order not found.', 404, 'ORDER_NOT_FOUND');
+    (order as any).riderAckAt = new Date().toISOString();
+    await orderRepository.save(order);
+    res.json({ success: true, data: { order: await shapeTripForRider(withoutDeliveryOtp(order) as Order) } });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Profile
@@ -826,10 +847,23 @@ riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (r
     // its countdown. Apps on phones read the same list, so they cannot jump the queue (review D5).
     const broadcasts = offerable.filter(o => liveOffer(o)?.riderId === rider.id);
     const shaped = await Promise.all(
-      broadcasts.map(async o => ({
-        ...(await shapeTripForRider(withoutDeliveryOtp(o) as Order)),
-        offerExpiresAt: o.riderOffer!.expiresAt
-      }))
+      broadcasts.map(async o => {
+        const trip = await shapeTripForRider(withoutDeliveryOtp(o) as Order);
+        // Both legs on the card, and pickup pay when the rider is over 7 km away (owner, 20 Oct).
+        // A road estimate here (no paid call per poll); the claim freezes Google's figure.
+        const toKitchenKm =
+          rider.currentCoordinates && o.restaurantCoordinates
+            ? Math.round(estimateByRoad(rider.currentCoordinates, o.restaurantCoordinates).distanceKm * 10) / 10
+            : null;
+        const pickupPay = toKitchenKm === null ? 0 : pickupPayFor(toKitchenKm);
+        return {
+          ...trip,
+          toKitchenKm,
+          pickupPay,
+          estimatedEarnings: Math.round((trip.estimatedEarnings + pickupPay) * 100) / 100,
+          offerExpiresAt: o.riderOffer!.expiresAt
+        };
+      })
     );
 
     for (const order of broadcasts) {
@@ -923,14 +957,20 @@ riderRouter.post('/orders/:id/claim', requireFeature('rider_broadcast'), async (
       throw new AppError(cashBlock.message!, 409, 'CASH_CEILING_REACHED');
     }
 
-    const payout = calculateTripPayout(target);
+    // Trip pay + pickup pay when they are over 7 km from the kitchen (owner, 20 Oct).
+    const pay = await riderPayWithPickup(target, self.currentCoordinates);
     const order = await orderRepository.assignRider(
       req.params.id,
       self.id,
       self.fullName || req.user!.fullName,
       self.phone,
-      payout
+      pay.riderPayout
     );
+    if (order) {
+      order.riderPickupKm = pay.riderPickupKm;
+      order.riderPickupPay = pay.riderPickupPay;
+      await orderRepository.save(order);
+    }
     if (!order) {
       throw new AppError(
         'That trip has already been claimed by another rider.',

@@ -34,6 +34,7 @@ import {
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { t } from './src/theme';
 import { Avatar } from './src/components/ui';
+import { AssignedTripModal } from './src/components/AssignedTripModal';
 import { NewOrderModal } from './src/components/NewOrderModal';
 import { LocationConsent, hasLocationConsent } from './src/components/LocationConsent';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -67,11 +68,12 @@ import {
   startOrderAlert,
   stopOrderAlert
 } from './src/lib/orderAlert';
-import { startShiftService, stopShiftService } from './src/lib/shiftService';
+import { startShiftService, stopShiftService, setTripTracking, isTripTrackingInService } from './src/lib/shiftService';
 import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 
 import { DEFAULT_API_URL } from './src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { startLiveSync, useLiveSync } from './src/lib/liveSync';
 
 type Tab = 'home' | 'trips' | 'earnings' | 'profile';
 type SubScreen =
@@ -388,6 +390,13 @@ function DeliveryApp() {
     // is where a rider is told their phone cannot be reached in the background.
   }, [token, isOnline]);
 
+  // Anything the server changes for this rider (a trip given, a payout, a document decision) shows at once.
+  useEffect(() => startLiveSync(apiUrl, token), [apiUrl, token]);
+  useLiveSync(() => {
+    void loadDashboard({ silent: true });
+    void syncOffers({ announce: true });
+  });
+
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
     await loadDashboard({ silent: true });
@@ -532,6 +541,15 @@ function DeliveryApp() {
   // The location consent comes before the first "Go online" on this phone (#22).
   const [consentOpen, setConsentOpen] = useState(false);
   const goOnline = async () => {
+    // Location must be ON to take trips: customers track the rider live (owner, 20 Oct).
+    if (Platform.OS === 'android' && !(await Location.hasServicesEnabledAsync().catch(() => true))) {
+      try {
+        await Location.enableNetworkProviderAsync(); // Android's own "Turn on location" dialog
+      } catch {
+        Alert.alert('Turn on location', "Switch on your phone's location to go online. Customers follow your bike on the map during a delivery.");
+        return;
+      }
+    }
     if (await hasLocationConsent()) await setShift(true);
     else setConsentOpen(true);
   };
@@ -723,6 +741,8 @@ function DeliveryApp() {
       }
       setLocationDenied(false);
 
+      // The shift service sends the trip's positions from now on, screen off or not (round 3).
+      void setTripTracking(ctxRef.current, activeTrip.id);
       subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
         location => {
@@ -734,6 +754,7 @@ function DeliveryApp() {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude
           });
+          if (isTripTrackingInService()) return; // the service is already sending it
           api
             .telemetry(ctxRef.current, {
               orderId: activeTrip.id,
@@ -754,6 +775,10 @@ function DeliveryApp() {
       subscription?.remove();
     };
   }, [activeTrip?.id, activeTrip?.stage, token]);
+  // Back to shift mode once there is no trip (delivered, cancelled, taken off).
+  useEffect(() => {
+    if (!activeTrip) void setTripTracking(null, null);
+  }, [activeTrip?.id]);
 
   /* ------------------------------ Render ---------------------------------- */
 
@@ -995,6 +1020,22 @@ function DeliveryApp() {
           void setShift(true);
         }}
         onCancel={() => setConsentOpen(false)}
+      />
+      <AssignedTripModal
+        trip={activeTrip?.assignedByOperations ? activeTrip : null}
+        busy={busy}
+        onStart={async trip => {
+          setBusy(true);
+          try {
+            await api.acknowledgeTrip(ctxRef.current, trip.id);
+            await loadDashboard({ silent: true });
+            setTab('home');
+          } catch (err) {
+            Alert.alert('Could not start the trip', (err as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
       />
       <NewOrderModal
         trip={pendingOffer}

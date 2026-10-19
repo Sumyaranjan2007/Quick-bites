@@ -12,6 +12,7 @@ import { tokens } from '../theme/tokens';
 import { Card, EmptyState } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { SafeScreen } from '../components/SafeScreen';
+import { useLiveSync } from '../lib/liveSync';
 import {
   razorpayAvailable,
   openRazorpay,
@@ -94,6 +95,7 @@ export const MembershipScreen: React.FC<Props> = ({ onBack, apiUrl, token, onCha
   useEffect(() => {
     load();
   }, [load]);
+  useLiveSync(load);
 
   const buy = useCallback(
     async (plan: Plan) => {

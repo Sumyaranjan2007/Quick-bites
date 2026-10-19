@@ -31,6 +31,7 @@ import { offerTripToNearbyRiders } from './tripOffers.ts';
 import { emitOrderStatusUpdate, emitOrderAvailableForPickup } from '../../sockets/socketServer.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import type { Order } from '@quick-bites/shared-types';
+import { calculateTripPayout, riderPayWithPickup } from '../riders/tripPayout.ts';
 
 export interface OpsActor {
   userId: string;
@@ -172,9 +173,19 @@ export async function reassignTrip(
     );
   }
 
+  // Paid like a trip the rider took themselves: trip pay + pickup pay (owner, 20 Oct).
+  // This used to leave `riderPayout` unset, so a hand-assigned trip paid the rider Rs 0.
+  const pay = afterPickup
+    ? { riderPayout: calculateTripPayout(order), riderPickupKm: 0, riderPickupPay: 0 }
+    : await riderPayWithPickup(order, target.currentCoordinates);
+
   const fromRiderId = order.riderId;
   const at = new Date().toISOString();
   order.riderId = target.id;
+  order.riderPayout = pay.riderPayout;
+  order.riderPickupKm = pay.riderPickupKm;
+  order.riderPickupPay = pay.riderPickupPay;
+  (order as any).riderAckAt = undefined; // the new rider must open it (assigned-trip alarm)
   order.riderName = target.fullName;
   order.riderPhone = target.phone;
   order.riderAssignedAt = at;

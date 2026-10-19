@@ -19,6 +19,7 @@
  */
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { api, type ApiContext } from './api';
 
 export const SHIFT_LOCATION_TASK = 'quickbites-rider-shift-location';
 
@@ -34,7 +35,42 @@ export const SHIFT_LOCATION_TASK = 'quickbites-rider-shift-location';
  * see comes from the trip screen's own watcher, which reports while an order is
  * being carried.
  */
-TaskManager.defineTask(SHIFT_LOCATION_TASK, async () => {});
+TaskManager.defineTask(SHIFT_LOCATION_TASK, async ({ data }: any) => {
+  // During a trip the service itself sends each fix (owner, 20 Oct: "like Find My Device"):
+  // it keeps running with the screen off or Google Maps in front, where a screen's watcher stops.
+  const fix = data?.locations?.[data.locations.length - 1];
+  if (!trip || !fix) return;
+  await api
+    .telemetry(trip.ctx, {
+      orderId: trip.orderId,
+      lat: fix.coords.latitude,
+      lng: fix.coords.longitude,
+      bearing: fix.coords.heading && fix.coords.heading >= 0 ? Math.round(fix.coords.heading) : 0
+    })
+    .catch(() => {});
+});
+
+/** The trip the service is reporting for, or null between trips. */
+let trip: { ctx: ApiContext; orderId: string } | null = null;
+
+/** True while the service is sending the trip's positions (the screen's watcher then only draws). */
+export const isTripTrackingInService = () => trip !== null;
+
+/**
+ * Switches the shift service between shift mode (every 30 s / 50 m, to stay alive) and trip mode
+ * (every 3 s / 5 m, sending each fix). Called with the app open: Android refuses to start a location
+ * service from the background, which is also why no background-location permission is needed.
+ */
+export async function setTripTracking(ctx: ApiContext | null, orderId: string | null): Promise<void> {
+  const next = ctx && orderId ? { ctx, orderId } : null;
+  if (next?.orderId === trip?.orderId && next?.ctx.token === trip?.ctx.token) return;
+  trip = next;
+  try {
+    if ((await TaskManager.isTaskRegisteredAsync(SHIFT_LOCATION_TASK)) && !(await startWithRetry())) trip = null;
+  } catch {
+    trip = null; // the screen's watcher keeps sending instead
+  }
+}
 
 /**
  * Starts the shift service. Returns false when it could not be held open — the
@@ -64,17 +100,19 @@ export async function startShiftService(): Promise<boolean> {
 async function startWithRetry(attempt = 0): Promise<boolean> {
   try {
     await Location.startLocationUpdatesAsync(SHIFT_LOCATION_TASK, {
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: trip ? Location.Accuracy.High : Location.Accuracy.Balanced,
       // Loose intervals: this exists to hold the process open, not to trace the
       // rider. The tight, per-second tracking runs only while an order is being
       // carried, from the trip screen.
-      timeInterval: 30000,
-      distanceInterval: 50,
+      timeInterval: trip ? 3000 : 30000,
+      distanceInterval: trip ? 5 : 50,
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: false,
       foregroundService: {
-        notificationTitle: 'Quick Bites Rider — on shift',
-        notificationBody: 'You are online and will be alerted when a delivery is offered.',
+        notificationTitle: trip ? 'Quick Bites Rider — on a delivery' : 'Quick Bites Rider — on shift',
+        notificationBody: trip
+          ? "Your live location is shared with this order's customer until you deliver."
+          : 'You are online and will be alerted when a delivery is offered.',
         notificationColor: '#24C88E'
       }
     });

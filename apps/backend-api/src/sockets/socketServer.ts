@@ -425,7 +425,9 @@ export function emitOrderStatusUpdate(
     ...data,
     updatedAt: data.updatedAt || new Date().toISOString(),
     // The arrival estimate, recomputed on every status change (B3).
-    ...(stored ? { eta: estimateArrival(stored) } : {})
+    ...(stored ? { eta: estimateArrival(stored) } : {}),
+    // So the kitchen can ring "#N cancelled, stop cooking" when someone else cancelled (round 3).
+    ...(stored ? { orderNumber: stored.orderNumber, cancelledByRole: stored.cancelledByRole } : {})
   };
 
   ioInstance.to(`order:${orderId}`).emit('order:status_update', payload);
@@ -559,6 +561,21 @@ export function emitOpsAlert(alert: {
   }));
   if (!ioInstance) return;
   ioInstance.to('admin:control_tower').emit('ops:alert', alert);
+}
+
+/**
+ * "Reload what you show" (round 3, item 1): to these accounts' devices and every
+ * Operations console, or to everyone for a platform setting. No data rides along.
+ */
+export function emitSync(users: string[] | 'everyone', topic: string): void {
+  if (!ioInstance) return;
+  const payload = { topic, at: Date.now() };
+  if (users === 'everyone') {
+    ioInstance.emit('sync', payload);
+    return;
+  }
+  const rooms = [...new Set(users)].map(u => `user:${u}`);
+  ioInstance.to([...rooms, 'admin:control_tower']).emit('sync', payload);
 }
 
 /** Delivers a chat message to everyone watching that order. */

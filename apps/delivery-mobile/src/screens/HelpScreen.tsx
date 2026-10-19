@@ -13,7 +13,8 @@ export const HelpScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
       tickets: async () => (await api.supportTickets(ctx)).tickets,
       ticket: async id => (await api.supportTicket(ctx, id)).ticket,
       raise: async body => (await api.raiseSupportTicket(ctx, body)).ticket,
-      reply: async (id, body) => (await api.replySupportTicket(ctx, id, body)).ticket
+      reply: async (id, body) => (await api.replySupportTicket(ctx, id, body)).ticket,
+      resolve: async id => (await api.resolveSupportTicket(ctx, id)).ticket
     }),
     [ctx]
   );

@@ -209,6 +209,17 @@ supportRouter.post('/tickets/:id/reply', validate({ body: ReplySchema }), async 
   }
 });
 
+/** POST /api/support/tickets/:id/resolve — "My issue is solved": only the person who raised it. */
+supportRouter.post('/tickets/:id/resolve', async (req, res, next) => {
+  try {
+    const ticket = await supportRepository.findById(req.params.id);
+    if (!ticket || ticket.raisedByUserId !== req.user!.id) throw new AppError('Ticket not found.', 404, 'TICKET_NOT_FOUND');
+    res.json({ success: true, data: { ticket: await supportRepository.resolveByRaiser(ticket.id) } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const RefundRequestSchema = z.object({
   orderId: z.string().min(1),
   reasonCode: z.enum([

@@ -18,6 +18,7 @@ import { OrderChat } from '../components/OrderChat';
 import { RatingSheet } from '../components/RatingSheet';
 import { useTranslation } from '../lib/i18n';
 import { useOrderSocket } from '../lib/useOrderSocket';
+import { useLiveSync } from '../lib/liveSync';
 import { apiFetch } from '../lib/apiFetch';
 
 const c = tokens.colors;
@@ -40,6 +41,8 @@ interface Props {
   apiUrl?: string;
   token?: string;
   currentUserId?: string;
+  /** Opens Help, for a cancel the app no longer allows (2 min after the kitchen accepts). */
+  onAskSupport?: () => void;
 }
 
 /*
@@ -88,7 +91,8 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   orderId,
   apiUrl,
   token,
-  currentUserId
+  currentUserId,
+  onAskSupport
 }) => {
   // The tracking screen is the one a customer stares at, so it speaks their
   // language; the cancellation reasons are fetched in it too.
@@ -96,6 +100,9 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [order, setOrder] = useState<any | null>(null);
   const [tracking, setTracking] = useState<any | null>(null);
+  // Any change the server reports (refund, support action, rider swap) re-reads at once.
+  const [syncTick, setSyncTick] = useState(0);
+  useLiveSync(() => setSyncTick(n => n + 1));
   const [chatOpen, setChatOpen] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [submittedRating, setSubmittedRating] = useState<number | null>(null);
@@ -208,7 +215,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [orderId, apiUrl, token, liveConnected]);
+  }, [orderId, apiUrl, token, liveConnected, syncTick]);
 
   const restaurantName = order?.restaurantName || 'the restaurant';
   const riderName = order?.riderName;
@@ -225,31 +232,37 @@ export const OrderTrackingScreen: React.FC<Props> = ({
    * that. Those numbers were the same at minute one and minute forty, so the
    * screen kept saying "~10 min" long after the customer knew it was wrong.
    *
-   * The server measures the real distance, counts down the kitchen's own
-   * promise, and switches to the rider's actual position after pickup. The
-   * local figure survives only as a fallback for the seconds before the first
-   * tracking response lands, so the box is never empty.
+   * The server measures the real distance and, from the moment the kitchen
+   * accepts, holds one promise: its cooking time + the ride to you (owner,
+   * 20 Oct). Nothing is shown before that. The box counts down to the promise
+   * every second, and past it counts up: "+3 min".
    */
   const serverEta = tracking?.eta;
-  const fallbackEtaMinutes = (Number(order?.preparationMinutes) || 20) + 10;
-  const etaMinutes: number | null = isClosed
-    ? null
-    : typeof serverEta?.minutesRemaining === 'number'
-      ? serverEta.minutesRemaining
-      : fallbackEtaMinutes;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (isClosed) return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isClosed]);
+  const awaitingAccept = status === 'ORDER_PLACED' || status === 'PAYMENT_PENDING';
+  const target = Date.parse(serverEta?.promisedAt || serverEta?.arrivingAt || '');
+  const hasClock = !isClosed && !awaitingAccept && Number.isFinite(target);
+  const lateBy = hasClock && nowMs > target ? Math.ceil((nowMs - target) / 60_000) : 0;
+  const left = hasClock ? Math.max(0, Math.round((target - nowMs) / 1000)) : 0;
+  const etaText = !hasClock
+    ? '—'
+    : lateBy > 0
+      ? t('tracking.lateBy', { minutes: lateBy })
+      : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 
   const etaCaption = (() => {
     switch (serverEta?.basis) {
       case 'RIDER_EN_ROUTE':
         return t('tracking.etaEnRoute');
       case 'KITCHEN_ESTIMATE':
-      case 'PREP_AND_TRAVEL':
-        // Nobody is cooking until the kitchen accepts. Saying so before then
-        // told a customer their food was on the stove while the order was
-        // still waiting to be seen.
-        return status === 'ORDER_PLACED' || status === 'PAYMENT_PENDING'
-          ? t('tracking.etaWaiting')
-          : t('tracking.etaPrep');
+        return t('tracking.etaPrep');
+      case 'AWAITING_ACCEPT':
+        return t('tracking.etaWaiting');
       default:
         return null;
     }
@@ -270,7 +283,13 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 
   // Cancellable exactly while the server's state machine allows it. Showing the
   // button later would offer something that can only fail.
-  const canCancel = ['PAYMENT_PENDING', 'ORDER_PLACED', 'ACCEPTED', 'PREPARING'].includes(status);
+  // After the kitchen accepts, 2 minutes; then only support can (owner, 20 Oct; the server enforces it too).
+  const cookingStarted = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'].includes(status);
+  const acceptedMs = Date.parse(order?.acceptedAt || '');
+  const cancelLeft = cookingStarted && Number.isFinite(acceptedMs) ? Math.max(0, Math.round((acceptedMs + 120_000 - nowMs) / 1000)) : null;
+  const canCancel =
+    ['PAYMENT_PENDING', 'ORDER_PLACED'].includes(status) || (cookingStarted && status !== 'READY_FOR_PICKUP' && (cancelLeft ?? 0) > 0);
+  const askSupportToCancel = cookingStarted && !canCancel;
 
   // What cancelling NOW costs and returns (U1). Asked every time the sheet
   // opens, because the answer changes the moment the kitchen starts cooking.
@@ -426,10 +445,10 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             </View>
           ) : (
             <View style={styles.etaBox}>
-              <Text style={styles.etaLabel}>{t('tracking.eta').toUpperCase()}</Text>
-              <Text style={styles.etaValue}>
-                {etaMinutes === null ? '—' : t('tracking.etaMinutes', { minutes: etaMinutes })}
+              <Text style={[styles.etaLabel, lateBy > 0 && { color: c.semantic.error }]}>
+                {(lateBy > 0 ? t('tracking.late') : t('tracking.eta')).toUpperCase()}
               </Text>
+              <Text style={[styles.etaValue, lateBy > 0 && { color: c.semantic.error }]}>{etaText}</Text>
             </View>
           )}
         </View>
@@ -439,7 +458,16 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             to find becomes a phone call to the restaurant. */}
         {canCancel && (
           <TouchableOpacity style={styles.cancelLink} onPress={openCancel} activeOpacity={0.75}>
-            <Text style={styles.cancelLinkText}>{t('tracking.cancelOrder')}</Text>
+            <Text style={styles.cancelLinkText}>
+              {cancelLeft !== null
+                ? t('tracking.cancelLeft', { time: `${Math.floor(cancelLeft / 60)}:${String(cancelLeft % 60).padStart(2, '0')}` })
+                : t('tracking.cancelOrder')}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {askSupportToCancel && !!onAskSupport && (
+          <TouchableOpacity style={styles.cancelLink} onPress={onAskSupport} activeOpacity={0.75}>
+            <Text style={styles.cancelLinkText}>{t('tracking.askSupportCancel')}</Text>
           </TouchableOpacity>
         )}
 

@@ -31,13 +31,15 @@ export interface EtaEstimate {
   /** The same figure as a timestamp, so a client can count down without a clock skew. */
   arrivingAt: string | null;
   /** Which of the stages above produced it, so the screen can word itself honestly. */
-  basis: 'PREP_AND_TRAVEL' | 'KITCHEN_ESTIMATE' | 'AWAITING_PICKUP' | 'RIDER_EN_ROUTE' | 'ARRIVED' | 'NONE';
+  basis: 'AWAITING_ACCEPT' | 'KITCHEN_ESTIMATE' | 'AWAITING_PICKUP' | 'RIDER_EN_ROUTE' | 'ARRIVED' | 'NONE';
   /** Kilometres the estimate was computed over, for the tracking screen and for debugging. */
   distanceKm: number | null;
   /** The arrival promised at checkout (frozen), when there is one. */
   promisedAt: string | null;
   /** True when the live estimate beats the promise by 3 minutes or more: "We're ahead of time!" (B3). */
   ahead: boolean;
+  /** Whole minutes past the promise, shown as "+N min" (owner, 20 Oct); 0 while on time. */
+  lateMinutes: number;
 }
 
 /** How early counts as "ahead of time" (plan B3). */
@@ -94,28 +96,34 @@ function distanceBetween(from?: Coordinates | null, to?: Coordinates | null): nu
 }
 
 /**
- * Minutes of cooking still to go.
- *
- * Counted from when the kitchen accepted rather than from now, so the figure
- * falls as the food cooks. Floored at zero: a kitchen that has overrun its own
- * estimate is late, and reporting negative minutes would make the ETA drift
- * earlier the later it got.
+ * The time promised to the customer, set once when the kitchen accepts (owner, 20 Oct 2026):
+ * the kitchen's cooking time for THIS order + the ride restaurant -> customer. The rider's
+ * ride to the kitchen is not added: riders are called at 10 minutes of cooking left.
  */
-function prepRemainingMinutes(order: Order, now: number): number {
-  // The time the kitchen typed for THIS order, else what it usually takes.
-  const promised = Number(order.preparationMinutes) || kitchenPrepMinutes(order.restaurantId, itemCount(order));
-  const startedAt = order.acceptedAt || order.createdAt;
-  const elapsed = startedAt ? (now - new Date(startedAt).getTime()) / 60_000 : 0;
-  return Math.max(0, promised - Math.max(0, elapsed));
+export function promiseAtAcceptance(order: Order, acceptedAtMs: number): string | undefined {
+  const km = Number(order.distanceKm) || distanceBetween(order.restaurantCoordinates, order.deliveryCoordinates);
+  if (km === null || !Number.isFinite(km)) return undefined;
+  const cook = Number(order.preparationMinutes) || kitchenPrepMinutes(order.restaurantId, itemCount(order));
+  return new Date(acceptedAtMs + Math.ceil(cook + travelMinutes(km)) * 60_000).toISOString();
+}
+
+/** Minutes to the door if ordered now, for the quote and the restaurant cards (before any order exists). */
+export function quotedMinutes(restaurantId: string, items: Order['items'], distanceKm: number | null | undefined): number | null {
+  if (!Number.isFinite(Number(distanceKm))) return null;
+  return Math.ceil(kitchenPrepMinutes(restaurantId, itemCount({ items })) + travelMinutes(Number(distanceKm)));
 }
 
 export function estimateArrival(order: Order, now: Date = new Date()): EtaEstimate {
   const nowMs = now.getTime();
   const promisedAt = order.promisedArrivalAt ?? null;
-  const none: EtaEstimate = { minutesRemaining: null, arrivingAt: null, basis: 'NONE', distanceKm: null, promisedAt, ahead: false };
+  const none: EtaEstimate = { minutesRemaining: null, arrivingAt: null, basis: 'NONE', distanceKm: null, promisedAt, ahead: false, lateMinutes: 0 };
 
   if (TERMINAL.includes(order.status)) {
     return order.status === 'DELIVERED' ? { ...none, basis: 'ARRIVED' } : none;
+  }
+  // No time at all until the kitchen accepts and sets its cooking time (owner, 20 Oct).
+  if (order.status === 'PAYMENT_PENDING' || order.status === 'ORDER_PLACED') {
+    return { ...none, basis: 'AWAITING_ACCEPT' };
   }
 
   const destination = order.deliveryCoordinates;
@@ -150,17 +158,14 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
   let basis: EtaEstimate['basis'];
 
   switch (order.status) {
-    case 'PAYMENT_PENDING':
-    case 'ORDER_PLACED':
-      minutes = kitchenPrepMinutes(order.restaurantId, itemCount(order)) + travel;
-      basis = 'PREP_AND_TRAVEL';
-      break;
     case 'ACCEPTED':
-    case 'PREPARING':
-      // Cooking and the rider's ride to the kitchen happen at the same time: whichever is longer.
-      minutes = Math.max(prepRemainingMinutes(order, nowMs), riderToKitchenMinutes(order)) + travel;
+    case 'PREPARING': {
+      // Counting down to the promise made at acceptance (cook + ride).
+      const target = Date.parse(promisedAt || '') || Date.parse(promiseAtAcceptance(order, Date.parse(order.acceptedAt || '') || nowMs) || '');
+      minutes = Number.isFinite(target) ? (target - nowMs) / 60_000 : travel;
       basis = 'KITCHEN_ESTIMATE';
       break;
+    }
     case 'READY_FOR_PICKUP':
     case 'HANDED_TO_RIDER':
       // The food is made; what remains is a rider reaching it and then driving.
@@ -194,6 +199,7 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
     basis,
     distanceKm: Math.round(distanceKm * 100) / 100,
     promisedAt,
-    ahead: promisedAt !== null && Date.parse(promisedAt) - arrivingAt >= AHEAD_BY_MS
+    ahead: promisedAt !== null && Date.parse(promisedAt) - arrivingAt >= AHEAD_BY_MS,
+    lateMinutes: promisedAt !== null && nowMs > Date.parse(promisedAt) ? Math.ceil((nowMs - Date.parse(promisedAt)) / 60_000) : 0
   };
 }

@@ -39,6 +39,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { haptic } from './src/lib/haptics';
 import { useIosScreenMotion } from './src/lib/useIosScreenMotion';
 import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
+import { startLiveSync } from './src/lib/liveSync';
 
 type Screen =
   | 'feed'
@@ -113,6 +114,7 @@ function AppRoot() {
    * through order history — while it was still being cooked.
    */
   const { orders: liveOrders, refresh: refreshLiveOrders } = useActiveOrders(apiUrl, authToken);
+  useEffect(() => startLiveSync(apiUrl, authToken), [apiUrl, authToken]);
 
   // Re-read the set whenever the customer lands back on the home screen.
   // An order can finish, be cancelled by the kitchen, or reach the door while
@@ -508,6 +510,7 @@ function AppRoot() {
             token={authToken}
             currentUserId={currentUser?.id}
             onHome={() => setCurrentScreen('feed')}
+            onAskSupport={() => setCurrentScreen('support')}
           />
         )}
 

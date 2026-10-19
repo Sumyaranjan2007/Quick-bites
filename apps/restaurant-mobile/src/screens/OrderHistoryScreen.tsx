@@ -6,6 +6,7 @@ import { Star } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, Pill, EmptyState, ErrorNote } from '../components/ui';
 import { fetchOrderHistory } from '../lib/partnerApi';
+import { useLiveSync } from '../lib/liveSync';
 
 type Scope = 'all' | 'completed' | 'cancelled';
 
@@ -34,7 +35,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ restaurantId }) => {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (which: Scope, mode: 'initial' | 'refresh') => {
+    async (which: Scope, mode: 'initial' | 'refresh' | 'quiet') => {
       if (mode === 'initial') setLoading(true);
       if (mode === 'refresh') setRefreshing(true);
 
@@ -55,6 +56,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ restaurantId }) => {
   useEffect(() => {
     load(scope, 'initial');
   }, [scope, load]);
+  useLiveSync(() => load(scope, 'quiet'));
 
   const tabs: Array<{ key: Scope; label: string; count: number }> = [
     { key: 'all', label: 'All', count: counts.all },

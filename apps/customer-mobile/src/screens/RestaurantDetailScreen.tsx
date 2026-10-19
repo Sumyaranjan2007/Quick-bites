@@ -69,6 +69,7 @@ interface Dish {
 }
 
 import { RestaurantPhoto } from '../components/RestaurantPhoto';
+import { useLiveSync } from '../lib/liveSync';
 
 interface Props {
   restaurant: RestaurantItem;
@@ -171,6 +172,7 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
   useEffect(() => {
     loadMenu();
   }, [restaurant.id]);
+  useLiveSync(loadMenu);
 
   // Reload when the kitchen changes this menu, so a dish that has just sold out
   // stops being addable while the customer is still on the page.

@@ -8,7 +8,7 @@ import {
   fetchSupportTickets,
   fetchSupportTicket,
   raiseSupportTicket,
-  replySupportTicket,
+  replySupportTicket, resolveSupportTicket,
   type ApiResult
 } from '../lib/partnerApi';
 import { SupportChat, type ChatApi } from './SupportChat';
@@ -21,7 +21,7 @@ async function data<T>(call: Promise<ApiResult<T>>): Promise<T> {
 }
 
 /** Help as a real chat (owner, 19 Oct 2026): `SupportChat` with the Partner app's calls and colours. */
-export const HelpChat: React.FC<{ onSent?: () => void }> = ({ onSent }) => {
+export const HelpChat: React.FC<{ onSent?: () => void; historyFooter?: React.ReactNode }> = ({ onSent, historyFooter }) => {
   const api = useMemo<ChatApi>(
     () => ({
       help: () => data(fetchHelpTopics()),
@@ -34,14 +34,16 @@ export const HelpChat: React.FC<{ onSent?: () => void }> = ({ onSent }) => {
         onSent?.();
         return made;
       },
-      reply: async (id, body) => (await data(replySupportTicket(id, body))).ticket
+      reply: async (id, body) => (await data(replySupportTicket(id, body))).ticket,
+      resolve: async id => (await data(resolveSupportTicket(id))).ticket
     }),
     [onSent]
   );
   return (
-    <View style={{ height: 480 }}>
+    <View style={{ flex: 1 }}>
       <SupportChat
         api={api}
+        historyFooter={historyFooter}
         font={FONT_FAMILY}
         colours={{ brand: c.brand, brandSoft: c.brandSoft, text: c.text, muted: c.textMuted, border: c.border, card: c.surface, danger: c.danger }}
       />

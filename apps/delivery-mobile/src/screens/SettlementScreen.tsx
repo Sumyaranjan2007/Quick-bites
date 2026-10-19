@@ -4,6 +4,7 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native
 import { t } from '../theme';
 import { Card, SectionTitle, Row, Pill, EmptyState, LoadingBlock, Divider } from '../components/ui';
 import { api, type ApiContext, type SettlementsResponse } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 const rupees = (n: number) =>
   `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -57,6 +58,7 @@ export const SettlementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   useEffect(() => {
     load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
   if (loading) return <LoadingBlock label="Loading your settlement…" />;
 

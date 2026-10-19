@@ -36,6 +36,10 @@ const BACKEND = path.join(ROOT, 'apps/backend-api');
 // reported in five seconds, not after the slow end-to-end suites.
 const SUITES = [
   'health',
+  'liveSync',
+  'pickupPay',
+  'orderClock',
+  'helpHistory',
   'db',
   'orders',
   'search',

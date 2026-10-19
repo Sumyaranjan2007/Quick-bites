@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './api';
+import { useLiveSync } from './liveSync';
 
 export interface Resource<T> {
   data: T | null;
@@ -39,6 +40,7 @@ export function useResource<T>(
   // Guards against a slow response landing after the screen moved on, which
   // would otherwise repopulate a filter the operator has already changed.
   const requestId = useRef(0);
+  const hasData = useRef(false);
 
   const run = useCallback(
     async (showSpinner: boolean) => {
@@ -65,10 +67,13 @@ export function useResource<T>(
           return;
         }
         setData(result);
+        hasData.current = true;
         setError(null);
         setDenied(false);
       } catch (err: any) {
         if (id !== requestId.current) return;
+        // A live re-read that fails keeps what is on screen; the next change retries.
+        if (!showSpinner && hasData.current) return;
         setDenied(err instanceof ApiError && err.isPermissionDenied);
         setError(err?.message || 'Could not reach the Quick Bites server.');
       } finally {
@@ -82,6 +87,9 @@ export function useResource<T>(
     void run(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, ...deps]);
+
+  // Every Operations screen follows the platform live (round 3, item 1): no pull-to-refresh needed.
+  useLiveSync(() => run(false));
 
   return {
     data,

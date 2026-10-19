@@ -44,7 +44,18 @@ supportRoutes.get('/support/tickets/:id', requirePermission('support.tickets.vie
     const ticket = await supportRepository.findById(req.params.id);
     if (!ticket) throw new AppError('Support ticket not found.', 404, 'TICKET_NOT_FOUND');
     const order = ticket.orderId ? await orderRepository.findById(ticket.orderId) : null;
-    res.json({ success: true, data: { ticket, order: order ? await shapeOrderDetail(order) : null } });
+    // Who is asking, at a glance (owner, 20 Oct): their kitchen(s) or rider code, and earlier requests.
+    const kitchens = [...memoryStore.restaurants.values()].filter((r: any) => r.ownerId === ticket.raisedByUserId).map((r: any) => r.name);
+    const rider: any = [...memoryStore.riders.values()].find((r: any) => r.userId === ticket.raisedByUserId);
+    const earlier = (await supportRepository.listByUser(ticket.raisedByUserId)).filter(t => t.id !== ticket.id).length;
+    res.json({
+      success: true,
+      data: {
+        ticket,
+        order: order ? await shapeOrderDetail(order) : null,
+        raiser: { kitchens, riderCode: rider?.driverCode || rider?.id || null, earlierRequests: earlier }
+      }
+    });
   } catch (err) {
     next(err);
   }

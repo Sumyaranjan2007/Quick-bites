@@ -6,6 +6,7 @@ import { t } from '../theme';
 import { Card, EmptyState, LoadingBlock, Pill, ProgressBar, SectionTitle } from '../components/ui';
 import { rupees } from '../lib/format';
 import { api, type ApiContext, type Incentive } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * Incentives, with the arithmetic shown.
@@ -18,6 +19,9 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const [incentives, setIncentives] = useState<Incentive[] | null>(null);
   const [earned, setEarned] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const [syncTick, setSyncTick] = useState(0);
+  useLiveSync(() => setSyncTick(n => n + 1));
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +36,7 @@ export const IncentivesScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
     return () => {
       cancelled = true;
     };
-  }, [ctx.apiUrl, ctx.token]);
+  }, [ctx.apiUrl, ctx.token, syncTick]);
 
   if (error) return <EmptyState title="Could not load incentives" message={error} />;
   if (!incentives) return <LoadingBlock label="Loading incentives…" />;

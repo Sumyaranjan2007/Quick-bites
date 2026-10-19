@@ -709,6 +709,10 @@ export interface Order {
   distanceKm?: number;
   /** What the rider is paid for this trip, fixed when the trip is claimed. */
   riderPayout?: number;
+  /** Road km from the rider to the kitchen when they took the trip (owner, 20 Oct 2026). */
+  riderPickupKm?: number;
+  /** Pickup pay inside `riderPayout`: all pickup km x Rs 6 when over 7 km; paid by Quick Bites. */
+  riderPickupPay?: number;
   riderAssignedAt?: string;
   /**
    * When operations were told that nobody had picked this order up.
@@ -1401,6 +1405,8 @@ export interface SupportTicket {
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
+  /** Who closed it: the person themself ("My issue is solved") or Operations (round 3). */
+  resolvedBy?: 'USER' | 'STAFF';
   assignedToUserId?: string;
 }
 
@@ -1590,6 +1596,10 @@ export interface PricingRates {
   riderFarRateKm: number;
   /** No trip pays a rider less than this, whatever the distance. */
   riderMinEarningPerTrip: number;
+  /** Pickup pay (owner, 20 Oct 2026): a rider further than this many road km from the kitchen when taking the trip... */
+  riderPickupPayFromKm: number;
+  /** ...is paid ALL of that pickup distance x this, by Quick Bites, never on the customer's bill. */
+  riderPickupPerKmFee: number;
   /**
    * What the CUSTOMER is charged on top of the delivery fee, as a percentage.
    *
@@ -1988,6 +1998,8 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   riderFarPerKmFee: 8,
   riderFarRateKm: 35,
   riderMinEarningPerTrip: 30,
+  riderPickupPayFromKm: 7,
+  riderPickupPerKmFee: 6,
   // Starts at zero, so this lands changing nothing until somebody sets it.
   riderDeliveryMarkupPercent: 0,
 

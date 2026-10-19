@@ -256,10 +256,10 @@ async function run() {
 
   const fresh = await placeOrder();
   const initial = estimateArrival(fresh);
-  check('A new order has an arrival estimate', typeof initial.minutesRemaining === 'number',
+  check('A new order shows no time until the kitchen accepts (owner, 20 Oct)', initial.minutesRemaining === null,
     JSON.stringify(initial));
-  check('and it includes preparation as well as travel',
-    initial.basis === 'PREP_AND_TRAVEL', initial.basis);
+  check('and says it is waiting for the kitchen',
+    initial.basis === 'AWAITING_ACCEPT', initial.basis);
 
   await orderRepository.updateStatus(fresh.id, 'ACCEPTED', 25);
   const accepted = (await orderRepository.findById(fresh.id))!;

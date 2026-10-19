@@ -9,6 +9,7 @@ import { rateLimiterMiddleware } from './middlewares/rateLimiter.ts';
 import { errorHandler } from './middlewares/errorHandler.ts';
 import { apiRouter } from './routes/apiRouter.ts';
 import { getHealth } from './controllers/healthController.ts';
+import { liveSyncMiddleware } from './sockets/liveSync.ts';
 
 export function createApp(): Express {
   const app = express();
@@ -70,6 +71,8 @@ export function createApp(): Express {
   // "/" (home page for browsers, status JSON otherwise) is in publicPages.
 
   // 8. API Router (Universal support for /api/v1 and /api)
+  // Every successful write tells the screens it touched to reload (round 3, item 1).
+  app.use('/api', liveSyncMiddleware);
   app.use('/api/v1', apiRouter);
   app.use('/api', apiRouter);
 

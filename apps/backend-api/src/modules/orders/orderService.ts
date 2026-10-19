@@ -48,7 +48,7 @@ import { AppError } from '../../utils/AppError.ts';
 import type { Order, OrderStatus, PaymentMethod, Restaurant, UserRole } from '@quick-bites/shared-types';
 import { isKitchenServing, nextOpensAt } from '../restaurants/openingHours.ts';
 import { dishesForOrdering } from '../restaurants/menuSections.ts';
-import { estimateArrival } from './eta.ts';
+import { quotedMinutes } from './eta.ts';
 import { hasRealLocation } from '../restaurants/restaurantLocation.ts';
 import { quoteCancellation, bookCancellationFee, cashSwitchedOffFor, codOverrideFor } from './cancellationFee.ts';
 import { contributionPaise } from '../payments/orderMargin.ts';
@@ -537,12 +537,7 @@ export const orderService = {
       couponError,
       restaurantIsOpen: isKitchenServing(restaurant) && restaurant.status === 'ACTIVE',
       /** Minutes to the door if ordered now: the kitchen's own cooking time + the ride (B3). */
-      estimatedDeliveryMinutes: estimateArrival({
-        status: 'ORDER_PLACED',
-        restaurantId: restaurant.id,
-        items: pricedItems,
-        distanceKm: tripDistanceKm
-      } as any).minutesRemaining,
+      estimatedDeliveryMinutes: quotedMinutes(restaurant.id, pricedItems as any, tripDistanceKm),
       // Old app versions read only this flag, so it already folds in the distance limit.
       acceptsCash: acceptsCash(restaurant) && !cashTooFarReason(tripDistanceKm, Boolean(measured) || !hasRealLocation(restaurant)),
       /** Why cash is not offered, in words for the customer; null when it is. */
@@ -858,8 +853,6 @@ export const orderService = {
       order.couponRedeemed = true;
     }
 
-    // The arrival promised now is frozen; tracking compares the live estimate with it (B3).
-    order.promisedArrivalAt = estimateArrival(order).arrivingAt ?? undefined;
     await orderRepository.create(order);
 
     // 8. Payment is started separately, by POST /payments/start.
@@ -1198,8 +1191,6 @@ export const orderService = {
 
     order.paymentStatus = 'PAID';
     order.status = 'ORDER_PLACED';
-    // The promise starts when the order really does (review S5), not at checkout.
-    order.promisedArrivalAt = estimateArrival(order).arrivingAt ?? undefined;
     order.razorpayPaymentId = razorpayPaymentId;
     order.updatedAt = new Date().toISOString();
     // Saved, not only changed in place: the store writes what set() marked, and
@@ -1265,7 +1256,6 @@ export const orderService = {
     order.razorpayPaymentId = detail.razorpayPaymentId;
     if (wasPending) {
       order.status = 'ORDER_PLACED';
-      order.promisedArrivalAt = estimateArrival(order).arrivingAt ?? undefined; // review S5, as in verify
     }
 
     // The gateway's own amount, where the webhook carried one. It is what

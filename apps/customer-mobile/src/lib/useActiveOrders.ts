@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from './apiFetch';
+import { useLiveSync } from './liveSync';
 
 /**
  * Every order this customer has in flight right now.
@@ -84,6 +85,7 @@ export function useActiveOrders(apiUrl?: string, token?: string) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+  useLiveSync(refresh);
 
   return { orders, loaded, refresh };
 }

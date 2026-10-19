@@ -1,13 +1,13 @@
 import { FONT_FAMILY } from '../theme';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking, RefreshControl, Alert } from 'react-native';
-import { Modal } from '../components/Modal';
 import { ChevronDown, ChevronUp, LifeBuoy, Phone, Mail, MessageSquare, LogOut } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
 import { HelpChat } from '../components/HelpChat';
-import { raiseSupportTicket, fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion, fetchMyAccount } from '../lib/partnerApi';
+import { fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion, fetchMyAccount } from '../lib/partnerApi';
 import { PasswordField } from '../components/ui';
+import { useLiveSync } from '../lib/liveSync';
 
 interface Props {
   restaurantName: string;
@@ -154,13 +154,8 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
   const [tickets, setTickets] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [subject, setSubject] = useState('');
-  const [category, setCategory] = useState('ORDER');
-  const [body, setBody] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
+  // Help is one chat, opened full screen like the Rider app's (owner, 20 Oct).
+  const [chatOpen, setChatOpen] = useState(false);
 
   const load = useCallback(async (mode: 'initial' | 'refresh') => {
     if (mode === 'refresh') setRefreshing(true);
@@ -172,33 +167,18 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
   useEffect(() => {
     load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
-  const send = async () => {
-    setFormError(null);
-    if (subject.trim().length < 4) {
-      setFormError('Give your message a short subject.');
-      return;
-    }
-    if (body.trim().length < 10) {
-      setFormError('Tell us what happened, so we can help without a round trip.');
-      return;
-    }
-
-    setBusy(true);
-    const res = await raiseSupportTicket({ subject: subject.trim(), category, message: body.trim() });
-    setBusy(false);
-
-    if (!res.ok) {
-      setFormError(res.message || 'Could not send your message.');
-      return;
-    }
-    setComposerOpen(false);
-    setSubject('');
-    setBody('');
-    setSent(true);
-    setTimeout(() => setSent(false), 4000);
-    load('initial');
-  };
+  if (chatOpen) {
+    return (
+      <View style={styles.screen}>
+        <TouchableOpacity style={styles.chatBack} onPress={() => setChatOpen(false)} hitSlop={10} accessibilityRole="button">
+          <Text style={styles.chatBackText}>‹ Help Centre</Text>
+        </TouchableOpacity>
+        <HelpChat onSent={() => load('refresh')} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -206,12 +186,6 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={c.brand} />}
       >
-        {sent && (
-          <View style={styles.sentNote}>
-            <Text style={styles.sentNoteText}>Sent. Our team replies within a few hours during trading time.</Text>
-          </View>
-        )}
-
         <Card>
           <View style={styles.head}>
             <LifeBuoy size={22} color={c.brand} />
@@ -220,7 +194,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
               <Text style={styles.headBody}>{restaurantName}</Text>
             </View>
           </View>
-          <Button label="Message support" onPress={() => setComposerOpen(true)} />
+          <Button label="Chat with Quick Bites" onPress={() => setChatOpen(true)} />
           <View style={styles.contactRow}>
             {!!contact.phone && (
               <TouchableOpacity style={styles.contact} onPress={() => Linking.openURL(`tel:${contact.phone}`)}>
@@ -237,33 +211,15 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
           </View>
         </Card>
 
-        <Card>
-          <SectionHeading title="Get help" sub="Pick a topic for a quick answer. Still stuck? Talk to us." />
-          <HelpChat onSent={() => load('refresh')} />
-        </Card>
-
-        {tickets.length > 0 && (
-          <Card>
-            <SectionHeading title="Your messages" />
-            {tickets.slice(0, 5).map(t => (
-              <View key={t.id} style={styles.ticketRow}>
-                <MessageSquare size={15} color={c.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.ticketSubject} numberOfLines={1}>
-                    {t.subject}
-                  </Text>
-                  <Text style={styles.ticketMeta}>
-                    {new Date(t.createdAt).toLocaleDateString('en-IN')}
-                    {t.replies?.length ? ` · ${t.replies.length} repl${t.replies.length === 1 ? 'y' : 'ies'}` : ''}
-                  </Text>
-                </View>
-                <Pill
-                  label={String(t.status).replace(/_/g, ' ')}
-                  tone={t.status === 'RESOLVED' ? 'success' : t.status === 'OPEN' ? 'warning' : 'muted'}
-                />
+        {tickets.some(t => ['OPEN', 'IN_PROGRESS'].includes(t.status)) && (
+          <TouchableOpacity onPress={() => setChatOpen(true)} activeOpacity={0.85}>
+            <Card>
+              <View style={styles.ticketRow}>
+                <MessageSquare size={15} color={c.brand} />
+                <Text style={[styles.ticketSubject, { flex: 1 }]}>You have a chat open with Quick Bites. Tap to continue.</Text>
               </View>
-            ))}
-          </Card>
+            </Card>
+          </TouchableOpacity>
         )}
 
         <SectionHeading title="Common questions" />
@@ -430,52 +386,13 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
         </Card>
       </ScrollView>
 
-      <Modal visible={composerOpen} transparent animationType="slide" onRequestClose={() => setComposerOpen(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>Message support</Text>
-
-              {!!formError && <ErrorNote message={formError} />}
-
-              <Text style={styles.catLabel}>What is this about?</Text>
-              <View style={styles.catWrap}>
-                {CATEGORIES.map(cat => (
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={[styles.cat, category === cat.key && styles.catActive]}
-                    onPress={() => setCategory(cat.key)}
-                  >
-                    <Text style={[styles.catText, category === cat.key && styles.catTextActive]}>{cat.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Field label="Subject" value={subject} onChangeText={setSubject} placeholder="Order QB-399998 never arrived" />
-              <Field
-                label="What happened?"
-                value={body}
-                onChangeText={setBody}
-                placeholder="Include the order number and anything the customer told you."
-                multiline
-              />
-
-              <Button label="Send" onPress={send} busy={busy} />
-              <Button
-                label="Cancel"
-                variant="ghost"
-                onPress={() => setComposerOpen(false)}
-                style={{ marginTop: spacing.md, marginBottom: spacing.xl }}
-              />
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  chatBack: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  chatBackText: { fontFamily: FONT_FAMILY, color: c.brand, fontWeight: '700', fontSize: 15 },
   deletionNote: { color: c.warning, fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
   deleteLink: { color: c.danger, fontWeight: '600' },
   deleteNote: { color: c.textSoft, marginBottom: spacing.md, lineHeight: 20 },

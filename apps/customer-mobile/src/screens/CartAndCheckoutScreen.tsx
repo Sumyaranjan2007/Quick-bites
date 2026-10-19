@@ -28,6 +28,7 @@ import { DEFAULT_API_URL } from '../config';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { useTranslation } from '../lib/i18n';
 import { useBlockHardwareBack } from '../lib/useHardwareBack';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * Suggested tips, and the ceiling the server also enforces.
@@ -99,6 +100,9 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
    */
   const [quote, setQuote] = useState<any | null>(null);
   const [quoting, setQuoting] = useState(false);
+  // Re-priced when the server changes anything (a fee, a dish price, the radius).
+  const [syncTick, setSyncTick] = useState(0);
+  useLiveSync(() => setSyncTick(n => n + 1));
   const { t } = useTranslation();
   const [quoteFailed, setQuoteFailed] = useState(false);
   const [selectedTip, setSelectedTip] = useState(0);
@@ -242,6 +246,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   useEffect(() => {
     loadAddresses();
   }, [apiUrl, token]);
+  useLiveSync(loadAddresses);
 
   const handleSaveAddress = async () => {
     if (!apiUrl || !token) return;
@@ -379,7 +384,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // tipAmount is in here because it changes the total. Leaving it out is the
     // bug where the tip appears on screen and is absent from the bill.
-  }, [cartSignature, appliedCoupon, selectedAddressId, restaurantId, apiUrl, token, distanceKm, tipAmount]);
+  }, [cartSignature, appliedCoupon, selectedAddressId, restaurantId, apiUrl, token, distanceKm, tipAmount, syncTick]);
 
   /**
    * Applying a coupon sets it as the code to quote with; the server decides

@@ -17,6 +17,7 @@ import { Card, SectionHeading, Pill, Button, Field, ErrorNote } from '../compone
 import { c, spacing, radii } from '../theme';
 import { chooseProfilePhoto } from '../lib/photo';
 import { OpeningHoursEditor, toWirePayload, type Week } from '../components/OpeningHoursEditor';
+import { useLiveSync } from '../lib/liveSync';
 import {
   fetchProfile,
   submitProfileChanges,
@@ -178,6 +179,7 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
   useEffect(() => {
     void load();
   }, [load]);
+  useLiveSync(() => load(true));
 
   const rules: ProfileRules | null = profile?.rules ?? null;
   const pendingFields = useMemo(

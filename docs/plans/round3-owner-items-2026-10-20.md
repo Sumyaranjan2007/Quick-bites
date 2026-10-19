@@ -205,15 +205,15 @@ server texts (PDFs keep "Rs"). Details: `docs/qa/TEST_REPORT-2026-10-19-build39.
 
 | # | Item | Phase | Status |
 |---|---|---|---|
-| 1 | Real-time updates everywhere, chats like WhatsApp | A | ⬜ |
-| 2 | Cancel only 2 min after accept, then support; partner told live | B | ⬜ |
-| 3 | No time before accept; cook + ride; late +N; riders at 10 min left; pickup pay | B | ⬜ |
+| 1 | Real-time updates everywhere, chats like WhatsApp | A | ✅ 20 Oct (in build 40) |
+| 2 | Cancel only 2 min after accept, then support; partner told live | B | ✅ 20 Oct (in build 40) |
+| 3 | No time before accept; cook + ride; late +N; riders at 10 min left; pickup pay | B | ✅ 20 Oct (in build 40) |
 | 4 | Keyboard covers fields; customer OTP | F | ⬜ |
 | 5 | Cart "Complete your meal" | G | ⬜ |
-| 6 | Help = chat + request history, resolve, admin sees who | C | ⬜ |
+| 6 | Help = chat + request history, resolve, admin sees who | C | ✅ 20 Oct (in build 40) |
 | 7 | Customer map follows rider live, re-route | E | ⬜ |
 | 8 | Tracking permissions, background-safe | E | ⬜ |
-| 9 | Admin-assigned trip alarm screen | D | ⬜ |
+| 9 | Admin-assigned trip alarm screen | D | ✅ 20 Oct (in build 40) |
 | 10 | Save address from home location | G | ⬜ |
 | 11 | First-visit address hero, radius by admins | G | ⬜ |
 | R2 | Round-2 leftovers | H | ⬜ |

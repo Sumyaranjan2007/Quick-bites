@@ -1,6 +1,7 @@
 import type { Order, RiderTripStage } from '@quick-bites/shared-types';
 import { memoryStore } from '../../db/client.ts';
 import { cashStanding } from '../payments/cashDeposits.ts';
+import { kitchenPrepMinutes } from './eta.ts';
 
 /*
  * ---------------------------------------------------------------------------
@@ -84,7 +85,10 @@ const OFFER_SEQUENCE = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'] as const;
  * configuration should dispatch conservatively, not stop dispatching and not
  * flood every rider in the city.
  */
-export function offerableNow(order: Pick<Order, 'status' | 'restaurantId'>): boolean {
+export function offerableNow(
+  order: Pick<Order, 'status' | 'restaurantId'> & Partial<Pick<Order, 'acceptedAt' | 'preparationMinutes' | 'items'>>,
+  now = Date.now()
+): boolean {
   const at = OFFER_SEQUENCE.indexOf(order.status as (typeof OFFER_SEQUENCE)[number]);
   if (at === -1) return false; // Not yet cooking, or already collected.
 
@@ -92,7 +96,25 @@ export function offerableNow(order: Pick<Order, 'status' | 'restaurantId'>): boo
   const configured = OFFER_SEQUENCE.indexOf(restaurant?.riderOfferAtStatus);
   const threshold = configured === -1 ? OFFER_SEQUENCE.indexOf('READY_FOR_PICKUP') : configured;
 
-  return at >= threshold;
+  if (at >= threshold) return true;
+  // Owner, 20 Oct 2026: riders are called with 10 minutes of cooking left, so they
+  // reach the kitchen as the food is ready (at once when the cook time is shorter).
+  return cookingMinutesLeft(order, now) <= OFFER_AT_MINUTES_LEFT;
+}
+
+/** Riders are offered the trip at this many minutes of cooking left (owner, 20 Oct 2026). */
+export const OFFER_AT_MINUTES_LEFT = 10;
+
+/** Minutes of the kitchen's own cooking time still to run; Infinity before it accepts. */
+export function cookingMinutesLeft(
+  order: Pick<Order, 'restaurantId'> & Partial<Pick<Order, 'acceptedAt' | 'preparationMinutes' | 'items'>>,
+  now = Date.now()
+): number {
+  const accepted = Date.parse(order.acceptedAt || '');
+  if (!Number.isFinite(accepted)) return Infinity;
+  const items = (order.items || []).reduce((n, i: any) => n + (Number(i.quantity) || 1), 0);
+  const cook = Number(order.preparationMinutes) || kitchenPrepMinutes(order.restaurantId, items);
+  return cook - (now - accepted) / 60_000;
 }
 
 /** Carrying the food. */

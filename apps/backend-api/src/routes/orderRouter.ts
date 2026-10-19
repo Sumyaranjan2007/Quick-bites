@@ -104,7 +104,12 @@ orderRouter.get('/:id/cancellation-quote', authMiddleware('customer'), async (re
       success: true,
       data: {
         ...quote,
-        canCancel: canTransition(order.status, 'CANCELLED') && !CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status)
+        canCancel:
+          canTransition(order.status, 'CANCELLED') &&
+          !CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status) &&
+          !(customerCancelUntil(order) && Date.now() > Date.parse(customerCancelUntil(order)!)),
+        /** When the in-app cancel closes (2 min after the kitchen accepts); null before it accepts. */
+        cancelUntil: customerCancelUntil(order)
       },
       meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
     });
@@ -510,6 +515,11 @@ const StatusTransitionSchema = z.object({
 const KITCHEN_MAY_SET = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'CANCELLED'];
 const KITCHEN_MAY_CANCEL_FROM = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'];
 const CUSTOMER_CANNOT_CANCEL_FROM = ['HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'];
+/** After the kitchen accepts, the customer may cancel in the app for 2 minutes; then only support can (owner, 20 Oct). */
+export const CUSTOMER_CANCEL_AFTER_ACCEPT_MS = 2 * 60_000;
+/** When the in-app cancel closes, or null while the kitchen has not accepted. */
+const customerCancelUntil = (order: { acceptedAt?: string }) =>
+  order.acceptedAt ? new Date(Date.parse(order.acceptedAt) + CUSTOMER_CANCEL_AFTER_ACCEPT_MS).toISOString() : null;
 
 async function assertMayTransition(req: any, orderId: string, nextStatus: string) {
   const order = await orderRepository.findById(orderId);
@@ -585,6 +595,14 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
       'Your food is already on its way, so this order can no longer be cancelled in the app. Contact support if something is wrong.',
       409,
       'CUSTOMER_CANNOT_CANCEL_NOW'
+    );
+  }
+  const until = customerCancelUntil(order);
+  if (until && Date.now() > Date.parse(until)) {
+    throw new AppError(
+      'The restaurant is already cooking your order, so it can no longer be cancelled in the app. Ask support to cancel it from Help.',
+      409,
+      'CUSTOMER_CANCEL_WINDOW_OVER'
     );
   }
 }

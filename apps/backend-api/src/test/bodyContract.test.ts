@@ -111,7 +111,11 @@ it('every route left without a body schema reads no body (S13)', () => {
     // Owner, 2 Oct 2026: completing or cancelling a deletion request.
     'POST /api/admin/deletion-requests/:userId/complete', 'POST /api/admin/deletion-requests/:userId/cancel',
     // 17 Oct 2026: the Confirm button on an emailed link (the token is in the path).
-    'POST /api/auth/confirm/:token'
+    'POST /api/auth/confirm/:token',
+    // 20 Oct 2026: "My issue is solved" in the help chat (round 3).
+    'POST /api/support/tickets/:id/resolve',
+    // 20 Oct 2026: the rider opened a trip Operations gave them (assigned-trip alarm).
+    'POST /api/riders/orders/:id/acknowledge'
   ]);
   const unexpected = server.unvalidatedAt
     .map(r => r.replace('/api/v1/', '/api/'))

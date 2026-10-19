@@ -437,6 +437,10 @@ export function replySupportTicket(id: string, body: string) {
   return request<{ ticket: any }>(`/support/tickets/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }, 'Your message could not be sent.');
 }
 
+export function resolveSupportTicket(id: string) {
+  return request<{ ticket: any }>(`/support/tickets/${id}/resolve`, { method: 'POST' }, 'That did not go through. Try again.');
+}
+
 // ---------------------------------------------------------------------------
 // Password and profile
 //

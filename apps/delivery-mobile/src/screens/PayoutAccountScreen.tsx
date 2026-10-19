@@ -5,6 +5,7 @@ import { Landmark, ShieldCheck, ShieldAlert, Clock, Smartphone, Info } from 'luc
 import { t } from '../theme';
 import { Card, SectionTitle, Pill, Button, EmptyState, LoadingBlock, Divider } from '../components/ui';
 import { api, type ApiContext, type PayeeAccount, type PayeeAccountsResponse } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * Where this rider's earnings are sent.
@@ -92,6 +93,7 @@ export const PayoutAccountScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   useEffect(() => {
     void load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
   const live = data?.accounts.find(a => a.isDefault) || data?.accounts[0] || null;
 

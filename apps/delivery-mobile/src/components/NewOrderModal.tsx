@@ -97,6 +97,7 @@ export const NewOrderModal: React.FC<{
                 <IndianRupee size={26} color={t.color.money} strokeWidth={2.5} />
                 <Text style={s.payValue}>{trip.estimatedEarnings.toFixed(0)}</Text>
               </View>
+              {!!trip.pickupPay && <Text style={s.payLabel}>incl. {rupees(trip.pickupPay)} pickup pay</Text>}
             </View>
             <View style={s.payDivider} />
             <View style={s.payBlock}>
@@ -116,7 +117,9 @@ export const NewOrderModal: React.FC<{
                 <Store size={14} color="#3A2708" />
               </View>
               <View style={s.stopText}>
-                <Text style={s.stopLabel}>Pick up from</Text>
+                <Text style={s.stopLabel}>
+                  Pick up from{typeof trip.toKitchenKm === 'number' ? ` · ${distance(trip.toKitchenKm)} from you` : ''}
+                </Text>
                 <Text style={s.stopName}>{trip.restaurantName}</Text>
                 <Text style={s.stopAddress} numberOfLines={2}>
                   {trip.pickupAddress}
@@ -131,7 +134,7 @@ export const NewOrderModal: React.FC<{
                 <MapPin size={14} color="#04231A" />
               </View>
               <View style={s.stopText}>
-                <Text style={s.stopLabel}>Deliver to</Text>
+                <Text style={s.stopLabel}>Deliver to · {distance(trip.distanceKm)} from the restaurant</Text>
                 <Text style={s.stopName}>{trip.customerName || 'Customer'}</Text>
                 <Text style={s.stopAddress} numberOfLines={2}>
                   {trip.dropAddress}

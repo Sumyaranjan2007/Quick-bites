@@ -6,12 +6,16 @@ import { t } from '../theme';
 import { Card, Divider, EmptyState, LoadingBlock, ProgressBar, SectionTitle, Stars } from '../components/ui';
 import { dayAndTime } from '../lib/format';
 import { api, type ApiContext, type RatingsResponse } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 /** What customers thought of the rider, and what they wrote. */
 export const RatingsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const [data, setData] = useState<RatingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [syncTick, setSyncTick] = useState(0);
+  useLiveSync(() => setSyncTick(n => n + 1));
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +27,7 @@ export const RatingsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
     return () => {
       cancelled = true;
     };
-  }, [ctx.apiUrl, ctx.token]);
+  }, [ctx.apiUrl, ctx.token, syncTick]);
 
   if (loading) return <LoadingBlock label="Loading your ratings…" />;
   if (error) return <EmptyState title="Could not load ratings" message={error} />;

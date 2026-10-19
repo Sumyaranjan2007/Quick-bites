@@ -66,6 +66,18 @@ export const supportRepository = {
     return ticket;
   },
 
+  /** The person says their issue is solved (round 3): the chat moves to their history. */
+  async resolveByRaiser(id: string): Promise<SupportTicket | null> {
+    const ticket = memoryStore.supportTickets.get(id) as SupportTicket | undefined;
+    if (!ticket) return null;
+    ticket.status = 'RESOLVED';
+    ticket.updatedAt = ticket.resolvedAt = new Date().toISOString();
+    ticket.resolvedBy = 'USER';
+    memoryStore.supportTickets.set(id, ticket);
+    triggerAutoSave();
+    return ticket;
+  },
+
   async setStatus(
     id: string,
     status: SupportTicketStatus,
@@ -76,7 +88,10 @@ export const supportRepository = {
     ticket.status = status;
     ticket.updatedAt = new Date().toISOString();
     ticket.assignedToUserId = actor.userId;
-    if (status === 'RESOLVED' || status === 'CLOSED') ticket.resolvedAt = ticket.updatedAt;
+    if (status === 'RESOLVED' || status === 'CLOSED') {
+      ticket.resolvedAt = ticket.updatedAt;
+      ticket.resolvedBy = 'STAFF';
+    }
     memoryStore.supportTickets.set(id, ticket);
     triggerAutoSave();
     return ticket;

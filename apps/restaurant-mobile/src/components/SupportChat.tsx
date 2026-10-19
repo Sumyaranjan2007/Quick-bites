@@ -1,20 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
- * Help as a real chat (owner, 19 Oct 2026). The person types; a ready answer
+ * Help as a real chat (owner, 19-20 Oct 2026). The person types; a ready answer
  * that matches is sent back at once; still stuck, "Talk to a person" opens a
- * ticket and Operations answers in this same thread (polled every 6 s), and both
- * keep writing. The same file in the Customer, Partner and Rider apps: each app
- * passes its own API calls and colours.
+ * ticket and Operations answers in this same thread, live (the server's `sync`
+ * reloads it the moment staff write). "My issue is solved" (or staff resolving it)
+ * moves the chat to History and starts a fresh one. The same file in the
+ * Customer, Partner and Rider apps: each app passes its own API calls and colours.
  */
 export type Topic = { id: string; label: string; category: string };
 export type Ticket = {
   id: string;
   status: string;
+  subject?: string;
   message: string;
   raisedByUserId: string;
   createdAt: string;
+  updatedAt?: string;
   replies: Array<{ byUserId: string; byName: string; body: string; at: string }>;
 };
 export interface ChatApi {
@@ -25,6 +29,8 @@ export interface ChatApi {
   ticket(id: string): Promise<Ticket>;
   raise(body: { subject: string; category: string; message: string; helpTopics: string[]; platform: 'android' | 'ios' | 'web' }): Promise<Ticket>;
   reply(id: string, body: string): Promise<Ticket>;
+  /** The person says their issue is solved: the chat moves to History. */
+  resolve(id: string): Promise<Ticket>;
 }
 export interface ChatColours {
   brand: string;
@@ -36,16 +42,39 @@ export interface ChatColours {
   danger: string;
 }
 
-type Line = { from: 'me' | 'bot' | 'staff'; text: string };
+type Line = { from: 'me' | 'bot' | 'staff'; text: string; at?: string; sending?: boolean };
 const OPEN = ['OPEN', 'IN_PROGRESS'];
 const RESUME_MS = 7 * 24 * 3_600_000;
+const CONNECTED = 'You are talking to the Quick Bites team. Write here and we will reply in this chat.';
 
-export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: string }> = ({ api, colours: c, font }) => {
+const clock = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'am' : 'pm'}`;
+};
+const day = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** A ticket's thread as chat lines: the first message and every reply, mine or staff's. */
+const threadOf = (t: Ticket): Line[] => [
+  { from: 'me', text: t.message, at: t.createdAt },
+  ...t.replies.map(r => ({ from: r.byUserId === t.raisedByUserId ? 'me' : 'staff', text: r.body, at: r.at }) as Line)
+];
+
+export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: string; historyFooter?: React.ReactNode }> = ({
+  api,
+  colours: c,
+  font,
+  historyFooter
+}) => {
+  const [tab, setTab] = useState<'chat' | 'history'>('chat');
   const [lines, setLines] = useState<Line[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [greeting, setGreeting] = useState('');
   const [asked, setAsked] = useState<Topic[]>([]);
   const [typed, setTyped] = useState<string[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [mine, setMine] = useState<Ticket[]>([]);
+  const [reading, setReading] = useState<Ticket | null>(null);
   const [offerPerson, setOfferPerson] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,25 +82,23 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   const scroll = useRef<ScrollView>(null);
   const s = styles(c, font);
 
-  const say = (line: Line) => setLines(prev => [...prev, line]);
+  const say = (line: Line) => setLines(prev => [...prev, { at: new Date().toISOString(), ...line }]);
+  const fresh = (hello = greeting) => [{ from: 'bot', text: `${hello} Type your question, or pick one below.` } as Line];
 
-  // A ticket's thread as chat lines: the first message and every reply, mine or staff's.
-  const threadOf = (t: Ticket): Line[] => [
-    { from: 'me', text: t.message },
-    ...t.replies.map(r => ({ from: r.byUserId === t.raisedByUserId ? 'me' : 'staff', text: r.body }) as Line)
-  ];
-
+  // Opens on the person's chat still in progress, if any; otherwise a fresh one.
   useEffect(() => {
     (async () => {
       try {
-        const [help, mine] = await Promise.all([api.help(), api.tickets().catch(() => [] as Ticket[])]);
+        const [help, list] = await Promise.all([api.help(), api.tickets().catch(() => [] as Ticket[])]);
         setTopics(help.topics);
-        const open = mine.find(t => OPEN.includes(t.status) && Date.now() - Date.parse(t.createdAt) < RESUME_MS);
+        setGreeting(help.greeting);
+        setMine(list);
+        const open = list.find(t => OPEN.includes(t.status) && Date.now() - Date.parse(t.createdAt) < RESUME_MS);
         if (open) {
           setTicket(open);
-          setLines([{ from: 'bot', text: 'You are talking to the Quick Bites team. Write here and we will reply in this chat.' }, ...threadOf(open)]);
+          setLines([{ from: 'bot', text: CONNECTED }, ...threadOf(open)]);
         } else {
-          setLines([{ from: 'bot', text: `${help.greeting} Type your question, or pick one below.` }]);
+          setLines(fresh(help.greeting));
         }
       } catch {
         setError('Help could not be loaded. Check your connection.');
@@ -80,19 +107,37 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // While connected to a person, their replies arrive here.
+  /** The chat ends (solved by the person or by staff): it goes to History and a new one starts. */
+  const endChat = (closed: Ticket, note: string) => {
+    setTicket(null);
+    setAsked([]);
+    setTyped([]);
+    setOfferPerson(false);
+    setMine(prev => [closed, ...prev.filter(t => t.id !== closed.id)]);
+    setLines([...fresh(), { from: 'bot', text: note }]);
+  };
+
+  // Staff replies and decisions arrive live: the server's `sync` re-reads the open chat at once.
+  const refresh = async () => {
+    if (!ticket) return;
+    try {
+      const latest = await api.ticket(ticket.id);
+      if (!OPEN.includes(latest.status)) {
+        endChat(latest, 'Quick Bites marked your request as solved. It is in History. Write here any time to start a new chat.');
+        return;
+      }
+      if (latest.replies.length === ticket.replies.length) return;
+      setTicket(latest);
+      setLines([{ from: 'bot', text: CONNECTED }, ...threadOf(latest)]);
+    } catch {
+      /* kept as it is; the next change or the fallback below retries */
+    }
+  };
+  useLiveSync(refresh);
+  // Fallback for networks that block the live channel.
   useEffect(() => {
     if (!ticket) return;
-    const timer = setInterval(() => {
-      api
-        .ticket(ticket.id)
-        .then(fresh => {
-          if (fresh.replies.length === ticket.replies.length) return;
-          setTicket(fresh);
-          setLines(prev => [...prev.filter(l => l.from === 'bot').slice(0, 1), ...threadOf(fresh)]);
-        })
-        .catch(() => undefined);
-    }, 6000);
+    const timer = setInterval(() => void refresh(), 15_000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket?.id, ticket?.replies.length]);
@@ -130,10 +175,19 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
     const words = text.trim();
     if (!words || busy) return;
     setText('');
-    say({ from: 'me', text: words });
+    // Shown at once, like any messenger; ticked when the server has it.
+    say({ from: 'me', text: words, sending: Boolean(ticket) });
     void run(async () => {
       if (ticket) {
-        setTicket(await api.reply(ticket.id, words));
+        try {
+          const saved = await api.reply(ticket.id, words);
+          setTicket(saved);
+          setLines([{ from: 'bot', text: CONNECTED }, ...threadOf(saved)]);
+        } catch (err) {
+          setLines(prev => prev.filter(l => !(l.sending && l.text === words)));
+          setText(words);
+          throw err;
+        }
         return;
       }
       setTyped(prev => [...prev, words]);
@@ -157,15 +211,94 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
       setOfferPerson(true);
     });
 
+  const solved = () =>
+    run(async () => {
+      if (!ticket) return;
+      const closed = await api.resolve(ticket.id);
+      endChat(closed, 'Glad it is sorted. This chat is in History.');
+    });
+
+  const history = mine.filter(t => !OPEN.includes(t.status));
+
+  const bubble = (line: Line, i: number) => (
+    <View key={i} style={[s.bubble, line.from === 'me' ? s.mine : s.theirs]}>
+      {line.from === 'staff' ? <Text style={s.who}>Quick Bites team</Text> : null}
+      <Text style={line.from === 'me' ? s.mineText : s.theirsText}>{line.text}</Text>
+      {line.at ? (
+        <Text style={[s.meta, line.from === 'me' && { color: 'rgba(255,255,255,0.8)' }]}>
+          {clock(line.at)}
+          {line.from === 'me' && ticket ? (line.sending ? '  ·  sending' : '  ✓') : ''}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const tabs = (
+    <View style={s.tabs}>
+      {(['chat', 'history'] as const).map(key => (
+        <TouchableOpacity
+          key={key}
+          style={[s.tab, tab === key && s.tabOn]}
+          onPress={() => {
+            setTab(key);
+            setReading(null);
+          }}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === key }}
+        >
+          <Text style={[s.tabText, tab === key && s.tabTextOn]}>
+            {key === 'chat' ? 'Chat' : `Request history${history.length ? ` (${history.length})` : ''}`}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  if (tab === 'history') {
+    return (
+      <View style={s.root}>
+        {tabs}
+        {reading ? (
+          <ScrollView contentContainerStyle={s.thread}>
+            <TouchableOpacity onPress={() => setReading(null)} hitSlop={10}>
+              <Text style={s.back}>‹ All requests</Text>
+            </TouchableOpacity>
+            <Text style={s.histTitle}>{reading.subject || reading.message.slice(0, 60)}</Text>
+            <Text style={s.histSub}>
+              {day(reading.createdAt)} · {reading.status === 'CLOSED' ? 'Closed' : 'Solved'}
+            </Text>
+            {threadOf(reading).map(bubble)}
+          </ScrollView>
+        ) : (
+          <ScrollView contentContainerStyle={s.thread}>
+            {history.length === 0 ? <Text style={s.histSub}>Solved requests appear here.</Text> : null}
+            {history.map(t => (
+              <TouchableOpacity key={t.id} style={s.histRow} onPress={() => setReading(t)} accessibilityRole="button">
+                <Text style={s.histTitle} numberOfLines={1}>
+                  {t.subject || t.message.slice(0, 60)}
+                </Text>
+                <Text style={s.histSub}>
+                  {day(t.updatedAt || t.createdAt)} · {t.status === 'CLOSED' ? 'Closed' : 'Solved'} · {t.replies.length + 1} messages
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {historyFooter}
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
+
   return (
-    <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
-      <ScrollView ref={scroll} contentContainerStyle={s.thread} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
-        {lines.map((line, i) => (
-          <View key={i} style={[s.bubble, line.from === 'me' ? s.mine : s.theirs]}>
-            {line.from === 'staff' ? <Text style={s.who}>Quick Bites team</Text> : null}
-            <Text style={line.from === 'me' ? s.mineText : s.theirsText}>{line.text}</Text>
-          </View>
-        ))}
+    <KeyboardAvoidingView style={s.root} behavior="padding" keyboardVerticalOffset={80}>
+      {tabs}
+      <ScrollView
+        ref={scroll}
+        contentContainerStyle={s.thread}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
+      >
+        {lines.map(bubble)}
         {offerPerson && !ticket ? (
           <View style={s.row}>
             <TouchableOpacity style={s.chip} onPress={() => setOfferPerson(false)}>
@@ -173,6 +306,13 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
             </TouchableOpacity>
             <TouchableOpacity style={[s.chip, s.chipStrong]} onPress={() => void run(() => connect())}>
               <Text style={[s.chipText, { color: '#FFFFFF' }]}>Talk to a person</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {ticket ? (
+          <View style={s.row}>
+            <TouchableOpacity style={s.chip} onPress={() => void solved()} disabled={busy}>
+              <Text style={s.chipText}>My issue is solved</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -208,18 +348,28 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
 const styles = (c: ChatColours, font?: string) =>
   StyleSheet.create({
     root: { flex: 1 },
+    tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tabOn: { borderBottomColor: c.brand },
+    tabText: { fontFamily: font, fontSize: 14, fontWeight: '600', color: c.muted },
+    tabTextOn: { color: c.brand },
     thread: { padding: 16, paddingBottom: 24, gap: 8 },
-    bubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 16, maxWidth: '85%' },
+    bubble: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 16, maxWidth: '85%' },
     mine: { alignSelf: 'flex-end', backgroundColor: c.brand, borderBottomRightRadius: 4 },
     theirs: { alignSelf: 'flex-start', backgroundColor: c.brandSoft, borderBottomLeftRadius: 4 },
     who: { fontFamily: font, fontSize: 11, fontWeight: '700', color: c.brand, marginBottom: 2 },
     mineText: { fontFamily: font, color: '#FFFFFF', fontSize: 15, lineHeight: 21 },
     theirsText: { fontFamily: font, color: c.text, fontSize: 15, lineHeight: 21 },
+    meta: { fontFamily: font, fontSize: 10, color: c.muted, alignSelf: 'flex-end', marginTop: 2 },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-    chip: { borderWidth: 1, borderColor: c.brand, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 13, backgroundColor: c.card },
+    chip: { borderWidth: 1, borderColor: c.brand, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: c.card, minHeight: 36 },
     chipStrong: { backgroundColor: c.brand },
     chipText: { fontFamily: font, color: c.brand, fontWeight: '600', fontSize: 13 },
     error: { fontFamily: font, color: c.danger, marginTop: 6 },
+    back: { fontFamily: font, color: c.brand, fontWeight: '700', fontSize: 14, marginBottom: 8 },
+    histRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    histTitle: { fontFamily: font, color: c.text, fontWeight: '700', fontSize: 15 },
+    histSub: { fontFamily: font, color: c.muted, fontSize: 12, marginTop: 2 },
     inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card },
     input: {
       flex: 1,

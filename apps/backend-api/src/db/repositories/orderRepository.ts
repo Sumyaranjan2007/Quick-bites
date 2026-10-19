@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import { memoryStore, triggerAutoSave, calculateDistanceKm } from '../client.ts';
 import type { Coordinates, Order, OrderStatus, RiderTripStage } from '@quick-bites/shared-types';
 import { isAwaitingPickup, isCarrying, offerableNow } from '../../modules/orders/riderTrip.ts';
+import { promiseAtAcceptance } from '../../modules/orders/eta.ts';
 
 /*
  * WHAT DELIVERY IS ALLOWED TO CONCLUDE ABOUT THE MONEY.
@@ -121,6 +122,8 @@ export const orderRepository = {
     // customer's arrival time further away the closer the food got to ready.
     if ((status === 'ACCEPTED' || status === 'PREPARING') && !order.acceptedAt) {
       order.acceptedAt = new Date().toISOString();
+      // The customer's clock starts here: cooking time + ride (owner, 20 Oct).
+      order.promisedArrivalAt = promiseAtAcceptance(order, Date.parse(order.acceptedAt));
     }
     // Stamped once, and never cleared. Assigning a rider overwrites `status`,
     // so this is the only durable record that the kitchen finished - and it is

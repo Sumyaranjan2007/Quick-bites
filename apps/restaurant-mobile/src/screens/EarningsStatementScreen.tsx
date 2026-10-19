@@ -14,6 +14,7 @@ import {
   type PolicyView
 } from '../lib/partnerApi';
 import { downloadInvoice } from '../lib/invoice';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * What this kitchen earned, order by order, and when it arrives.
@@ -242,6 +243,7 @@ export const EarningsStatementScreen: React.FC = () => {
   useEffect(() => {
     void load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
   // Fetched rather than bundled, so a revision reaches a kitchen the next time
   // they open this screen instead of the next time they update the app.

@@ -410,6 +410,14 @@ export const api = {
     return request<{ ticket: any }>(ctx, `/support/tickets/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) });
   },
 
+  acknowledgeTrip(ctx: ApiContext, orderId: string) {
+    return request<{ order: Trip }>(ctx, `/riders/orders/${orderId}/acknowledge`, { method: 'POST' });
+  },
+
+  resolveSupportTicket(ctx: ApiContext, id: string) {
+    return request<{ ticket: any }>(ctx, `/support/tickets/${id}/resolve`, { method: 'POST' });
+  },
+
   /** Opens a refund/return case, e.g. a rider reporting a spilled order. */
   raiseRefundRequest(
     ctx: ApiContext,
@@ -556,8 +564,14 @@ export interface Trip {
   itemCount: number;
   items: Array<{ name: string; quantity: number }>;
   estimatedEarnings: number;
+  /** Road km from the rider to the restaurant, on an offer (round 3). */
+  toKitchenKm?: number | null;
+  /** Pickup pay inside estimatedEarnings when the rider is over 7 km away. */
+  pickupPay?: number;
   /** Support gave you this trip after pickup: collect the bag here, from the other rider. */
   handoverNote?: string;
+  /** Operations gave this trip and the rider has not opened it yet (assigned-trip alarm). */
+  assignedByOperations?: boolean;
   paymentMode: 'COD' | 'PREPAID';
   cashToCollect: number;
   orderTotal: number;

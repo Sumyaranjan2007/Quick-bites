@@ -3,30 +3,24 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
   Linking,
-  Alert,
-  ActivityIndicator
+  Alert
 } from 'react-native';
-import { Modal } from '../components/Modal';
 import {
   ArrowLeft,
   Phone,
   Mail,
   MessageCircle,
-  MessageSquarePlus,
-  ChevronRight,
-  ShieldCheck,
-  X
+  ShieldCheck
 } from 'lucide-react-native';
 import { tokens, iosLargeTitle } from '../theme/tokens';
-import { Card, KeyboardLift } from '../components/ui';
+import { Card } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
-import { parseApiError } from '../lib/apiErrors';
 import { useTranslation } from '../lib/i18n';
+import { useLiveSync } from '../lib/liveSync';
 
 const c = tokens.colors;
 
@@ -75,30 +69,11 @@ interface Props {
 }
 
 /** Must match the server's TicketSchema enum exactly — an unknown value is a 400. */
-const CATEGORIES = [
-  { key: 'ORDER', label: 'An order' },
-  { key: 'DELIVERY', label: 'Delivery' },
-  { key: 'PAYMENT', label: 'Payment' },
-  { key: 'RESTAURANT', label: 'The restaurant' },
-  { key: 'ACCOUNT', label: 'My account' },
-  { key: 'OTHER', label: 'Something else' }
-];
-
 export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, token }) => {
   const { t } = useTranslation();
 
-  // Tickets the customer has raised, and the replies support left on them. The
-  // phone and email routes below still exist; this is the one that reaches an
-  // administrator's queue directly rather than an inbox.
-  const [tickets, setTickets] = useState<any[]>([]);
+  // Refund requests the customer has raised (the chat itself lives in HelpChat).
   const [cases, setCases] = useState<any[]>([]);
-  const [loadingTickets, setLoadingTickets] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [subject, setSubject] = useState('');
-  const [category, setCategory] = useState('ORDER');
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [composerError, setComposerError] = useState<string | null>(null);
 
   const authed = Boolean(apiUrl && token);
 
@@ -130,62 +105,19 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
 
   const loadTickets = useCallback(async () => {
     if (!authed) return;
-    setLoadingTickets(true);
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const [ticketRes, caseRes] = await Promise.all([
-        apiFetch(`${apiUrl}/support/tickets`, { headers }),
-        apiFetch(`${apiUrl}/support/refund-requests`, { headers })
-      ]);
-      const ticketData = await ticketRes.json().catch(() => ({}));
-      const caseData = await caseRes.json().catch(() => ({}));
-      if (ticketData?.success) setTickets(ticketData.data?.tickets || []);
-      if (caseData?.success) setCases(caseData.data?.requests || []);
+      const res = await apiFetch(`${apiUrl}/support/refund-requests`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (data?.success) setCases(data.data?.requests || []);
     } catch {
-      // The contact routes below still work offline, so a failed fetch here
-      // leaves the screen usable rather than replacing it with an error.
-    } finally {
-      setLoadingTickets(false);
+      // The chat and the contact buttons still work offline.
     }
   }, [apiUrl, token, authed]);
 
   useEffect(() => {
     void loadTickets();
   }, [loadTickets]);
-
-  const sendTicket = async () => {
-    setComposerError(null);
-    if (subject.trim().length < 3) {
-      setComposerError('Give your message a short subject.');
-      return;
-    }
-    if (message.trim().length < 10) {
-      setComposerError('Tell us what happened, so support can act on it.');
-      return;
-    }
-    setSending(true);
-    try {
-      const res = await apiFetch(`${apiUrl}/support/tickets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ subject: subject.trim(), category, message: message.trim() })
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        setComposerError(parseApiError(data, 'Your message could not be sent.').message);
-        return;
-      }
-      setSubject('');
-      setMessage('');
-      setComposerOpen(false);
-      await loadTickets();
-      Alert.alert('Message sent', 'Our support team has your request and will reply here.');
-    } catch {
-      setComposerError('Could not reach Quick Bites. Check your connection and try again.');
-    } finally {
-      setSending(false);
-    }
-  };
+  useLiveSync(loadTickets);
 
   const open = async (url: string, fallback: string) => {
     try {
@@ -229,102 +161,12 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
     }
   ].filter(Boolean) as Array<{ icon: React.ReactNode; title: string; sub: string; onPress: () => void }>;
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <TouchableOpacity hitSlop={10} style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
-          <ArrowLeft size={18} color={c.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('support.title')}</Text>
-      </View>
-
-      <Card style={styles.hero}>
-        <Text style={styles.heroTitle}>We're here to help</Text>
-        <Text style={styles.heroSub}>{t('support.hours')}</Text>
-      </Card>
-
-      {/* Help chat (B8): quick answers first, then a person with the chat attached. */}
-      {!!token && (
+  // Refund requests sit under History, beside the solved chats (owner, 20 Oct).
+  const refunds =
+    cases.length > 0 ? (
+      <View style={{ marginTop: 16 }}>
+        <Text style={styles.sectionLabel}>Your refund requests</Text>
         <Card style={styles.block}>
-          <HelpChat apiUrl={apiUrl} token={token} onSent={() => void loadTickets()} />
-        </Card>
-      )}
-
-      <Card style={styles.block}>
-        {rows.length === 0 && (
-          <Text style={styles.rowSub}>
-            {contactFailed
-              ? 'Our contact details could not be loaded. Raise a request below and the support desk will reply.'
-              : 'Loading our contact details…'}
-          </Text>
-        )}
-        {rows.map((row, i) => (
-          <TouchableOpacity
-            key={row.title}
-            style={[styles.row, i < rows.length - 1 && styles.rowDivider]}
-            onPress={row.onPress}
-            activeOpacity={0.75}
-          >
-            <View style={styles.rowIcon}>{row.icon}</View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{row.title}</Text>
-              <Text style={styles.rowSub}>{row.sub}</Text>
-            </View>
-            <ChevronRight size={17} color={c.text.muted} />
-          </TouchableOpacity>
-        ))}
-      </Card>
-
-      {authed && (
-        <>
-          <Text style={styles.sectionLabel}>Message support</Text>
-          <Card style={styles.block}>
-            <TouchableOpacity style={styles.row} onPress={() => setComposerOpen(true)} activeOpacity={0.75}>
-              <View style={styles.rowIcon}>
-                <MessageSquarePlus size={18} color={c.primary[500]} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>Raise a request</Text>
-                <Text style={styles.rowSub}>Goes straight to the Quick Bites support desk</Text>
-              </View>
-              <ChevronRight size={17} color={c.text.muted} />
-            </TouchableOpacity>
-
-            {loadingTickets && tickets.length === 0 ? (
-              <View style={styles.ticketLoading}>
-                <ActivityIndicator color={c.primary[500]} />
-              </View>
-            ) : null}
-
-            {tickets.map(ticket => (
-              <View key={ticket.id} style={styles.ticket}>
-                <View style={styles.ticketHead}>
-                  <Text style={styles.ticketSubject} numberOfLines={1}>
-                    {ticket.subject}
-                  </Text>
-                  <Text style={[styles.ticketStatus, ticket.status === 'RESOLVED' && styles.ticketStatusDone]}>
-                    {String(ticket.status).replace(/_/g, ' ').toLowerCase()}
-                  </Text>
-                </View>
-                <Text style={styles.ticketBody} numberOfLines={2}>
-                  {ticket.message}
-                </Text>
-                {(ticket.replies || []).map((reply: any, index: number) => (
-                  <View key={index} style={styles.reply}>
-                    <Text style={styles.replyWho}>{reply.byName}</Text>
-                    <Text style={styles.replyBody}>{reply.body}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
-          </Card>
-        </>
-      )}
-
-      {cases.length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>Your refund requests</Text>
-          <Card style={styles.block}>
             {cases.map(request => (
               <View key={request.id} style={styles.ticket}>
                 <View style={styles.ticketHead}>
@@ -352,104 +194,84 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
                 </Text>
               </View>
             ))}
-          </Card>
-        </>
-      )}
+        </Card>
+      </View>
+    ) : null;
 
-      <Text style={styles.sectionLabel}>Common requests</Text>
-      <Card style={styles.block}>
-        <Text style={styles.faqQ}>My order is late</Text>
-        <Text style={styles.faqA}>
-          Open the order from Order history and use Call or Chat to reach your delivery partner directly.
-        </Text>
-        <View style={styles.faqDivider} />
-        <Text style={styles.faqQ}>Something was missing or wrong</Text>
-        <Text style={styles.faqA}>
-          Call customer care with your order number. An approved refund goes back the way you paid: to your
-          card or UPI app, which your bank takes 3 to 7 working days to show, or by a link you claim with any
-          UPI id if you paid cash.
-        </Text>
-        <View style={styles.faqDivider} />
-        <Text style={styles.faqQ}>I want my account deleted</Text>
-        <Text style={styles.faqA}>
-          Open Profile and tap “Delete my account” at the bottom. We remove your profile and addresses and detach
-          your name from past orders.
-        </Text>
-      </Card>
-
-      <View style={styles.trust}>
-        <ShieldCheck size={15} color={c.text.muted} />
-        <Text style={styles.trustText}>Quick Bites never asks for your password, card PIN or OTP.</Text>
+  // Help is one chat, like the Rider app's (owner, 20 Oct): no separate "Raise a request".
+  return (
+    <View style={styles.screen}>
+      <View style={[styles.header, { paddingHorizontal: 16 }]}>
+        <TouchableOpacity hitSlop={10} style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+          <ArrowLeft size={18} color={c.text.primary} />
+        </TouchableOpacity>
+        <Text style={styles.title}>{t('support.title')}</Text>
       </View>
 
-      <Modal visible={composerOpen} transparent animationType="slide" onRequestClose={() => setComposerOpen(false)}>
-        <KeyboardLift>
-          <View style={styles.backdrop}>
-            <View style={styles.sheet}>
-              <View style={styles.sheetHead}>
-                <Text style={styles.sheetTitle}>Raise a request</Text>
-                <TouchableOpacity hitSlop={10} onPress={() => setComposerOpen(false)} activeOpacity={0.8}>
-                  <X size={19} color={c.text.secondary} />
-                </TouchableOpacity>
-              </View>
+      {rows.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contactRow}>
+          {rows.map(row => (
+            <TouchableOpacity key={row.title} style={styles.contactChip} onPress={row.onPress} activeOpacity={0.75} accessibilityRole="button">
+              {row.icon}
+              <Text style={styles.contactText}>{row.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={styles.label}>What is this about?</Text>
-                <View style={styles.categoryWrap}>
-                  {CATEGORIES.map(cat => (
-                    <TouchableOpacity
-                      key={cat.key}
-                      style={[styles.category, category === cat.key && styles.categoryActive]}
-                      onPress={() => setCategory(cat.key)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.categoryText, category === cat.key && styles.categoryTextActive]}>
-                        {cat.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+      {authed ? (
+        <View style={{ flex: 1 }}>
+          <HelpChat apiUrl={apiUrl} token={token} onSent={() => void loadTickets()} historyFooter={refunds} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.sectionLabel}>Common requests</Text>
+          <Card style={styles.block}>
+            <Text style={styles.faqQ}>My order is late</Text>
+            <Text style={styles.faqA}>
+              Open the order from Order history and use Call or Chat to reach your delivery partner directly.
+            </Text>
+            <View style={styles.faqDivider} />
+            <Text style={styles.faqQ}>Something was missing or wrong</Text>
+            <Text style={styles.faqA}>
+              Call customer care with your order number. An approved refund goes back the way you paid: to your
+              card or UPI app, which your bank takes 3 to 7 working days to show, or by a link you claim with any
+              UPI id if you paid cash.
+            </Text>
+            <View style={styles.faqDivider} />
+            <Text style={styles.faqQ}>I want my account deleted</Text>
+            <Text style={styles.faqA}>
+              Open Profile and tap “Delete my account” at the bottom. We remove your profile and addresses and detach
+              your name from past orders.
+            </Text>
+          </Card>
 
-                <Text style={styles.label}>Subject</Text>
-                <TextInput
-                  style={styles.input}
-                  value={subject}
-                  onChangeText={setSubject}
-                  placeholder="Order arrived cold"
-                  placeholderTextColor={c.text.muted}
-                />
-
-                <Text style={styles.label}>What happened?</Text>
-                <TextInput
-                  style={[styles.input, styles.inputMultiline]}
-                  value={message}
-                  onChangeText={setMessage}
-                  placeholder="Tell us what went wrong and what you would like us to do."
-                  placeholderTextColor={c.text.muted}
-                  multiline
-                  textAlignVertical="top"
-                />
-
-                {!!composerError && <Text style={styles.error}>{composerError}</Text>}
-
-                <TouchableOpacity
-                  style={[styles.primaryBtn, sending && { opacity: 0.5 }]}
-                  onPress={sendTicket}
-                  disabled={sending}
-                  activeOpacity={0.88}
-                >
-                  {sending ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Send to support</Text>}
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
+          <View style={styles.trust}>
+            <ShieldCheck size={15} color={c.text.muted} />
+            <Text style={styles.trustText}>Quick Bites never asks for your password, card PIN or OTP.</Text>
           </View>
-        </KeyboardLift>
-      </Modal>
-    </ScrollView>
+
+        </ScrollView>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  contactRow: { paddingHorizontal: 16, paddingBottom: 10, gap: 8 },
+  contactChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minHeight: 40,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: c.border.subtle,
+    backgroundColor: c.surface.card
+  },
+  contactText: { fontFamily: tokens.font.family, fontSize: 13, fontWeight: '600', color: c.text.primary },
   ticketLoading: { paddingVertical: 18, alignItems: 'center' },
   ticket: { borderTopWidth: 1, borderTopColor: c.border.subtle, paddingVertical: 12 },
   ticketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

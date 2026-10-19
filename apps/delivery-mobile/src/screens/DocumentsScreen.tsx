@@ -17,6 +17,7 @@ import { Button, Card, EmptyState, LoadingBlock, Pill, SectionTitle } from '../c
 import { dayAndTime } from '../lib/format';
 import { choosePhoto } from '../lib/photo';
 import { api, type ApiContext, type DocumentRequirement } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * Document verification, start to finish.
@@ -55,6 +56,7 @@ export const DocumentsScreen: React.FC<{ ctx: ApiContext; onChanged: () => void 
   useEffect(() => {
     load();
   }, [load]);
+  useLiveSync(load);
 
   const refresh = async () => {
     setRefreshing(true);

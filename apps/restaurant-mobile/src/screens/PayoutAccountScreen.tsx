@@ -5,6 +5,7 @@ import { Landmark, ShieldCheck, ShieldAlert, Clock, Smartphone, Info } from 'luc
 import { SafeScreen } from '../components/SafeScreen';
 import { Card, SectionHeading, Pill, Button, Field, ErrorNote, EmptyState } from '../components/ui';
 import { c, spacing, radii } from '../theme';
+import { useLiveSync } from '../lib/liveSync';
 import {
   fetchPayeeAccounts,
   addPayeeAccount,
@@ -105,6 +106,7 @@ export const PayoutAccountScreen: React.FC = () => {
   useEffect(() => {
     void load(true);
   }, [load]);
+  useLiveSync(() => load(false));
 
   const live = accounts.find(a => a.isDefault) || accounts[0] || null;
 

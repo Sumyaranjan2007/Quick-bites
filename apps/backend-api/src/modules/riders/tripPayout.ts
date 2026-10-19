@@ -1,5 +1,7 @@
 import { getActiveRates } from '../payments/pricingConfig.ts';
 import { riderPayFor } from '@quick-bites/pricing-engine';
+import type { Coordinates, Order } from '@quick-bites/shared-types';
+import { roadDistance, estimateByRoad } from '../places/routingService.ts';
 
 /**
  * What the rider earns for a trip, EXCLUDING the tip.
@@ -43,4 +45,40 @@ export function tripTakeHome(order: {
 }): number {
   const pay = typeof order.riderPayout === 'number' ? order.riderPayout : calculateTripPayout(order);
   return Math.round((pay + Math.max(0, Number(order.bill?.tipAmount) || 0)) * 100) / 100;
+}
+
+/**
+ * Pickup pay (owner, 20 Oct 2026): a rider more than `riderPickupPayFromKm` (7) road
+ * km from the kitchen when they take the trip is paid ALL of that distance x
+ * `riderPickupPerKmFee` (Rs 6): 10 km away = Rs 60, 7 km = Rs 0. Paid by Quick Bites:
+ * it is added to the rider's share, which comes out of the platform's, never the bill.
+ */
+export function pickupPayFor(pickupKm: number, rates = getActiveRates()): number {
+  const from = Number(rates.riderPickupPayFromKm);
+  const perKm = Number(rates.riderPickupPerKmFee);
+  if (!(pickupKm > from) || !(perKm > 0)) return 0;
+  return Math.round(pickupKm * perKm * 100) / 100;
+}
+
+/**
+ * What the rider is paid for this trip, to freeze on the order when they take it:
+ * trip pay (kitchen -> door) + pickup pay (where they are -> kitchen, by road).
+ * Does not touch the order: the caller stores it once the trip is really theirs.
+ */
+export async function riderPayWithPickup(
+  order: Order,
+  riderAt?: Coordinates | null
+): Promise<{ riderPayout: number; riderPickupKm: number; riderPickupPay: number }> {
+  const kitchen = order.restaurantCoordinates;
+  let km = 0;
+  if (riderAt && kitchen) {
+    try {
+      km = (await roadDistance(riderAt, kitchen)).distanceKm;
+    } catch {
+      km = estimateByRoad(riderAt, kitchen).distanceKm;
+    }
+  }
+  const riderPickupKm = Math.round(km * 100) / 100;
+  const riderPickupPay = pickupPayFor(riderPickupKm);
+  return { riderPayout: Math.round((calculateTripPayout(order) + riderPickupPay) * 100) / 100, riderPickupKm, riderPickupPay };
 }

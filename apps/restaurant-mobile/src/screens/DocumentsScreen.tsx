@@ -16,6 +16,7 @@ import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote } from '../components/ui';
 import { fetchDocuments, uploadDocument } from '../lib/partnerApi';
 import { chooseDocumentPhoto } from '../lib/photo';
+import { useLiveSync } from '../lib/liveSync';
 
 interface Props {
   restaurantId: string;
@@ -74,6 +75,7 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
   useEffect(() => {
     load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
   const open = (slot: any) => {
     setTarget(slot);

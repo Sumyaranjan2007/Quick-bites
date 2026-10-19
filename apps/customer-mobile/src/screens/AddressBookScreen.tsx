@@ -17,6 +17,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { AddressSearchField, type ResolvedPlace } from '../components/AddressSearchField';
 import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
+import { useLiveSync } from '../lib/liveSync';
 
 const c = tokens.colors;
 
@@ -79,6 +80,7 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
   useEffect(() => {
     load();
   }, [load]);
+  useLiveSync(load);
 
   const openNew = () => {
     setEditingId(null);

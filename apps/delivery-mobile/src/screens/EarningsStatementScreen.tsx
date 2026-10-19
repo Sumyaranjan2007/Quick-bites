@@ -4,6 +4,7 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } 
 import { ReceiptText, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { t } from '../theme';
 import { Card, SectionTitle, Pill, Button, EmptyState, LoadingBlock } from '../components/ui';
+import { useLiveSync } from '../lib/liveSync';
 import {
   earningsApi,
   type ApiContext,
@@ -137,6 +138,7 @@ export const EarningsStatementScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) 
   useEffect(() => {
     void load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
   if (loading) return <LoadingBlock label="Working out your statement…" />;
 

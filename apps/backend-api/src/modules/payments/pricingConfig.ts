@@ -96,6 +96,8 @@ export const RATE_BOUNDS: RateBound[] = [
   { key: 'riderFarPerKmFee', label: 'Rider pay per km, far trips', help: 'Beyond the full-rate distance the per-km rate slides down to this, reached at the far distance below. Set it equal to the full rate for one flat rate.', unit: 'RUPEES', min: 0, max: 200, affectsCustomerBill: false },
   { key: 'riderFarRateKm', label: 'Far rate reached at', help: 'Trip length (road km) at which the far per-km rate applies; longer trips stay at it.', unit: 'KM', min: 1, max: 200, affectsCustomerBill: false },
   { key: 'riderMinEarningPerTrip', label: 'Rider minimum per trip', help: 'No trip pays the rider less than this, however short.', unit: 'RUPEES', min: 0, max: 1000, affectsCustomerBill: false },
+  { key: 'riderPickupPayFromKm', label: 'Pickup pay above', help: 'A rider further than this many road km from the restaurant when taking the trip is paid for ALL of that ride (owner, 20 Oct 2026).', unit: 'KM', min: 0, max: 100, affectsCustomerBill: false },
+  { key: 'riderPickupPerKmFee', label: 'Pickup pay per km', help: 'Pickup km x this, paid by Quick Bites. Never on the customer bill.', unit: 'RUPEES', min: 0, max: 100, affectsCustomerBill: false },
   {
     key: 'riderDeliveryMarkupPercent',
     label: 'Delivery markup',

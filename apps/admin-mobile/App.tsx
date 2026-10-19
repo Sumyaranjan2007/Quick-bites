@@ -54,6 +54,7 @@ import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 import * as Notifications from 'expo-notifications';
 import { prepareAdminChannels } from './src/lib/adminChannels';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { startLiveSync } from './src/lib/liveSync';
 
 const c = tokens.colors;
 
@@ -315,6 +316,7 @@ const Console: React.FC = () => {
   // make the socket a liability rather than a feature.
   const counts = useResource(() => api.get<any>('/admin/live'), [], { enabled: Boolean(token) });
 
+  useEffect(() => startLiveSync(apiUrl, token), [apiUrl, token]);
   const { connected } = useLiveUpdates(token ? { kind: 'admin' } : null, apiUrl, token, () => {
     void counts.silentReload();
   });

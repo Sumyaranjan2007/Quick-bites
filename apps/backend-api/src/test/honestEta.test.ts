@@ -15,9 +15,10 @@ import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
-import { estimateArrival, kitchenPrepMinutes } from '../modules/orders/eta.ts';
+import { estimateArrival, kitchenPrepMinutes, promiseAtAcceptance } from '../modules/orders/eta.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
 import { orderService } from '../modules/orders/orderService.ts';
+import { orderRepository } from '../db/repositories/orderRepository.ts';
 
 const PORT = 5282;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -93,22 +94,26 @@ try {
   };
   const placed = estimateArrival({ ...base, status: 'ORDER_PLACED' });
   const travel = (5 / config.DELIVERY_SPEED_KMPH) * 60 + config.DELIVERY_HANDLING_MINUTES;
-  it('Before the kitchen accepts, the estimate uses that kitchen\'s 19.5 min', () =>
-    assert.equal(placed.minutesRemaining, Math.ceil(19.5 + travel)));
+  it('Before the kitchen accepts, no time at all (owner, 20 Oct)', () => {
+    assert.equal(placed.minutesRemaining, null);
+    assert.equal(placed.basis, 'AWAITING_ACCEPT');
+  });
 
-  console.log('\n-- The rider\'s ride to the kitchen');
+  console.log('\n-- From acceptance: cook time + ride restaurant -> customer');
   const rider: any = Array.from(memoryStore.riders.values())[0];
   rider.currentCoordinates = { latitude: kitchenAt.latitude + 0.27, longitude: kitchenAt.longitude }; // ~30 km away
-  const cooking = { ...base, status: 'PREPARING', acceptedAt: new Date().toISOString(), preparationMinutes: 10, riderId: rider.id };
+  const acceptedAt = Date.now();
+  const cooking: any = { ...base, status: 'PREPARING', acceptedAt: new Date(acceptedAt).toISOString(), preparationMinutes: 10, riderId: rider.id };
+  cooking.promisedArrivalAt = promiseAtAcceptance(cooking, acceptedAt);
+  const atAccept = estimateArrival(cooking, new Date(acceptedAt));
+  it('The promise is cook 10 + ride, and a far rider does not add to it', () =>
+    assert.equal(atAccept.minutesRemaining, Math.ceil(10 + travel)));
+  const sixLater = estimateArrival(cooking, new Date(acceptedAt + 6 * 60_000));
+  it('It counts down as the food cooks', () => assert.equal(sixLater.minutesRemaining, Math.ceil(10 + travel) - 6));
+  const overdue = estimateArrival(cooking, new Date(acceptedAt + (Math.ceil(10 + travel) + 3) * 60_000));
+  it('Past the promise: +3 min late', () => assert.equal(overdue.lateMinutes, 3));
+  it('On time: not late', () => assert.equal(sixLater.lateMinutes, 0));
   const farRide = (30 / config.DELIVERY_SPEED_KMPH) * 60;
-  const withFarRider = estimateArrival(cooking);
-  it('While cooking, a rider further away than the cooking time sets the wait', () =>
-    assert.ok(Math.abs(withFarRider.minutesRemaining! - Math.ceil(farRide + travel)) <= 1, `${withFarRider.minutesRemaining} vs ${Math.ceil(farRide + travel)}`));
-  rider.currentCoordinates = { ...kitchenAt };
-  const withNearRider = estimateArrival(cooking);
-  it('...and a rider at the kitchen leaves the cooking time in charge', () =>
-    assert.equal(withNearRider.minutesRemaining, Math.ceil(10 + travel)));
-  rider.currentCoordinates = { latitude: kitchenAt.latitude + 0.27, longitude: kitchenAt.longitude };
   const readyWaiting = estimateArrival({ ...base, status: 'READY_FOR_PICKUP', riderId: rider.id });
   it('Food ready: the wait is the rider reaching the kitchen', () =>
     assert.ok(Math.abs(readyWaiting.minutesRemaining! - Math.ceil(farRide + travel)) <= 1, String(readyWaiting.minutesRemaining)));
@@ -126,7 +131,7 @@ try {
     assert.equal(nearDoor.promisedAt, promise);
     assert.equal(nearDoor.ahead, true);
   });
-  const justInTime = estimateArrival({ ...base, status: 'ORDER_PLACED', promisedArrivalAt: new Date(Date.now() + (Math.ceil(19.5 + travel) + 2) * 60_000).toISOString() });
+  const justInTime = estimateArrival({ ...base, status: 'READY_FOR_PICKUP', riderId: undefined, promisedArrivalAt: new Date(Date.now() + (Math.ceil(config.DELIVERY_HANDLING_MINUTES + travel) + 2) * 60_000).toISOString() });
   it('Only 2 min early is not "ahead" (needs 3)', () => assert.equal(justInTime.ahead, false));
 
   const customer = (await api('/auth/login', { method: 'POST', body: { email: 'customer@quickbite.app', password: 'pass123' } })).json?.data?.token;
@@ -137,24 +142,16 @@ try {
     body: { restaurantId: KITCHEN, deliveryAddressId: 'addr_sample_01', items: [{ dishId: 'dish_ck_biryani', quantity: 1, selectedOptions: [] }], paymentMethod: 'RAZORPAY_SANDBOX', idempotencyKey: crypto.randomUUID() }
   }, customer);
   const stored: any = memoryStore.orders.get(placedOrder.json?.data?.order?.id ?? placedOrder.json?.data?.id);
-  it('Checkout freezes the promised arrival on the order', () => {
-    assert.ok(stored?.promisedArrivalAt, `status ${placedOrder.status}`);
-    assert.ok(Date.parse(stored.promisedArrivalAt) > Date.now());
+  it('Checkout makes no promise: the kitchen has not accepted', () =>
+    assert.equal(stored?.promisedArrivalAt, undefined, `status ${placedOrder.status}`));
+  await orderRepository.updateStatus(stored.id, 'ACCEPTED', 25);
+  const promised = stored.promisedArrivalAt;
+  it('Accepting with 25 min sets the promise: accepted + 25 + ride', () => {
+    const minutes = (Date.parse(promised) - Date.parse(stored.acceptedAt)) / 60_000;
+    assert.ok(minutes >= 25 && minutes < 25 + 60, String(minutes));
   });
-  const later = estimateArrival({ ...stored, status: 'ACCEPTED', acceptedAt: new Date().toISOString(), preparationMinutes: 45 });
-  it('...and a later estimate does not move the promise', () => assert.equal(later.promisedAt, stored.promisedArrivalAt));
-
-  // Review S5: an online order paid minutes after checkout gets its promise from the payment.
-  const paidLate = [...memoryStore.orders.values()].find((o: any) => o.restaurantId === KITCHEN) as any;
-  const late = {
-    ...structuredClone(paidLate), id: 'ord_s5_check', status: 'PAYMENT_PENDING', paymentStatus: 'PENDING', paymentMethod: 'ONLINE',
-    riderId: undefined, razorpayPaymentId: undefined, acceptedAt: undefined, createdAt: new Date().toISOString(),
-    restaurantCoordinates: { latitude: 12.68, longitude: 77.47 }, deliveryCoordinates: { latitude: 12.7, longitude: 77.48 }, promisedArrivalAt: new Date(Date.now() - 3_600_000).toISOString()
-  };
-  memoryStore.orders.set(late.id, late);
-  await orderService.markPaidByGateway(late.id, { razorpayPaymentId: 'pay_s5_check' });
-  it('S5: the promise is set when the payment lands, not at checkout', () =>
-    assert.ok(Date.parse((memoryStore.orders.get(late.id) as any).promisedArrivalAt) > Date.now(), (memoryStore.orders.get(late.id) as any).promisedArrivalAt));
+  await orderRepository.updateStatus(stored.id, 'PREPARING', 45);
+  it('...and a later status does not move it', () => assert.equal(stored.promisedArrivalAt, promised));
 } finally {
   // Wait for the close: exiting while it is in flight crashes Node on Windows (UV_HANDLE_CLOSING).
   await new Promise(r => server.close(() => r(null)));

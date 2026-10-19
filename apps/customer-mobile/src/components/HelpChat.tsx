@@ -10,7 +10,7 @@ const c = tokens.colors;
  * Help as a real chat (owner, 19 Oct 2026): `SupportChat` with the Customer
  * app's calls and colours.
  */
-export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () => void }> = ({ apiUrl, token, onSent }) => {
+export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () => void; historyFooter?: React.ReactNode }> = ({ apiUrl, token, onSent, historyFooter }) => {
   const api = useMemo<ChatApi>(() => {
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
     const data = async (res: Response) => {
@@ -43,14 +43,17 @@ export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () =
         return made;
       },
       reply: async (id, body) =>
-        (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/reply`, { method: 'POST', headers, body: JSON.stringify({ body }) }))).ticket
+        (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/reply`, { method: 'POST', headers, body: JSON.stringify({ body }) }))).ticket,
+      resolve: async id =>
+        (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/resolve`, { method: 'POST', headers }))).ticket
     };
   }, [apiUrl, token, onSent]);
 
   return (
-    <View style={{ height: 480 }}>
+    <View style={{ flex: 1 }}>
       <SupportChat
         api={api}
+        historyFooter={historyFooter}
         font={tokens.font.family}
         colours={{
           brand: c.primary[500],

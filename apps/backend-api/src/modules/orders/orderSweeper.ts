@@ -48,6 +48,7 @@ import { memoryStore, triggerAutoSave } from '../../db/client.ts';
 import { config } from '../../config/env.ts';
 import { isEnabled } from '../platform/featureFlags.ts';
 import type { Order } from '@quick-bites/shared-types';
+import { OFFER_AT_MINUTES_LEFT, cookingMinutesLeft } from './riderTrip.ts';
 
 /**
  * The actor recorded against an automated cancellation.
@@ -193,9 +194,14 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
     // From here down: accepted, being cooked, or cooked — and no rider.
     if (order.riderId) continue;
 
-    // Counted from acceptance rather than from when the order was placed: the
-    // clock on finding a rider starts when there is something to collect.
-    const waiting = minutesSince(order.acceptedAt || order.createdAt, now);
+    // Counted from when riders could first be offered it (10 min of cooking left, or
+    // Ready, whichever came first), not from acceptance: otherwise a 25-minute dish
+    // alerts operations before a single rider has been asked (owner, 20 Oct).
+    const waiting = Math.max(
+      0,
+      order.readyAt ? minutesSince(order.readyAt, now) : 0,
+      OFFER_AT_MINUTES_LEFT - cookingMinutesLeft(order, now.getTime())
+    );
 
     /*
      * ONE RIDER AT A TIME (owner Q6, 18 Oct 2026; master plan B4).

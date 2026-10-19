@@ -5,6 +5,7 @@ import { Banknote, TriangleAlert, CircleCheck, Clock, Building2, Ban } from 'luc
 import { t } from '../theme';
 import { Card, SectionTitle, Pill, Button, EmptyState, LoadingBlock, ProgressBar, Divider } from '../components/ui';
 import { cashApi, type ApiContext, type CashStandingView, type CashDepositView } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * The cash a rider is carrying, and getting it off them.
@@ -90,6 +91,7 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   useEffect(() => {
     void load('initial');
   }, [load]);
+  useLiveSync(() => load('initial'));
 
   /*
    * The field is pre-filled with everything they are holding.

@@ -17,6 +17,7 @@ import { Card, KeyboardLift } from '../components/ui';
 import { apiFetch } from '../lib/apiFetch';
 import { InvoiceSheet } from '../components/InvoiceSheet';
 import { useTranslation } from '../lib/i18n';
+import { useLiveSync } from '../lib/liveSync';
 
 const c = tokens.colors;
 
@@ -194,6 +195,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
   useEffect(() => {
     load();
   }, [load]);
+  useLiveSync(load);
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -23,6 +23,7 @@ import { useTranslation } from '../lib/i18n';
 import { VoiceSearchSheet } from '../components/VoiceSearchSheet';
 import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 import { apiFetch } from '../lib/apiFetch';
+import { useLiveSync } from '../lib/liveSync';
 
 const c = tokens.colors;
 
@@ -343,6 +344,11 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     })();
     loadFavourites();
   }, [apiUrl, token]);
+  useLiveSync(async () => {
+    await loadLocality();
+    load();
+    loadFavourites();
+  });
 
   // Re-fetch when a filter or the sort CHANGES. Deliberately not merged with the
   // effect above: that one also reloads favourites and the delivery locality,

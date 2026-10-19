@@ -7,6 +7,7 @@ import { Card, Divider, EmptyState, LoadingBlock, Pill, SectionTitle, StatTile }
 import { dayAndTime, distance, rupees, rupeesShort } from '../lib/format';
 import type { ApiContext, TripsResponse } from '../lib/api';
 import { api } from '../lib/api';
+import { useLiveSync } from '../lib/liveSync';
 
 /**
  * The week in trips.
@@ -21,9 +22,12 @@ export const WeeklyTripsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [syncTick, setSyncTick] = useState(0);
+  useLiveSync(() => setSyncTick(n => n + 1));
+
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (!data) setLoading(true); // a live re-read keeps the list on screen
     api
       .trips(ctx, range)
       .then(result => {
@@ -37,7 +41,7 @@ export const WeeklyTripsScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
     return () => {
       cancelled = true;
     };
-  }, [range, ctx.apiUrl, ctx.token]);
+  }, [range, ctx.apiUrl, ctx.token, syncTick]);
 
   if (loading && !data) return <LoadingBlock label="Loading your trips…" />;
   if (error && !data) {

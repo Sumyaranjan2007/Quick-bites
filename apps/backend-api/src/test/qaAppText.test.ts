@@ -148,7 +148,7 @@ console.log('\n-- v9 QA round 1: app-side fixes');
 it('V9-18 A cancelled order is not shown as delivered, and shows no arrival time', () => {
   const t = code('customer-mobile/src/screens/OrderTrackingScreen.tsx');
   assert.ok(t.includes('>ORDER CANCELLED<') && t.includes("'Order cancelled'"), 'no cancelled state');
-  assert.ok(/const etaMinutes: number \| null = isClosed\s*\? null/.test(t), 'a closed order can still show an ETA');
+  assert.ok(/const hasClock = !isClosed && /.test(t), 'a closed order can still show an ETA');
   assert.ok(t.includes("'Nothing to pay'"), 'a cancelled unpaid order still says "To pay in cash"');
 });
 it('V9-17 The rider app reloads its figures on returning to the front and on opening Home/Earnings', () => {

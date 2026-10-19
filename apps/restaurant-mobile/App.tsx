@@ -26,6 +26,7 @@ import {
   prepareOrderAlerts,
   releaseOrderAlerts,
   stopOrderAlert,
+  startOrderAlert,
   announceOrder
 } from './src/lib/orderAlert';
 import { SignInScreen } from './src/screens/SignInScreen';
@@ -46,6 +47,7 @@ import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/
 
 import { DEFAULT_API_URL } from './src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { startLiveSync, useLiveSync } from './src/lib/liveSync';
 
 type Tab =
   | 'dashboard'
@@ -166,10 +168,12 @@ function PartnerApp() {
   /** Incremented on every live event, so screens can refresh without remounting. */
   const [refreshSignal, setRefreshSignal] = useState(0);
 
-  const loadProfile = useCallback(async (ownerId: string) => {
-    setLoadingProfile(true);
+  const loadProfile = useCallback(async (ownerId: string, quiet = false) => {
+    if (!quiet) setLoadingProfile(true);
     const res = await fetchOwnedRestaurant(ownerId);
     setLoadingProfile(false);
+    // A background re-read that fails keeps what is on screen (a tunnel is not "no kitchen").
+    if (quiet && !res.ok) return;
 
     if (!res.ok || !res.data?.restaurant) {
       // No restaurant linked is a real state, not an error to hide: a newly
@@ -273,12 +277,30 @@ function PartnerApp() {
    * fallback — which still matters on the mobile networks where websockets are
    * blocked — cannot ring for the same order a second time.
    */
+  // Anything the server changes for this kitchen (approval, an admin edit, a payout) shows at once (round 3).
+  useEffect(() => startLiveSync(currentApiUrl(), token), [token]);
+  useLiveSync(() => {
+    setRefreshSignal(n => n + 1);
+    if (user?.id) void loadProfile(user.id, true);
+  });
+
   const { connected } = useLiveUpdates(
     token && restaurant?.id ? { kind: 'restaurant', restaurantId: restaurant.id } : null,
     currentApiUrl(),
     token,
     (event, payload) => {
       setRefreshSignal(n => n + 1);
+
+      // Cancelled by the customer or by support while this kitchen may be cooking: ring and say so (round 3).
+      if (event === 'order:status_update' && payload?.status === 'CANCELLED' && payload?.cancelledByRole !== 'restaurant_owner') {
+        if (soundEnabledRef.current) void startOrderAlert();
+        Alert.alert(
+          `Order #${payload.orderNumber || ''} cancelled`,
+          'This order was cancelled. Stop preparing it if you have started.',
+          [{ text: 'OK', onPress: () => void stopOrderAlert() }]
+        );
+        return;
+      }
 
       if (event !== 'order:created') return;
       const order = payload?.order;

@@ -126,6 +126,7 @@ const TicketSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
   const resource = useResource(() => api.get<any>(`/admin/support/tickets/${id}`), [id], { enabled: Boolean(id) });
   const ticket = resource.data?.ticket;
   const order = resource.data?.order;
+  const raiser = resource.data?.raiser;
   const canManage = can('support.tickets.manage');
 
   const send = async () => {
@@ -185,7 +186,13 @@ const TicketSheet: React.FC<{ id: string | null; onClose: () => void; onChanged:
             <KeyValue label="Category" value={humanise(ticket.category)} />
             <KeyValue label="Raised by" value={`${ticket.raisedByName} (${humanise(ticket.raisedByRole)})`} />
             <KeyValue label="Contact" value={ticket.contactPhone} />
+            {raiser?.kitchens?.length ? <KeyValue label="Kitchen" value={raiser.kitchens.join(', ')} /> : null}
+            {raiser?.riderCode ? <KeyValue label="Rider" value={raiser.riderCode} /> : null}
+            <KeyValue label="Earlier requests" value={String(raiser?.earlierRequests ?? 0)} />
             <KeyValue label="Raised" value={formatDateTime(ticket.createdAt)} />
+            {ticket.resolvedBy ? (
+              <KeyValue label="Closed by" value={ticket.resolvedBy === 'USER' ? 'The person (marked solved)' : 'Operations'} />
+            ) : null}
           </Card>
 
           {order ? (

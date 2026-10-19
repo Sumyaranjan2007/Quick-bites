@@ -716,10 +716,10 @@ class FcmNotificationDispatcher {
       userId: riderUserId,
       orderId,
       orderNumber,
-      title: 'Support gave you a trip',
+      title: `Operations assigned you order #${orderNumber}`,
       body: handoverNote
-        ? `Order #${orderNumber}: collect the bag from the other rider. ${handoverNote}`
-        : `Order #${orderNumber} is now yours. Open the app to start.`,
+        ? `This trip is yours: collect the bag from the other rider. ${handoverNote}`
+        : 'This trip is yours and must be done. Open the app to start it now.',
       data: { type: 'RIDER_TRIP_GIVEN', orderId, orderNumber },
       androidChannelId: CHANNEL.RIDER
     });
