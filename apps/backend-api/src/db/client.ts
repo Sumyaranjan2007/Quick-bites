@@ -148,6 +148,10 @@ export interface DbStore {
    */
   pendingRoleConfirmations: Map<string, any>;
   /** Bookkeeping about the snapshot itself, e.g. which seed revision produced it. */
+  /** AI dish pictures, one per dish name + veg/non-veg, reused across kitchens (owner, 20 Oct 2026). */
+  dishImages: Map<string, any>;
+  /** Picture jobs for a whole menu or a kitchen's requests; saved per step so they resume. */
+  imageJobs: Map<string, any>;
   meta: Map<string, any>;
 }
 
@@ -184,6 +188,8 @@ export const memoryStore: DbStore = {
   profileEdits: new Map(),
   deviceTokens: new Map(),
   pendingRoleConfirmations: new Map(),
+  dishImages: new Map(),
+  imageJobs: new Map(),
   meta: new Map()
 };
 

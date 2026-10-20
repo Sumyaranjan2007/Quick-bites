@@ -37,6 +37,8 @@ server). Local values: root `.env` (gitignored); names in `.env.example`. Most a
 | `FCM_SERVICE_ACCOUNT_JSON` | `config/env.ts:378` | no Android push |
 | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`, `APNS_HOST` | `config/env.ts:386-390` | no iPhone push (set 13 Oct) |
 | `GROQ_API_KEY`, `GROQ_MODEL` | `config/env.ts:355-356` | no menu-from-photo; key was shared in a chat: rotate |
+| `GEMINI_API_KEYS` (comma-separated; `GEMINI_API_KEY` also read), `GEMINI_IMAGE_MODEL` | `config/env.ts` | no AI dish pictures in Operations ("not set up"); a key at its limit is skipped for an hour and the next is used |
+| `ADMIN_WEB_PATH` | `config/env.ts`, `routes/webApps.ts` | unset: the Operations website is at `/admin`; set: only at `/<value>`, and `/admin` is a 404. Keep it long and random, never in git |
 | `EXOTEL_SID`, `EXOTEL_API_KEY`, `EXOTEL_API_TOKEN`, `EXOTEL_CALLER_ID` | `config/env.ts:404-408` | no masked calling (optional) |
 | `TEST_RIDER_EMAIL`, `TEST_RIDER_PASSWORD`, `TEST_RIDER_NAME`, `TEST_RIDER_PHONE` | `db/ensureTestRider.ts:27-47` | opt-in: no test rider provisioned |
 | `QB_DATA_DIR`, `QB_WEB_DIR` | `db/client.ts:28`, `routes/webApps.ts:18` | local data folder / websites folder overrides |

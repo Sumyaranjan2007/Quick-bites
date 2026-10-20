@@ -22,6 +22,7 @@ import { startPaymentsHealthCheck, stopPaymentsHealthCheck } from './modules/pay
 import { startAdminDigest, stopAdminDigest } from './notifications/adminDigest.ts';
 import { backfillIncentiveAwards } from './modules/payments/incentives.ts';
 import { backfillLegacySettlements } from './modules/payments/legacySettlements.ts';
+import { resumeRunningImageJobs } from './modules/menu/dishImages.ts';
 
 // Choose where state is persisted before anything reads or writes it.
 //
@@ -116,6 +117,8 @@ applyRiderPerKmDecision();
 applyOwnerDecisions20261002();
 applyOwnerDecisions20261018();
 applyOwnerDecisions20261020();
+// Picture jobs that were running when the server stopped carry on (AI dish pictures).
+resumeRunningImageJobs();
 
 // Boot writes whatever hydration, migrations and the bootstrap changed, in
 // full: some of it happens before change tracking can see it.

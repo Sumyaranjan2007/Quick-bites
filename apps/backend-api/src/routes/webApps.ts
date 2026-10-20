@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config } from '../config/env.ts';
 
 /**
  * The Partner and Admin apps in a web browser, at /partner and /admin.
@@ -79,7 +80,26 @@ for (const name of ['admin', 'partner']) {
   // far more confusingly than one that is simply not found.
   webApps.get([`/${name}`, `/${name}/*`], (req, res, next) => {
     if (path.extname(req.path) || !fs.existsSync(index)) return next();
+    // With a secret address set, the console page is not at /admin at all (owner, 20 Oct 2026).
+    if (name === 'admin' && config.ADMIN_WEB_PATH) return next();
     res.setHeader('Cache-Control', 'no-cache');
+    if (name === 'admin') res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.sendFile(index);
+  });
+}
+
+/*
+ * THE OPERATIONS WEBSITE AT A SECRET ADDRESS (owner, 20 Oct 2026): `ADMIN_WEB_PATH` on Railway, e.g.
+ * a long random word; the page answers only at /<it> and never on the public website's domain. Its code
+ * bundle stays at /admin/_expo/... (public code, like the apps). Sign-in still guards everything.
+ */
+if (config.ADMIN_WEB_PATH) {
+  const index = path.join(WEB_ROOT, 'admin', 'index.html');
+  webApps.get([`/${config.ADMIN_WEB_PATH}`, `/${config.ADMIN_WEB_PATH}/*`], (req, res, next) => {
+    if (isPublicSiteHost(req.headers.host) || path.extname(req.path) || !fs.existsSync(index)) return next();
+    res.setHeader('Content-Security-Policy', CSP);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.sendFile(index);
   });
 }

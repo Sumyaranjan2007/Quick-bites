@@ -40,6 +40,7 @@ const SUITES = [
   'pickupPay',
   'orderClock',
   'helpHistory',
+  'aiImages',
   'db',
   'orders',
   'search',

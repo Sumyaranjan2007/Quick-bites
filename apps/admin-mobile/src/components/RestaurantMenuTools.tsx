@@ -22,6 +22,7 @@ import { Card, Button, Sheet, Loading, EmptyState, ResourceError } from './ui';
 import { tokens, formatMoney } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { AiPicturesJob } from './AiPicturesJob';
 
 const c = tokens.colors;
 
@@ -197,6 +198,7 @@ export const RestaurantMenuSheet: React.FC<{
         }
       >
         <ResourceError resource={resource} what="This menu" />
+        {restaurantId && canEdit && menu ? <AiPicturesJob restaurantId={restaurantId} scope="MENU" /> : null}
         {resource.loading && !resource.data ? <Loading /> : null}
 
         {menu
@@ -263,6 +265,7 @@ export const RestaurantMenuSheet: React.FC<{
           sectionName={editing.section}
           dish={editing.dish}
           pickDishPhoto={pickDishPhoto}
+          generateDishPhoto={async dish => (await api.post<any>('/admin/ai-images/dish', { name: dish.name, isVeg: dish.isVeg, description: dish.description })).imageUrl}
           onCancel={() => setEditing(null)}
           onSave={save}
           onRemove={() => (editing.isNew ? setEditing(null) : remove({ id: editing.dish.id, name: editing.dish.name }))}
@@ -293,6 +296,7 @@ export const MenuUploadModal: React.FC<{
           subtitle="Uploaded on the restaurant's behalf. Reviewed like any menu request."
           palette={palette}
           pickDishPhoto={pickDishPhoto}
+          generateDishPhoto={async dish => (await api.post<any>('/admin/ai-images/dish', { name: dish.name, isVeg: dish.isVeg, description: dish.description })).imageUrl}
           pickMenuPages={pickMenuPages}
           readMenuPhoto={async image => {
             const out = await api.post<any>(`/admin/menus/${target.id}/ai-read`, { image });

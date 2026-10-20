@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 20 Oct 2026: AI dish pictures in Operations; secret Operations web address
+
+**For the owner:** Operations (app and website) can now make a demo picture for a dish: "Generate demo image" in the dish editor, "Generate demo images for dishes without a photo" in the Menu Builder, and "Generate pictures for dishes without one" on a kitchen's live menu and in Approvals (the pictures show on the request cards to check before approving). A dish name drawn once is reused for every kitchen, never paid for twice (~₹4 per new picture with Gemini). When the AI's limit runs out it says so and stops; after you add or change the key on Railway, Resume carries on from the next dish. A real photo uploaded later simply replaces it. The Operations website can live at a secret address: set `ADMIN_WEB_PATH` on Railway and `/admin` stops answering. **You must add on Railway:** `GEMINI_API_KEYS` (from Google AI Studio, billing on) and `ADMIN_WEB_PATH`.
+
+- `modules/menu/dishImages.ts` (picture library `dishImages`, key rotation, resumable `imageJobs`), `routes/admin/aiImageRoutes.ts` (`POST /admin/ai-images/dish`, `/jobs`, `/jobs/:id/resume`, `GET /jobs`; public `GET /api/media/dish-images/:id.jpg`), boot resumes running jobs. Admin app: `MenuBuilder` (same file in the Partner app, buttons only when Operations passes the generator), `AiPicturesJob`, `RestaurantMenuTools`, `CatalogScreen`. `webApps.ts`: secret address, `noindex`.
+- Check: `aiImages` (reuse, rotation, limit pause and resume from the next dish, routes and permission, secret address); reuse guard mutated and caught. Plan: round-3 plan, "AI dish photos in Operations".
+
+---
+
 ## [Unreleased] 20 Oct 2026: Round 4, the Tester's build-42 report (R3-1 to R3-26)
 
 **For the owner:** the Rider app no longer crash-loops after Android stops it (the release build had removed a part Expo needs to run the location task with the app closed; the build now refuses to ship without it). An Operations-assigned trip that is moved away closes cleanly; every trip offer now rings full screen at once; the assigned-trip alarm also sounds with media volume at zero. Customer Help fits the screen with the keyboard open and knows the order it was opened from; saving a map spot asks for the town when the map has none. Operations hears about a silent rider after 2 minutes. Pickup pay shows as its own line on invoices and statements. Details: round-3 plan, "Round 4".

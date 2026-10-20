@@ -129,6 +129,8 @@ export interface MenuBuilderProps {
   palette: BuilderPalette;
   /** Takes or chooses ONE dish photo; returns a data URI or null. */
   pickDishPhoto: (source: 'camera' | 'library') => Promise<string | null>;
+  /** Operations only (owner, 20 Oct 2026): a demo picture for a dish; returns its link. */
+  generateDishPhoto?: (dish: { name: string; isVeg: boolean; description?: string }) => Promise<string>;
   /** Takes one page, or chooses several; returns data URIs. */
   pickMenuPages: (source: 'camera' | 'library') => Promise<string[]>;
   /** Reads one page photo on the server. Throws an Error with a readable message. */
@@ -416,6 +418,36 @@ export const MenuBuilder: React.FC<MenuBuilderProps> = props => {
     );
   };
 
+  /* ------------------------- Demo pictures (Operations) ------------------------- */
+
+  const [drawing, setDrawing] = useState<{ done: number; total: number } | null>(null);
+  const drawAll = async () => {
+    const generate = props.generateDishPhoto;
+    if (!generate || drawing) return;
+    const todo = draft.sections.flatMap(sec => sec.dishes.filter(d => !d.imageUrl && d.name.trim() && d.isVeg !== null).map(d => ({ sec: sec.id, d })));
+    if (!todo.length) {
+      Alert.alert('Nothing to draw', 'Every named dish with Veg or Non-veg chosen already has a photo.');
+      return;
+    }
+    setDrawing({ done: 0, total: todo.length });
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        const { sec, d } = todo[i];
+        const url = await generate({ name: d.name, isVeg: Boolean(d.isVeg), description: d.description || undefined });
+        setDraft(x => ({
+          ...x,
+          sections: x.sections.map(s2 => (s2.id === sec ? { ...s2, dishes: s2.dishes.map(y => (y.id === d.id ? { ...y, imageUrl: url } : y)) } : s2))
+        }));
+        setDrawing({ done: i + 1, total: todo.length });
+      }
+    } catch (err: any) {
+      // The AI's limit: the pictures drawn so far are kept; pressing again carries on with the rest.
+      Alert.alert('Pictures stopped', err?.message || 'Try again.');
+    } finally {
+      setDrawing(null);
+    }
+  };
+
   /* -------------------------------- Sending ------------------------------ */
 
   const send = async () => {
@@ -586,6 +618,13 @@ export const MenuBuilder: React.FC<MenuBuilderProps> = props => {
           {dishCount} dish{dishCount === 1 ? '' : 'es'} in {draft.sections.length} section{draft.sections.length === 1 ? '' : 's'}
           {flagged ? ` · ${flagged} to check` : ''}
         </Text>
+        {props.generateDishPhoto && dishCount > 0 ? (
+          <TouchableOpacity style={[s.ghostBtn, { marginTop: 8 }]} onPress={() => void drawAll()} disabled={!!drawing || !!sending}>
+            <Text style={s.ghostText}>
+              {drawing ? `Making pictures ${drawing.done} of ${drawing.total}…` : 'Generate demo images for dishes without a photo'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={[s.primaryBtn, { marginTop: 8 }, (sending || dishCount === 0) && { opacity: 0.6 }]} onPress={send} disabled={!!sending}>
           {sending ? (
             <Text style={s.primaryText}>
@@ -633,6 +672,7 @@ export const MenuBuilder: React.FC<MenuBuilderProps> = props => {
           sectionName={draft.sections.find(x => x.id === editing.sectionId)?.name || ''}
           dish={editing.dish}
           pickDishPhoto={props.pickDishPhoto}
+          generateDishPhoto={props.generateDishPhoto}
           onCancel={() => setEditing(null)}
           onSave={dish => saveDish(editing.sectionId, dish)}
           onRemove={() => removeDish(editing.sectionId, editing.dish.id)}
@@ -652,10 +692,11 @@ const DishEditor: React.FC<{
   sectionName: string;
   dish: DraftDish;
   pickDishPhoto: MenuBuilderProps['pickDishPhoto'];
+  generateDishPhoto?: MenuBuilderProps['generateDishPhoto'];
   onCancel: () => void;
   onSave: (dish: DraftDish) => void;
   onRemove: () => void;
-}> = ({ palette: p, styles: s, sectionName, dish, pickDishPhoto, onCancel, onSave, onRemove }) => {
+}> = ({ palette: p, styles: s, sectionName, dish, pickDishPhoto, generateDishPhoto, onCancel, onSave, onRemove }) => {
   const [d, setD] = useState<DraftDish>(dish);
   const [busyPhoto, setBusyPhoto] = useState(false);
   const problems = dishProblems(d, sectionName || 'x');
@@ -677,6 +718,24 @@ const DishEditor: React.FC<{
     },
     [pickDishPhoto]
   );
+
+  // One demo picture for this dish (Operations only): the saved one when the dish was drawn before.
+  const draw = async () => {
+    if (!generateDishPhoto) return;
+    if (d.name.trim().length < 2 || d.isVeg === null) {
+      Alert.alert('Name and type first', 'Type the dish name and choose Veg or Non-veg, then generate.');
+      return;
+    }
+    setBusyPhoto(true);
+    try {
+      const url = await generateDishPhoto({ name: d.name, isVeg: Boolean(d.isVeg), description: d.description || undefined });
+      setD(x => ({ ...x, imageUrl: url }));
+    } catch (err: any) {
+      Alert.alert('No picture', err?.message || 'Try again.');
+    } finally {
+      setBusyPhoto(false);
+    }
+  };
 
   const field = (label: string, value: string, onChange: (v: string) => void, opts: any = {}) => (
     <View style={{ marginBottom: 10 }}>
@@ -792,6 +851,11 @@ const DishEditor: React.FC<{
                 <Text style={s.ghostText}>Choose one</Text>
               </TouchableOpacity>
             </View>
+            {generateDishPhoto ? (
+              <TouchableOpacity style={[s.ghostBtn, { marginTop: 8 }]} onPress={() => void draw()} disabled={busyPhoto}>
+                <Text style={s.ghostText}>{busyPhoto ? 'Making the picture…' : 'Generate demo image'}</Text>
+              </TouchableOpacity>
+            ) : null}
             {d.imageUrl ? (
               <TouchableOpacity onPress={() => setD(x => ({ ...x, imageUrl: undefined }))}>
                 <Text style={s.removeText}>Remove photo</Text>
@@ -889,6 +953,7 @@ export const DishEditorSheet: React.FC<{
   sectionName: string;
   dish: DraftDish;
   pickDishPhoto: MenuBuilderProps['pickDishPhoto'];
+  generateDishPhoto?: MenuBuilderProps['generateDishPhoto'];
   onCancel: () => void;
   onSave: (dish: DraftDish) => void;
   onRemove: () => void;

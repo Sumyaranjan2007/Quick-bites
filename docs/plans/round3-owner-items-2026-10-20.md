@@ -254,3 +254,40 @@ Not changed: **R3-21** (the stored point is the system's documented "not set" ma
 the screen says "Not set"). **R3-25**: the empty cart has a "Browse Menu" button; Tester to recheck.
 Checks added: `liveSync` (old rider told; offer pushed), `orderClock` (quote wording), `honestEta` (door = 1 min),
 `helpHistory` (name), `pickupPay` (statement line); build-time check for the Rider class.
+
+
+---
+
+## AI dish photos in Operations (owner, 20 Oct 2026, done before Tester round 4)
+
+**Ask:** in Operations only (app + website): a "Generate demo image" button when adding or editing a dish; "generate
+for the whole menu" after typing a menu; in Approvals, "generate for every requested dish without a photo". No "AI" label
+(owner's decision; risk explained: a picture that misleads about the real dish can be a consumer complaint — Operations
+checks each picture, and a real photo always replaces it). Same dish again = the saved picture is reused, never remade.
+When the AI's limit runs out it says so; after a new key is added it carries on where it stopped. Admin website at a
+random, unguessable address.
+
+**Routes compared (owner: "find the best route"):**
+| Route | Cost | Match to the dish | Rules | Verdict |
+|---|---|---|---|---|
+| Gemini image AI (chosen) | ~$0.045 (~₹4) per new picture, $0 when reused | made for the exact name, veg/non-veg, style | Google's terms: ours to use | **chosen**: one click, consistent look, reuse makes it cheaper over time |
+| Free stock photos (Pexels/Unsplash API) | free | poor for regional dishes ("neer dosa", "ragi mudde") | must credit the photographer next to each photo; Unsplash must hotlink | rejected: credits on every dish card, many misses |
+| Leave the drawn placeholder | free | none | none | today's behaviour; stays the fallback |
+
+**How it works:**
+- `modules/menu/dishImages.ts`: a **picture library** (`dishImages` collection): one picture per dish name (sizes,
+  brackets and numbers removed) + veg/non-veg. Looked up first; Gemini is asked only for a new name. Served by
+  `GET /api/media/dish-images/<id>.jpg` (public, cached a year), and the dish keeps that link (a link, not the bytes:
+  menu photos are capped at ~150 KB and a picture is larger).
+- **Keys:** `GEMINI_API_KEYS` on Railway (one or more, comma-separated). A key that hits its limit (429) or is refused
+  (400/401/402/403) is skipped for an hour and the next is used; when none is left the answer is "The image AI has used
+  up its limit…", and the job **pauses**. Model `GEMINI_IMAGE_MODEL` (default the cheapest image model); Interactions
+  API, `generateContent` as fallback.
+- **Jobs** (`imageJobs` collection) for a whole live menu or a kitchen's pending requests: each dish is a step;
+  progress is saved after every step, so a pause (limit), a deploy or a restart resumes from the next dish
+  ("Resume" button, and automatically at boot). Dishes that got a photo meanwhile are skipped.
+- **Operations app/website:** dish editor "Generate demo image"; Menu Builder "Generate demo images for dishes without a
+  photo" (runs dish by dish on the phone; pressing again carries on); live menu and Approvals: "Generate pictures for
+  dishes without one" (server job with progress and Resume). Permission `catalog.menus.edit`.
+- **Secret admin address:** `ADMIN_WEB_PATH` on Railway; when set, the console page answers only there and `/admin` is
+  a plain 404 (the code bundle stays at `/admin/_expo/…`: it is public code anyway).

@@ -24,11 +24,15 @@ import { getHealth } from '../controllers/healthController.ts';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { z } from 'zod';
+import { dishImageMedia } from './admin/aiImageRoutes.ts';
 
 export const apiRouter = Router();
 
 // Public Health Check
 apiRouter.get('/health', getHealth);
+
+// AI dish pictures, as menu photos (public, cached).
+apiRouter.use(dishImageMedia);
 
 // Test Echo Schema for automated tests
 const TestEchoSchema = z.object({

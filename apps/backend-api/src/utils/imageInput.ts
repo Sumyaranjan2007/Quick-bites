@@ -11,4 +11,8 @@ const PHOTO_DATA = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/\r\n]+={
 
 export const isPhotoData = (value: string): boolean => PHOTO_DATA.test(value);
 
-export const isImageRef = (value: string): boolean => isPhotoData(value) || /^https:\/\/\S+$/i.test(value);
+export const isImageRef = (value: string): boolean =>
+  isPhotoData(value) ||
+  /^https:\/\/\S+$/i.test(value) ||
+  // Our own AI picture library, also on the http QA server (owner, 20 Oct 2026).
+  /^https?:\/\/[^\s/]+\/api(\/v1)?\/media\/dish-images\/img_[0-9a-f]{16}\.jpg$/i.test(value);

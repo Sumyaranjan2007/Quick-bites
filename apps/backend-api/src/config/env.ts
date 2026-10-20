@@ -350,6 +350,12 @@ export const config = {
    * not switched on and everything else works.
    */
   GROQ_API_KEY: process.env.GROQ_API_KEY || '',
+  /** Gemini keys for AI dish pictures, comma-separated; the next is used when one hits its limit (owner, 20 Oct 2026). */
+  GEMINI_API_KEYS: (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '').split(',').map(k => k.trim()).filter(Boolean),
+  /** The image model; the cheapest by default. */
+  GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-lite-image',
+  /** When set, the Operations website answers only at /<this> and /admin is a 404 (owner, 20 Oct 2026). */
+  ADMIN_WEB_PATH: (process.env.ADMIN_WEB_PATH || '').replace(/^\/+|\/+$/g, ''),
   GROQ_MODEL: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
 
   /**

@@ -24,6 +24,7 @@ import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { AiPicturesJob } from '../components/AiPicturesJob';
 
 const c = tokens.colors;
 const dishCount = (n: number) => `${n} dish${n === 1 ? '' : 'es'}`;
@@ -349,6 +350,8 @@ const RestaurantReviewSheet: React.FC<{
               </Text>
             </Card>
           ) : null}
+
+          <AiPicturesJob restaurantId={group.restaurantId} scope="REQUESTS" />
 
           {pending.map((request: any) => {
             const isRejected = rejections[request.id] !== undefined;
