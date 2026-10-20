@@ -2011,7 +2011,7 @@ export const DEFAULT_PRICING_RATES: PricingRates = {
   riderOfferSeconds: 108,
   riderOffersBeforeAlert: 5,
   /** Minutes of silence from a rider carrying food before operations are alerted. */
-  riderLocationSilentMinutes: 10,
+  riderLocationSilentMinutes: 2,
   /** Minutes a rider may be carrying food before the delivery is flagged late. */
   deliveryOverdueMinutes: 15,
   /** Days money may sit at the gateway before it is a problem. Razorpay is T+2. */

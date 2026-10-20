@@ -26,6 +26,8 @@ export const CartSuggestions: React.FC<{
   onUpdateQuantity: (cartItemId: string, delta: number) => void;
 }> = ({ restaurantId, restaurantName, cart, apiUrl, token, onAdd, onUpdateQuantity }) => {
   const [ranked, setRanked] = useState<Suggestion[]>([]);
+  // Added from this row: they stay with − / +; anything already in the cart otherwise is not suggested (R3-7).
+  const [addedHere, setAddedHere] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!apiUrl || !restaurantId) return;
@@ -68,10 +70,8 @@ export const CartSuggestions: React.FC<{
     };
   }, [apiUrl, restaurantId, token]);
 
-  // Dishes already in the cart in some other way (with options) are not suggested again.
-  const inCart = new Set(cart.filter(i => i.id !== `cart_${i.dishId}_standard`).map(i => i.dishId));
   const added = new Map(cart.filter(i => i.id === `cart_${i.dishId}_standard`).map(i => [i.dishId, i.quantity]));
-  const shown = ranked.filter(d => !inCart.has(d.id) && (!cart.some(i => i.dishId === d.id) || added.has(d.id))).slice(0, 10);
+  const shown = ranked.filter(d => addedHere.has(d.id) || !cart.some(i => i.dishId === d.id)).slice(0, 10);
   if (!shown.length || !restaurantId) return null;
 
   return (
@@ -98,9 +98,10 @@ export const CartSuggestions: React.FC<{
                     style={s.add}
                     accessibilityRole="button"
                     accessibilityLabel={`Add ${d.name}`}
-                    onPress={() =>
-                      onAdd({ id: cartId, dishId: d.id, restaurantId, restaurantName, name: d.name, price: d.price, quantity: 1, isVeg: d.isVeg } as CartItem)
-                    }
+                    onPress={() => {
+                      setAddedHere(prev => new Set(prev).add(d.id));
+                      onAdd({ id: cartId, dishId: d.id, restaurantId, restaurantName, name: d.name, price: d.price, quantity: 1, isVeg: d.isVeg } as CartItem);
+                    }}
                   >
                     <Text style={s.addText}>ADD</Text>
                   </TouchableOpacity>

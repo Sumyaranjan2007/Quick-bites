@@ -230,6 +230,9 @@ export function authMiddleware(requiredRole?: string) {
         }
       }
       req.user.roles = held as UserRole[];
+      // The name as it is now, not as it was at sign-in: a name chosen after the code (or changed in
+      // Profile) reached help chats and staff as "Quick Bites Customer" (Tester R3-9).
+      if ((stored as any).fullName) req.user.fullName = (stored as any).fullName;
       if (requiredRole) {
         const isAdmin = held.includes('admin') || held.includes('super_admin');
         const matchesRole = held.includes(requiredRole);

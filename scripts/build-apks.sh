@@ -382,6 +382,14 @@ for entry in "${APPS[@]}"; do
   fi
 done
 
+# R3-1: Expo starts the Rider's location task, with the app closed, through a class it finds by NAME.
+# The release shrinker removed it once and every restart crashed. A Rider APK without it fails here.
+rider_apk="$OUT_DIR/QuickBites-Rider.apk"
+if [[ -f "$rider_apk" ]] && ! unzip -p "$rider_apk" 'classes*.dex' | grep -aq 'RNHeadlessAppLoader'; then
+  echo "ERROR: $rider_apk lacks RNHeadlessAppLoader (keep rules in apps/delivery-mobile/app.json); it would crash after a restart."
+  exit 1
+fi
+
 echo ""
 echo "Done. APKs in $OUT_DIR, versionCode $VERSION_CODE"
 echo "Commit release/version.json so the next build, on any machine, starts above $VERSION_CODE."

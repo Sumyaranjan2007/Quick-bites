@@ -180,7 +180,9 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
       basis = 'AWAITING_PICKUP';
       break;
     case 'OUT_FOR_DELIVERY':
-      minutes = travel;
+      // The ride alone: the handling allowance is for collecting at the kitchen, and a rider at
+      // the door read as "6 min" (Tester R3-13).
+      minutes = (distanceKm / config.DELIVERY_SPEED_KMPH) * 60;
       basis = 'RIDER_EN_ROUTE';
       break;
     default:

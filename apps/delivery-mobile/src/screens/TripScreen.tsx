@@ -235,7 +235,7 @@ export const TripScreen: React.FC<{
   const atDoorstep = trip.stage === 'AT_DOORSTEP';
 
   return (
-    <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.content} refreshControl={refreshControl} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView bottomOffset={96} contentContainerStyle={s.content} refreshControl={refreshControl} keyboardShouldPersistTaps="handled">
       {/* Progress */}
       <View style={s.stageBar}>
         {STAGE_ORDER.map((stage, index) => (
@@ -415,6 +415,13 @@ export const TripScreen: React.FC<{
             placeholderTextColor={t.color.textMuted}
             keyboardType="number-pad"
             maxLength={4}
+            returnKeyType="done"
+            onSubmitEditing={async () => {
+              // Enter confirms, so the rider need not close the keyboard first (R3-22).
+              if (pickupCode.trim().length !== 4) return;
+              const ok = await onVerifyPickup(pickupCode.trim());
+              if (ok) setPickupCode('');
+            }}
           />
           <Button
             label="Confirm pickup"
@@ -481,6 +488,12 @@ export const TripScreen: React.FC<{
             placeholderTextColor={t.color.textMuted}
             keyboardType="number-pad"
             maxLength={4}
+            returnKeyType="done"
+            onSubmitEditing={async () => {
+              if (otp.trim().length !== 4) return;
+              const ok = await onCompleteDelivery(otp.trim());
+              if (ok) setOtp('');
+            }}
           />
           <Button
             label="Verify and complete"

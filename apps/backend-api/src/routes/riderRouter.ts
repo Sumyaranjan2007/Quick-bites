@@ -279,7 +279,12 @@ async function shapeTripForRider(order: Order) {
     assignedByOperations: Boolean(
       order.riderId && order.riderReassignments?.at(-1)?.toRiderId === order.riderId && !(order as any).riderAckAt
     ),
-    pickupPay: (order as any).riderPickupPay || 0
+    pickupPay: (order as any).riderPickupPay || 0,
+    // How far the assigned rider is from the kitchen (assigned-trip card, R3-12).
+    toKitchenKm: (() => {
+      const at = order.riderId ? (memoryStore.riders.get(order.riderId) as any)?.currentCoordinates : null;
+      return at && pickupCoordinates ? Math.round(estimateByRoad(at, pickupCoordinates).distanceKm * 10) / 10 : null;
+    })()
   };
 }
 
@@ -851,11 +856,13 @@ riderRouter.get('/orders/broadcast', requireFeature('rider_broadcast'), async (r
         const trip = await shapeTripForRider(withoutDeliveryOtp(o) as Order);
         // Both legs on the card, and pickup pay when the rider is over 7 km away (owner, 20 Oct).
         // A road estimate here (no paid call per poll); the claim freezes Google's figure.
-        const toKitchenKm =
+        const exactKm =
           rider.currentCoordinates && o.restaurantCoordinates
-            ? Math.round(estimateByRoad(rider.currentCoordinates, o.restaurantCoordinates).distanceKm * 10) / 10
+            ? estimateByRoad(rider.currentCoordinates, o.restaurantCoordinates).distanceKm
             : null;
-        const pickupPay = toKitchenKm === null ? 0 : pickupPayFor(toKitchenKm);
+        // Pay from the exact distance, as the claim does; only the shown km is rounded (R3-14).
+        const toKitchenKm = exactKm === null ? null : Math.round(exactKm * 10) / 10;
+        const pickupPay = exactKm === null ? 0 : pickupPayFor(Math.round(exactKm * 100) / 100);
         return {
           ...trip,
           toKitchenKm,

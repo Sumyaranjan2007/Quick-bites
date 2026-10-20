@@ -2,7 +2,7 @@ import { createApp } from './app.ts';
 import { config } from './config/env.ts';
 import { initSocketServer, closeSocketServer } from './sockets/socketServer.ts';
 import { syncService } from './modules/search/syncService.ts';
-import { applyRiderPerKmDecision, applyOwnerDecisions20261002, applyOwnerDecisions20261018 } from './modules/payments/pricingConfig.ts';
+import { applyRiderPerKmDecision, applyOwnerDecisions20261002, applyOwnerDecisions20261018, applyOwnerDecisions20261020 } from './modules/payments/pricingConfig.ts';
 import { loadStoreFromFile, clearStore, memoryStore, setPersistenceBackend, flushStore } from './db/client.ts';
 import {
   isDatabaseConfigured,
@@ -115,6 +115,7 @@ await ensureTestRider();
 applyRiderPerKmDecision();
 applyOwnerDecisions20261002();
 applyOwnerDecisions20261018();
+applyOwnerDecisions20261020();
 
 // Boot writes whatever hydration, migrations and the bootstrap changed, in
 // full: some of it happens before change tracking can see it.

@@ -440,3 +440,22 @@ export function applyOwnerDecisions20261018(): boolean {
   memoryStore.meta.set(FLAG, new Date().toISOString());
   return true;
 }
+
+/**
+ * Round 3 (owner, 20 Oct 2026; Tester R3-11): Operations hears about a rider whose location
+ * has gone silent on a live trip after 2 minutes, not 10. Once, guarded by a flag, so a later
+ * change on the Rates screen is never undone by a restart.
+ */
+export function applyOwnerDecisions20261020(): boolean {
+  const FLAG = 'rates:rider-silent-2-min-2026-10-20';
+  if (memoryStore.meta.get(FLAG)) return false;
+  if (Number(getActiveRates().riderLocationSilentMinutes) !== 2) {
+    createVersion(
+      { riderLocationSilentMinutes: 2 },
+      { userId: 'system' },
+      "Owner's decision 20 Oct 2026: Operations is alerted after 2 minutes without a rider's location on a live trip."
+    );
+  }
+  memoryStore.meta.set(FLAG, new Date().toISOString());
+  return true;
+}

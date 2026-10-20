@@ -87,6 +87,8 @@ interface Props {
   riderBearing?: number | null;
   /** Google's encoded road line, kitchen to door (tracking API); a straight line without it. */
   routePolyline?: string | null;
+  /** Minutes until the rider is at the door, while they carry the food (R3-26). */
+  minutesAway?: number | null;
 }
 
 /** A position older than this shows as "updating…" (the server uses the same 30 s, B11). */
@@ -107,7 +109,8 @@ const MapLegend: React.FC<{
   updatedAt?: string | null;
   riderName?: string | null;
   restaurantName?: string | null;
-}> = ({ metres, carrying, updatedAt, riderName, restaurantName, roadKm }) => (
+  minutesAway?: number | null;
+}> = ({ metres, carrying, updatedAt, riderName, restaurantName, roadKm, minutesAway }) => (
   <View style={styles.legend}>
     <View style={styles.legendLeft}>
       {carrying ? <Bike size={15} color={c.accent[600]} /> : <Store size={15} color={c.primary[600]} />}
@@ -120,7 +123,7 @@ const MapLegend: React.FC<{
       */}
       <Text style={styles.distance}>
         {carrying
-          ? `${formatDistance(metres)} away`
+          ? `${formatDistance(metres)} away${minutesAway ? ` · ${minutesAway} min` : ''}`
           : roadKm && roadKm > 0
             ? `${roadKm.toFixed(1)} km from you by road`
             : `${formatDistance(metres)} from you, in a straight line`}
@@ -272,7 +275,8 @@ export const LiveOrderMap: React.FC<Props> = ({
   restaurantName,
   roadKm,
   riderBearing,
-  routePolyline
+  routePolyline,
+  minutesAway
 }) => {
   const W = 320;
   const H = 190;
@@ -338,6 +342,7 @@ export const LiveOrderMap: React.FC<Props> = ({
         riderName={riderName}
         restaurantName={restaurantName}
         roadKm={roadKm}
+        minutesAway={minutesAway}
       />
     );
     return (

@@ -132,6 +132,8 @@ try {
     assert.equal(nearDoor.ahead, true);
   });
   const justInTime = estimateArrival({ ...base, status: 'READY_FOR_PICKUP', riderId: undefined, promisedArrivalAt: new Date(Date.now() + (Math.ceil(config.DELIVERY_HANDLING_MINUTES + travel) + 2) * 60_000).toISOString() });
+  const atDoor = estimateArrival({ ...base, status: 'OUT_FOR_DELIVERY', riderId: rider.id, riderCoordinates: { ...base.deliveryCoordinates } });
+  it('A rider at the door is 1 min away, not the 6-min handling (R3-13)', () => assert.equal(atDoor.minutesRemaining, 1));
   it('Only 2 min early is not "ahead" (needs 3)', () => assert.equal(justInTime.ahead, false));
 
   const customer = (await api('/auth/login', { method: 'POST', body: { email: 'customer@quickbite.app', password: 'pass123' } })).json?.data?.token;

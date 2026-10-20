@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Modal } from './Modal';
 import { KeyboardLift, Button, Chip } from './ui';
 import { tokens } from '../theme/tokens';
@@ -27,6 +27,7 @@ export const SaveAddressSheet: React.FC<{
   const [kind, setKind] = useState<'Home' | 'Work' | 'Other'>('Home');
   const [name, setName] = useState('');
   const [pincode, setPincode] = useState('');
+  const [city, setCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ export const SaveAddressSheet: React.FC<{
     setKind('Home');
     setName('');
     setPincode(picked.pincode || '');
+    setCity(picked.city || '');
     setError(null);
   }, [picked]);
 
@@ -44,6 +46,7 @@ export const SaveAddressSheet: React.FC<{
     if (!picked || !apiUrl || !token) return;
     if (house.trim().length < 2) return setError('Enter your flat, house or building.');
     if (!/^[1-9][0-9]{5}$/.test(pincode.trim())) return setError('Enter a valid 6-digit PIN code.');
+    if (!city.trim()) return setError('Enter the town or city.');
     if (kind === 'Other' && !name.trim()) return setError('Give this address a name, like "Mom\'s place".');
     setSaving(true);
     setError(null);
@@ -55,7 +58,7 @@ export const SaveAddressSheet: React.FC<{
           label: kind === 'Other' ? name.trim().slice(0, 40) : kind,
           addressLine: [house.trim(), picked.addressLine].filter(Boolean).join(', '),
           landmark: landmark.trim() || undefined,
-          city: picked.city || '',
+          city: city.trim(),
           pincode: pincode.trim(),
           coordinates: picked.coordinates
         })
@@ -76,20 +79,29 @@ export const SaveAddressSheet: React.FC<{
     <Modal visible={Boolean(picked)} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardLift>
         <View style={s.backdrop}>
-          <View style={s.sheet}>
+          <ScrollView style={s.sheet} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
             <Text style={s.title}>Save this address</Text>
             <Text style={s.where} numberOfLines={2}>
-              {picked?.addressLine || 'The spot you chose on the map'}
+              {picked?.addressLine || 'The spot you chose'}
             </Text>
 
             <Text style={s.label}>Flat, house or building</Text>
-            <TextInput style={s.input} value={house} onChangeText={setHouse} placeholder="Flat 302, Green Residency" placeholderTextColor={c.text.muted} autoFocus />
+            <TextInput style={s.input} value={house} onChangeText={v => {
+                setHouse(v);
+                setError(null);
+              }} placeholder="Flat 302, Green Residency" placeholderTextColor={c.text.muted} autoFocus />
             <Text style={s.label}>Landmark (optional)</Text>
             <TextInput style={s.input} value={landmark} onChangeText={setLandmark} placeholder="Near the temple" placeholderTextColor={c.text.muted} />
             {!picked?.pincode && (
               <>
                 <Text style={s.label}>PIN code</Text>
-                <TextInput style={s.input} value={pincode} onChangeText={setPincode} keyboardType="number-pad" maxLength={6} placeholder="562112" placeholderTextColor={c.text.muted} />
+                <TextInput style={s.input} value={pincode} onChangeText={v => { setPincode(v); setError(null); }} keyboardType="number-pad" maxLength={6} placeholder="6 digits" placeholderTextColor={c.text.muted} />
+              </>
+            )}
+            {!picked?.city && (
+              <>
+                <Text style={s.label}>Town or city</Text>
+                <TextInput style={s.input} value={city} onChangeText={v => { setCity(v); setError(null); }} placeholder="Town or city" placeholderTextColor={c.text.muted} />
               </>
             )}
 
@@ -106,7 +118,7 @@ export const SaveAddressSheet: React.FC<{
             {!!error && <Text style={s.error}>{error}</Text>}
             <Button label="Save address" onPress={save} loading={saving} full size="lg" />
             <Button label="Not now" onPress={onClose} variant="ghost" full style={{ marginTop: 8 }} />
-          </View>
+          </ScrollView>
         </View>
       </KeyboardLift>
     </Modal>
@@ -115,7 +127,7 @@ export const SaveAddressSheet: React.FC<{
 
 const s = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { backgroundColor: c.surface.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  sheet: { flexGrow: 0, maxHeight: '90%', backgroundColor: c.surface.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   title: { fontFamily: tokens.font.family, fontSize: 18, fontWeight: '800', color: c.text.primary },
   where: { fontFamily: tokens.font.family, fontSize: 13, color: c.text.secondary, marginTop: 4, marginBottom: 8 },
   label: { fontFamily: tokens.font.family, fontSize: 12, fontWeight: '700', color: c.text.secondary, marginTop: 12, marginBottom: 6 },

@@ -78,7 +78,7 @@ export const DashboardScreen: React.FC<Props> = ({ restaurantId, refreshSignal }
       ) : (
         <>
           <Card>
-            <SectionHeading title="Earnings" sub="What you keep, after platform commission" />
+            <SectionHeading title="Earnings" sub="What you keep after platform commission, before refunds and charges (Money shows what is owed)" />
             <Text style={styles.bigMoney}>{rupees(d.revenue.netPayout)}</Text>
             <Text style={styles.bigMoneySub}>
               from {d.orders.delivered} delivered order{d.orders.delivered === 1 ? '' : 's'}
@@ -129,7 +129,9 @@ export const DashboardScreen: React.FC<Props> = ({ restaurantId, refreshSignal }
             <View style={styles.inlineStat}>
               <Package size={14} color={c.textMuted} />
               <Text style={styles.inlineStatText}>
-                {d.orders.completionRate}% of finished orders were delivered rather than cancelled
+                {d.orders.delivered + d.orders.cancelled > 0
+                  ? `${d.orders.completionRate}% of finished orders were delivered rather than cancelled`
+                  : 'No finished orders yet'}
               </Text>
             </View>
             {d.preparation.averageMinutes !== null && (

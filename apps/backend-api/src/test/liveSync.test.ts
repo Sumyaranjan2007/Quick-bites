@@ -10,6 +10,9 @@ import { seedDatabase } from '../db/seed.ts';
 import { config } from '../config/env.ts';
 import { initSocketServer, closeSocketServer } from '../sockets/socketServer.ts';
 import { affectedUsers, topicOf } from '../sockets/liveSync.ts';
+import { ownOrder, ownRider, onlyOwnRidersOnline } from './helpers/ownFixture.ts';
+import { offerTripToNearbyRiders } from '../modules/orders/tripOffers.ts';
+import { memoryStore } from '../db/client.ts';
 
 const PORT = 5277;
 const URL = `http://127.0.0.1:${PORT}`;
@@ -74,6 +77,39 @@ check('a refused write tells nobody', () => {
   assert.ok(refused.status >= 400);
   assert.equal(partner.heard.length, before);
 });
+
+// R3-2: the rider a trip is taken FROM must hear it too (the order no longer names them afterwards).
+const riderA = ownRider('sync_a', { coordinates: { latitude: 12.8, longitude: 77.45 } });
+const riderB = ownRider('sync_b', { coordinates: { latitude: 12.8, longitude: 77.45 } });
+const trip = ownOrder('sync_trip', { restaurantId: 'rst_bbh_01', restaurantCoordinates: { latitude: 12.8, longitude: 77.45 }, riderId: riderA.id, riderStage: 'HEADING_TO_RESTAURANT' as any, extra: { bill: { totalAmount: 300, riderPay: 40 } } });
+const listenerA = await connect(riderA.userId, 'rider');
+const moved = await fetch(`${URL}/api/admin/orders/${trip.id}/reassign-rider`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenFor('usr_admin_01', 'admin')}` },
+  body: JSON.stringify({ riderId: riderB.id, reason: 'Moved by operations for the check' })
+});
+await new Promise(r => setTimeout(r, 400));
+check('a trip moved to another rider reaches the rider it was taken from', () => {
+  assert.equal(moved.status, 200);
+  assert.ok(listenerA.heard.length > 0, 'the old rider heard nothing');
+});
+listenerA.socket.disconnect();
+
+// R3-3: an offer made by the timer or sweeper (no HTTP write) reaches the rider's screen at once.
+onlyOwnRidersOnline();
+riderA.isOnline = false;
+riderB.isOnline = false;
+const kitchenAt = { latitude: 12.8, longitude: 77.45 };
+const offered = ownRider('sync_offer', { coordinates: kitchenAt, extra: { lastLocationAt: new Date().toISOString(), locationUpdatedAt: new Date().toISOString() } });
+const listenerO = await connect(offered.userId, 'rider');
+const ready = ownOrder('sync_ready', { restaurantId: 'rst_bbh_01', restaurantCoordinates: kitchenAt, status: 'READY_FOR_PICKUP', extra: { bill: { totalAmount: 300, riderPay: 40 }, deliveryCoordinates: { latitude: 12.81, longitude: 77.45 } } });
+const asked = await offerTripToNearbyRiders(ready);
+await new Promise(r => setTimeout(r, 300));
+check('a trip offer made without any request reaches the offered rider at once', () => {
+  assert.ok(asked.length > 0 || (memoryStore.orders.get(ready.id) as any)?.riderOffer, 'no offer was made: fixture not eligible');
+  assert.ok(listenerO.heard.some(e => e.topic === 'offers'), JSON.stringify(listenerO.heard));
+});
+listenerO.socket.disconnect();
 
 for (const c of [partner, customer, admin]) c.socket.disconnect();
 await closeSocketServer();

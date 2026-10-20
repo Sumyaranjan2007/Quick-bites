@@ -698,12 +698,12 @@ class FcmNotificationDispatcher {
   }
 
   /** To a RIDER: operations took a trip off them (A1) or moved it on (A2). */
-  async notifyRiderTripTakenOff(riderUserId: string, orderId: string, orderNumber: string, reason: string) {
+  async notifyRiderTripTakenOff(riderUserId: string, orderId: string, orderNumber: string, reason: string, title = 'Trip moved by Operations') {
     return this.sendPushNotification({
       userId: riderUserId,
       orderId,
       orderNumber,
-      title: 'Trip moved by support',
+      title,
       body: `Order #${orderNumber} is no longer yours. ${reason}`,
       data: { type: 'RIDER_TRIP_TAKEN_OFF', orderId, orderNumber },
       androidChannelId: CHANNEL.RIDER

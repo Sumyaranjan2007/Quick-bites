@@ -90,7 +90,10 @@ try {
 
   const late = order('PREPARING', 3);
   const lateQuote = (await api(`/orders/${late.id}/cancellation-quote`, {}, token)).json?.data;
-  check('3 min after accept: the quote says no', () => assert.equal(lateQuote?.canCancel, false));
+  check('3 min after accept: the quote says no, and sends them to support (R3-8)', () => {
+    assert.equal(lateQuote?.canCancel, false);
+    assert.match(String(lateQuote?.message), /Ask support/);
+  });
   const refused = await cancel(late.id);
   check('...and the server refuses, sending them to support', () => {
     assert.equal(refused.status, 409);

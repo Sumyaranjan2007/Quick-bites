@@ -372,7 +372,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   };
 
   const steps = [
-    { title: 'Order Confirmed', desc: `Received by ${restaurantName}` },
+    { title: 'Order placed', desc: `Waiting for ${restaurantName} to accept` },
     { title: 'Kitchen Accepted', desc: `${restaurantName} has taken your order` },
     { title: 'Cooking in Progress', desc: 'Your food is being prepared fresh' },
     {
@@ -431,7 +431,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
           <View style={{ flex: 1 }}>
             <Text style={styles.orderNo}>ORDER #{orderNumber}</Text>
             <Text style={styles.statusTitle}>
-              {isCancelled ? 'Order cancelled' : steps[currentStep]?.title ?? 'Order Confirmed'}
+              {isCancelled ? 'Order cancelled' : steps[currentStep]?.title ?? 'Order placed'}
             </Text>
             <Text style={styles.statusSub}>
               {isCancelled ? order?.cancellationReason || 'This order was cancelled.' : steps[currentStep]?.desc ?? ''}
@@ -573,6 +573,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             restaurantName={tracking?.restaurantName ?? order?.restaurantName ?? null}
             riderBearing={tracking?.riderBearing ?? null}
             routePolyline={tracking?.routePolyline ?? null}
+            minutesAway={serverEta?.basis === 'RIDER_EN_ROUTE' ? serverEta.minutesRemaining : null}
           />
         </Card>
       )}

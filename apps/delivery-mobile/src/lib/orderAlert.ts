@@ -134,6 +134,8 @@ export async function stopOrderAlert(): Promise<void> {
 export async function notifyNewOrder(params: {
   /** So a tap opens the offer (R2-4). */
   orderId?: string;
+  /** Defaults to "New delivery offer"; Operations-assigned trips say so (R3-12). */
+  title?: string;
   restaurantName: string;
   payout: number;
   distanceKm?: number;
@@ -141,7 +143,7 @@ export async function notifyNewOrder(params: {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'New delivery offer',
+        title: params.title || 'New delivery offer',
         body: `${params.restaurantName} · ₹${params.payout.toFixed(0)}${
           params.distanceKm ? ` · ${params.distanceKm} km` : ''
         }. Open Quick Bites Rider to accept.`,

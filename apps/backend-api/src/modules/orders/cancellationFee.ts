@@ -133,3 +133,16 @@ export function cashSwitchedOffFor(customerId: string): boolean {
   const limit = Number(getActiveRates().codCancelLimit) || 0;
   return limit > 0 && lateCashCancels(customerId) >= limit;
 }
+
+/** After the kitchen accepts, the customer may cancel in the app for 2 minutes; then only support can (owner, 20 Oct). */
+export const CUSTOMER_CANCEL_AFTER_ACCEPT_MS = 2 * 60_000;
+
+/** When the in-app cancel closes, or null while the kitchen has not accepted. */
+export const customerCancelUntil = (order: { acceptedAt?: string }) =>
+  order.acceptedAt ? new Date(Date.parse(order.acceptedAt) + CUSTOMER_CANCEL_AFTER_ACCEPT_MS).toISOString() : null;
+
+/** True once the 2 minutes after acceptance have passed. */
+export const customerCancelWindowOver = (order: { acceptedAt?: string }, now = Date.now()) => {
+  const until = customerCancelUntil(order);
+  return Boolean(until) && now > Date.parse(until!);
+};

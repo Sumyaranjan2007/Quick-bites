@@ -24,6 +24,7 @@ import { isContactable } from '../modules/orders/contactVisibility.ts';
 import { renderKitchenTicket } from '../modules/orders/kitchenTicket.ts';
 import { resolveAccess } from '../modules/admin/permissions.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
+import { customerCancelUntil, customerCancelWindowOver } from '../modules/orders/cancellationFee.ts';
 
 export const orderRouter = Router();
 
@@ -104,10 +105,13 @@ orderRouter.get('/:id/cancellation-quote', authMiddleware('customer'), async (re
       success: true,
       data: {
         ...quote,
+        ...(customerCancelWindowOver(order)
+          ? { message: 'The restaurant is already cooking this order, so it can no longer be cancelled in the app. Ask support to cancel it from Help.' }
+          : {}),
         canCancel:
           canTransition(order.status, 'CANCELLED') &&
           !CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status) &&
-          !(customerCancelUntil(order) && Date.now() > Date.parse(customerCancelUntil(order)!)),
+          !customerCancelWindowOver(order),
         /** When the in-app cancel closes (2 min after the kitchen accepts); null before it accepts. */
         cancelUntil: customerCancelUntil(order)
       },
@@ -523,11 +527,7 @@ const StatusTransitionSchema = z.object({
 const KITCHEN_MAY_SET = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'HANDED_TO_RIDER', 'CANCELLED'];
 const KITCHEN_MAY_CANCEL_FROM = ['ORDER_PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'];
 const CUSTOMER_CANNOT_CANCEL_FROM = ['HANDED_TO_RIDER', 'OUT_FOR_DELIVERY'];
-/** After the kitchen accepts, the customer may cancel in the app for 2 minutes; then only support can (owner, 20 Oct). */
-export const CUSTOMER_CANCEL_AFTER_ACCEPT_MS = 2 * 60_000;
-/** When the in-app cancel closes, or null while the kitchen has not accepted. */
-const customerCancelUntil = (order: { acceptedAt?: string }) =>
-  order.acceptedAt ? new Date(Date.parse(order.acceptedAt) + CUSTOMER_CANCEL_AFTER_ACCEPT_MS).toISOString() : null;
+
 
 async function assertMayTransition(req: any, orderId: string, nextStatus: string) {
   const order = await orderRepository.findById(orderId);
@@ -605,8 +605,7 @@ async function assertMayTransition(req: any, orderId: string, nextStatus: string
       'CUSTOMER_CANNOT_CANCEL_NOW'
     );
   }
-  const until = customerCancelUntil(order);
-  if (until && Date.now() > Date.parse(until)) {
+  if (customerCancelWindowOver(order)) {
     throw new AppError(
       'The restaurant is already cooking your order, so it can no longer be cancelled in the app. Ask support to cancel it from Help.',
       409,

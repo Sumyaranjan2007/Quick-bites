@@ -85,6 +85,8 @@ function AppRoot() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('feed');
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantItem | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // The order Help was opened from, if any (R3-9).
+  const [supportOrderId, setSupportOrderId] = useState<string | null>(null);
   const [activeOrder, setActiveOrder] = useState<{ orderNumber: string; total: number; otp: string; orderId?: string } | null>(null);
 
   const [apiUrl, setApiUrl] = useState<string>(DEFAULT_API_URL);
@@ -512,7 +514,10 @@ function AppRoot() {
             token={authToken}
             currentUserId={currentUser?.id}
             onHome={() => setCurrentScreen('feed')}
-            onAskSupport={() => setCurrentScreen('support')}
+            onAskSupport={() => {
+              setSupportOrderId(activeOrder.orderId ?? null);
+              setCurrentScreen('support');
+            }}
           />
         )}
 
@@ -520,7 +525,10 @@ function AppRoot() {
           <ProfileScreen
             onBack={() => setCurrentScreen('feed')}
             onOpenOrders={() => setCurrentScreen('orders')}
-            onOpenSupport={() => setCurrentScreen('support')}
+            onOpenSupport={() => {
+              setSupportOrderId(null);
+              setCurrentScreen('support');
+            }}
             onOpenMembership={() => setCurrentScreen('membership')}
             onOpenAddresses={() => setCurrentScreen('addresses')}
             apiUrl={apiUrl}
@@ -580,6 +588,7 @@ function AppRoot() {
             customerEmail={currentUser?.email}
             apiUrl={apiUrl}
             token={authToken}
+            orderId={supportOrderId}
           />
         )}
         </Reanimated.View>

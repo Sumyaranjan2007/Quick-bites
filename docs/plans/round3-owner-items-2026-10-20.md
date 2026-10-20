@@ -217,3 +217,40 @@ server texts (PDFs keep "Rs"). Details: `docs/qa/TEST_REPORT-2026-10-19-build39.
 | 10 | Save address from home location | G | ✅ 20 Oct (in build 40) |
 | 11 | First-visit address hero, radius by admins | G | ✅ 20 Oct (in build 40) |
 | R2 | Round-2 leftovers | H | ✅ 20 Oct (in build 40) |
+
+
+---
+
+## Round 4 — Tester report on build 42 (`docs/qa/TEST_REPORT-2026-10-20-build42.md`, 26 findings)
+
+Real time and money passed (pickup pay checked by hand on 4 distances). Fixed, each at its root:
+
+| # | Sev | Root cause | Fix |
+|---|---|---|---|
+| R3-1 | Critical | The release shrinker removed `RNHeadlessAppLoader`, which Expo loads **by name** to run the Rider's location task while the app is closed; every queued job crashed the app on launch | keep rules in `delivery-mobile/app.json`; `build-apks.sh` now fails a Rider APK without the class |
+| R3-2 | High | `sync` was resolved after the write: a reassignment no longer names the old rider | `liveSync.ts` resolves the accounts before AND after; the card closes on reload; "Trip no longer yours" |
+| R3-3 | High | timer/sweeper offers made no socket event; announced offers keyed by order, so a re-offer never rang | `emitSync` on every offer; keyed by order + expiry |
+| R3-4 | High | horizontal ScrollView grew to fill the column | `flexGrow: 0` |
+| R3-5/6/18 | Med | save sheet sent `city: ''`; no ScrollView for taps; header showed the flat line | City field when missing, ScrollView `handled`, header shows the address name |
+| R3-7 | Med | suggestions only excluded option lines | exclude every dish in the cart unless added from the row |
+| R3-8 | Med | help answer and quote text ignored the 2-minute window | one rule in `cancellationFee.ts` used by route, quote and help |
+| R3-9 | Med | `req.user.fullName` came from the sign-in token | auth middleware takes the stored name; Help opened from an order carries it |
+| R3-10 | Med | approximate location accepted | go online refuses "Approximate" with a Settings link |
+| R3-11 | Med | silent-rider alert default 10 min | 2 min, applied once to live rates (`applyOwnerDecisions20261020`) |
+| R3-12 | Med | alarm used media volume; no ops call | also a notification on the alert channel; "Call Operations"; distance to kitchen |
+| R3-13 | Med | en-route ETA added the 6-min handling | ride only |
+| R3-14 | Low | offer paid on rounded km | exact km, rounded only for display |
+| R3-15 | Low | pickup pay inside trip pay; loss in green | own line on invoice and statement; loss in maroon |
+| R3-16 | Low | label; no position at the first offer | "Restaurant to customer"; position sent on going online |
+| R3-17 | Low | first-visit block below filters | directly under the header |
+| R3-19 | Low | Operations sheet max height ignored the keyboard and lifted twice | height above the keyboard, one lift |
+| R3-20 | Low | staff note pushed to the customer | standard reason only; rider title "Order #N was cancelled" |
+| R3-22/23 | Low | no Enter action | Enter confirms codes / signs in |
+| R3-24 | Low | wording | "No finished orders yet"; earnings label says before refunds |
+| R3-26 | Low | legend had no minutes | "· N min" while the rider carries the food |
+| feel | — | "Order Confirmed" before accept | "Order placed · Waiting for <kitchen> to accept" |
+
+Not changed: **R3-21** (the stored point is the system's documented "not set" marker; every distance treats it as unset and
+the screen says "Not set"). **R3-25**: the empty cart has a "Browse Menu" button; Tester to recheck.
+Checks added: `liveSync` (old rider told; offer pushed), `orderClock` (quote wording), `honestEta` (door = 1 min),
+`helpHistory` (name), `pickupPay` (statement line); build-time check for the Rider class.

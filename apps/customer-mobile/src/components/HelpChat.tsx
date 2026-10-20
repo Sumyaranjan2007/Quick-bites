@@ -10,7 +10,7 @@ const c = tokens.colors;
  * Help as a real chat (owner, 19 Oct 2026): `SupportChat` with the Customer
  * app's calls and colours.
  */
-export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () => void; historyFooter?: React.ReactNode }> = ({ apiUrl, token, onSent, historyFooter }) => {
+export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () => void; historyFooter?: React.ReactNode; orderId?: string | null }> = ({ apiUrl, token, onSent, historyFooter, orderId }) => {
   const api = useMemo<ChatApi>(() => {
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
     const data = async (res: Response) => {
@@ -19,7 +19,11 @@ export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () =
       return body.data;
     };
     return {
-      help: async () => data(await apiFetch(`${apiUrl}/support/help`, { headers })),
+      // Two literal paths, so the API contract check can read them.
+      help: async () =>
+        data(
+          await apiFetch(orderId ? `${apiUrl}/support/help?orderId=${encodeURIComponent(orderId)}` : `${apiUrl}/support/help`, { headers })
+        ),
       answer: async id => (await data(await apiFetch(`${apiUrl}/support/help/${encodeURIComponent(id)}`, { headers }))).answer,
       match: async text => data(await apiFetch(`${apiUrl}/support/help/match`, { method: 'POST', headers, body: JSON.stringify({ text }) })),
       tickets: async () => (await data(await apiFetch(`${apiUrl}/support/tickets`, { headers }))).tickets,
@@ -35,7 +39,8 @@ export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () =
               category: body.category,
               message: body.message,
               helpTopics: body.helpTopics,
-              platform: body.platform
+              platform: body.platform,
+              ...(body.orderId ? { orderId: body.orderId } : {})
             })
           }))
         ).ticket;
@@ -47,7 +52,7 @@ export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () =
       resolve: async id =>
         (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/resolve`, { method: 'POST', headers }))).ticket
     };
-  }, [apiUrl, token, onSent]);
+  }, [apiUrl, token, onSent, orderId]);
 
   return (
     <View style={{ flex: 1 }}>

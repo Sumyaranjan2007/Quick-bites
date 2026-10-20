@@ -202,8 +202,17 @@ function partnerLines(order: Order): StatementLine[] {
 function riderLines(order: Order): StatementLine[] {
   const split = splitForOrder(order);
   const tripPaise = toPaise(Number(order.riderPayout) || 0);
+  // Pickup pay is inside riderPayout; shown on its own line (Tester R3-15). The total is unchanged.
+  const pickupPaise = Math.min(tripPaise, toPaise(Number(order.riderPickupPay) || 0));
 
-  const lines: StatementLine[] = [{ label: 'Trip earning', amountPaise: tripPaise }];
+  const lines: StatementLine[] = [{ label: 'Trip earning', amountPaise: tripPaise - pickupPaise }];
+  if (pickupPaise > 0) {
+    lines.push({
+      label: 'Pickup pay',
+      amountPaise: pickupPaise,
+      detail: `${Number(order.riderPickupKm).toFixed(2)} km to the restaurant, paid by Quick Bites`
+    });
+  }
 
   if (split.tipPaise > 0) {
     lines.push({

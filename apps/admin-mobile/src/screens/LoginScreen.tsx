@@ -148,7 +148,7 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
-                <Field label="Password" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry />
+                <Field label="Password" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry onSubmit={signIn} />
                 {error ? <Text style={s.error}>{error}</Text> : null}
                 {notice ? <Text style={s.notice}>{notice}</Text> : null}
                 <Button label="Enter the console" onPress={signIn} loading={busy} size="lg" />

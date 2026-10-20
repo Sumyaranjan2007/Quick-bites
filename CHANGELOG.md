@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 20 Oct 2026: Round 4, the Tester's build-42 report (R3-1 to R3-26)
+
+**For the owner:** the Rider app no longer crash-loops after Android stops it (the release build had removed a part Expo needs to run the location task with the app closed; the build now refuses to ship without it). An Operations-assigned trip that is moved away closes cleanly; every trip offer now rings full screen at once; the assigned-trip alarm also sounds with media volume at zero. Customer Help fits the screen with the keyboard open and knows the order it was opened from; saving a map spot asks for the town when the map has none. Operations hears about a silent rider after 2 minutes. Pickup pay shows as its own line on invoices and statements. Details: round-3 plan, "Round 4".
+
+---
+
 ## [Unreleased] 20 Oct 2026: Round 3, part 2 (phases E-H), apps in build 40
 
 **For the owner:** the rider's position keeps reaching the customer when the rider opens Google Maps or locks the phone (the always-on shift service now sends it), going online asks to switch location on, and the customer's map can be opened full screen, follows the bike, shows where it has been and re-draws the road when the rider turns off it. The keyboard no longer covers any field in the four apps (a keyboard library that works with Android's edge-to-edge screens), and the customer code boxes always open the keyboard. Home asks first-time visitors for their address (a third of the screen) and offers to save any spot chosen on the map with a name like Home, Work or your own. The cart shows "Complete your meal": your usual dishes, then the kitchen's most ordered. Round-2 leftovers are fixed.

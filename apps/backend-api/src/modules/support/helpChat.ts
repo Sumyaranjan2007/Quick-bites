@@ -20,6 +20,7 @@ import { estimateArrival } from '../orders/eta.ts';
 import { duesFor, listPayouts } from '../payments/payouts.ts';
 import { cashStanding } from '../payments/cashDeposits.ts';
 import { formatPaise, toPaise } from '../payments/money.ts';
+import { customerCancelWindowOver } from '../orders/cancellationFee.ts';
 
 export type HelpAudience = 'customer' | 'partner' | 'rider';
 type Topic = { id: string; label: string; category: SupportTicket['category'] };
@@ -287,9 +288,12 @@ export async function answerFor(topicId: string, asker: Asker, order: Order | nu
         if (CANNOT_CANCEL_FROM.includes(order.status)) {
           return `Your food is already on its way, so order #${order.orderNumber} can no longer be cancelled in the app. Talk to us if something is wrong.`;
         }
+        if (customerCancelWindowOver(order)) {
+          return `The restaurant is already cooking order #${order.orderNumber}, so it can no longer be cancelled in the app. Tap Talk to a person and we will help.`;
+        }
         return ['PAYMENT_PENDING', 'ORDER_PLACED'].includes(order.status)
           ? `You can cancel order #${order.orderNumber} from its screen. Before the kitchen accepts, the refund is full.`
-          : `You can cancel order #${order.orderNumber} from its screen. The kitchen has started, so a cancellation charge may apply; it is shown before you confirm, and the rest is refunded in full.`;
+          : `You can cancel order #${order.orderNumber} from its screen for 2 minutes after the kitchen accepts. A cancellation charge may apply; it is shown before you confirm, and the rest is refunded in full.`;
       case 'ACCOUNT':
         return 'Your name, email and phone are in Profile. You can delete your account from Profile at once; past orders stay on record without your details.';
     }

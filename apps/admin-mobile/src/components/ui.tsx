@@ -18,7 +18,7 @@ import { Modal } from './Modal';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { tokens, toneForStatus, humanise } from '../theme/tokens';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 import { useKeyboardOffset } from '../lib/keyboardOffset';
 
 const c = tokens.colors;
@@ -395,7 +395,9 @@ export const Field: React.FC<{
   multiline?: boolean;
   hint?: string;
   error?: string;
-}> = ({ label, value, onChangeText, placeholder, secureTextEntry, keyboardType, autoCapitalize, multiline, hint, error }) => (
+  /** Enter on the keyboard (or the website) does this, e.g. sign in (R3-23). */
+  onSubmit?: () => void;
+}> = ({ label, value, onChangeText, placeholder, secureTextEntry, keyboardType, autoCapitalize, multiline, hint, error, onSubmit }) => (
   <View style={s.field}>
     <Text style={s.fieldLabel}>{label}</Text>
     <TextInput
@@ -409,6 +411,8 @@ export const Field: React.FC<{
       autoCapitalize={autoCapitalize}
       multiline={multiline}
       textAlignVertical={multiline ? 'top' : 'center'}
+      onSubmitEditing={onSubmit}
+      returnKeyType={onSubmit ? 'go' : undefined}
     />
     {error ? <Text style={s.fieldError}>{error}</Text> : hint ? <Text style={s.fieldHint}>{hint}</Text> : null}
   </View>
@@ -569,7 +573,9 @@ const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, 
   const keyboardOffset = useKeyboardOffset();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const room = height - insets.top - insets.bottom - tokens.space[6];
+  // The space left above the keyboard: the sheet slid under the status bar when it ignored it (R3-19).
+  const keyboard = useKeyboardState(state => (state.isVisible ? state.height : 0));
+  const room = height - insets.top - insets.bottom - tokens.space[6] - keyboard;
   return (
     <KeyboardAvoidingView
       {...keyboardOffset} behavior="padding" style={s.sheetOverlay}>
@@ -599,13 +605,13 @@ const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, 
             <Text style={s.sheetClose}>✕</Text>
           </TouchableOpacity>
         </View>
-        <KeyboardAwareScrollView bottomOffset={24}
+        <ScrollView
           style={s.sheetBody}
           contentContainerStyle={{ paddingBottom: tokens.space[5] }}
           keyboardShouldPersistTaps="handled"
         >
           {children}
-        </KeyboardAwareScrollView>
+        </ScrollView>
         {footer ? <View style={s.sheetFooter}>{footer}</View> : null}
       </View>
     </KeyboardAvoidingView>

@@ -1101,18 +1101,19 @@ export const orderService = {
       restaurantId: updated.restaurantId
     });
 
+    // The standard reason only: a staff note is for the record, not the customer's phone (Tester R3-20).
     await fcmDispatcher.notifyOrderCancelled(
       updated.customerId,
       updated.id,
       updated.orderNumber,
-      reasonText
+      reason.label.en
     );
 
     // The rider on the trip is told, at any stage (R2-1: cancelled after pickup, he was never told).
     if (updated.riderId) {
       const rider = await riderRepository.findById(updated.riderId);
       if (rider?.userId) {
-        void fcmDispatcher.notifyRiderTripTakenOff(rider.userId, updated.id, updated.orderNumber, `It was cancelled: ${reasonText}`);
+        void fcmDispatcher.notifyRiderTripTakenOff(rider.userId, updated.id, updated.orderNumber, `It was cancelled: ${reason.label.en}`, `Order #${updated.orderNumber} was cancelled`);
       }
     }
 

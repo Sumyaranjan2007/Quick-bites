@@ -14,6 +14,7 @@ import {
   AppState,
   AppStateStatus,
   Platform,
+  Linking,
   StatusBar,
   StyleSheet,
   Switch,
@@ -423,10 +424,12 @@ function DeliveryApp() {
 
       if (!options.announce || list.length === 0) return;
 
-      const fresh = list.find(offer => !announcedOffers.current.has(offer.id));
+      // Keyed by the offer, not the order: the same order offered again later must ring again (R3-3).
+      const offerKey = (offer: Trip) => `${offer.id}:${offer.offerExpiresAt || ''}`;
+      const fresh = list.find(offer => !announcedOffers.current.has(offerKey(offer)));
       if (!fresh) return;
 
-      announcedOffers.current.add(fresh.id);
+      announcedOffers.current.add(offerKey(fresh));
       setPendingOffer(current => current || fresh);
       startOrderAlert();
       if (appState.current !== 'active') {
@@ -551,6 +554,20 @@ function DeliveryApp() {
         return;
       }
     }
+    // Precise location only: "Approximate" is off by ~2 km, so the customer's map and the
+    // nearest-rider choice would be wrong (Tester R3-10).
+    const permission = await Location.getForegroundPermissionsAsync().catch(() => null);
+    if (Platform.OS === 'android' && permission?.granted && permission.android?.accuracy === 'coarse') {
+      Alert.alert(
+        'Turn on Precise location',
+        'Quick Bites Rider needs your precise location to take trips. In Settings, open Location and switch on "Use precise location".',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open settings', onPress: () => void Linking.openSettings() }
+        ]
+      );
+      return;
+    }
     if (await hasLocationConsent()) await setShift(true);
     else setConsentOpen(true);
   };
@@ -569,6 +586,10 @@ function DeliveryApp() {
         syncOffers({ announce: false });
         // Without this the process is frozen the moment the rider pockets the
         // phone, and the offer they were waiting for arrives in silence.
+        // Where they are, at once: the first offer after going online showed no distance (R3-16).
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+          .then(p => api.shiftLocation(ctxRef.current, { lat: p.coords.latitude, lng: p.coords.longitude }))
+          .catch(() => undefined);
         const held = await startShiftService();
         if (!held) {
           Alert.alert(
@@ -1025,15 +1046,21 @@ function DeliveryApp() {
       <AssignedTripModal
         trip={activeTrip?.assignedByOperations ? activeTrip : null}
         busy={busy}
+        apiUrl={apiUrl}
         onStart={async trip => {
           setBusy(true);
           try {
             await api.acknowledgeTrip(ctxRef.current, trip.id);
-            await loadDashboard({ silent: true });
             setTab('home');
           } catch (err) {
-            Alert.alert('Could not start the trip', (err as Error).message);
+            // Most often Operations moved it on meanwhile: the reload below closes the card (R3-2).
+            const moved = /not found/i.test((err as Error).message);
+            Alert.alert(
+              moved ? 'Trip no longer yours' : 'Could not start the trip',
+              moved ? 'Operations moved this order to another rider. Nothing to do.' : (err as Error).message
+            );
           } finally {
+            await loadDashboard({ silent: true });
             setBusy(false);
           }
         }}

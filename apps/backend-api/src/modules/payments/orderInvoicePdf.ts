@@ -59,9 +59,12 @@ export function orderInvoiceLines(order: Order) {
     ? s.riderPaise - s.tipPaise
     : toPaise(calculateTripPayout({ distanceKm: order.distanceKm, bill: order.bill as any }));
   const quickBites = contributionPaise(order);
+  const pickupPaise = recorded ? toPaise(Number(order.riderPickupPay) || 0) : 0;
   const divided = [
     ['Kitchen (after commission and tax withheld)', s.partnerPaise],
-    [recorded ? 'Rider trip pay' : 'Rider trip pay (expected; fixed at delivery)', tripPay],
+    [recorded ? 'Rider trip pay' : 'Rider trip pay (expected; fixed at delivery)', tripPay - pickupPaise],
+    // Pickup pay on its own line, so its cost to Quick Bites is visible (Tester R3-15).
+    ...(pickupPaise ? [[`Rider pickup pay (${Number(order.riderPickupKm).toFixed(2)} km to the kitchen, paid by Quick Bites)`, pickupPaise]] : []),
     ...(s.tipPaise ? [['Rider tip (100% to the rider)', s.tipPaise]] : []),
     ['GST on food (Quick Bites pays it to the government)', s.gstOnFoodPaise],
     ['GST on commission', s.commissionGstPaise],
@@ -130,7 +133,8 @@ export function renderOrderInvoicePdf(order: Order): Buffer {
 
   heading('HOW THE MONEY WAS DIVIDED');
   for (const [label, value] of lines.divided) {
-    row(label, money(value), label === 'Quick Bites keeps' ? { bold: true, color: GREEN } : {});
+    // A loss is not good news: printed in maroon, not green (R3-15).
+    row(label, money(value), label === 'Quick Bites keeps' ? { bold: true, color: value < 0 ? MAROON : GREEN } : {});
   }
   row('Total', money(lines.dividedSum), { bold: true, size: 11 });
   y += 4;

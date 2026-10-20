@@ -11,6 +11,7 @@ import { memoryStore } from '../db/client.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
 import { pickupPayFor, calculateTripPayout } from '../modules/riders/tripPayout.ts';
 import { recordOrderEarnings } from '../modules/payments/earnings.ts';
+import { statementFor } from '../modules/payments/statements.ts';
 import { ledger, accountFor } from '../modules/payments/ledger.ts';
 import { getActiveRates } from '../modules/payments/pricingConfig.ts';
 import { reassignTrip } from '../modules/orders/opsRescue.ts';
@@ -96,6 +97,14 @@ try {
   const before = ledger.balanceOf(payable);
   for (const o of [storedFar, storedNear]) recordOrderEarnings(o, { byUserId: 'test', note: 'pickup pay check' });
   const owed = ledger.balanceOf(payable) - before;
+  const statement = statementFor('RIDER', rider.id, 'Rider');
+  const farLines = statement.orders.find((o: any) => o.orderId === storedFar.id)?.lines || [];
+  check('the statement shows pickup pay as its own line, total unchanged (R3-15)', () => {
+    const pickup = farLines.find((l: any) => l.label === 'Pickup pay');
+    assert.equal(pickup?.amountPaise, Math.round(storedFar.riderPickupPay * 100), JSON.stringify(farLines));
+    const trip = farLines.find((l: any) => l.label === 'Trip earning');
+    assert.equal(trip?.amountPaise + pickup?.amountPaise, Math.round(storedFar.riderPayout * 100));
+  });
   check('the rider is owed both payouts and both tips, once each', () =>
     assert.equal(owed, Math.round((48 + storedFar.riderPickupPay + 10 + 48 + 10) * 100)));
 

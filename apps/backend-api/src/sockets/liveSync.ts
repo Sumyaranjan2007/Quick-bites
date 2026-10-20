@@ -79,6 +79,9 @@ export function liveSyncMiddleware(req: Request, res: Response, next: NextFuncti
     next();
     return;
   }
+  // Who the write touches BEFORE it runs too: a reassignment or removal takes a person off
+  // the record, and they are the one who most needs to hear (Tester R3-2).
+  const before = affectedUsers(idsIn(req, path));
   res.on('finish', () => {
     if (res.statusCode < 200 || res.statusCode >= 300) return;
     const topic = topicOf(req.originalUrl.split('?')[0]);
@@ -86,7 +89,7 @@ export function liveSyncMiddleware(req: Request, res: Response, next: NextFuncti
       emitSync('everyone', topic);
       return;
     }
-    const users = affectedUsers(idsIn(req, path));
+    const users = [...before, ...affectedUsers(idsIn(req, path))];
     const self = (req as any).user?.id;
     if (self) users.push(self);
     emitSync(users, topic);

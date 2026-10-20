@@ -37,7 +37,7 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { hasActiveTrip, cashCeilingBlocks, offerableNow } from './riderTrip.ts';
 import { getActiveRates } from '../payments/pricingConfig.ts';
-import { emitOpsAlert } from '../../sockets/socketServer.ts';
+import { emitOpsAlert, emitSync } from '../../sockets/socketServer.ts';
 import { notifyAdminsNoRiderFound } from '../../notifications/adminNotifier.ts';
 
 /** A rider whose last position is younger than this ranks ahead of riders with an older one (plan B4: 2 min). */
@@ -185,8 +185,12 @@ export async function offerTripToNearbyRiders(passed: Order): Promise<string[]> 
     await persistDurably();
     scheduleExpiry(order.id, seconds * 1000);
 
-    // The rider whose time ran out loses it from their tray.
+    // The offered rider's app shows it full screen at once, and the previous one's closes: offers
+    // made by the timer or the sweeper are no HTTP write, so nothing else would tell them (R3-3).
     const before = previous ? (memoryStore.riders.get(previous.riderId) as DeliveryRider | undefined) : undefined;
+    emitSync([rider.userId!, ...(before?.userId ? [before.userId] : [])], 'offers');
+
+    // The rider whose time ran out loses it from their tray.
     if (before?.userId && before.id !== rider.id) {
       await fcmDispatcher.notifyRiderTripWithdrawn(before.userId, order.id, order.orderNumber);
     }

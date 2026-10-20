@@ -66,10 +66,12 @@ interface Props {
   customerEmail?: string;
   apiUrl?: string;
   token?: string;
+  /** Opened from an order ("Ask support to cancel"): the chat is about it (R3-9). */
+  orderId?: string | null;
 }
 
 /** Must match the server's TicketSchema enum exactly — an unknown value is a 400. */
-export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, token }) => {
+export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, token, orderId }) => {
   const { t } = useTranslation();
 
   // Refund requests the customer has raised (the chat itself lives in HelpChat).
@@ -209,7 +211,8 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
       </View>
 
       {rows.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contactRow}>
+        // flexGrow 0: a horizontal ScrollView in a column grows to fill it, and the chips stretched to 40 % of the screen (R3-4).
+        <ScrollView horizontal style={{ flexGrow: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contactRow}>
           {rows.map(row => (
             <TouchableOpacity key={row.title} style={styles.contactChip} onPress={row.onPress} activeOpacity={0.75} accessibilityRole="button">
               {row.icon}
@@ -221,7 +224,7 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
 
       {authed ? (
         <View style={{ flex: 1 }}>
-          <HelpChat apiUrl={apiUrl} token={token} onSent={() => void loadTickets()} historyFooter={refunds} />
+          <HelpChat apiUrl={apiUrl} token={token} onSent={() => void loadTickets()} historyFooter={refunds} orderId={orderId} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -258,7 +261,7 @@ export const SupportScreen: React.FC<Props> = ({ onBack, customerEmail, apiUrl, 
 };
 
 const styles = StyleSheet.create({
-  contactRow: { paddingHorizontal: 16, paddingBottom: 10, gap: 8 },
+  contactRow: { paddingHorizontal: 16, paddingBottom: 10, gap: 8, alignItems: 'center' },
   contactChip: {
     flexDirection: 'row',
     alignItems: 'center',

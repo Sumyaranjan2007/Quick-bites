@@ -262,7 +262,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
    */
   const applyAddress = (address: SavedAddress | undefined, opts: { announce: boolean }) => {
     if (!address) return;
-    setLocality(localityOf(address));
+    // The name the customer gave it ("Home", "Mom's place"), else the area (R3-18).
+    setLocality(address.label || localityOf(address));
     // The address also supplies the position the listing is built from. Without
     // it the server has no origin, and every restaurant comes back with no
     // distance and no delivery time.
@@ -612,6 +613,22 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         <NotificationBell />
       </View>
 
+      {/* First visit (owner, 20 Oct, item 11; R3-17): the top third asks for the address first; until then
+          Quick Bites' picks show below; once saved, the kitchens within the radius set by admins. */}
+      {!origin && savedAddresses.length === 0 && (!token || addressesLoaded) && state !== 'error' && (
+          <View style={[styles.firstVisit, { minHeight: Math.round(windowHeight / 3) }]}>
+            <MapPin size={28} color={c.primary[600]} />
+            <Text style={styles.firstVisitTitle}>Save your address first</Text>
+            <Text style={styles.firstVisitBody}>See the restaurants that deliver to you, with real distances and times.</Text>
+            <TouchableOpacity style={[styles.chooseOnMap, { paddingHorizontal: 24, alignSelf: 'stretch', justifyContent: 'center' }]} onPress={() => void useCurrentLocation()} activeOpacity={0.85} disabled={detecting}>
+              <Text style={styles.chooseOnMapText}>{detecting ? 'Finding you…' : 'Use my current location'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.firstVisitLink} onPress={() => setMapOpen(true)} activeOpacity={0.8}>
+              <Text style={styles.firstVisitLinkText}>Pick on map</Text>
+            </TouchableOpacity>
+          </View>
+      )}
+
       {/* Hero */}
       <Text style={styles.heroTitle}>
         {t('feed.heroLine1')}{'\n'}{t('feed.heroLine2')}
@@ -738,28 +755,11 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         ))}
       </ScrollView>
 
-      {!origin && savedAddresses.length === 0 && (!token || addressesLoaded) && state !== 'error' ? (
-        // First visit (owner, 20 Oct, item 11): a third of the screen asks for the address first;
-        // until then Quick Bites' picks show below; once saved, the kitchens within the radius set by admins.
-        <View style={[styles.firstVisit, { minHeight: Math.round(windowHeight / 3) }]}>
-          <MapPin size={28} color={c.primary[600]} />
-          <Text style={styles.firstVisitTitle}>Save your address first</Text>
-          <Text style={styles.firstVisitBody}>See the restaurants that deliver to you, with real distances and times.</Text>
-          <TouchableOpacity style={styles.chooseOnMap} onPress={() => void useCurrentLocation()} activeOpacity={0.85} disabled={detecting}>
-            <Text style={styles.chooseOnMapText}>{detecting ? 'Finding you…' : 'Use my current location'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.firstVisitLink} onPress={() => setMapOpen(true)} activeOpacity={0.8}>
-            <Text style={styles.firstVisitLinkText}>Pick on map</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        state === 'success' &&
-        listKind === 'recommended' && (
-          <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
-            <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
-            <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
-          </TouchableOpacity>
-        )
+      {!(!origin && savedAddresses.length === 0 && (!token || addressesLoaded) && state !== 'error') && state === 'success' && listKind === 'recommended' && (
+        <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
+          <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
+          <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
+        </TouchableOpacity>
       )}
 
       {/* Favourites (#13): the kitchens this customer hearted, above the main list. */}

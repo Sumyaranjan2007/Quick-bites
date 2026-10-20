@@ -24,12 +24,12 @@ export type Ticket = {
   replies: Array<{ byUserId: string; byName: string; body: string; at: string }>;
 };
 export interface ChatApi {
-  help(): Promise<{ greeting: string; topics: Topic[] }>;
+  help(): Promise<{ greeting: string; topics: Topic[]; order?: { id: string; orderNumber: string } | null }>;
   answer(topicId: string): Promise<string>;
   match(text: string): Promise<{ topic: Topic | null; answer: string | null }>;
   tickets(): Promise<Ticket[]>;
   ticket(id: string): Promise<Ticket>;
-  raise(body: { subject: string; category: string; message: string; helpTopics: string[]; platform: 'android' | 'ios' | 'web' }): Promise<Ticket>;
+  raise(body: { subject: string; category: string; message: string; helpTopics: string[]; platform: 'android' | 'ios' | 'web'; orderId?: string }): Promise<Ticket>;
   reply(id: string, body: string): Promise<Ticket>;
   /** The person says their issue is solved: the chat moves to History. */
   resolve(id: string): Promise<Ticket>;
@@ -72,6 +72,8 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   const [lines, setLines] = useState<Line[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [greeting, setGreeting] = useState('');
+  // The order Help was opened about ("Ask support to cancel"), carried onto the ticket (R3-9).
+  const [about, setAbout] = useState<{ id: string; orderNumber: string } | null>(null);
   const [asked, setAsked] = useState<Topic[]>([]);
   const [typed, setTyped] = useState<string[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -95,13 +97,14 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
         const [help, list] = await Promise.all([api.help(), api.tickets().catch(() => [] as Ticket[])]);
         setTopics(help.topics);
         setGreeting(help.greeting);
+        setAbout(help.order || null);
         setMine(list);
         const open = list.find(t => OPEN.includes(t.status) && Date.now() - Date.parse(t.createdAt) < RESUME_MS);
         if (open) {
           setTicket(open);
           setLines([{ from: 'bot', text: CONNECTED }, ...threadOf(open)]);
         } else {
-          setLines(fresh(help.greeting));
+          setLines([...fresh(help.greeting), ...(help.order ? [{ from: 'bot', text: `About order #${help.order.orderNumber}.` } as Line] : [])]);
         }
       } catch {
         setError('Help could not be loaded. Check your connection.');
@@ -154,7 +157,8 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
       category: about?.category || 'OTHER',
       message: message.slice(0, 2000),
       helpTopics: asked.map(t => t.id),
-      platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'web' ? 'web' : 'android'
+      platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'web' ? 'web' : 'android',
+      ...(about ? { orderId: about.id } : {})
     });
     setTicket(made);
     setOfferPerson(false);

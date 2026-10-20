@@ -101,7 +101,7 @@ export const NewOrderModal: React.FC<{
             </View>
             <View style={s.payDivider} />
             <View style={s.payBlock}>
-              <Text style={s.payLabel}>Total trip</Text>
+              <Text style={s.payLabel}>Restaurant to customer</Text>
               <View style={s.payValueRow}>
                 <Route size={22} color={t.color.text} strokeWidth={2.5} />
                 <Text style={[s.payValue, { color: t.color.text, marginLeft: 6 }]}>

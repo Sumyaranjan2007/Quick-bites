@@ -62,6 +62,11 @@ try {
   const view = (await api(`/admin/support/tickets/${theirs.id}`, {}, admin)).json?.data;
   check('Staff closing it is recorded as Operations', () => assert.equal(view?.ticket?.resolvedBy, 'STAFF'));
   check('Operations sees the kitchen of a partner who asked', () => assert.ok(view?.raiser?.kitchens?.length > 0, JSON.stringify(view?.raiser)));
+
+  // R3-9: a name set after sign-in is the one help uses, not the token's.
+  await api('/auth/me', { method: 'PATCH', body: { fullName: 'Asha Renamed' } }, customer);
+  const help = (await api('/support/help', {}, customer)).json?.data;
+  check('Help greets the name the person set after signing in', () => assert.match(String(help?.greeting), /^Hi Asha,/));
 } finally {
   await new Promise(r => server.close(() => r(null)));
 }
