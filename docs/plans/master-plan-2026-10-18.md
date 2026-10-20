@@ -11,9 +11,9 @@
 > Owner rules 20 Oct: act on each Tester report at once (replaces "wait for the owner"); the loop runs until
 > the Tester's VERDICT is ALL GOOD; new money rule (pickup pay ₹6/km beyond 7 km) is in that file and CLAUDE.md §4.
 > Builder = the session that wrote that file; Tester = the session it started named `tester`.
-> **State 20 Oct:** all round-3 phases A–H built, gated and pushed (`a0c8bcc`, `4782fed`). **Build 42** (APK + AAB;
-> 40 and 41 were refused native builds, fixed by `scripts/patch-native-paths.mjs`) archived in
-> `quick-bites-release-archive/v42-round3-realtime-2026-10-20/`; handed to the Tester for round 3.
+> **State 20 Oct:** round 3 (build 42) tested: 26 findings, all handled in round 4 (`6c653b1`, see the round-3 plan,
+> "Round 4"). **Build 43** (APK + AAB) archived in `quick-bites-release-archive/v43-round4-fixes-2026-10-20/`; handed to
+> the Tester for round 4.
 >
 > ### ▶ CURRENT STATE — 20 Oct 2026 (read this first; it overrides older status lines below)
 >
