@@ -216,6 +216,9 @@ echo "Clearing Metro's transform cache (it has shipped a stale screen before)"
 rm -rf "${TMPDIR:-/tmp}"/metro-cache "${TMPDIR:-/tmp}"/metro-file-map-* 2>/dev/null || true
 rm -rf /tmp/metro-cache /tmp/metro-file-map-* 2>/dev/null || true
 
+# Windows 260-character limit: keep the keyboard library's C++ object paths short (round 3, build 40).
+(cd "$ROOT" && node scripts/patch-native-paths.mjs) || { echo "ERROR: could not patch native paths"; exit 1; }
+
 for entry in "${APPS[@]}"; do
   app="${entry%%:*}"
   artifact="${entry##*:}"
