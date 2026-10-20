@@ -93,7 +93,7 @@ try {
   await setRates({ minPlatformMarginPerOrder: 20 });
   const quote = await api('/orders/quote', { method: 'POST', body: basket({ couponCode: 'BIGLOSS' }) }, customer);
   const guarded = await place({ couponCode: 'BIGLOSS' });
-  it('With a Rs 20 floor, the coupon is trimmed, not refused', () => {
+  it('With a ₹20 floor, the coupon is trimmed, not refused', () => {
     assert.ok(guarded?.id, 'order refused');
     assert.equal(guarded.couponCode, 'BIGLOSS');
     assert.ok(guarded.bill.couponDiscount > 0 && guarded.bill.couponDiscount < loser.bill.couponDiscount,
@@ -132,7 +132,7 @@ try {
   });
   const body = digestBody(digestCounts(new Date()), 'today') || '';
   it('The admin digest says how many orders lost money and how much', () => {
-    assert.match(body, /order(s)? lost us Rs /, body);
+    assert.match(body, /order(s)? lost us ₹/, body);
   });
 } finally {
   server.close();

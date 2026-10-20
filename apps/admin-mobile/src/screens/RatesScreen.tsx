@@ -20,6 +20,7 @@ import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { MenuPricingTab } from './MenuPricingTab';
 import { riderPayFor } from '@quick-bites/pricing-engine';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -265,7 +266,7 @@ export const RatesScreen: React.FC = () => {
 
   return (
     <>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={[s.content, showSaveBar && { paddingBottom: 260 }]}
         refreshControl={<RefreshControl refreshing={rates.loading} onRefresh={rates.reload} />}
         keyboardShouldPersistTaps="handled"
@@ -733,7 +734,7 @@ export const RatesScreen: React.FC = () => {
             </Text>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {showSaveBar ? (
         <View style={s.saveBar}>

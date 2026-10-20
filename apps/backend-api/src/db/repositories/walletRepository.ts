@@ -91,7 +91,7 @@ export class WalletRepository {
     // to the current one, so a rounding step cannot let a wallet end at -0.01.
     if (nextBalance < 0) {
       throw new Error(
-        `Insufficient wallet balance: available Rs ${wallet.balance.toFixed(2)}, requested Rs ${amount.toFixed(2)}`
+        `Insufficient wallet balance: available ₹${wallet.balance.toFixed(2)}, requested ₹${amount.toFixed(2)}`
       );
     }
 

@@ -378,7 +378,7 @@ export function notifyAdminsKycSubmitted(input: {
  * A refund has been asked for.
  *
  * The amount is in it: only `finance.refunds.manage` receives this, and knowing
- * whether it is Rs 40 or Rs 4,000 is what decides whether it waits until
+ * whether it is ₹40 or ₹4,000 is what decides whether it waits until
  * morning.
  */
 export function notifyAdminsRefundRaised(input: {

@@ -41,6 +41,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
 import { chooseProfilePhoto } from '../lib/photo';
 import { useTranslation, LANGUAGES, Language } from '../lib/i18n';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -425,7 +426,7 @@ export const ProfileScreen: React.FC<Props> = ({
   );
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAwareScrollView bottomOffset={24} style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         {/* A tab's top screen has no back button on iPhone; the tab bar is the way out. */}
         {Platform.OS !== 'ios' && (
@@ -911,7 +912,7 @@ export const ProfileScreen: React.FC<Props> = ({
         onClose={() => setPoliciesOpen(false)}
         apiUrl={apiUrl}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

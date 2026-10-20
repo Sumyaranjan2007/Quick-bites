@@ -88,7 +88,7 @@ export interface ValidationResult {
 
 export const razorpayXAdapter = {
   /**
-   * Penny drop: deposits Rs 1 and reports what the bank says the account is.
+   * Penny drop: deposits ₹1 and reports what the bank says the account is.
    *
    * This is the single most valuable call in the payouts system. It answers a
    * question nothing else can: **is this really their account?** A digit typed
@@ -99,7 +99,7 @@ export const razorpayXAdapter = {
    *
    * `validation_type: 'pennydrop'` rather than `'penniless'` deliberately. The
    * penniless check is free and only asks whether the account exists; the penny
-   * drop costs Rs 1 and returns the REGISTERED NAME, which is the part that
+   * drop costs ₹1 and returns the REGISTERED NAME, which is the part that
    * matters. One rupee to know whose account it is, once, is not a saving worth
    * making.
    */

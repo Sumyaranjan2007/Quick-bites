@@ -1,4 +1,4 @@
-import { roadPath } from '../modules/places/routingService.ts';
+import { roadPath, isOffRoute } from '../modules/places/routingService.ts';
 import { isStale } from '../modules/riders/liveLocation.ts';
 import { durable } from '../middlewares/durable.ts';
 import { quoteCancellation } from '../modules/orders/cancellationFee.ts';
@@ -236,7 +236,7 @@ const CreateOrderSchema = z.object({
   tipAmount: z
     .number()
     .min(0, 'A tip cannot be negative')
-    .max(config.MAX_TIP_AMOUNT, `A tip cannot be more than Rs ${config.MAX_TIP_AMOUNT}`)
+    .max(config.MAX_TIP_AMOUNT, `A tip cannot be more than ₹${config.MAX_TIP_AMOUNT}`)
     .optional()
 });
 
@@ -256,7 +256,7 @@ const QuoteOrderSchema = z.object({
   tipAmount: z
     .number()
     .min(0, 'A tip cannot be negative')
-    .max(config.MAX_TIP_AMOUNT, `A tip cannot be more than Rs ${config.MAX_TIP_AMOUNT}`)
+    .max(config.MAX_TIP_AMOUNT, `A tip cannot be more than ₹${config.MAX_TIP_AMOUNT}`)
     .optional()
 });
 
@@ -345,6 +345,14 @@ orderRouter.get('/:id/tracking', authMiddleware(), async (req, res, next) => {
     if (accepted && !order.routePolyline && due && trackedRestaurant?.coordinates && order.deliveryCoordinates) {
       order.routeTriedAt = new Date().toISOString();
       order.routePolyline = (await roadPath(trackedRestaurant.coordinates, order.deliveryCoordinates)) ?? undefined;
+      await orderRepository.save(order);
+    }
+    // The rider took another road: the line is re-drawn from where they are (item 7), at most once a minute.
+    const rider = order.riderCoordinates;
+    const rerouteDue = !order.routeTriedAt || Date.now() - Date.parse(order.routeTriedAt) > 60_000;
+    if (order.pickedUpAt && rider && order.deliveryCoordinates && order.routePolyline && rerouteDue && isOffRoute(order.routePolyline, rider)) {
+      order.routeTriedAt = new Date().toISOString();
+      order.routePolyline = (await roadPath(rider, order.deliveryCoordinates)) ?? order.routePolyline;
       await orderRepository.save(order);
     }
 

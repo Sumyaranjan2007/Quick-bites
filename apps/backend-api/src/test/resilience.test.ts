@@ -178,7 +178,7 @@ async function run() {
     tipAmount: 200
   });
   check('GST is 5% of the food and nothing else',
-    equalToThePaisa(taxed.gstAmount, 50), `${taxed.gstAmount} on a Rs 1000 basket`);
+    equalToThePaisa(taxed.gstAmount, 50), `${taxed.gstAmount} on a ₹1000 basket`);
 
   // A basket of nothing must not produce a negative total that could be used to
   // credit an account.

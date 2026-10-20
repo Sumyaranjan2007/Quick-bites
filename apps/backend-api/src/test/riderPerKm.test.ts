@@ -1,8 +1,8 @@
 /**
- * Rs 10 a road km, and one figure from quote to payout (owner, 1 Oct 2026).
+ * ₹10 a road km, and one figure from quote to payout (owner, 1 Oct 2026).
  *
  * The owner's rules:
- *   - a rider earns Rs 10 for every km of road from the restaurant to the
+ *   - a rider earns ₹10 for every km of road from the restaurant to the
  *     customer, never less than the per-trip minimum, and the per-km amount is
  *     one global setting;
  *   - the customer's delivery fee is that pay plus the delivery markup %;
@@ -82,13 +82,13 @@ try {
   console.log('-- The owner\'s decision reaches the live rates once');
   resetConfigsForTesting();
   memoryStore.meta.delete('rates:rider-per-km-2026-10-01');
-  // As production had it: Rs 25 a trip + Rs 6 a km beyond 2 km.
+  // As production had it: ₹25 a trip + ₹6 a km beyond 2 km.
   createVersion({ riderBaseFeePerTrip: 25, riderBaseKm: 2, riderPerKmFee: 6 }, { userId: ADMIN }, 'As it was');
   const versionsBefore = listConfigs().length;
   const applied = applyRiderPerKmDecision();
   const versionsAfter = listConfigs().length;
   const again = applyRiderPerKmDecision();
-  it('Riders move to Rs 10 a km with no base fee, in one new rates version', () => {
+  it('Riders move to ₹10 a km with no base fee, in one new rates version', () => {
     assert.equal(applied, true);
     const r = getActiveRates();
     assert.equal(r.riderPerKmFee, 10);
@@ -150,7 +150,7 @@ try {
   const first = await place(30);
   const bill1 = first.order?.bill;
   const rates = getActiveRates();
-  it('Rider pay is Rs 10 a road km, never below the minimum, frozen on the bill', () => {
+  it('Rider pay is ₹10 a road km, never below the minimum, frozen on the bill', () => {
     assert.equal(first.res.status, 201, JSON.stringify(first.res.json).slice(0, 300));
     assert.ok(Number(first.order.distanceKm) > 0, 'the order has no distance');
     assert.equal(bill1.riderPay, riderPayFor(first.order.distanceKm, rates));
@@ -180,7 +180,7 @@ try {
   setCharges(RESTAURANT_ID, { platformGstPercent: null, platformFee: null }, ADMIN);
   saveBusinessIdentity({ gstin: '' });
   const feeOf = (r: any) => (r.json?.data?.bill ?? r.json?.data?.quote?.bill ?? r.json?.data)?.platformFee;
-  it('A Rs 10 fee is Rs 10 on the bill; GST is added only with a GSTIN', () => {
+  it('A ₹10 fee is ₹10 on the bill; GST is added only with a GSTIN', () => {
     assert.equal(feeOf(tenNoGst), 10, 'the owner\'s "I do 10 and it shows 11"');
     assert.equal(feeOf(tenWithGst), 11.8);
   });

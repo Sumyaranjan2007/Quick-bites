@@ -21,6 +21,7 @@ import { tokens, formatMoney, humanise, formatDateTime, timeAgo, refundSentence 
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -70,7 +71,7 @@ export const RefundsScreen: React.FC = () => {
         />
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -110,7 +111,7 @@ export const RefundsScreen: React.FC = () => {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <RefundCaseSheet id={openId} onClose={() => setOpenId(null)} onChanged={list.silentReload} />
     </View>

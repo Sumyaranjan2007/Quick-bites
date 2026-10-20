@@ -130,7 +130,7 @@ authRouter.post('/register', authRateLimiterMiddleware, requireFeature('registra
       });
     }
 
-    // No sign-up bonus. It used to credit Rs 100 to every new customer, which
+    // No sign-up bonus. It used to credit ₹100 to every new customer, which
     // is money given away to anyone who can supply a phone number — and the
     // wallet it landed in no longer accepts top-ups, so the balance had nowhere
     // to come from and no reason to exist. The wallet is created on first use

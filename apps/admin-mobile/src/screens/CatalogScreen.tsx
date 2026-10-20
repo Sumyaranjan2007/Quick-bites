@@ -23,6 +23,7 @@ import { tokens, formatMoney, humanise, formatDateTime, timeAgo } from '../theme
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 const dishCount = (n: number) => `${n} dish${n === 1 ? '' : 'es'}`;
@@ -73,7 +74,7 @@ const MenusTab: React.FC = () => {
       {!list.loading && menus.length === 0 ? (
         <EmptyState title="No menus" message={list.error || undefined} icon={<UtensilsCrossed size={34} color={c.text.muted} />} />
       ) : null}
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -97,7 +98,7 @@ const MenusTab: React.FC = () => {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <RestaurantMenuSheet
         restaurantId={openId}
@@ -149,7 +150,7 @@ const RequestsTab: React.FC = () => {
         />
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -217,7 +218,7 @@ const RequestsTab: React.FC = () => {
             ) : null}
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <RestaurantReviewSheet
         group={openRestaurant}
@@ -477,7 +478,7 @@ const CategoriesTab: React.FC = () => {
   };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.list}
       refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
     >
@@ -525,7 +526,7 @@ const CategoriesTab: React.FC = () => {
           ) : null}
         </Card>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

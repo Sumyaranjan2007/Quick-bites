@@ -156,7 +156,7 @@ it('V9-17 The rider app reloads its figures on returning to the front and on ope
   assert.ok(/AppState\.addEventListener\('change', next => \{\s*if \(next === 'active'\) void loadDashboard/.test(a));
   assert.ok(/tab === 'home' \|\| tab === 'earnings'\)\) void loadDashboard/.test(a));
 });
-it('V9-14/15 The rider cash screen tells the truth at Rs 0 and clears the old amount', () => {
+it('V9-14/15 The rider cash screen tells the truth at ₹0 and clears the old amount', () => {
   const cash = code('delivery-mobile/src/screens/CashScreen.tsx');
   assert.equal(cash.includes('Every order you took was paid online'), false);
   assert.ok(/if \(inHand <= 0\) \{\s*if \(amount !== ''\) setAmount\(''\)/.test(cash));

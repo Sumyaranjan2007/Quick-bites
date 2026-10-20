@@ -18,7 +18,7 @@
  *
  *   1. MAKER-CHECKER above a threshold. A second administrator, who is not the
  *      drafter, must approve. Below the threshold one person clears the daily
- *      queue, because two people on every Rs 300 rider payment is theatre that
+ *      queue, because two people on every ₹300 rider payment is theatre that
  *      gets automated away within a week.
  *
  *   2. A DAILY CAP across everything, whoever approved it. Maker-checker stops
@@ -218,14 +218,14 @@ export function duesFor(
      *
      * The effect compounds. After a payee's first payout, what they are owed reads
      * as their new earnings MINUS everything they have ever been paid. A partner paid
-     * Rs 500 in week one and earning Rs 300 in week two is owed "nothing"; the figure
+     * ₹500 in week one and earning ₹300 in week two is owed "nothing"; the figure
      * only goes positive again once a single week's earnings exceed their lifetime
      * payments, which for a steady partner is never.
      *
      * It was invisible because every check on this platform — including the ones I
      * wrote — paid each payee exactly ONCE. The first payout is always correct. It
      * was found by a lifecycle check awarding a rider a bonus AFTER paying them, and
-     * getting Rs 60 where Rs 120 was owed.
+     * getting ₹60 where ₹120 was owed.
      *
      * Identified by `payoutId`, which only a payout's own postings carry. A refund
      * clawback is also a debit here and MUST still count — it carries a refund case,
@@ -276,7 +276,7 @@ export function duesFor(
   }
   if (cashInHandPaise > 0) {
     // The rule the owner asked for, and it is the right way round. A rider
-    // holding Rs 2,000 of platform cash is not paid Rs 1,800 of earnings; that
+    // holding ₹2,000 of platform cash is not paid ₹1,800 of earnings; that
     // is a net position, not a payment, and settling it by transfer means the
     // platform sending out money it is owed.
     blockers.push({

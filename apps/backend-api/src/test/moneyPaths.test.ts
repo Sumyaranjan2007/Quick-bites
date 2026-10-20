@@ -171,7 +171,7 @@ try {
 
   it('and the books come back to where they were', () => {
     /*
-     * A capture put Rs 300 at the gateway and Rs 300 into what we owe the customer
+     * A capture put ₹300 at the gateway and ₹300 into what we owe the customer
      * in food. Cancelling reverses both, and neither is a loss: money came in, no
      * food was made, the money went back.
      */
@@ -241,7 +241,7 @@ try {
     walletBalance: 0
   } as any);
 
-  // Eight deliveries today: the DAILY_8 target, worth Rs 120.
+  // Eight deliveries today: the DAILY_8 target, worth ₹120.
   const nowIso = new Date().toISOString();
   for (let i = 0; i < 8; i++) {
     memoryStore.orders.set(`ord_inc_${i}`, {
@@ -262,7 +262,7 @@ try {
   /*
    * Switched on the way an administrator switches it on.
    *
-   * Every bonus ships DISABLED — the owner once paid a Rs 700 bonus nobody had
+   * Every bonus ships DISABLED — the owner once paid a ₹700 bonus nobody had
    * approved, and that safeguard is why. So the check enables it through
    * `setIncentiveSettings` rather than reaching past the guard, which would also
    * have meant testing a path production cannot reach.

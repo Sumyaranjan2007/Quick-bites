@@ -150,7 +150,7 @@ export function paymentPolicies(): PaymentPolicy[] {
   const rates = getActiveRates();
   const grievance = grievanceSection();
 
-  const money = (n: number) => `Rs ${Number(n).toLocaleString('en-IN')}`;
+  const money = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`;
 
   return [
     {

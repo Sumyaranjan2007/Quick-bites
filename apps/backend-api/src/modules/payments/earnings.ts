@@ -13,7 +13,7 @@
  * So earnings are POSTED, once, when the order completes. What a partner is
  * owed is then a balance in the ledger rather than the output of a scan, and
  * the entries behind it carry the order ids that produced them. "Why is this
- * Rs 4,812?" has a literal answer made of rows.
+ * ₹4,812?" has a literal answer made of rows.
  *
  * -------------------------------------------------------------------------
  * EVERY ORDER POSTS EXACTLY ONCE

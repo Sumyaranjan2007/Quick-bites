@@ -57,7 +57,7 @@ export interface DoorQr {
  *
  *   - single-use closes the moment it is paid, so a customer cannot be charged
  *     twice by scanning again, and a rider cannot reuse yesterday's code;
- *   - fixed amount means the customer cannot pay Rs 50 against a Rs 580 order,
+ *   - fixed amount means the customer cannot pay ₹50 against a ₹580 order,
  *     and — more to the point — a rider cannot present a code for a different
  *     amount than the one the platform is owed.
  *

@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image,
@@ -22,6 +21,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { parseApiError } from '../lib/apiErrors';
 import { useTranslation } from '../lib/i18n';
 import { useHiddenSettings } from '../lib/useHiddenSettings';
+import { KeyboardAwareScrollView, useKeyboardState } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -209,6 +209,7 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
     }
   };
 
+  const keyboardOpen = useKeyboardState(state => state.isVisible);
   const backToPhone = () => {
     setStep('phone');
     setCode('');
@@ -217,12 +218,13 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <View style={styles.screen}>
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Real food from our partner kitchens, fading into the form (D2). */}
         <HeroSlideshow
           apiUrl={apiUrl}
-          height={Math.round(windowHeight * 0.42)}
+          // The photo steps back while typing, so the field and its button stay in view (round 3).
+          height={Math.round(windowHeight * (keyboardOpen ? 0.16 : 0.42))}
           logo={require('../../assets/logo-mark.png')}
           tagline={t('auth.tagline')}
           onTouchEnd={serverSettingsAllowed ? registerTap : undefined}
@@ -420,8 +422,8 @@ export const LoginScreen: React.FC<Props> = ({ initialApiUrl, onLoginSuccess, on
           )}
         </Card>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 };
 

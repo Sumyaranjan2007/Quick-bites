@@ -182,7 +182,7 @@ async function run() {
      * liked, and the platform's only recourse was to raise the customer price
      * to compensate — which punishes the customer for the partner's number.
      */
-    const charges = setCharges(RESTAURANT, { partnerApprovedFee: 25 }, ADMIN, 'Rs 40 was too high');
+    const charges = setCharges(RESTAURANT, { partnerApprovedFee: 25 }, ADMIN, '₹40 was too high');
 
     assert.equal(charges.partnerDeclaredFee, 15, 'their own declaration was overwritten');
     assert.equal(charges.partnerPackagingFee, 25, 'the approved figure did not take effect');
@@ -369,7 +369,7 @@ async function run() {
     }
   });
 
-  await check('The Rs 700 one specifically is off, and is still there to switch on', () => {
+  await check('The ₹700 one specifically is off, and is still there to switch on', () => {
     const week40 = incentiveSettings().find(i => i.code === 'WEEK_40')!;
     assert.equal(week40.enabled, false);
     assert.equal(week40.reward, 700, 'the amount was zeroed rather than disabled');
@@ -633,8 +633,8 @@ async function run() {
    * than the assertion being loosened to a "greater than" that would pass for
    * any discount at all.
    *
-   * By hand: no distance on this basket, so the fee is the Rs 30 base, and 25%
-   * off is Rs 22.50.
+   * By hand: no distance on this basket, so the fee is the ₹30 base, and 25%
+   * off is ₹22.50.
    */
   await check('A member only gets their delivery discount above their own plan floor', () => {
     const below = calculateOrderPricing({
@@ -654,7 +654,7 @@ async function run() {
       memberDeliveryDiscountPercent: 25,
       rates: getActiveRates()
     });
-    assert.equal(above.deliveryFee, 22.5, '25% off Rs 30');
+    assert.equal(above.deliveryFee, 22.5, '25% off ₹30');
     assert.equal(above.membershipDeliverySaving, 7.5);
     assert.notEqual(above.deliveryFee, 0, 'clearing the floor no longer makes delivery free');
   });
@@ -702,7 +702,7 @@ async function run() {
     const charges = effectiveCharges(RESTAURANT);
     assert.equal(charges.foodMarkupPercent, 20);
 
-    // One dish the kitchen priced at Rs 500. The customer sees Rs 600.
+    // One dish the kitchen priced at ₹500. The customer sees ₹600.
     const customerPrice = customerDishPrice(RESTAURANT, 'dish_unpriced_for_the_rule_check', 500);
     assert.equal(customerPrice, 600);
 
@@ -888,9 +888,9 @@ async function run() {
    *  DELIVERY MUST NOT LOSE MONEY ON EVERY ORDER                      *
    * ---------------------------------------------------------------- */
 
-  await check('A rider is paid Rs 12 a road km, with the minimum, from the configured rates', () => {
+  await check('A rider is paid ₹12 a road km, with the minimum, from the configured rates', () => {
     /*
-     * The owner's rule (1 Oct 2026, Rs 12 from 2 Oct): a rider earns this for every km of road
+     * The owner's rule (1 Oct 2026, ₹12 from 2 Oct): a rider earns this for every km of road
      * from the restaurant to the customer, never less than the minimum per
      * trip, and the per-km amount is one global setting on the Rates screen.
      * The delivery fee the customer pays does not enter it.
@@ -898,8 +898,8 @@ async function run() {
     const rates = getActiveRates();
     assert.equal(rates.riderPerKmFee, 12);
 
-    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 38, '3.2 km at Rs 12 = 38.4, rounded');
-    // Past 4 km the rate slides towards Rs 8 at 35 km (owner, 18 Oct 2026): 5.5 km at Rs 11.81 = 64.9.
+    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 38, '3.2 km at ₹12 = 38.4, rounded');
+    // Past 4 km the rate slides towards ₹8 at 35 km (owner, 18 Oct 2026): 5.5 km at ₹11.81 = 64.9.
     assert.equal(calculateTripPayout({ distanceKm: 5.5 }), 65);
     assert.equal(calculateTripPayout({ distanceKm: 0.5 }), rates.riderMinEarningPerTrip, 'the minimum was not applied');
 
@@ -914,13 +914,13 @@ async function run() {
 
   await check('Changing the per-km rate actually changes what a rider is paid', () => {
     createVersion({ riderPerKmFee: 15 }, { userId: ADMIN }, 'Higher rider pay');
-    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 48, '3.2 km at Rs 15');
+    assert.equal(calculateTripPayout({ distanceKm: 3.2 }), 48, '3.2 km at ₹15');
     createVersion({ riderPerKmFee: 12 }, { userId: ADMIN }, 'Back');
   });
 
   await check('The tip reaches the rider on top, in full, and only once', () => {
     // calculateTripPayout is the trip pay; the tip is added exactly once, in
-    // tripTakeHome. Both used to add it, so a Rs 50 tip showed as Rs 100.
+    // tripTakeHome. Both used to add it, so a ₹50 tip showed as ₹100.
     assert.equal(calculateTripPayout({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 38, 'the tip is inside the trip pay');
     assert.equal(tripTakeHome({ distanceKm: 3.2, bill: { tipAmount: 50 } }), 88);
     assert.equal(tripTakeHome({ distanceKm: 3.2, riderPayout: 38, bill: { tipAmount: 50 } }), 88, 'the tip was counted twice');

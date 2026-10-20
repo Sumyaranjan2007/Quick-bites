@@ -364,7 +364,7 @@ async function run() {
    *
    * This check used to assert that a rider always saw the ladder, which was
    * true while five bonuses were hardcoded and unconditional — and that is
-   * precisely the behaviour the owner objected to, having found a Rs 700 bonus
+   * precisely the behaviour the owner objected to, having found a ₹700 bonus
    * on a payout nobody approved. So the contract is inverted rather than
    * loosened: by default a rider sees NOTHING, and turning one on is what makes
    * it appear.

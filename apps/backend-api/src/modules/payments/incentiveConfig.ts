@@ -95,7 +95,7 @@ export function setIncentiveSettings(
 
     if (change.reward !== undefined) {
       if (!Number.isFinite(change.reward) || change.reward < 0 || change.reward > 5000) {
-        throw new AppError('A bonus must be between Rs 0 and Rs 5,000.', 400, 'REWARD_OUT_OF_RANGE');
+        throw new AppError('A bonus must be between ₹0 and ₹5,000.', 400, 'REWARD_OUT_OF_RANGE');
       }
       existing.reward = change.reward;
     }

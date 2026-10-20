@@ -179,7 +179,7 @@ export async function seedDatabase() {
   // 2. Wallets & Initial Balances
   await walletRepository.credit('usr_customer_01', 500.00, 'Welcome Promotional Wallet Balance');
   await walletRepository.credit('usr_rider_01', 240.00, 'Shift Earnings Balance');
-  console.log('[PASS] Customer wallet (Rs 500) and Rider wallet (Rs 240) seeded.');
+  console.log('[PASS] Customer wallet (₹500) and Rider wallet (₹240) seeded.');
 
   // 3. Delivery Rider Profile
   //
@@ -566,7 +566,7 @@ export async function seedDatabase() {
   memoryStore.coupons.set('WELCOME50', {
     code: 'WELCOME50',
     title: 'Welcome offer',
-    description: '50% off your first Quick Bites order, up to Rs 100.',
+    description: '50% off your first Quick Bites order, up to ₹100.',
     discountType: 'PERCENTAGE',
     discountValue: 50,
     maxDiscountCap: 100,
@@ -582,7 +582,7 @@ export async function seedDatabase() {
   memoryStore.coupons.set('FREEDEL', {
     code: 'FREEDEL',
     title: 'Free delivery',
-    description: 'No delivery fee on orders over Rs 150.',
+    description: 'No delivery fee on orders over ₹150.',
     discountType: 'FREE_DELIVERY',
     discountValue: 100,
     minOrderValue: 150,

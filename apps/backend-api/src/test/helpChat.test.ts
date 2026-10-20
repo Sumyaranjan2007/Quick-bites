@@ -187,7 +187,7 @@ try {
   it('"Item missing" mentions the problem already reported on that order', () =>
     assert.match(missing.json.data.answer, /already reported/));
 
-  // Real earnings: a delivered trip posts Rs 440 to the kitchen and Rs 40 to the rider (payouts suite).
+  // Real earnings: a delivered trip posts ₹440 to the kitchen and ₹40 to the rider (payouts suite).
   recordOrderEarnings(putOrder({
     status: 'DELIVERED', riderId: 'rdr_vikram_01', riderPayout: 40, razorpayPaymentId: 'pay_help_fixture',
     pickedUpAt: new Date(Date.now() - 86_400_000).toISOString(), deliveredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),

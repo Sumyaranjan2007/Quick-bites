@@ -135,7 +135,7 @@ const basket = {
   items: [{ unitPrice: 500, quantity: 1, addonsTotal: 0 }],
   packagingFee: 20,
   distanceKm: 6,
-  // A flat Rs 12 a km (no slide past 4 km, owner 18 Oct 2026), so the discounts below read in round numbers.
+  // A flat ₹12 a km (no slide past 4 km, owner 18 Oct 2026), so the discounts below read in round numbers.
   rates: { ...DEFAULT_PRICING_RATES, riderFullRateKm: 1000 }
 };
 
@@ -146,9 +146,9 @@ const basket = {
  * rather than being relaxed to accommodate it.
  *
  * The numbers are worked out by hand rather than read off the code: this basket
- * travels 6km and the rider earns Rs 12 a road km (owner, 2 Oct 2026), so the
- * delivery fee is Rs 72 with no markup. Ten percent off is Rs 64.80 and forty
- * percent off is Rs 43.20. Asserting the exact figure is the point; "it went down" would
+ * travels 6km and the rider earns ₹12 a road km (owner, 2 Oct 2026), so the
+ * delivery fee is ₹72 with no markup. Ten percent off is ₹64.80 and forty
+ * percent off is ₹43.20. Asserting the exact figure is the point; "it went down" would
  * pass for any discount, including one that gave the whole fee away.
  */
 check('A member pays a discounted delivery fee, not a free one', () => {
@@ -160,8 +160,8 @@ check('A member pays a discounted delivery fee, not a free one', () => {
   });
   const lapsed = calculateOrderPricing({ ...basket, isGold: false });
 
-  assert.equal(lapsed.deliveryFee, 72, '6 road km at Rs 12');
-  assert.equal(live.deliveryFee, 64.8, '10% off Rs 72');
+  assert.equal(lapsed.deliveryFee, 72, '6 road km at ₹12');
+  assert.equal(live.deliveryFee, 64.8, '10% off ₹72');
   assert.equal(live.membershipDeliverySaving, 7.2, 'and the saving is stated, not just implied');
 
   // The old rule is gone, and this is the line that says so. A member paying
@@ -176,7 +176,7 @@ check('A dearer plan is visibly better on the same basket', () => {
   const goldMax = calculateOrderPricing({ ...common, memberDeliveryDiscountPercent: 40 });
 
   assert.equal(gold.deliveryFee, 64.8);
-  assert.equal(goldMax.deliveryFee, 43.2, '40% off Rs 72');
+  assert.equal(goldMax.deliveryFee, 43.2, '40% off ₹72');
   assert.equal(goldMax.membershipDeliverySaving, 28.8);
 });
 
@@ -294,7 +294,7 @@ check('The ladder is the one the owner set', () => {
  * The benefit lines are DERIVED, and this is the check that keeps them honest.
  *
  * The shipped text once promised "Free delivery on every order" while the code
- * required a Rs 199 basket, on the screen where somebody hands over money. The
+ * required a ₹199 basket, on the screen where somebody hands over money. The
  * same sentence would have become false again the moment the benefit turned
  * into a percentage -- and nothing type-checks prose.
  */

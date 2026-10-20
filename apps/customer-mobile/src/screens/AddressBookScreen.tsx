@@ -18,6 +18,7 @@ import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { AddressSearchField, type ResolvedPlace } from '../components/AddressSearchField';
 import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -290,7 +291,7 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
         <Text style={styles.headerTitle}>Saved addresses</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={styles.body}>
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         <TouchableOpacity style={styles.addButton} onPress={openNew} activeOpacity={0.85}>
@@ -355,13 +356,13 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
             </Card>
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={sheetOpen} transparent animationType="slide" onRequestClose={() => setSheetOpen(false)}>
         <KeyboardLift>
           <View style={styles.backdrop}>
             <View style={styles.sheet}>
-              <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
+              <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={{ padding: 20, gap: 12 }}>
                 <Text style={styles.sheetTitle}>{editingId ? 'Edit address' : 'Add a delivery address'}</Text>
 
                 <AddressSearchField apiUrl={apiUrl} token={token} near={coordinates} onPick={usePickedPlace} />
@@ -468,7 +469,7 @@ export const AddressBookScreen: React.FC<Props> = ({ onBack, apiUrl, token }) =>
                     )}
                   </TouchableOpacity>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </View>
         </KeyboardLift>

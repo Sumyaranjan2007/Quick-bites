@@ -303,7 +303,7 @@ async function run() {
 
   await check('A rider holding cash is blocked entirely, not netted off', () => {
     // The rule the owner asked for, and the right way round: a rider holding
-    // Rs 2,000 of platform cash is not paid Rs 1,800 of earnings. That is a net
+    // ₹2,000 of platform cash is not paid ₹1,800 of earnings. That is a net
     // position, not a payment.
     recordOrderEarnings(deliveredOrder({ deliveredAt: new Date(Date.now() - 3 * 86_400_000).toISOString() }));
     memoryStore.riders.set(RIDER, { id: RIDER, fullName: 'Rahul Sharma', codCashInHand: 2000 });

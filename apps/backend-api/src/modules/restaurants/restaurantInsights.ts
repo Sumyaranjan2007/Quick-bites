@@ -94,7 +94,9 @@ export function buildRestaurantDashboard(
   const since = (days: number) => new Date(now.getTime() - days * msDay).getTime();
 
   const delivered = orders.filter(o => EARNING_STATUSES.has(o.status));
-  const cancelled = orders.filter(o => o.status === 'CANCELLED' || o.status === 'REFUNDED');
+  // Delivered and later refunded still reached the customer: not a cancellation (R2-20).
+  const reachedCustomer = (o: Order) => o.status === 'DELIVERED' || (o.status === 'REFUNDED' && Boolean(o.deliveredAt));
+  const cancelled = orders.filter(o => (o.status === 'CANCELLED' || o.status === 'REFUNDED') && !reachedCustomer(o));
   const active = orders.filter(
     o => !EARNING_STATUSES.has(o.status) && o.status !== 'CANCELLED' && o.status !== 'REFUNDED'
   );
@@ -168,7 +170,7 @@ export function buildRestaurantDashboard(
   }
 
   const prepped = delivered.filter(o => typeof o.preparationMinutes === 'number');
-  const terminal = delivered.length + cancelled.length;
+  const terminal = orders.filter(reachedCustomer).length + cancelled.length;
 
   return {
     revenue: {
@@ -185,7 +187,7 @@ export function buildRestaurantDashboard(
       cancelled: cancelled.length,
       active: active.length,
       today: orders.filter(o => istDateKey(o.createdAt) === todayKey).length,
-      completionRate: terminal ? Math.round((delivered.length / terminal) * 100) : 0
+      completionRate: terminal ? Math.round((orders.filter(reachedCustomer).length / terminal) * 100) : 0
     },
     ratings: {
       average: rated.length

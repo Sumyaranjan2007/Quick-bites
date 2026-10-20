@@ -25,6 +25,7 @@ import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
 import { StatementSheet, type StatementOwner } from '../components/StatementSheet';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -77,7 +78,7 @@ const RevenueTab: React.FC = () => {
   const topRevenue = topRestaurants?.[0]?.gross || 1;
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.scroll}
       refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
     >
@@ -138,7 +139,7 @@ const RevenueTab: React.FC = () => {
           ))}
         </Card>
       ) : null}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 
@@ -173,7 +174,7 @@ const LossesTab: React.FC = () => {
   };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.scroll}
       refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
     >
@@ -216,7 +217,7 @@ const LossesTab: React.FC = () => {
         {report.note} To stop this, set "Least we keep per order" on the Rates screen: coupons are then trimmed so no
         order goes below it.
       </Text>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 
@@ -249,7 +250,7 @@ const PaymentsTab: React.FC = () => {
         />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
       >
@@ -293,7 +294,7 @@ const PaymentsTab: React.FC = () => {
             </Text>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 };
@@ -393,7 +394,7 @@ const RiderSettlementsTab: React.FC = () => {
       <View style={s.controls}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Rider name, phone or code" onSubmit={() => setSubmitted(search.trim())} />
       </View>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />}
       >
@@ -441,7 +442,7 @@ const RiderSettlementsTab: React.FC = () => {
             ) : null}
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <StatementSheet owner={statementOf} onClose={() => setStatementOf(null)} />
     </View>
   );
@@ -468,7 +469,7 @@ const SettlementsTab: React.FC = () => {
         />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={
           <RefreshControl refreshing={resource.loading} onRefresh={resource.reload} tintColor={c.brand.amber} />
@@ -535,7 +536,7 @@ const SettlementsTab: React.FC = () => {
             ) : null}
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <SettlementSheet
         restaurant={openRestaurant}

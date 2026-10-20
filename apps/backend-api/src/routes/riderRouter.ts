@@ -83,8 +83,8 @@ async function requireRiderSelf(req: any): Promise<DeliveryRider> {
  * THIS USED TO LOSE MONEY ON EVERY SINGLE DELIVERY
  * -------------------------------------------------------------------------
  * The old formula was `40 + the whole delivery fee + tip`, with the 40
- * hardcoded. The customer is charged Rs 30 for delivery by default, so the
- * platform collected 30 and paid out 70 — a Rs 40 loss on every order, before
+ * hardcoded. The customer is charged ₹30 for delivery by default, so the
+ * platform collected 30 and paid out 70 — a ₹40 loss on every order, before
  * anything else was counted. On a small basket that wiped out the commission
  * entirely and the order ran at a loss.
  *
@@ -411,7 +411,7 @@ const DOCUMENT_GUIDE: Record<string, { label: string; required: boolean; instruc
   PAN: {
     label: 'PAN card',
     required: false,
-    instructions: 'Needed before payouts cross Rs 20,000 in a financial year.'
+    instructions: 'Needed before payouts cross ₹20,000 in a financial year.'
   },
   INSURANCE: {
     label: 'Vehicle insurance',
@@ -1583,8 +1583,8 @@ riderRouter.get('/settlements', async (req, res, next) => {
      *
      * This read `order.payoutId` and the retired rider payout records, which
      * nothing has written since payments moved to the Pay screen. A rider paid
-     * Rs 30 from Pay was told "Pending settlement Rs 30.00 · Total paid to you
-     * Rs 0.00" here, while their Statement said the opposite. The partner side
+     * ₹30 from Pay was told "Pending settlement ₹30.00 · Total paid to you
+     * ₹0.00" here, while their Statement said the opposite. The partner side
      * had the same defect (#7) and the same cure: `statementFor`.
      */
     const statement = statementFor('RIDER', self.id, self.fullName || 'Rider', {

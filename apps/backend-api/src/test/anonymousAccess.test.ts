@@ -39,6 +39,8 @@ const WEB = 'web page: the home page, the legal pages Google requires, or a sign
 const HEALTH = 'Railway health check';
 const BROWSE = 'customers browse before signing in (App Store guideline 5.1.1)';
 const PUBLIC: Record<string, string> = {
+  'GET /api/v1/restaurants/:id/popular': 'most-ordered dish ids for the cart suggestions, like the public menu (round 3)',
+  'GET /api/restaurants/:id/popular': 'most-ordered dish ids for the cart suggestions, like the public menu (round 3)',
   'GET /': WEB,
   'GET /logo.png': WEB,
   'GET /google644d46e6db0e1cb0.html': 'Google Search Console ownership file',

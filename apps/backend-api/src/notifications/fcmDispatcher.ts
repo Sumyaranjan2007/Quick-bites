@@ -351,7 +351,7 @@ class FcmNotificationDispatcher {
       /*
        * Deliberately no money in this line.
        *
-       * The obvious body is "3 items, Rs 450" — but the only total on the
+       * The obvious body is "3 items, ₹450" — but the only total on the
        * order is the CUSTOMER'S, which includes our markup. Printing it to a
        * kitchen makes the markup derivable by subtracting their own menu
        * prices, and a notification body lands on a lock screen where anybody
@@ -569,7 +569,7 @@ class FcmNotificationDispatcher {
    * can fail, and a platform that announces the first as the second is lying to
    * the one person who cannot check.
    *
-   * The destination is named. "You were paid Rs 4,820" invites the question this
+   * The destination is named. "You were paid ₹4,820" invites the question this
    * is meant to prevent; "into the account ending 1234" answers it.
    */
   async notifyPayeePaid(

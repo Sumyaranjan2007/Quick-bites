@@ -242,7 +242,7 @@ financeRoutes.post(
             throw new AppError(
               remaining <= 0
                 ? 'This order is already refunded, or committed to be, in full by another case.'
-                : `Only Rs ${remaining} of this order is not already refunded or committed.`,
+                : `Only ₹${remaining} of this order is not already refunded or committed.`,
               409,
               'REFUND_EXCEEDS_REMAINING'
             );
@@ -292,7 +292,7 @@ financeRoutes.post(
       const payable = amount ?? request.approvedAmount ?? request.requestedAmount;
       if (payable > request.orderTotal) {
         throw new AppError(
-          `A refund cannot exceed the order total of Rs ${request.orderTotal}.`,
+          `A refund cannot exceed the order total of ₹${request.orderTotal}.`,
           400,
           'REFUND_EXCEEDS_ORDER'
         );
@@ -303,7 +303,7 @@ financeRoutes.post(
         throw new AppError(
           remaining <= 0
             ? 'This order has already been refunded in full by another case.'
-            : `Only Rs ${remaining} of this order has not already been refunded.`,
+            : `Only ₹${remaining} of this order has not already been refunded.`,
           409,
           'REFUND_EXCEEDS_REMAINING'
         );
@@ -348,7 +348,7 @@ financeRoutes.post(
           action: 'REFUND_FAILED',
           entityType: 'REFUND_REQUEST',
           entityId: request.id,
-          summary: `Refund of Rs ${payable} on #${order.orderNumber} could not be settled: ${outcome.failureReason}`,
+          summary: `Refund of ₹${payable} on #${order.orderNumber} could not be settled: ${outcome.failureReason}`,
           after: { route: outcome.route, settled: false }
         });
         return res.status(502).json({
@@ -389,7 +389,7 @@ financeRoutes.post(
         entityType: 'REFUND_REQUEST',
         entityId: request.id,
         summary:
-          `Refunded Rs ${payable} to ${request.customerName || order.customerId} for order ` +
+          `Refunded ₹${payable} to ${request.customerName || order.customerId} for order ` +
           `#${order.orderNumber} via ${outcome.route}${outcome.reference ? ` (${outcome.reference})` : ''}`,
         before: { status: request.status },
         after: { amount: payable, full: isFullRefund, route: outcome.route }
@@ -443,7 +443,7 @@ financeRoutes.post(
       const total = Number(order.bill?.totalAmount) || 0;
       const remaining = await refundableRemaining(order);
       // Nothing left means nothing to do: defaulting the amount to "what is
-      // left" would otherwise record a Rs 0 refund as a settled case.
+      // left" would otherwise record a ₹0 refund as a settled case.
       if (remaining <= 0) {
         throw new AppError(
           'This order is already refunded, or committed to be, in full.',
@@ -453,13 +453,13 @@ financeRoutes.post(
       }
       const amount = req.body.amount ?? remaining;
       if (amount > total) {
-        throw new AppError(`A refund cannot exceed the order total of Rs ${total}.`, 400, 'REFUND_EXCEEDS_ORDER');
+        throw new AppError(`A refund cannot exceed the order total of ₹${total}.`, 400, 'REFUND_EXCEEDS_ORDER');
       }
       if (amount > remaining) {
         throw new AppError(
           remaining <= 0
             ? 'This order has already been refunded in full.'
-            : `Only Rs ${remaining} of this order has not already been refunded.`,
+            : `Only ₹${remaining} of this order has not already been refunded.`,
           409,
           'REFUND_EXCEEDS_REMAINING'
         );
@@ -536,7 +536,7 @@ financeRoutes.post(
         entityType: 'ORDER',
         entityId: order.id,
         summary:
-          `Issued a direct refund of Rs ${amount} on order #${order.orderNumber} via ${outcome.route}` +
+          `Issued a direct refund of ₹${amount} on order #${order.orderNumber} via ${outcome.route}` +
           `${outcome.reference ? ` (${outcome.reference})` : ''}: ${reason}`,
         after: { amount, full: isFullRefund, route: outcome.route }
       });
@@ -1050,7 +1050,7 @@ financeRoutes.post(
         action: 'SETTLEMENT_DRAFTED',
         entityType: 'RESTAURANT_SETTLEMENT',
         entityId: settlement.id,
-        summary: `Drafted a settlement of Rs ${netAmount} for ${restaurant.name} covering ${orders.length} order(s)`,
+        summary: `Drafted a settlement of ₹${netAmount} for ${restaurant.name} covering ${orders.length} order(s)`,
         after: settlement
       });
 
@@ -1184,7 +1184,7 @@ financeRoutes.post(
         action: 'SETTLEMENT_STATUS_CHANGED',
         entityType: 'RESTAURANT_SETTLEMENT',
         entityId: existing.id,
-        summary: `Marked ${existing.restaurantName}'s settlement of Rs ${existing.netAmount} as ${req.body.status}`,
+        summary: `Marked ${existing.restaurantName}'s settlement of ₹${existing.netAmount} as ${req.body.status}`,
         before: existing,
         after: settlement
       });

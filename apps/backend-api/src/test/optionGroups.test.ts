@@ -172,7 +172,7 @@ try {
 
   const refusals: Array<[string, any[] | undefined, string, string?]> = [
     [
-      // Rs 150 - 8 x Rs 20 would net below zero: a free large portion, paid for
+      // ₹150 - 8 x ₹20 would net below zero: a free large portion, paid for
       // out of the kitchen's share, before negatives counted as zero.
       'A negative option named eight times to make a large portion free',
       [PORTION('opt_large'), ...Array.from({ length: 8 }, () => EXTRA('opt_no_onion'))],

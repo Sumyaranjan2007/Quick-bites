@@ -6,12 +6,13 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-  ActivityIndicator,
-  KeyboardAvoidingView,
+  ActivityIndicator
 } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { PressableScale } from './PressableScale';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useKeyboardOffset } from '../lib/keyboardOffset';
 
 const c = tokens.colors;
 
@@ -27,15 +28,18 @@ export const Card: React.FC<{ children: React.ReactNode; style?: ViewStyle; padd
 
 /**
  * Wraps a bottom sheet that has a text field, so the iPhone keyboard pushes the
- * sheet up instead of covering the field. Android resizes the window for the
- * keyboard itself, so there this is a plain full-size View and nothing changes.
+ * sheet up instead of covering the field, on Android too (edge-to-edge since SDK 54;
+ * the keyboard library measures the real keyboard).
  */
-export const KeyboardLift: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const KeyboardLift: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const keyboardOffset = useKeyboardOffset();
   // Padding on Android too: since SDK 54 modals are edge-to-edge and the window no longer resizes (T-6).
-  <KeyboardAvoidingView style={s.fill} behavior="padding">
-    {children}
-  </KeyboardAvoidingView>
-);
+  return (
+    <KeyboardAvoidingView {...keyboardOffset} style={s.fill} behavior="padding">
+      {children}
+    </KeyboardAvoidingView>
+  );
+};
 
 /* --------------------------------- Section -------------------------------- */
 

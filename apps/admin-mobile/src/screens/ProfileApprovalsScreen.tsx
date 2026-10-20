@@ -20,6 +20,7 @@ import { tokens, formatDateTime } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -168,7 +169,7 @@ export const ProfileApprovalsScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.body}
       refreshControl={
         <RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />
@@ -313,7 +314,7 @@ export const ProfileApprovalsScreen: React.FC = () => {
           );
         })
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

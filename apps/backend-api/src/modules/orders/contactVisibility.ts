@@ -230,7 +230,7 @@ function kitchenItems(order: Order): unknown[] {
  *
  * `totalAmount` is what the installed partner app prints on every order card,
  * so it is REDEFINED here as the order's value to the kitchen (its own food plus
- * its own packaging) rather than removed. Removing it would show "Rs 0.00" on
+ * its own packaging) rather than removed. Removing it would show "₹0.00" on
  * the phones already in kitchens.
  */
 function kitchenBill(order: Order): Record<string, unknown> {

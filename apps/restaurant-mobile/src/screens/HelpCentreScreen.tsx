@@ -8,6 +8,7 @@ import { HelpChat } from '../components/HelpChat';
 import { fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion, fetchMyAccount } from '../lib/partnerApi';
 import { PasswordField } from '../components/ui';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 interface Props {
   restaurantName: string;
@@ -182,7 +183,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={c.brand} />}
       >
@@ -384,7 +385,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 
           {!!accountNotice && <Text style={styles.accountNotice}>{accountNotice}</Text>}
         </Card>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
     </View>
   );

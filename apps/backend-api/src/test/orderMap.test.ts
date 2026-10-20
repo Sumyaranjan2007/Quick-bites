@@ -67,6 +67,7 @@ import {
   FIT_PADDING
 } from '../../../customer-mobile/src/lib/mapFit.ts';
 import { decodePolyline } from '../../../customer-mobile/src/lib/polyline.ts';
+import { isOffRoute } from '../modules/places/routingService.ts';
 
 const PORT = 5219;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -422,6 +423,12 @@ try {
       'nothing stamps pickedUpAt on OUT_FOR_DELIVERY any more, so the socket can now push coordinates the tracking endpoint withholds'
     );
   });
+  console.log('-- The line follows a rider who takes another road (round 3, item 7)');
+  // A straight east-west road through two points 1 km apart, encoded by hand (precision 5).
+  const enc = (n: number) => { let v = n < 0 ? ~(n << 1) : n << 1; let out = ''; while (v >= 0x20) { out += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; } return out + String.fromCharCode(v + 63); };
+  const line = enc(1268000) + enc(7745000) + enc(0) + enc(900);
+  it('a rider on the road is on route', () => assert.equal(isOffRoute(line, { latitude: 12.68, longitude: 77.45 }), false));
+  it('a rider 1 km north of it is off route', () => assert.equal(isOffRoute(line, { latitude: 12.689, longitude: 77.454 }), true));
 } catch (err: any) {
   failed++;
   console.log(`[FAIL] the suite itself threw: ${err?.stack || err}`);

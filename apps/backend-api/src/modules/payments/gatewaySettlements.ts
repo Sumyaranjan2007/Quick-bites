@@ -35,8 +35,8 @@
  * The row prints the amount settled, the fees, and the tax. What the dashboard
  * calls "collected" is something else again: payments BEFORE refunds. An
  * administrator reading that figure off the screen for a day with one refunded
- * order would have entered Rs 800 against a settlement of Rs 484 and booked a
- * Rs 316 fee on a Rs 16 charge.
+ * order would have entered ₹800 against a settlement of ₹484 and booked a
+ * ₹316 fee on a ₹16 charge.
  *
  * So the inputs are transcribed, never computed by the person typing: amount
  * settled, fees, tax. What the gateway discharged is derived from them. None of

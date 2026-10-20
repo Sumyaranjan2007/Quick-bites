@@ -1,6 +1,6 @@
 import { FONT_FAMILY } from '../theme';
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, TextInput } from 'react-native';
 import { ChefHat, CheckCircle2, ChevronDown, ChevronUp, MapPin } from 'lucide-react-native';
 import { c, radii, spacing } from '../theme';
 import { Button, Field, PasswordField, ErrorNote } from '../components/ui';
@@ -16,6 +16,7 @@ import {
 } from '../lib/partnerApi';
 import { useHiddenSettings } from '../lib/useHiddenSettings';
 import { useBlockHardwareBack } from '../lib/useHardwareBack';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 interface Props {
   onSignedIn: (token: string, user: any) => void;
@@ -214,8 +215,8 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView bottomOffset={24} style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header} onTouchEnd={registerTap}>
           <View style={styles.logo}>
             <ChefHat size={34} color={c.brand} />
@@ -461,7 +462,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
             placeholderTextColor={c.textMuted}
           />
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <KitchenLocationPicker
         visible={mapOpen}
@@ -472,7 +473,7 @@ export const SignInScreen: React.FC<Props> = ({ onSignedIn }) => {
         }}
         initial={pin}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

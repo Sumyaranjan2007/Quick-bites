@@ -55,6 +55,7 @@ import * as Notifications from 'expo-notifications';
 import { prepareAdminChannels } from './src/lib/adminChannels';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { startLiveSync } from './src/lib/liveSync';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -606,7 +607,10 @@ export default function App() {
     {/* Required by useSafeAreaInsets. Without it every inset reads zero and
         the bottom row slides back under Android's navigation bar. */}
     <SafeAreaProvider>
+      {/* Keyboard never covers a field, Android edge-to-edge included (round 3, item 4). */}
+      <KeyboardProvider>
         <AdminApp />
+      </KeyboardProvider>
     </SafeAreaProvider>
     </ErrorBoundary>
   );

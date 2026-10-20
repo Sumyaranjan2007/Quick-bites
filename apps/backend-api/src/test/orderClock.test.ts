@@ -8,6 +8,7 @@ import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
 import { offerableNow } from '../modules/orders/riderTrip.ts';
+import { buildRestaurantDashboard } from '../modules/restaurants/restaurantInsights.ts';
 import { razorpayAdapter } from '../modules/payments/razorpayAdapter.ts';
 import { ownOrder } from './helpers/ownFixture.ts';
 
@@ -33,6 +34,20 @@ async function api(path: string, init: any = {}, token?: string) {
 }
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 const KITCHEN = 'rst_bbh_01';
+
+console.log('-- Partner dashboard: delivered then refunded is not a cancellation (R2-20)');
+const dash = buildRestaurantDashboard(
+  [
+    { id: 'a', status: 'DELIVERED', deliveredAt: minutesAgo(5), createdAt: minutesAgo(60), items: [] },
+    { id: 'b', status: 'REFUNDED', deliveredAt: minutesAgo(5), createdAt: minutesAgo(60), items: [] },
+    { id: 'c', status: 'CANCELLED', createdAt: minutesAgo(60), items: [] }
+  ] as any,
+  null
+);
+check('one cancellation, two of three reached the customer', () => {
+  assert.equal(dash.orders.cancelled, 1);
+  assert.equal(dash.orders.completionRate, 67);
+});
 
 console.log('-- Riders are called at 10 minutes of cooking left');
 const cooking = (prep: number, startedMinutesAgo: number, status: any = 'PREPARING') =>
@@ -85,6 +100,16 @@ try {
   const waiting = order('ORDER_PLACED');
   const beforeAccept = await cancel(waiting.id);
   check('Before the kitchen accepts: always allowed', () => assert.equal(beforeAccept.status, 200, JSON.stringify(beforeAccept.json).slice(0, 200)));
+
+  console.log('-- Cart suggestions: the most ordered dishes first (item 5)');
+  const sold = (dishId: string, quantity: number) =>
+    ownOrder('popular', { restaurantId: 'rst_pop_01', status: 'DELIVERED', extra: { items: [{ dishId, quantity, name: dishId, unitPrice: 100, totalPrice: 100 * quantity }] } });
+  sold('dish_b', 1);
+  sold('dish_a', 3);
+  sold('dish_b', 1);
+  ownOrder('popular', { restaurantId: 'rst_pop_01', status: 'CANCELLED', extra: { items: [{ dishId: 'dish_c', quantity: 9 }] } });
+  const popular = (await api('/restaurants/rst_pop_01/popular')).json?.data?.dishIds;
+  check('most ordered first, cancelled orders not counted', () => assert.deepEqual(popular, ['dish_a', 'dish_b']));
 } finally {
   await new Promise(r => server.close(() => r(null)));
 }

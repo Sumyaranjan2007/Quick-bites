@@ -57,14 +57,14 @@ async function runOrderTests() {
    * A Gold member now pays a DISCOUNTED delivery fee, not a free one.
    *
    * This asserted 0.00 and was correct until the benefit stopped being free
-   * delivery. By hand: the fee on this trip is Rs 30, this customer is a member
+   * delivery. By hand: the fee on this trip is ₹30, this customer is a member
    * with no plan id on their record, so they fall back to the cheapest active
-   * plan at 10% -- Rs 27. The expected figure moved with the behaviour instead
+   * plan at 10% -- ₹27. The expected figure moved with the behaviour instead
    * of the assertion being loosened to "less than 30", which would pass for a
    * discount of any size including the whole fee.
    */
   if (order.bill.deliveryFee !== 27.00) {
-    throw new Error(`Delivery fee mismatch: expected 27.00 for a Gold member (10% off Rs 30), got ${order.bill.deliveryFee}`);
+    throw new Error(`Delivery fee mismatch: expected 27.00 for a Gold member (10% off ₹30), got ${order.bill.deliveryFee}`);
   }
   if (order.bill.membershipDeliverySaving !== 3.00) {
     throw new Error(`Membership delivery saving mismatch: expected 3.00, got ${order.bill.membershipDeliverySaving}`);
@@ -76,7 +76,7 @@ async function runOrderTests() {
   if (order.bill.totalAmount !== 482) {
     throw new Error(`Total amount mismatch: expected 482, got ${order.bill.totalAmount}`);
   }
-  console.log('[PASS] Step 3: Bill breakdown verified (Items: Rs 500, GST: Rs 25, Gold 10% off delivery, Coupon: -Rs 100, Total: Rs 482)');
+  console.log('[PASS] Step 3: Bill breakdown verified (Items: ₹500, GST: ₹25, Gold 10% off delivery, Coupon: -₹100, Total: ₹482)');
 
   // 4. Test Idempotency Double-Click Protection (Rule 45)
   console.log('Step 4: Testing idempotency key duplicate rejection...');

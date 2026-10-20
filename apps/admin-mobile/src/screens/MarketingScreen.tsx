@@ -21,6 +21,7 @@ import { tokens, formatMoney, formatDateTime, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -152,7 +153,7 @@ const CouponsTab: React.FC = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -198,7 +199,7 @@ const CouponsTab: React.FC = () => {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Sheet
         visible={composing}
@@ -332,7 +333,7 @@ const ReviewsTab: React.FC = () => {
         <EmptyState title="No reviews match" message={list.error || 'Customers rate an order once it has arrived.'} icon={<Star size={34} color={c.text.muted} />} />
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -378,7 +379,7 @@ const ReviewsTab: React.FC = () => {
             ) : null}
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 };

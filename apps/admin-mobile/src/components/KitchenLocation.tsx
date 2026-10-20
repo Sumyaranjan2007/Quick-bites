@@ -34,12 +34,14 @@ export const KitchenLocation: React.FC<{ restaurantId: string; current?: Point |
   const [pasted, setPasted] = useState('');
   const [picked, setPicked] = useState<Point | null>(null);
   const [busy, setBusy] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   const find = async () => {
     if (!search.trim()) return;
     try {
       const data = await api.get<any>(`/places/suggest?q=${encodeURIComponent(search.trim())}`);
       setSuggestions(data?.suggestions || []);
+      setSearched(true);
     } catch (err: any) {
       Alert.alert('Search failed', err?.message || 'Try again.');
     }
@@ -56,9 +58,17 @@ export const KitchenLocation: React.FC<{ restaurantId: string; current?: Point |
     }
   };
 
-  const shown = picked || pointFrom(pasted) || current || null;
+  // The sign-up placeholder (central Bengaluru) is "not set", not a place (R2-13).
+  const realCurrent = current && !(current.latitude === 12.9716 && current.longitude === 77.5946) ? current : null;
+  const shown = picked || pointFrom(pasted) || realCurrent || null;
   const save = async () => {
     const point = picked || pointFrom(pasted);
+    if (!point && /goo\.gl|maps\.app/i.test(pasted)) {
+      return Alert.alert(
+        'Short share links cannot be read',
+        'Open the link in Google Maps, press and hold the pin, copy the numbers it shows (like 12.68123, 77.45012) and paste them here.'
+      );
+    }
     if (!point) return Alert.alert('No location yet', 'Search the address, or paste a Google Maps link or "latitude, longitude".');
     setBusy(true);
     try {
@@ -66,6 +76,7 @@ export const KitchenLocation: React.FC<{ restaurantId: string; current?: Point |
       setPicked(null);
       setPasted('');
       onSaved();
+      Alert.alert('Location saved', "Customers now see this kitchen's real distance and delivery time.");
     } catch (err: any) {
       Alert.alert('Not saved', err?.message || 'Nothing was changed.');
     } finally {
@@ -89,6 +100,9 @@ export const KitchenLocation: React.FC<{ restaurantId: string; current?: Point |
           <Text style={s.secondary}>{sg.secondary}</Text>
         </TouchableOpacity>
       ))}
+      {searched && suggestions.length === 0 ? (
+        <Text style={s.secondary}>No places found. Try the area or road name, or paste a link or coordinates below.</Text>
+      ) : null}
       <Button label="Search" variant="secondary" onPress={() => void find()} />
       <Field label="Or paste a Google Maps link / latitude, longitude" value={pasted} onChangeText={setPasted} autoCapitalize="none" />
       <Button label="Save location" onPress={() => void save()} loading={busy} />

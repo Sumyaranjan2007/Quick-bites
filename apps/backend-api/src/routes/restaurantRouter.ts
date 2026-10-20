@@ -480,6 +480,30 @@ restaurantRouter.get('/:id/menu', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/restaurants/:id/popular — this kitchen's dishes, most ordered first (last 30 days,
+ * delivered orders), for the cart's "Complete your meal" row (owner, 20 Oct 2026, item 5).
+ * Ids only: the app already has the menu at the customer's prices. Cached 5 minutes per kitchen.
+ */
+const popularCache = new Map<string, { at: number; dishIds: string[] }>();
+restaurantRouter.get('/:id/popular', async (req, res, next) => {
+  try {
+    const hit = popularCache.get(req.params.id);
+    if (hit && Date.now() - hit.at < 5 * 60_000) return res.json({ success: true, data: { dishIds: hit.dishIds } });
+    const since = Date.now() - 30 * 24 * 3_600_000;
+    const counts = new Map<string, number>();
+    for (const order of await orderRepository.listByRestaurantId(req.params.id)) {
+      if (order.status !== 'DELIVERED' || Date.parse(order.createdAt) < since) continue;
+      for (const item of order.items || []) counts.set(item.dishId, (counts.get(item.dishId) || 0) + (Number(item.quantity) || 1));
+    }
+    const dishIds = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([id]) => id);
+    popularCache.set(req.params.id, { at: Date.now(), dishIds });
+    return res.json({ success: true, data: { dishIds } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 // GET /api/restaurants/:id/orders - Incoming restaurant orders
 restaurantRouter.get('/:id/orders', authMiddleware('restaurant_owner'), async (req, res, next) => {
   try {
@@ -992,9 +1016,9 @@ restaurantRouter.get('/:id/orders/history', authMiddleware('restaurant_owner'), 
 
     const filtered =
       scope === 'completed'
-        ? terminal.filter(o => o.status === 'DELIVERED')
+        ? terminal.filter(o => o.status === 'DELIVERED' || (o.status === 'REFUNDED' && o.deliveredAt))
         : scope === 'cancelled'
-          ? terminal.filter(o => o.status === 'CANCELLED' || o.status === 'REFUNDED')
+          ? terminal.filter(o => o.status === 'CANCELLED' || (o.status === 'REFUNDED' && !o.deliveredAt))
           : terminal;
 
     const orders = filtered.slice(0, limit).map((order: any) => shapeOrderForViewer(order, 'restaurant'));
@@ -1005,8 +1029,9 @@ restaurantRouter.get('/:id/orders/history', authMiddleware('restaurant_owner'), 
         orders,
         counts: {
           all: terminal.length,
-          completed: terminal.filter(o => o.status === 'DELIVERED').length,
-          cancelled: terminal.filter(o => o.status === 'CANCELLED' || o.status === 'REFUNDED').length
+          completed: terminal.filter(o => o.status === 'DELIVERED' || (o.status === 'REFUNDED' && o.deliveredAt)).length,
+          // Delivered then refunded is not a cancellation (R2-20).
+          cancelled: terminal.filter(o => o.status === 'CANCELLED' || (o.status === 'REFUNDED' && !o.deliveredAt)).length
         }
       }
     });
@@ -1164,7 +1189,7 @@ restaurantRouter.get('/:id/settlements', authMiddleware('restaurant_owner'), asy
      * CUSTOMER's food total (so the platform's markup counted as the kitchen's
      * sales), TDS as 1% of the commission, no packaging, and "unsettled" meaning
      * "no old settlement id" — which no order has since Pay replaced Settlements.
-     * A partner saw Rs 424.25 here and Rs 445 on the Statement tab beside it, for
+     * A partner saw ₹424.25 here and ₹445 on the Statement tab beside it, for
      * the same money, and only the Statement was right.
      *
      * Now it reads the ledger through `statementFor`, over the whole history,

@@ -28,6 +28,7 @@ import {
   type ProfileResponse,
   type ProfileRules
 } from '../lib/partnerApi';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * How the restaurant presents itself to customers.
@@ -301,9 +302,9 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
 
   if (!profile || !draft || !rules) {
     return (
-      <ScrollView contentContainerStyle={styles.body}>
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={styles.body}>
         <ErrorNote message={error || 'Could not load your profile.'} onRetry={() => void load()} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   }
 
@@ -311,7 +312,7 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
   const canAddMore = gallery.length < rules.maxGalleryImages;
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={styles.body}
       refreshControl={
         <RefreshControl
@@ -654,7 +655,7 @@ export const ProfileEditScreen: React.FC<{ restaurantId: string }> = ({ restaura
       )}
 
       <View style={{ height: spacing.xxl }} />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

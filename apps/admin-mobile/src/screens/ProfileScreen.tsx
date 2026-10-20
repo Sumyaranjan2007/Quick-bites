@@ -5,6 +5,7 @@ import { UserCog, KeyRound, LogOut, ShieldCheck } from 'lucide-react-native';
 import { Card, Button, Field, KeyValue, Divider, Badge, SectionTitle } from '../components/ui';
 import { tokens, humanise } from '../theme/tokens';
 import { useSession } from '../lib/session';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -86,7 +87,7 @@ export const ProfileScreen: React.FC = () => {
   const granted = new Set(permissions);
 
   return (
-    <ScrollView contentContainerStyle={s.scroll}>
+    <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.scroll}>
       <Card>
         <View style={s.identity}>
           <View style={s.avatar}>
@@ -195,7 +196,7 @@ export const ProfileScreen: React.FC = () => {
         <KeyValue label="Server" value={apiUrl} />
         <KeyValue label="Signed in as" value={humanise(user?.role || '')} />
       </Card>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

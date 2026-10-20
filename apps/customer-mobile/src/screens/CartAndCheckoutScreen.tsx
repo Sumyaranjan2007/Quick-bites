@@ -17,6 +17,7 @@ import { calculateOrderPricing } from '@quick-bites/pricing-engine';
 import { ArrowLeft, Tag, MapPin, CreditCard, Sparkles, Plus, Minus, Navigation, Map as MapIcon } from 'lucide-react-native';
 import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 import { CartItem } from './RestaurantDetailScreen';
+import { CartSuggestions } from '../components/CartSuggestions';
 import { apiFetch } from '../lib/apiFetch';
 import {
   razorpayAvailable,
@@ -29,6 +30,7 @@ import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { useTranslation } from '../lib/i18n';
 import { useBlockHardwareBack } from '../lib/useHardwareBack';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Suggested tips, and the ceiling the server also enforces.
@@ -58,6 +60,8 @@ interface Props {
   preferredAddressId?: string | null;
   /** Told back up, so the home screen's chip follows a change made here. */
   onAddressChosen?: (id: string) => void;
+  /** Adds a suggested dish (the cart's "Complete your meal" row). */
+  onAddToCart?: (item: CartItem) => void;
 }
 
 export const CartAndCheckoutScreen: React.FC<Props> = ({
@@ -71,6 +75,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   packagingFee,
   distanceKm,
   preferredAddressId,
+  onAddToCart,
   onAddressChosen
 }) => {
   const [couponCode, setCouponCode] = useState('');
@@ -608,7 +613,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
   return (
     <View style={styles.screen}>
       {/* automaticallyAdjustKeyboardInsets: iPhone scrolls the note and tip fields above the keyboard (ignored on Android). */}
-      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView bottomOffset={24} automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <TouchableOpacity hitSlop={10} style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
           <ArrowLeft size={18} color={c.text.primary} />
           <Text style={styles.backText}>Back to menu</Text>
@@ -640,6 +645,19 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             </View>
           ))}
         </Card>
+
+        {/* Complete your meal (item 5): this kitchen's dishes, the customer's usual and best sellers first. */}
+        {!!onAddToCart && (
+          <CartSuggestions
+            restaurantId={restaurantId}
+            restaurantName={cart[0]?.restaurantName || ''}
+            cart={cart}
+            apiUrl={apiUrl}
+            token={token}
+            onAdd={onAddToCart}
+            onUpdateQuantity={onUpdateQuantity}
+          />
+        )}
 
         {/* Address */}
         <Card style={styles.block}>
@@ -929,7 +947,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
             <Text style={styles.checkoutErrorText}>{checkoutError}</Text>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Add address sheet */}
       <Modal visible={showAddressSheet} transparent animationType="slide" onRequestClose={() => setShowAddressSheet(false)}>
@@ -939,7 +957,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Add a delivery address</Text>
 
-              <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              <KeyboardAwareScrollView bottomOffset={24} style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
                 <TouchableOpacity
                   style={[styles.locateBtn, formCoordinates && styles.locateBtnDone]}
                   onPress={useCurrentLocation}
@@ -1030,7 +1048,7 @@ export const CartAndCheckoutScreen: React.FC<Props> = ({
                 </View>
 
                 {addressError ? <Text style={styles.couponError}>{addressError}</Text> : null}
-              </ScrollView>
+              </KeyboardAwareScrollView>
 
               <View style={styles.sheetActions}>
                 <TouchableOpacity

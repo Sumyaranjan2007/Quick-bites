@@ -2,7 +2,6 @@ import { FONT_FAMILY } from '../theme';
 import React, { useState } from 'react';
 import { SafeScreen } from '../components/SafeScreen';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StatusBar,
@@ -18,6 +17,7 @@ import { Button } from '../components/ui';
 import { api } from '../lib/api';
 import { useHiddenSettings } from '../lib/useHiddenSettings';
 import { useBlockHardwareBack } from '../lib/useHardwareBack';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Signing in.
@@ -125,8 +125,8 @@ export const LoginScreen: React.FC<{
   return (
     <SafeScreen style={s.screen}>
       <StatusBar barStyle="dark-content" backgroundColor={t.color.bg} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.brandBlock} onTouchEnd={registerTap}>
             <View style={s.brandIcon}>
               <Bike size={38} color={t.color.go} />
@@ -383,8 +383,8 @@ export const LoginScreen: React.FC<{
               Your location is only shared while you are on shift.
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
     </SafeScreen>
   );
 };

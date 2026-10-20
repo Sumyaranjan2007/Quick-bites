@@ -17,7 +17,7 @@
  */
 import { AppError } from '../../utils/AppError.ts';
 
-/** The largest amount this platform will handle in one movement: Rs 1 crore. */
+/** The largest amount this platform will handle in one movement: ₹1 crore. */
 const MAX_PAISE = 1_000_000_000;
 
 /**
@@ -73,11 +73,11 @@ export function percentOf(paise: number, percent: number): number {
   return Math.round((paise * percent) / 100);
 }
 
-/** Formats paise for a human: `12345` becomes `Rs 123.45`. */
+/** Formats paise for a human: `12345` becomes `₹123.45`. */
 export function formatPaise(paise: number): string {
   const sign = paise < 0 ? '-' : '';
   const abs = Math.abs(Math.round(paise));
-  return `${sign}Rs ${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+  return `${sign}₹${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
 }
 
 /**

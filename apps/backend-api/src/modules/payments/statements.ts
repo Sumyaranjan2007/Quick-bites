@@ -266,7 +266,7 @@ export function statementFor(
   for (const entry of entries) {
     // A payout's own posting is the payment itself, shown under "paid". As an
     // adjustment it subtracted the same money a second time (QA v17: a rider
-    // owed Rs 80 read as Rs 50 here while Pay said Rs 80).
+    // owed ₹80 read as ₹50 here while Pay said ₹80).
     if (entry.payoutId) continue;
     if (entry.orderId) {
       const list = byOrder.get(entry.orderId);

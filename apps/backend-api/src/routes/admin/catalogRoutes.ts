@@ -231,7 +231,7 @@ catalogRoutes.post(
         action: 'MENU_ITEM_CREATED',
         entityType: 'MENU_ITEM',
         entityId: created.id,
-        summary: `Added "${created.name}" (Rs ${created.price}) to ${req.params.restaurantId}`,
+        summary: `Added "${created.name}" (₹${created.price}) to ${req.params.restaurantId}`,
         after: created
       });
 
@@ -621,7 +621,7 @@ catalogRoutes.post(
                   restaurantPrice: dish.price,
                   customerPrice: holding.rupee,
                   actorUserId: req.user!.id,
-                  note: `Bulk approval held the Rs ${holding.keptRupees} margin on ${dish.name}.`
+                  note: `Bulk approval held the ₹${holding.keptRupees} margin on ${dish.name}.`
                 });
                 markupsHeld.push({
                   dishId: dish.id,
@@ -851,7 +851,7 @@ catalogRoutes.post(
             note:
               typeof typedByAdmin === 'number'
                 ? `Set at approval of a price change on ${dish.name}.`
-                : `Approval held the Rs ${holding?.keptRupees} margin on ${dish.name}.`
+                : `Approval held the ₹${holding?.keptRupees} margin on ${dish.name}.`
           });
           markupHeld = {
             customerPrice: result.customerPrice,
@@ -879,7 +879,7 @@ catalogRoutes.post(
         action: 'MENU_REQUEST_APPROVED',
         entityType: 'MENU_REQUEST',
         entityId: request.id,
-        summary: `Approved "${dish.name}" (Rs ${dish.price}) for ${request.restaurantName || request.restaurantId}`,
+        summary: `Approved "${dish.name}" (₹${dish.price}) for ${request.restaurantName || request.restaurantId}`,
         after: dish
       });
 

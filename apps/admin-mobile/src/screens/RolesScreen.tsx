@@ -21,6 +21,7 @@ import { tokens, formatDateTime, timeAgo, humanise } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -69,7 +70,7 @@ const RolesTab: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -106,7 +107,7 @@ const RolesTab: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => {
             <KeyValue label="Assigned to" value={`${role.assignedCount} admin${role.assignedCount === 1 ? '' : 's'}`} />
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <RoleSheet
         role={editing}
@@ -326,7 +327,7 @@ const AdminsTab: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -358,7 +359,7 @@ const AdminsTab: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => {
             <KeyValue label="Joined" value={formatDateTime(admin.createdAt)} />
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Sheet
         visible={composing}
@@ -462,7 +463,7 @@ const AuditTab: React.FC = () => {
         <EmptyState title="Nothing recorded yet" message={list.error || 'Administrative actions appear here as they happen.'} icon={<ScrollText size={34} color={c.text.muted} />} />
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -483,7 +484,7 @@ const AuditTab: React.FC = () => {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 };

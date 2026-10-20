@@ -216,7 +216,7 @@ function assertDeliverable(
   const minOrder = Number(rates.minOrderValue) || 0;
   if (minOrder > 0 && foodTotal < minOrder) {
     throw new AppError(
-      `The minimum order is Rs ${minOrder}. Add Rs ${Math.ceil(minOrder - foodTotal)} more to check out.`,
+      `The minimum order is ₹${minOrder}. Add ₹${Math.ceil(minOrder - foodTotal)} more to check out.`,
       409,
       'BELOW_MINIMUM_ORDER'
     );
@@ -332,8 +332,8 @@ async function refundPaidCancellation(
 /**
  * GST on the platform fee: the restaurant's own rate, or the global one, ONLY
  * when the platform holds a GSTIN. Without one it is 0, because charging GST
- * without registration is not allowed — and it is why a Rs 10 fee used to
- * reach the customer as Rs 11.80.
+ * without registration is not allowed — and it is why a ₹10 fee used to
+ * reach the customer as ₹11.80.
  */
 /** Whether this kitchen takes cash on delivery. Absent means yes. */
 export function acceptsCash(restaurant: { acceptsCash?: boolean | null }): boolean {
@@ -498,7 +498,7 @@ export const orderService = {
       partnerItemsTotal,
       gstFoodPercent: charges.gstFoodPercent,
       platformFeeBase: charges.platformFee,
-      // GST on our fee only with a GSTIN (owner, 1 Oct: Rs 10 set must be Rs 10 billed).
+      // GST on our fee only with a GSTIN (owner, 1 Oct: ₹10 set must be ₹10 billed).
       platformFeeGstPercent: platformFeeGstFor(charges),
       deliveryBaseFee: charges.deliveryBaseFee,
       extraCharge: charges.extraCharge,
@@ -762,7 +762,7 @@ export const orderService = {
       partnerItemsTotal,
       gstFoodPercent: charges.gstFoodPercent,
       platformFeeBase: charges.platformFee,
-      // GST on our fee only with a GSTIN (owner, 1 Oct: Rs 10 set must be Rs 10 billed).
+      // GST on our fee only with a GSTIN (owner, 1 Oct: ₹10 set must be ₹10 billed).
       platformFeeGstPercent: platformFeeGstFor(charges),
       deliveryBaseFee: charges.deliveryBaseFee,
       extraCharge: charges.extraCharge,

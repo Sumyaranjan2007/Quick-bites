@@ -248,7 +248,7 @@ try {
 
   if (!cashCeilingBlocks(atCeiling.id, cashOrder).blocked) {
     throw new Error(
-      'PRECONDITION: the rider at Rs 3000 is not blocked from a cash order, so every ceiling check below would pass for the wrong reason.'
+      'PRECONDITION: the rider at ₹3000 is not blocked from a cash order, so every ceiling check below would pass for the wrong reason.'
     );
   }
 

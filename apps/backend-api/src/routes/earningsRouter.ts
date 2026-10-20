@@ -248,8 +248,8 @@ earningsRouter.get('/packaging', authMiddleware(), async (req, res, next) => {
         youEarn: charges.partnerPackagingFee,
         adjusted: charges.partnerFeeAdjusted,
         message: charges.partnerFeeAdjusted
-          ? `You asked for Rs ${charges.partnerDeclaredFee} and are being paid Rs ${charges.partnerPackagingFee} for packaging. Raise it from Help if that is wrong.`
-          : `You are paid Rs ${charges.partnerPackagingFee} for packaging on every order \u2014 exactly what you asked for.`,
+          ? `You asked for ₹${charges.partnerDeclaredFee} and are being paid ₹${charges.partnerPackagingFee} for packaging. Raise it from Help if that is wrong.`
+          : `You are paid ₹${charges.partnerPackagingFee} for packaging on every order \u2014 exactly what you asked for.`,
         /**
          * Said out loud rather than left to be discovered from a customer's
          * bill, which is where a partner would otherwise find it.

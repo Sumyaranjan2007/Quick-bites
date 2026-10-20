@@ -26,6 +26,7 @@ import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
 import { RestaurantMenuSheet, MenuUploadModal } from '../components/RestaurantMenuTools';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -167,7 +168,7 @@ const CustomersTab: React.FC = () => {
         <EmptyState title="No customers match" message={list.error || 'Try a different search.'} icon={<Users size={34} color={c.text.muted} />} />
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -191,7 +192,7 @@ const CustomersTab: React.FC = () => {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <CustomerSheet id={openId} onClose={() => setOpenId(null)} onChanged={list.silentReload} canManage={can('users.customers.manage')} />
     </View>
@@ -447,7 +448,7 @@ const DriversTab: React.FC = () => {
       ) : null}
 
       <CreateAccountSheet kind={creating ? 'rider' : null} onClose={() => setCreating(false)} onCreated={list.reload} />
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -490,7 +491,7 @@ const DriversTab: React.FC = () => {
             ) : null}
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <DriverSheet id={openId} onClose={() => setOpenId(null)} onChanged={list.silentReload} canManage={can('users.drivers.manage')} />
     </View>
@@ -861,7 +862,7 @@ const RestaurantsTab: React.FC = () => {
       ) : null}
 
       <CreateAccountSheet kind={creating ? 'restaurant' : null} onClose={() => setCreating(false)} onCreated={list.reload} />
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -890,7 +891,7 @@ const RestaurantsTab: React.FC = () => {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <RestaurantSheet
         id={openId}
@@ -960,7 +961,7 @@ const DeletionRequestsTab: React.FC = () => {
     );
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.list}
       refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
     >
@@ -998,7 +999,7 @@ const DeletionRequestsTab: React.FC = () => {
       <Sheet visible={Boolean(docsFor)} onClose={() => setDocsFor(null)} title={docsFor?.name || ''} subtitle="Everything they uploaded">
         {docsFor ? <PersonDocuments kind={docsFor.kind} id={docsFor.id} /> : null}
       </Sheet>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

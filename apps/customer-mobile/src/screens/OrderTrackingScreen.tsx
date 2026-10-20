@@ -20,6 +20,7 @@ import { useTranslation } from '../lib/i18n';
 import { useOrderSocket } from '../lib/useOrderSocket';
 import { useLiveSync } from '../lib/liveSync';
 import { apiFetch } from '../lib/apiFetch';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -398,7 +399,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   const active = (i: number) => i === currentStep;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAwareScrollView bottomOffset={24} style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.topRow}>
         <TouchableOpacity hitSlop={10} style={styles.backButton} onPress={onHome} activeOpacity={0.8}>
           <ArrowLeft size={17} color={c.text.primary} />
@@ -717,7 +718,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
                 </View>
               ) : null}
 
-              <ScrollView style={{ maxHeight: 260 }}>
+              <KeyboardAwareScrollView bottomOffset={24} style={{ maxHeight: 260 }}>
                 {cancelReasons.map(reason => {
                   const selected = cancelCode === reason.code;
                   return (
@@ -752,7 +753,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
                     multiline
                   />
                 )}
-              </ScrollView>
+              </KeyboardAwareScrollView>
 
               <TouchableOpacity
                 style={[
@@ -799,7 +800,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
         restaurantName={restaurantName}
         riderName={riderName}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

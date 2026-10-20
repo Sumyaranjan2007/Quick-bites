@@ -10,7 +10,6 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
-  KeyboardAvoidingView,
   useWindowDimensions,
   type ViewStyle,
   type TextStyle
@@ -19,6 +18,8 @@ import { Modal } from './Modal';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { tokens, toneForStatus, humanise } from '../theme/tokens';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useKeyboardOffset } from '../lib/keyboardOffset';
 
 const c = tokens.colors;
 
@@ -565,11 +566,13 @@ export const Sheet: React.FC<SheetProps> = props => (
 );
 
 const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, footer }) => {
+  const keyboardOffset = useKeyboardOffset();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const room = height - insets.top - insets.bottom - tokens.space[6];
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.sheetOverlay}>
+    <KeyboardAvoidingView
+      {...keyboardOffset} behavior="padding" style={s.sheetOverlay}>
       <TouchableOpacity style={s.sheetBackdrop} activeOpacity={1} onPress={onClose} />
       <View
         style={[
@@ -596,13 +599,13 @@ const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, 
             <Text style={s.sheetClose}>✕</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView
+        <KeyboardAwareScrollView bottomOffset={24}
           style={s.sheetBody}
           contentContainerStyle={{ paddingBottom: tokens.space[5] }}
           keyboardShouldPersistTaps="handled"
         >
           {children}
-        </ScrollView>
+        </KeyboardAwareScrollView>
         {footer ? <View style={s.sheetFooter}>{footer}</View> : null}
       </View>
     </KeyboardAvoidingView>

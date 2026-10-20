@@ -41,7 +41,7 @@ export interface MembershipPlan {
   /**
    * The most that percentage may take off one order.
    *
-   * Zero means uncapped, which is what this was before and is how a Rs 99
+   * Zero means uncapped, which is what this was before and is how a ₹99
    * membership pays for itself on a single large order. A cap is the whole
    * difference between a discount and an unbounded liability.
    */
@@ -159,7 +159,7 @@ export function savePlans(plans: MembershipPlan[]): MembershipPlan[] {
  * What a plan is worth, written from its own numbers.
  *
  * Generated rather than typed, and that is the point. The shipped text said
- * **"Free delivery on every order"** while the code has always required a Rs 199
+ * **"Free delivery on every order"** while the code has always required a ₹199
  * food total — so the platform was promising something it did not do, on the
  * screen where somebody hands over money. A benefit list that is derived cannot
  * drift away from the thing it describes.
@@ -181,13 +181,13 @@ export function planBenefits(plan: MembershipPlan): string[] {
   if (plan.deliveryDiscountPercent >= 100) {
     lines.push(
       plan.freeDeliveryMinOrder > 0
-        ? `Free delivery on orders over Rs ${plan.freeDeliveryMinOrder}`
+        ? `Free delivery on orders over ₹${plan.freeDeliveryMinOrder}`
         : 'Free delivery on every order'
     );
   } else if (plan.deliveryDiscountPercent > 0) {
     lines.push(
       plan.freeDeliveryMinOrder > 0
-        ? `${plan.deliveryDiscountPercent}% off delivery on orders over Rs ${plan.freeDeliveryMinOrder}`
+        ? `${plan.deliveryDiscountPercent}% off delivery on orders over ₹${plan.freeDeliveryMinOrder}`
         : `${plan.deliveryDiscountPercent}% off delivery on every order`
     );
   }
@@ -195,12 +195,12 @@ export function planBenefits(plan: MembershipPlan): string[] {
   if (plan.extraDiscountPercent > 0) {
     lines.push(
       plan.maxDiscountPerOrder > 0
-        ? `${plan.extraDiscountPercent}% off the food, up to Rs ${plan.maxDiscountPerOrder} an order`
+        ? `${plan.extraDiscountPercent}% off the food, up to ₹${plan.maxDiscountPerOrder} an order`
         : `${plan.extraDiscountPercent}% off the food on every order`
     );
   }
 
-  lines.push(`Rs ${plan.price} for ${plan.durationDays} days`);
+  lines.push(`₹${plan.price} for ${plan.durationDays} days`);
   return lines;
 }
 

@@ -36,8 +36,8 @@
  * moment an administrator counted cash in at the office, because a return moves
  * the rider's record and does not touch the orders. And the platform does not
  * net: `duesFor` blocks a payout outright while any of our cash is in the bag,
- * which the payment policy states in as many words. A rider holding Rs 500
- * against Rs 1,800 of earnings was shown "you will receive Rs 1,300" and would
+ * which the payment policy states in as many words. A rider holding ₹500
+ * against ₹1,800 of earnings was shown "you will receive ₹1,300" and would
  * have received nothing.
  */
 import assert from 'node:assert/strict';
@@ -495,20 +495,20 @@ try {
     /*
      * The defect. `netPending` was `earnings + incentives - cash`, which is a net
      * position and not a payment, and the platform does not do it: `duesFor`
-     * blocks the payout outright. A rider holding Rs 500 against Rs 1,800 was
-     * shown "you will receive Rs 1,300" and would have received nothing.
+     * blocks the payout outright. A rider holding ₹500 against ₹1,800 was
+     * shown "you will receive ₹1,300" and would have received nothing.
      */
     const s = withCash.json.data.summary;
     assert.equal(
       s.netPending,
       owedWithoutCash,
-      `holding Rs 500 changed what is owed from ${owedWithoutCash} to ${s.netPending}`
+      `holding ₹500 changed what is owed from ${owedWithoutCash} to ${s.netPending}`
     );
   });
 
   it('and it is never a negative payout', () => {
-    // The other direction of the same subtraction: Rs 2,000 of cash against
-    // Rs 1,800 of earnings used to render "you will receive -Rs 200".
+    // The other direction of the same subtraction: ₹2,000 of cash against
+    // ₹1,800 of earnings used to render "you will receive -₹200".
     assert.ok(withCash.json.data.summary.netPending >= 0, String(withCash.json.data.summary.netPending));
   });
 
@@ -533,7 +533,7 @@ try {
   it('AN ADMIN COUNTING CASH IN MOVES THE RIDER SCREEN', () => {
     /*
      * The consequence of the old second source, and the reason §7.2 was asked
-     * for. A rider who had just handed Rs 380 over at the office went on being
+     * for. A rider who had just handed ₹380 over at the office went on being
      * shown the old figure by the same app that told them a payout was blocked
      * because of it.
      */
@@ -542,7 +542,7 @@ try {
   });
 
   it('and while any of it is ours the block stands', () => {
-    assert.ok(afterReturn.json.data.summary.payoutBlockedBy, 'Rs 120 is still our cash and still blocks');
+    assert.ok(afterReturn.json.data.summary.payoutBlockedBy, '₹120 is still our cash and still blocks');
   });
 
   /* ---------------------------------------------------------------- *

@@ -264,7 +264,7 @@ cashRouter.post('/deposits', authMiddleware('rider'), validate({ body: DeclareSc
     void notifyAdminsCashDeclared({
       depositId: deposit.id,
       riderName: rider.fullName || 'A rider',
-      amountLabel: `Rs ${req.body.amount}`
+      amountLabel: `₹${req.body.amount}`
     });
 
     res.status(201).json({

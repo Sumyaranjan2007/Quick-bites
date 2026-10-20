@@ -50,7 +50,7 @@ export function tripTakeHome(order: {
 /**
  * Pickup pay (owner, 20 Oct 2026): a rider more than `riderPickupPayFromKm` (7) road
  * km from the kitchen when they take the trip is paid ALL of that distance x
- * `riderPickupPerKmFee` (Rs 6): 10 km away = Rs 60, 7 km = Rs 0. Paid by Quick Bites:
+ * `riderPickupPerKmFee` (₹6): 10 km away = ₹60, 7 km = ₹0. Paid by Quick Bites:
  * it is added to the rider's share, which comes out of the platform's, never the bill.
  */
 export function pickupPayFor(pickupKm: number, rates = getActiveRates()): number {

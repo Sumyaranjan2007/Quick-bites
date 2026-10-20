@@ -176,7 +176,7 @@ try {
   await notifier.notifyAdminsCashDeclared({
     depositId: 'dep_sw_1',
     riderName: 'Rahul',
-    amountLabel: 'Rs 2,000.00'
+    amountLabel: '₹2,000.00'
   });
 
   it('and a money notification arrives with nothing configured', () => {
@@ -193,7 +193,7 @@ try {
   await notifier.notifyAdminsCashDeclared({
     depositId: 'dep_sw_2',
     riderName: 'Rahul',
-    amountLabel: 'Rs 3,000.00'
+    amountLabel: '₹3,000.00'
   });
   await notifier.notifyAdminsSupportTicketOpened({
     ticketId: 'tkt_sw_1',
@@ -234,7 +234,7 @@ try {
     waitingMinutes: 12
   });
   await notifier.notifyAdminsDeliveryOverdue({ orderId: 'ord_sw_2', orderNumber: 'QB-950002', carryingMinutes: 40 });
-  await notifier.notifyAdminsCashDeclared({ depositId: 'dep_sw_3', riderName: 'R', amountLabel: 'Rs 1.00' });
+  await notifier.notifyAdminsCashDeclared({ depositId: 'dep_sw_3', riderName: 'R', amountLabel: '₹1.00' });
 
   it('AN SOS ARRIVES WITH EVERY CATEGORY SWITCHED OFF', () => {
     /*

@@ -445,7 +445,7 @@ try {
    * The admin screen reads these three off the payload by name. Everything about
    * whether the arithmetic is right is settled in gatewaySettlements.test.ts, at
    * the ledger, with mutations. What THAT suite cannot see is a field being
-   * renamed on one side: the screen would render "Rs 0.00" for a gateway holding
+   * renamed on one side: the screen would render "₹0.00" for a gateway holding
    * real money, and every ledger check would still pass.
    */
   const receivable = await api('/admin/gateway/receivable', {}, admin.token);

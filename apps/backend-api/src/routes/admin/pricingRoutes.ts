@@ -202,7 +202,7 @@ pricingRoutes.put(
         entityType: 'PRICING',
         entityId: `city:${req.body.city}`,
         summary: row
-          ? `Rider pay in ${row.city} set to Rs ${row.perKm} per km`
+          ? `Rider pay in ${row.city} set to ₹${row.perKm} per km`
           : `${req.body.city} follows the global rider pay per km again`,
         after: req.body
       });
@@ -675,7 +675,7 @@ pricingRoutes.put(
         entityId: 'incentives:config',
         summary:
           'Rider bonuses changed. Now paying: ' +
-          (after.filter(s => s.enabled).map(s => `${s.code} at Rs ${s.reward}`).join(', ') || 'nothing'),
+          (after.filter(s => s.enabled).map(s => `${s.code} at ₹${s.reward}`).join(', ') || 'nothing'),
         before: { rules: before } as any,
         after: { rules: after } as any
       });
@@ -904,7 +904,7 @@ pricingRoutes.put(
         summary:
           req.body.customerPrice === null
             ? `Cleared the customer price on ${item.name}; it follows the restaurant percentage again.`
-            : `${item.name}: kitchen Rs ${item.price}, customer Rs ${result.customerPrice}, we keep Rs ${
+            : `${item.name}: kitchen ₹${item.price}, customer ₹${result.customerPrice}, we keep ₹${
                 Math.round(result.marginPaise) / 100
               }.`,
         after: { itemId, kitchenPrice: item.price, customerPrice: result.customerPrice }
@@ -921,7 +921,7 @@ pricingRoutes.put(
         message:
           result.customerPrice === null
             ? `${item.name} follows the restaurant percentage again.`
-            : `${item.name}: the customer pays Rs ${result.customerPrice} and we keep Rs ${
+            : `${item.name}: the customer pays ₹${result.customerPrice} and we keep ₹${
                 Math.round(result.marginPaise) / 100
               }.`
       });
@@ -999,7 +999,7 @@ pricingRoutes.put(
           'Gold plans changed: ' +
           saved
             .filter(p => p.isActive)
-            .map(p => `${p.name} Rs ${p.price}/${p.durationDays}d`)
+            .map(p => `${p.name} ₹${p.price}/${p.durationDays}d`)
             .join(', '),
         before: { plans: before } as any,
         after: { plans: saved } as any

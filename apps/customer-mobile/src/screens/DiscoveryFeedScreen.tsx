@@ -11,7 +11,8 @@ import {
   StyleSheet,
   Image,
   RefreshControl,
-  Platform
+  Platform,
+  useWindowDimensions
 } from 'react-native';
 import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
@@ -24,6 +25,9 @@ import { VoiceSearchSheet } from '../components/VoiceSearchSheet';
 import { MapAddressPicker, type PickedLocation } from '../components/MapAddressPicker';
 import { apiFetch } from '../lib/apiFetch';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { SaveAddressSheet } from '../components/SaveAddressSheet';
+import { useDeviceLocation } from '../lib/useDeviceLocation';
 
 const c = tokens.colors;
 
@@ -46,7 +50,10 @@ export interface RestaurantItem {
   acceptsCash?: boolean;
   /** True only when Quick Bites approved a real FSSAI licence for this kitchen. */
   fssaiVerified?: boolean;
-  priceForTwo: number;
+  /** Null until the kitchen sets one: no made-up "for two" price (R2-14). */
+  priceForTwo: number | null;
+  /** The kitchen's own type, shown only when it set one (R2-14). */
+  cuisineType?: string;
   packagingFee?: number;
   bannerUrl?: string;
   /** Cover, gallery, then photographs of this kitchen's own food. */
@@ -166,7 +173,6 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   const [favourites, setFavourites] = useState<Set<string>>(new Set());
   // 'recommended' when no location is known: the server sends Quick Bites' own picks (B5, #7).
   const [listKind, setListKind] = useState<'recommended' | 'nearby' | 'all'>('all');
-  const askedForLocation = useRef(false);
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading');
   const [refreshing, setRefreshing] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -211,12 +217,19 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     originRef.current = point;
     setOrigin(point);
   };
+  // A spot just chosen from the map or GPS, offered to save with a name (round 3, item 10).
+  const [toSave, setToSave] = useState<PickedLocation | null>(null);
+  const { detect, detecting } = useDeviceLocation();
+  const { height: windowHeight } = useWindowDimensions();
 
+  // Whether the saved addresses were really read: offline is not "you have none" (R2-8).
+  const [addressesLoaded, setAddressesLoaded] = useState(false);
   const loadLocality = async () => {
     if (!apiUrl || !token) return;
     try {
       const res = await apiFetch(`${apiUrl}/addresses`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
+      setAddressesLoaded(Boolean(data.success));
       if (data.success && Array.isArray(data.data?.addresses) && data.data.addresses.length) {
         const list: SavedAddress[] = data.data.addresses;
         setSavedAddresses(list);
@@ -304,7 +317,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             isPureVeg: !!r.isPureVeg,
             acceptsCash: r.acceptsCash !== false,
             fssaiVerified: r.fssaiVerified === true,
-            priceForTwo: r.costForTwo ?? 400,
+            priceForTwo: Number(r.costForTwo) > 0 ? Number(r.costForTwo) : null,
+            cuisineType: r.cuisineType,
             packagingFee: r.packagingFee,
             bannerUrl: r.bannerUrl,
             photos: Array.isArray(r.photos) ? r.photos : undefined,
@@ -337,10 +351,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
       load();
       // Location first (#7): a signed-in customer with no address is asked where to deliver
       // before browsing. Once per visit; a guest (browse-first on iPhone) is not asked.
-      if (token && !originRef.current && !askedForLocation.current) {
-        askedForLocation.current = true;
-        setLocationSheetOpen(true);
-      }
+      // (The first-visit address block at the top asks now; no sheet pops up by itself, item 11.)
     })();
     loadFavourites();
   }, [apiUrl, token]);
@@ -395,6 +406,22 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     }
     setMapOpen(false);
     setLocationSheetOpen(false);
+    setState('loading');
+    load();
+    // Signed in: offer to keep this spot as a named address (after the map has closed: iOS
+    // cannot open a sheet while another is still closing).
+    if (token) setTimeout(() => setToSave(picked), 450);
+  };
+
+  const useCurrentLocation = async () => {
+    const place = await detect();
+    if (place) browseFrom(place as PickedLocation);
+  };
+
+  const savedAddress = async (id: string) => {
+    setToSave(null);
+    if (id) onChooseAddress?.(id);
+    await loadLocality();
     setState('loading');
     load();
   };
@@ -557,7 +584,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   });
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       style={styles.screen}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -711,11 +738,28 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         ))}
       </ScrollView>
 
-      {state === 'success' && listKind === 'recommended' && (
-        <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
-          <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
-          <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
-        </TouchableOpacity>
+      {!origin && savedAddresses.length === 0 && (!token || addressesLoaded) && state !== 'error' ? (
+        // First visit (owner, 20 Oct, item 11): a third of the screen asks for the address first;
+        // until then Quick Bites' picks show below; once saved, the kitchens within the radius set by admins.
+        <View style={[styles.firstVisit, { minHeight: Math.round(windowHeight / 3) }]}>
+          <MapPin size={28} color={c.primary[600]} />
+          <Text style={styles.firstVisitTitle}>Save your address first</Text>
+          <Text style={styles.firstVisitBody}>See the restaurants that deliver to you, with real distances and times.</Text>
+          <TouchableOpacity style={styles.chooseOnMap} onPress={() => void useCurrentLocation()} activeOpacity={0.85} disabled={detecting}>
+            <Text style={styles.chooseOnMapText}>{detecting ? 'Finding you…' : 'Use my current location'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.firstVisitLink} onPress={() => setMapOpen(true)} activeOpacity={0.8}>
+            <Text style={styles.firstVisitLinkText}>Pick on map</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        state === 'success' &&
+        listKind === 'recommended' && (
+          <TouchableOpacity style={styles.recommendBanner} onPress={() => setLocationSheetOpen(true)} activeOpacity={0.85}>
+            <Text style={styles.recommendTitle}>Recommended by Quick Bites</Text>
+            <Text style={styles.recommendBody}>Set your location to see every restaurant near you.</Text>
+          </TouchableOpacity>
+        )
       )}
 
       {/* Favourites (#13): the kitchens this customer hearted, above the main list. */}
@@ -754,10 +798,13 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 
       {state === 'error' && (
         <EmptyState
-          title="Couldn't load restaurants"
-          subtitle="Check your connection and pull down to try again."
+          title="Can't reach Quick Bites"
+          subtitle="Check your internet connection. This screen refreshes by itself when you're back online."
           action="Retry"
-          onAction={load}
+          onAction={async () => {
+            await loadLocality();
+            load();
+          }}
         />
       )}
 
@@ -879,7 +926,11 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
               <View style={styles.cardBody}>
                 <View style={styles.tagRow}>
                   {r.highlightTag ? <Pill label={r.highlightTag.toUpperCase()} tone="gold" /> : null}
-                  <Pill label={r.isPureVeg ? 'Pure Veg' : 'Non-Veg'} tone={r.isPureVeg ? 'veg' : 'nonveg'} />
+                  {r.isPureVeg ? (
+                    <Pill label="Pure Veg" tone="veg" />
+                  ) : r.cuisineType === 'NON_VEG' ? (
+                    <Pill label="Non-Veg" tone="nonveg" />
+                  ) : null}
                 </View>
 
                 <Text style={styles.restaurantName}>{r.name}</Text>
@@ -897,7 +948,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
                 </View>
 
                 <Text style={styles.cuisineText} numberOfLines={1}>
-                  {r.cuisine} • ₹{r.priceForTwo} for two
+                  {r.cuisine}
+                  {r.priceForTwo ? ` • ₹${r.priceForTwo} for two` : ''}
                 </Text>
                 {dishMatches.get(r.id) && (
                   /* Why this restaurant is in a list somebody searched for a
@@ -949,7 +1001,9 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 
             {savedAddresses.length === 0 ? (
               <Text style={styles.sheetEmpty}>
-                No saved addresses yet. Choose a point on the map to see what delivers near you.
+                {token && !addressesLoaded
+                  ? 'Your saved addresses could not be loaded. Check your connection.'
+                  : 'No saved addresses yet. Choose a point on the map to see what delivers near you.'}
               </Text>
             ) : (
               savedAddresses.map(a => {
@@ -993,6 +1047,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         </View>
       </Modal>
 
+      <SaveAddressSheet picked={toSave} apiUrl={apiUrl} token={token} onClose={() => setToSave(null)} onSaved={id => void savedAddress(id)} />
       <MapAddressPicker
         visible={mapOpen}
         onClose={() => setMapOpen(false)}
@@ -1001,11 +1056,24 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
         apiUrl={apiUrl}
         token={token}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  firstVisit: {
+    backgroundColor: c.primary[50],
+    borderRadius: tokens.radii.lg,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8
+  },
+  firstVisitTitle: { fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800', color: c.text.primary, textAlign: 'center' },
+  firstVisitBody: { fontFamily: tokens.font.family, fontSize: 14, color: c.text.secondary, textAlign: 'center', marginBottom: 6 },
+  firstVisitLink: { paddingVertical: 10, minHeight: 44, justifyContent: 'center' },
+  firstVisitLinkText: { fontFamily: tokens.font.family, fontSize: 15, fontWeight: '700', color: c.primary[600] },
   recommendBanner: {
     backgroundColor: c.primary[50],
     borderRadius: tokens.radii.lg,

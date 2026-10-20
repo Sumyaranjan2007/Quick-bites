@@ -30,6 +30,7 @@ import { Avatar, Button, Card, Divider, LoadingBlock, Pill, Row, SectionTitle } 
 import { titleCase } from '../lib/format';
 import { choosePhoto } from '../lib/photo';
 import type { DashboardResponse } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Who the rider is, as the platform and the customer see them.
@@ -111,7 +112,7 @@ export const ProfileScreen: React.FC<{
   };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.color.go} />}
       showsVerticalScrollIndicator={false}
@@ -345,7 +346,7 @@ export const ProfileScreen: React.FC<{
       )}
 
       <Text style={s.version}>Quick Bites Rider · v{Constants.expoConfig?.version || ''}</Text>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

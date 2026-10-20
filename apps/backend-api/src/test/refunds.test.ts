@@ -268,7 +268,7 @@ async function run() {
     const half = partnerShareOfRefund(o, toPaise(290.45));
     assert.ok(
       Math.abs(half - toPaise(220)) <= 1,
-      `expected about half of Rs 440, got ${toRupees(half)}`
+      `expected about half of ₹440, got ${toRupees(half)}`
     );
   });
 

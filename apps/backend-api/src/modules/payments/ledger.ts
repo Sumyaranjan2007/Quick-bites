@@ -67,7 +67,7 @@ export function accountFor(kind: LedgerAccountKind, partyId?: string): string {
  * and what it has EARNED grows with a credit.
  *
  * Needed because "balance" means opposite arithmetic for the two kinds, and
- * getting it backwards would report a rider we owe Rs 400 as being Rs 400 in
+ * getting it backwards would report a rider we owe ₹400 as being ₹400 in
  * debt to us — a mistake that reads as plausible on a screen.
  */
 const DEBIT_POSITIVE: ReadonlySet<LedgerAccountKind> = new Set<LedgerAccountKind>([
@@ -77,7 +77,7 @@ const DEBIT_POSITIVE: ReadonlySet<LedgerAccountKind> = new Set<LedgerAccountKind
   // Money in the office drawer is an ASSET, exactly like the bank and the
   // rider's pocket. Omitting it here made a positive holding report as a
   // negative balance, and the refusal message read "the office is holding
-  // -Rs 434.90" -- which is the shape of a number nobody can act on.
+  // -₹434.90" -- which is the shape of a number nobody can act on.
   'PLATFORM_CASH',
   'TDS_WITHHELD',
   /*

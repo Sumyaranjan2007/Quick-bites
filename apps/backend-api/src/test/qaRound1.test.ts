@@ -153,7 +153,7 @@ try {
 
   delivered(40, 300);
   const before = (await api('/riders/settlements', riderToken)).json?.data;
-  it('Before any payment: Rs 40 pending, nothing paid', () => {
+  it('Before any payment: ₹40 pending, nothing paid', () => {
     assert.equal(before.summary.netPending, 40);
     assert.equal(before.summary.tripsAwaitingSettlement, 1);
     assert.equal(before.summary.paidToDate, 0);
@@ -161,7 +161,7 @@ try {
 
   await payRider('UTR-QA1-A');
   const afterFirst = (await api('/riders/settlements', riderToken)).json?.data;
-  it('After the first payment: nothing pending, Rs 40 paid, with its reference', () => {
+  it('After the first payment: nothing pending, ₹40 paid, with its reference', () => {
     assert.equal(afterFirst.summary.netPending, 0, JSON.stringify(afterFirst.summary));
     assert.equal(afterFirst.summary.tripsAwaitingSettlement, 0);
     assert.equal(afterFirst.summary.paidToDate, 40);
@@ -181,14 +181,14 @@ try {
 
   await payRider('UTR-QA1-B');
   const afterSecond = (await api('/riders/settlements', riderToken)).json?.data;
-  it('After the second payment: nothing pending, Rs 95 paid, two rows', () => {
+  it('After the second payment: nothing pending, ₹95 paid, two rows', () => {
     assert.equal(afterSecond.summary.netPending, 0);
     assert.equal(afterSecond.summary.paidToDate, 95);
     assert.equal(afterSecond.history.filter((h: any) => h.status === 'PAID').length, 2);
   });
 
   const profile = (await api(`/admin/drivers/${RIDER_ID}`, adminToken)).json?.data;
-  it('The admin rider profile agrees: Rs 95 paid out, both payments listed', () => {
+  it('The admin rider profile agrees: ₹95 paid out, both payments listed', () => {
     assert.ok(profile, 'no rider profile');
     assert.equal(profile.stats.paidOut, 95);
     assert.equal((profile.payouts || []).filter((p: any) => p.status === 'PAID').length, 2);

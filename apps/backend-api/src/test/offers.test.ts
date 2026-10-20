@@ -245,7 +245,7 @@ async function run() {
   console.log('\n-- Which offer wins');
 
   clearCoupons();
-  // On any realistic basket a Rs 500 flat discount beats 10%. Ranking on the
+  // On any realistic basket a ₹500 flat discount beats 10%. Ranking on the
   // headline number alone would put the worse offer on the card.
   await couponRepository.create({
     code: 'TEN',

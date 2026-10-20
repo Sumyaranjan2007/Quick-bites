@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Circle, Line, Path, G, Rect } from 'react-native-svg';
 import { tokens } from '../theme/tokens';
-import { Bike, Store, Home } from 'lucide-react-native';
+import { Bike, Store, Home, X, LocateFixed, Maximize2 } from 'lucide-react-native';
+import { Modal } from './Modal';
 import { canRenderNativeMap, MapCanvas, MapPin, MapMovingPin, MapRoute } from '../lib/nativeMap';
 import { BikeMarker } from './BikeMarker';
 import { distanceMetres, project, fitZoom } from '../lib/mapFit';
@@ -147,6 +148,26 @@ const MapLegend: React.FC<{
  * rest of the live-tracking work in Stage 4; the camera easing here is most of
  * what makes it read as movement in the meantime.
  */
+/**
+ * The road still to ride: the kitchen-to-door line from the point nearest the rider.
+ * A rider more than 150 m from every point has turned off it: a straight line from
+ * them to the door until the server's re-drawn route arrives (round 3, item 7).
+ * seniordev: nearest VERTEX, not nearest segment; Google's lines are dense enough.
+ */
+export function remainingRoad(road: Coords[], rider: Coords, door: Coords): Coords[] {
+  if (road.length < 2) return [rider, door];
+  let best = 0;
+  let bestM = Infinity;
+  road.forEach((p, i) => {
+    const m = distanceMetres(p, rider);
+    if (m < bestM) {
+      bestM = m;
+      best = i;
+    }
+  });
+  return bestM > 150 ? [rider, door] : [rider, ...road.slice(best + 1)];
+}
+
 const NativeOrderMap: React.FC<{
   restaurant: Coords | null;
   rider: Coords | null;
@@ -155,23 +176,49 @@ const NativeOrderMap: React.FC<{
   bearing?: number | null;
   stale?: boolean;
   road: Coords[];
-}> = ({ restaurant, rider, destination, carrying, bearing, stale, road }) => {
+  /** Where the rider has been on this trip, drawn faint behind the bike. */
+  trail?: Coords[];
+  /** Full-screen map: the customer can pan and zoom; it follows the bike until they do. */
+  interactive?: boolean;
+  following?: boolean;
+  onDrag?: () => void;
+}> = ({ restaurant, rider, destination, carrying, bearing, stale, road, trail = [], interactive = false, following = true, onDrag }) => {
   /*
    * As the leading delivery apps draw it (owner, 19 Oct): the road from the
    * kitchen to the door, the kitchen and the home as labelled markers, and once
    * the food is collected the bike gliding along. The camera frames what matters
    * now: kitchen and home while cooking, the bike and home once it is on the way.
    */
-  const line = road.length >= 2 ? road : [restaurant, destination].filter(Boolean) as Coords[];
+  const line =
+    carrying && rider
+      ? remainingRoad(road, rider, destination)
+      : road.length >= 2
+        ? road
+        : ([restaurant, destination].filter(Boolean) as Coords[]);
   const framed = (carrying && rider ? [rider, destination] : [restaurant ?? destination, destination]) as Coords[];
-  const centre = {
+  const live = {
     latitude: (framed[0].latitude + destination.latitude) / 2,
     longitude: (framed[0].longitude + destination.longitude) / 2
   };
+  // Once the customer moves the map it stays where they put it, until "Re-centre".
+  const [held, setHeld] = useState(live);
+  useEffect(() => {
+    if (following) setHeld(live);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [following, live.latitude, live.longitude]);
+  const centre = following ? live : held;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <MapCanvas style={StyleSheet.absoluteFill} centre={centre} spanMetres={400} fit={framed} scrollEnabled={false}>
+    <View style={StyleSheet.absoluteFill} pointerEvents={interactive ? 'auto' : 'none'}>
+      <MapCanvas
+        style={StyleSheet.absoluteFill}
+        centre={centre}
+        spanMetres={400}
+        fit={following ? framed : undefined}
+        scrollEnabled={interactive}
+        onDrag={onDrag}
+      >
+        {trail.length >= 2 ? <MapRoute id="trail" points={trail} colour="rgba(176,40,48,0.35)" width={5} /> : null}
         {/* A wide light casing under a darker line: reads as a road route on any background. */}
         <MapRoute id="route-casing" points={line} colour="rgba(255,255,255,0.9)" width={8} />
         <MapRoute id="route" points={line} colour={c.text.primary} width={4} />
@@ -242,6 +289,18 @@ export const LiveOrderMap: React.FC<Props> = ({
    */
   const carrying = Boolean(pickedUpAt && rider);
   const origin = carrying ? rider : restaurant;
+  // Where the rider has been since collecting the food, like a "Find My Device" trail.
+  const [trail, setTrail] = useState<Coords[]>([]);
+  useEffect(() => {
+    if (!carrying || !rider) return;
+    setTrail(prev => {
+      const last = prev[prev.length - 1];
+      return last && distanceMetres(last, rider) < 8 ? prev : [...prev, rider].slice(-400);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carrying, rider?.latitude, rider?.longitude]);
+  const [expanded, setExpanded] = useState(false);
+  const [following, setFollowing] = useState(true);
 
   if (!origin || !destination) {
     // Deliberately the same height as the map it stands in for. It used to be
@@ -261,27 +320,68 @@ export const LiveOrderMap: React.FC<Props> = ({
   const metres = distanceMetres(origin, destination);
 
   if (canRenderNativeMap) {
+    const mapProps = {
+      restaurant,
+      rider,
+      destination,
+      carrying,
+      bearing: riderBearing,
+      stale: carrying && isStale(updatedAt),
+      road,
+      trail
+    };
+    const legend = (
+      <MapLegend
+        metres={metres}
+        carrying={carrying}
+        updatedAt={updatedAt}
+        riderName={riderName}
+        restaurantName={restaurantName}
+        roadKm={roadKm}
+      />
+    );
     return (
       <View>
-        <View style={[styles.mapFrame, { height: NATIVE_H }]}>
-          <NativeOrderMap
-            restaurant={restaurant}
-            rider={rider}
-            destination={destination}
-            carrying={carrying}
-            bearing={riderBearing}
-            stale={carrying && isStale(updatedAt)}
-            road={road}
-          />
-        </View>
-        <MapLegend
-          metres={metres}
-          carrying={carrying}
-          updatedAt={updatedAt}
-          riderName={riderName}
-          restaurantName={restaurantName}
-          roadKm={roadKm}
-        />
+        {/* Tap for the full-screen live map (round 3, item 7). */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => {
+            setFollowing(true);
+            setExpanded(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Open the live map full screen"
+        >
+          <View style={[styles.mapFrame, { height: NATIVE_H }]}>
+            <NativeOrderMap {...mapProps} />
+            <View style={styles.expandHint}>
+              <Maximize2 size={14} color={c.text.primary} />
+            </View>
+          </View>
+        </TouchableOpacity>
+        <Modal visible={expanded} animationType="slide" onRequestClose={() => setExpanded(false)}>
+          <View style={{ flex: 1, backgroundColor: c.surface.app }}>
+            <View style={{ flex: 1 }}>
+              <NativeOrderMap {...mapProps} interactive following={following} onDrag={() => setFollowing(false)} />
+              <TouchableOpacity
+                style={[styles.mapButton, { top: 16, left: 16 }]}
+                onPress={() => setExpanded(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close the map"
+              >
+                <X size={20} color={c.text.primary} />
+              </TouchableOpacity>
+              {!following && (
+                <TouchableOpacity style={[styles.mapButton, styles.recentre]} onPress={() => setFollowing(true)} accessibilityRole="button">
+                  <LocateFixed size={18} color={c.text.primary} />
+                  <Text style={styles.recentreText}>Re-centre</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={{ padding: 16 }}>{legend}</View>
+          </View>
+        </Modal>
+        {legend}
       </View>
     );
   }
@@ -422,6 +522,34 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 }
   },
+  expandHint: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mapButton: {
+    position: 'absolute',
+    minWidth: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 }
+  },
+  recentre: { bottom: 16, alignSelf: 'center', flexDirection: 'row', gap: 6 },
+  recentreText: { fontFamily: tokens.font.family, fontWeight: '700', color: c.text.primary },
   mapFrame: {
     width: '100%',
     borderRadius: tokens.radii.md,

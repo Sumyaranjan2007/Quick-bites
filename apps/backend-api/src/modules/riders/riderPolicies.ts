@@ -121,7 +121,7 @@ export const RIDER_POLICIES: PolicyDocument[] = [
       {
         heading: 'What a trip pays',
         body:
-          'Every completed trip pays a base of Rs 40 plus the delivery fee charged on that order, which scales with the kitchen-to-doorstep distance. The figure is fixed when you accept the trip and shown on the offer before you accept it.'
+          'Every completed trip pays a base of ₹40 plus the delivery fee charged on that order, which scales with the kitchen-to-doorstep distance. The figure is fixed when you accept the trip and shown on the offer before you accept it.'
       },
       {
         heading: 'Incentives',

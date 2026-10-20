@@ -368,7 +368,7 @@ export { boundsByKey };
 /**
  * The owner's decision of 1 Oct 2026, applied once to whatever rates are live.
  *
- * Rider pay became road km x a per-km rate (Rs 10) with a minimum per trip, and
+ * Rider pay became road km x a per-km rate (₹10) with a minimum per trip, and
  * the old base fee / base distance stopped meaning anything. The live rates are
  * a stored version, not these defaults, so the decision is written as a NEW
  * version — visible in the rates history with its note, and changeable from
@@ -387,7 +387,7 @@ export function applyRiderPerKmDecision(): boolean {
     createVersion(
       changes,
       { userId: 'system' },
-      "Owner's decision 1 Oct 2026: riders earn Rs 10 per road km from restaurant to customer, with the per-trip minimum."
+      "Owner's decision 1 Oct 2026: riders earn ₹10 per road km from restaurant to customer, with the per-trip minimum."
     );
   }
   memoryStore.meta.set(FLAG, new Date().toISOString());
@@ -413,7 +413,7 @@ export function applyOwnerDecisions20261002(): boolean {
     createVersion(
       changes,
       { userId: 'system' },
-      "Owner's decision 2 Oct 2026: riders earn Rs 12 per road km; no hold period, pay whenever."
+      "Owner's decision 2 Oct 2026: riders earn ₹12 per road km; no hold period, pay whenever."
     );
   }
   memoryStore.meta.set(FLAG, new Date().toISOString());

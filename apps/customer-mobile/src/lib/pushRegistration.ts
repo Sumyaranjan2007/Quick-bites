@@ -27,16 +27,7 @@ let lastRegistered: string | null = null;
 
 export async function registerForPush(apiUrl: string, token: string): Promise<void> {
   try {
-    const permission = await Notifications.getPermissionsAsync();
-    let granted = permission.granted;
-
-    if (!granted && permission.canAskAgain) {
-      granted = (await Notifications.requestPermissionsAsync()).granted;
-    }
-    // Refused is a decision, not a failure. Asking again on every launch is
-    // how an app gets its notifications switched off at the OS level.
-    if (!granted) return;
-
+    // First (R2-19): Android 13+ shows the permission prompt only once a channel exists.
     // U5: order updates get their own channel, so Android files them as
     // "Order updates" (heads-up, with sound) and not as "Miscellaneous". The
     // id matches CHANNEL.ORDER_UPDATES in the server's fcmDispatcher.
@@ -48,6 +39,17 @@ export async function registerForPush(apiUrl: string, token: string): Promise<vo
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC
       }).catch(() => undefined);
     }
+
+    const permission = await Notifications.getPermissionsAsync();
+    let granted = permission.granted;
+
+    if (!granted && permission.canAskAgain) {
+      granted = (await Notifications.requestPermissionsAsync()).granted;
+    }
+    // Refused is a decision, not a failure. Asking again on every launch is
+    // how an app gets its notifications switched off at the OS level.
+    if (!granted) return;
+
 
     const device = await Notifications.getDevicePushTokenAsync();
     const value = String(device?.data || '');

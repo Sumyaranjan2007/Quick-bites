@@ -508,6 +508,42 @@ export function routingStatus() {
  * order by the caller; null without Google or on any refusal (the map then draws
  * a straight line).
  */
+/** Google's encoded polyline -> points (same algorithm as the customer app's lib/polyline.ts). */
+export function decodePolyline(encoded: string): Coordinates[] {
+  const points: Coordinates[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const next = () => {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    return result & 1 ? ~(result >> 1) : result >> 1;
+  };
+  while (index < encoded.length) {
+    lat += next();
+    lng += next();
+    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+  }
+  return points;
+}
+
+/**
+ * True when the rider is more than `metres` from every point of the drawn route: they
+ * took another road, so the customer's line is re-drawn from where they are (round 3).
+ * seniordev: nearest vertex, not segment; Google's lines are dense enough at city scale.
+ */
+export function isOffRoute(encoded: string, at: Coordinates, metres = 150): boolean {
+  const points = decodePolyline(encoded);
+  if (points.length < 2) return false;
+  return points.every(p => calculateDistanceKm(p.latitude, p.longitude, at.latitude, at.longitude) * 1000 > metres);
+}
+
 export async function roadPath(from: Coordinates, to: Coordinates): Promise<string | null> {
   if (routingProvider() !== 'GOOGLE') return null;
   const body = await googlePost(GOOGLE_ROUTE, 'routes.polyline.encodedPolyline', {

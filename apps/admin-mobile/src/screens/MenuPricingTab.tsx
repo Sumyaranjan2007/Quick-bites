@@ -6,6 +6,7 @@ import { Card, Button, Loading, EmptyState, SearchBar, Badge, KeyValue , Resourc
 import { tokens, formatMoney } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -137,7 +138,7 @@ const RestaurantMenuPrices: React.FC<{
   const packaging = menu.data?.packaging;
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.list}
       keyboardShouldPersistTaps="handled"
       refreshControl={
@@ -274,7 +275,7 @@ const RestaurantMenuPrices: React.FC<{
           })}
         </View>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

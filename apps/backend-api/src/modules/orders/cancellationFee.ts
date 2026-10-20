@@ -53,8 +53,8 @@ export function quoteCancellation(order: Order): CancellationQuote {
   let message = 'You can cancel this order free of charge.';
   if (fee > 0) {
     message =
-      `The restaurant has already started on this order, so Rs ${fee} (${percent}%) is kept ` +
-      `to pay for the food. Rs ${refund} will be refunded.`;
+      `The restaurant has already started on this order, so ₹${fee} (${percent}%) is kept ` +
+      `to pay for the food. ₹${refund} will be refunded.`;
   } else if (!paid && percent > 0 && order.paymentMethod === 'CASH_ON_DELIVERY') {
     message =
       'The restaurant has already started on this order. Cancelling cash orders after they are ' +

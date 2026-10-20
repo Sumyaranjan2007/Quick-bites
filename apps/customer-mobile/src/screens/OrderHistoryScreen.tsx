@@ -18,6 +18,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { InvoiceSheet } from '../components/InvoiceSheet';
 import { useTranslation } from '../lib/i18n';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -204,7 +205,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
   };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       style={styles.screen}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -362,7 +363,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 320 }}>
+            <KeyboardAwareScrollView bottomOffset={24} style={{ maxHeight: 320 }}>
               <Text style={styles.reorderRestaurant}>{reorderBasket?.restaurantName}</Text>
 
               {!!reorderBasket?.restaurantMessage && (
@@ -398,7 +399,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
               {reorderBasket && !reorderBasket.isExactRepeat && (
                 <Text style={styles.reorderNote}>{t('orders.reorderChanged')}</Text>
               )}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             {(() => {
               // Only the lines that can actually be bought today may go into the
@@ -444,7 +445,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
                 </TouchableOpacity>
               </View>
 
-              <ScrollView keyboardShouldPersistTaps="handled">
+              <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled">
                 <Text style={styles.label}>What went wrong?</Text>
                 <View style={styles.reasonWrap}>
                   {REFUND_REASONS.map(reason => (
@@ -499,7 +500,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
                     <Text style={styles.primaryBtnText}>Send request</Text>
                   )}
                 </TouchableOpacity>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </View>
         </KeyboardLift>
@@ -512,7 +513,7 @@ export const OrderHistoryScreen: React.FC<Props> = ({ onBack, onOpenOrder, onReo
         apiUrl={apiUrl}
         token={token}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

@@ -20,6 +20,7 @@ import { tokens, humanise, formatDateTime, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { query } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -83,7 +84,7 @@ const TicketsTab: React.FC = () => {
         <EmptyState title="No complaints" message={list.error || 'Nothing has been raised from the apps.'} icon={<LifeBuoy size={34} color={c.text.muted} />} />
       ) : null}
 
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.list}
         refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
       >
@@ -112,7 +113,7 @@ const TicketsTab: React.FC = () => {
             </Text>
           </Card>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <TicketSheet id={openId} onClose={() => setOpenId(null)} onChanged={list.silentReload} />
     </View>
@@ -266,7 +267,7 @@ const SosTab: React.FC = () => {
   };
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.list}
       refreshControl={<RefreshControl refreshing={list.loading} onRefresh={list.reload} tintColor={c.brand.amber} />}
     >
@@ -308,7 +309,7 @@ const SosTab: React.FC = () => {
           ) : null}
         </Card>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

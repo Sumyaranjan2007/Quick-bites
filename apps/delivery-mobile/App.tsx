@@ -74,6 +74,7 @@ import { useHardwareBackWithExitConfirm } from './src/lib/useHardwareBack';
 import { DEFAULT_API_URL } from './src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { startLiveSync, useLiveSync } from './src/lib/liveSync';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 type Tab = 'home' | 'trips' | 'earnings' | 'profile';
 type SubScreen =
@@ -1203,7 +1204,10 @@ export default function App() {
     {/* Required by useSafeAreaInsets. Without it every inset reads zero and
         the bottom row slides back under Android's navigation bar. */}
     <SafeAreaProvider>
+      {/* Keyboard never covers a field, Android edge-to-edge included (round 3, item 4). */}
+      <KeyboardProvider>
         <DeliveryApp />
+      </KeyboardProvider>
     </SafeAreaProvider>
     </ErrorBoundary>
   );

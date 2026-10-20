@@ -192,8 +192,8 @@ try {
   it('and it includes the PACKAGING the old formula dropped', () => {
     /*
      * `restaurantShareOf` computed net as itemsTotal − commission − tds. The kitchen's
-     * packaging fee never appeared, so every settlement underpaid by it — Rs 50 on this
-     * Rs 1,000 order. Asserted by reconstructing the split the ledger actually used.
+     * packaging fee never appeared, so every settlement underpaid by it — ₹50 on this
+     * ₹1,000 order. Asserted by reconstructing the split the ledger actually used.
      */
     const items = toPaise(1000 * 0.8);
     const packaging = toPaise(1000 * 0.05);
@@ -216,8 +216,8 @@ try {
 
   it('and the TDS base is the bill’s own figure, not 1% of commission', () => {
     /*
-     * The old formula used commission * 0.01. On this order that is Rs 1.20 against the
-     * bill's Rs 10.00 — so it withheld a tenth of the right amount and paid the
+     * The old formula used commission * 0.01. On this order that is ₹1.20 against the
+     * bill's ₹10.00 — so it withheld a tenth of the right amount and paid the
      * difference out, leaving the platform short against its own TDS obligation.
      */
     const wrongTds = toPaise(Math.round(1000 * 0.12 * 0.01 * 100) / 100);
@@ -469,7 +469,7 @@ try {
    *
    * The first version used the partner above and failed: held money from an earlier
    * block was still on that account, so the balance was nowhere near zero and adding a
-   * Rs 250 settlement did not make it negative. A check that asserts exact rupees has
+   * ₹250 settlement did not make it negative. A check that asserts exact rupees has
    * to own every number it depends on — the rule ownFixture exists for, applied to a
    * ledger account rather than an order.
    */
@@ -509,7 +509,7 @@ try {
 
   const earnedByOverpaid = ledger.balanceOf(accountFor('PARTNER_PAYABLE', OVERPAID));
 
-  // Paid Rs 100 MORE than they earned, which is what the old formula could do.
+  // Paid ₹100 MORE than they earned, which is what the old formula could do.
   memoryStore.restaurantSettlements.set('setl_over_1', {
     id: 'setl_over_1',
     restaurantId: OVERPAID,
@@ -537,7 +537,7 @@ try {
     assert.equal(
       over!.overpaidPaise,
       toPaise(100),
-      `reported ${formatPaise(over!.overpaidPaise)} rather than the Rs 100.00 overpaid`
+      `reported ${formatPaise(over!.overpaidPaise)} rather than the ₹100.00 overpaid`
     );
     assert.equal(ledger.audit().balanced, true);
   });

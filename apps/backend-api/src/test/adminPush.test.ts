@@ -272,7 +272,7 @@ try {
   await notifyAdminsRefundRaised({
     requestId: 'ref_targeting_1',
     orderNumber: 'QB-900001',
-    amountLabel: 'Rs 240'
+    amountLabel: '₹240'
   });
 
   it('A refund reaches BOTH finance and support, because both can decide one', () => {
@@ -534,14 +534,14 @@ try {
   await all.notifyAdminsPayoutFailed({
     payoutId: 'n2',
     payeeName: 'P',
-    amountLabel: 'Rs 100',
+    amountLabel: '₹100',
     reason: 'Closed account.'
   });
   await all.notifyAdminsBankAccountFiled({ accountId: 'n3', ownerName: 'O', ownerKind: 'rider' });
   await all.notifyAdminsKycSubmitted({ documentId: 'n4', ownerName: 'O', documentLabel: 'driving licence' });
-  await all.notifyAdminsRefundRaised({ requestId: 'n5', orderNumber: 'QB-1', amountLabel: 'Rs 10' });
+  await all.notifyAdminsRefundRaised({ requestId: 'n5', orderNumber: 'QB-1', amountLabel: '₹10' });
   await all.notifyAdminsSupportTicketOpened({ ticketId: 'n6', subjectLine: 'S', raisedBy: 'B' });
-  await all.notifyAdminsCashDeclared({ depositId: 'n7', riderName: 'R', amountLabel: 'Rs 500' });
+  await all.notifyAdminsCashDeclared({ depositId: 'n7', riderName: 'R', amountLabel: '₹500' });
   await all.notifyAdminsMenuRequestRaised({ requestId: 'n8', restaurantName: 'X', what: 'a new dish' });
   await all.notifyAdminsProfileEditRaised({ editId: 'n9', restaurantName: 'X' });
 

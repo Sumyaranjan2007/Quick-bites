@@ -18,6 +18,7 @@ import { dayAndTime } from '../lib/format';
 import { choosePhoto } from '../lib/photo';
 import { api, type ApiContext, type DocumentRequirement } from '../lib/api';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Document verification, start to finish.
@@ -176,7 +177,7 @@ export const DocumentsScreen: React.FC<{ ctx: ApiContext; onChanged: () => void 
 
   return (
     <>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.color.go} />}
         showsVerticalScrollIndicator={false}
@@ -194,7 +195,7 @@ export const DocumentsScreen: React.FC<{ ctx: ApiContext; onChanged: () => void 
 
         <SectionTitle style={{ marginTop: t.space[4] }}>Optional</SectionTitle>
         {optional.map(renderDocument)}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={Boolean(active)} animationType="slide" transparent statusBarTranslucent>
         <View style={s.modalBackdrop}>

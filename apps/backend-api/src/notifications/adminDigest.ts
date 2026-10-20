@@ -157,7 +157,7 @@ export function digestBody(counts: DigestCounts, label: string): string | null {
   const activity = `${parts.join(', ')} ${label}.`;
   const withSignups = signups.length > 0 ? `${activity} ${signups.join(' and ')} signed up.` : activity;
   return counts.lossOrders > 0
-    ? `${withSignups} ${counts.lossOrders} order${counts.lossOrders === 1 ? '' : 's'} lost us Rs ${counts.lossTotal}.`
+    ? `${withSignups} ${counts.lossOrders} order${counts.lossOrders === 1 ? '' : 's'} lost us ₹${counts.lossTotal}.`
     : withSignups;
 }
 

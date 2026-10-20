@@ -10,8 +10,8 @@
  *
  * `payoutRepository` only knows the first kind. So once payments moved to Pay,
  * the rider's settlement screen and the admin rider profile said "Total paid
- * to you Rs 0.00" and "Pending Rs 30.00" for a rider who had just been paid
- * Rs 30 (QA v9, 26 Sep). Every reader of a rider's payment history goes through
+ * to you ₹0.00" and "Pending ₹30.00" for a rider who had just been paid
+ * ₹30 (QA v9, 26 Sep). Every reader of a rider's payment history goes through
  * here, and gets both kinds in the shape the installed apps already render.
  */
 import { memoryStore } from '../../db/client.ts';

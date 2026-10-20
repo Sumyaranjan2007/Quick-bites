@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useKeyboardOffset } from '../lib/keyboardOffset';
 
 /**
  * Help as a real chat (owner, 19-20 Oct 2026). The person types; a ready answer
@@ -80,6 +82,7 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scroll = useRef<ScrollView>(null);
+  const keyboardOffset = useKeyboardOffset();
   const s = styles(c, font);
 
   const say = (line: Line) => setLines(prev => [...prev, { at: new Date().toISOString(), ...line }]);
@@ -290,7 +293,8 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   }
 
   return (
-    <KeyboardAvoidingView style={s.root} behavior="padding" keyboardVerticalOffset={80}>
+    <KeyboardAvoidingView
+      {...keyboardOffset} style={s.root} behavior="padding">
       {tabs}
       <ScrollView
         ref={scroll}

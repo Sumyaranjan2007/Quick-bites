@@ -276,8 +276,8 @@ async function run() {
   });
 
   await check('The balance is the whole history, even when the window is narrow', () => {
-    // A statement for "today" that says "you are owed Rs 0" when the balance is
-    // Rs 4,000 is a statement that starts an argument.
+    // A statement for "today" that says "you are owed ₹0" when the balance is
+    // ₹4,000 is a statement that starts an argument.
     const narrow = statementFor('RESTAURANT', RESTAURANT, 'Ganesh Bhavan', {
       from: daysAgo(400),
       to: daysAgo(399)
@@ -634,8 +634,8 @@ async function run() {
   await check('After a payment the statement and Pay agree on what is owed — paid twice (QA v17)', async () => {
     /*
      * The statement counted a payout's own ledger posting as an "adjustment"
-     * AND as "already paid", so a rider owed Rs 80 read as Rs 50 on the
-     * statement while Pay said Rs 80. A payee paid in full hid it (the total is
+     * AND as "already paid", so a rider owed ₹80 read as ₹50 on the
+     * statement while Pay said ₹80. A payee paid in full hid it (the total is
      * floored at zero); it shows on the second, partial payment.
      */
     createVersion({ partnerHoldDays: 0, minPayoutAmount: 1 }, { userId: ADMIN }, 'Pay at once, for this check');

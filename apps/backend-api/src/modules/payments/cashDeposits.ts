@@ -10,7 +10,7 @@
  *
  * The owner's rule: the rider deposits it at the office, an administrator
  * confirms what was received, and only then can that rider be paid. Not netted
- * off — a rider holding Rs 2,000 of our cash is not paid Rs 1,800 of earnings,
+ * off — a rider holding ₹2,000 of our cash is not paid ₹1,800 of earnings,
  * because that is a net position rather than a payment, and settling it by
  * transfer means the platform sending out money it is owed.
  *
@@ -21,7 +21,7 @@
  * was counted. Both are kept even when they differ.
  *
  * That is the whole design. A single number recorded by one party is that
- * party's word, and when a bag is Rs 500 light there is no way to tell whether
+ * party's word, and when a bag is ₹500 light there is no way to tell whether
  * it was short when it left or short when it arrived. Two numbers and two
  * timestamps mean a disagreement is visible and attributable, and — far more
  * often — that an honest miscount is obviously an honest miscount.
@@ -341,7 +341,7 @@ export function recordCashReturn(input: {
   /*
    * An open declaration is absorbed rather than refused.
    *
-   * A rider who declared Rs 4,000 in the app and then arrived is the NORMAL
+   * A rider who declared ₹4,000 in the app and then arrived is the NORMAL
    * case, and refusing it would send the person at the desk to cancel the
    * rider's declaration first, which is a rule nobody will remember at a
    * counter with somebody waiting.

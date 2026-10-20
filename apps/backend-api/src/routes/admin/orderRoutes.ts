@@ -335,7 +335,7 @@ orderRoutes.post(
         entityType: 'ORDER',
         entityId: order.id,
         summary: `Cancelled order #${order.orderNumber}: ${req.body.reason}${
-          refund ? ` (refund ${refund.status}, Rs ${refund.amount})` : ''
+          refund ? ` (refund ${refund.status}, ₹${refund.amount})` : ''
         }`,
         before: { status: before },
         after: { status: result.order?.status }

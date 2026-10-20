@@ -7,7 +7,7 @@
  *
  * The declaration/confirmation split is the whole design and most of these
  * checks are about it. One number recorded by one party is that party's word,
- * and when a bag is Rs 500 light there is then no way to tell whether it was
+ * and when a bag is ₹500 light there is then no way to tell whether it was
  * short when it left or short when it arrived.
  */
 import assert from 'node:assert';
@@ -264,7 +264,7 @@ check('With an explanation it is recorded as a variance, and both numbers are ke
     depositId: open.id,
     receivedPaise: toPaise(1500),
     actorUserId: ADMIN,
-    varianceNote: 'Rider says one customer paid Rs 500 by UPI directly. Checking the order.'
+    varianceNote: 'Rider says one customer paid ₹500 by UPI directly. Checking the order.'
   });
 
   assert.equal(deposit.status, 'VARIANCE');
@@ -280,7 +280,7 @@ check('and the difference STAYS against the rider', () => {
   assert.equal(
     cashInHandPaise(RIDER),
     toPaise(500),
-    'the missing Rs 500 was written off rather than left owing'
+    'the missing ₹500 was written off rather than left owing'
   );
 });
 

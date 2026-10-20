@@ -334,10 +334,8 @@ export const RestaurantDetailScreen: React.FC<Props> = ({
               <Text style={styles.fssaiText}>Pure Veg kitchen</Text>
             </View>
           )}
-          <Text style={styles.costLine}>
-            {/* No platform-wide free delivery exists; the fee is quoted at checkout. */}
-            ₹{restaurant.priceForTwo} for two
-          </Text>
+          {/* No platform-wide free delivery exists; the fee is quoted at checkout. Hidden until the kitchen sets one (R2-14). */}
+          {restaurant.priceForTwo ? <Text style={styles.costLine}>₹{restaurant.priceForTwo} for two</Text> : null}
 
           {/* Only for a licence Quick Bites approved; never for an unchecked number. */}
           {restaurant.fssaiVerified === true && (

@@ -9,7 +9,7 @@
  * comes in and is split up in one transaction, and nobody notices that the
  * platform never recorded receiving it.
  *
- * For an order that does NOT arrive, it is a hole. A customer pays Rs 300, the
+ * For an order that does NOT arrive, it is a hole. A customer pays ₹300, the
  * restaurant rejects it, the refund goes back — and the refund was the FIRST
  * ledger entry about that money. Money left the books that had never entered
  * them.
@@ -18,13 +18,13 @@
  * is wrong but survivable. Afterwards it is worse, and it stops the platform
  * working. Take a single day:
  *
- *   Order A: Rs 500, delivered.
- *   Order B: Rs 300, paid, then cancelled and refunded.
+ *   Order A: ₹500, delivered.
+ *   Order B: ₹300, paid, then cancelled and refunded.
  *
- * Razorpay holds Rs 800, sends the Rs 300 back to the customer out of that
- * balance, keeps about Rs 16 in fees and tax, and settles about Rs 484. Rs 500
+ * Razorpay holds ₹800, sends the ₹300 back to the customer out of that
+ * balance, keeps about ₹16 in fees and tax, and settles about ₹484. ₹500
  * of receivable has been discharged. But the ledger's receivable was 500 from A
- * minus 300 for the refund = Rs 200, so recording that settlement is refused for
+ * minus 300 for the refund = ₹200, so recording that settlement is refused for
  * being larger than the outstanding balance — and there is no figure the
  * administrator can type that is both true and accepted. One cancelled prepaid
  * order and the day can never be closed.

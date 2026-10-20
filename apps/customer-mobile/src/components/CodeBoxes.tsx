@@ -30,9 +30,22 @@ export const CodeBoxes: React.FC<{
     );
   }, [shakeKey, x]);
   const shake = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  // Focused after the step's slide-in: autoFocus during an animation is ignored on Android.
+  useEffect(() => {
+    const timer = setTimeout(() => input.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <Pressable onPress={() => input.current?.focus()}>
+    // The real field lies OVER the boxes (round 3, item 4): a tap lands on a text field, so
+    // Android always opens the keyboard. A 1-pixel hidden field under them was refused by
+    // some phones, and a second tap on an already-focused field did nothing.
+    <Pressable
+      onPress={() => {
+        input.current?.blur();
+        setTimeout(() => input.current?.focus(), 50);
+      }}
+    >
       <Animated.View style={[styles.row, shake]}>
         {Array.from({ length: 6 }, (_, i) => (
           <View key={i} style={[styles.box, i === value.length && styles.boxActive, hasError && styles.boxError]}>
@@ -52,7 +65,6 @@ export const CodeBoxes: React.FC<{
         textContentType="oneTimeCode"
         autoComplete="one-time-code"
         maxLength={6}
-        autoFocus
         caretHidden
         style={styles.hidden}
         accessibilityLabel="Verification code"
@@ -76,5 +88,5 @@ const styles = StyleSheet.create({
   boxActive: { borderColor: c.primary[600] },
   boxError: { borderColor: c.semantic.error },
   digit: { fontFamily: tokens.font.family, fontSize: 22, fontWeight: '700', color: c.text.primary },
-  hidden: { position: 'absolute', opacity: 0, width: 1, height: 1 }
+  hidden: { ...StyleSheet.absoluteFillObject, opacity: 0.02, color: 'transparent' }
 });

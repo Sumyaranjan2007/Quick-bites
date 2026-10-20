@@ -158,7 +158,7 @@ async function run(): Promise<void> {
    *  (a) THE SETTLEMENT ITSELF — ALL FOUR ACCOUNTS                    *
    * ================================================================ */
 
-  await check('A Rs 1,000 online order leaves the BANK untouched until the gateway settles', () => {
+  await check('A ₹1,000 online order leaves the BANK untouched until the gateway settles', () => {
     freshBooks();
     paidAndDelivered('gw_bank_untouched', 1000, 'rdr_gw_1');
 
@@ -174,12 +174,12 @@ async function run(): Promise<void> {
     );
   });
 
-  await check('and settling Rs 976.40 raises the bank by exactly that and books Rs 23.60 as fee', () => {
+  await check('and settling ₹976.40 raises the bank by exactly that and books ₹23.60 as fee', () => {
     freshBooks();
     paidAndDelivered('gw_four_accounts', 1000, 'rdr_gw_2');
     const before = untouchables();
 
-    // Razorpay on Rs 1,000: 2% = Rs 20.00, GST on that = Rs 3.60, settled Rs 976.40.
+    // Razorpay on ₹1,000: 2% = ₹20.00, GST on that = ₹3.60, settled ₹976.40.
     const result = recordGatewaySettlement({
       netPaise: toPaise(976.4),
       feesPaise: toPaise(20),
@@ -188,8 +188,8 @@ async function run(): Promise<void> {
       actorUserId: ADMIN
     });
 
-    assert.equal(result.feeTotalPaise, toPaise(23.6), 'the fee was not Rs 23.60');
-    assert.equal(result.dischargedPaise, toPaise(1000), 'the gateway did not discharge the full Rs 1,000');
+    assert.equal(result.feeTotalPaise, toPaise(23.6), 'the fee was not ₹23.60');
+    assert.equal(result.dischargedPaise, toPaise(1000), 'the gateway did not discharge the full ₹1,000');
 
     // FOUR ACCOUNTS. A check on the bank alone passes while the fee vanishes.
     assert.equal(ledger.balanceOf('PLATFORM_BANK'), toPaise(976.4), 'the bank did not rise by what arrived');
@@ -214,12 +214,12 @@ async function run(): Promise<void> {
     /*
      * What the customer paid ends up in exactly three places and nowhere else:
      * the bank, the gateway's fee, and whatever the gateway still holds. If the
-     * fee were dropped this would be short by Rs 23.60, which is the whole point
+     * fee were dropped this would be short by ₹23.60, which is the whole point
      * of deriving it from a transaction that has to balance.
      */
     const accountedFor =
       ledger.balanceOf('PLATFORM_BANK') + gatewayFeesPaise() + gatewayReceivablePaise();
-    assert.equal(accountedFor, toPaise(1000), 'the customer’s Rs 1,000 is not all accounted for');
+    assert.equal(accountedFor, toPaise(1000), 'the customer’s ₹1,000 is not all accounted for');
   });
 
   /* ================================================================ *
@@ -447,10 +447,10 @@ async function run(): Promise<void> {
   await check('A day with one delivered and one refunded prepaid order CAN be settled', async () => {
     freshBooks();
 
-    // A: Rs 500, delivered.
+    // A: ₹500, delivered.
     paidAndDelivered('gw_day_a', 500, 'rdr_gw_day');
 
-    // B: Rs 300, paid, then cancelled and refunded to source.
+    // B: ₹300, paid, then cancelled and refunded to source.
     const b = ownOrder('gw_day_b', {
       restaurantId: RESTAURANT,
       status: 'CANCELLED',
@@ -470,13 +470,13 @@ async function run(): Promise<void> {
     );
 
     /*
-     * Razorpay held Rs 800, sent Rs 300 back out of that balance, charged 2% plus
-     * GST on the Rs 800 it captured (Rs 16.00 + Rs 2.88) and settled the rest.
-     * Rs 500 of receivable is discharged — which is exactly what the ledger now
+     * Razorpay held ₹800, sent ₹300 back out of that balance, charged 2% plus
+     * GST on the ₹800 it captured (₹16.00 + ₹2.88) and settled the rest.
+     * ₹500 of receivable is discharged — which is exactly what the ledger now
      * says is outstanding, because the refund reduced it when it was sent.
      *
-     * Before captures were booked, the ledger's receivable was Rs 500 minus the
-     * Rs 300 refund = Rs 200, and this settlement was REFUSED for exceeding it.
+     * Before captures were booked, the ledger's receivable was ₹500 minus the
+     * ₹300 refund = ₹200, and this settlement was REFUSED for exceeding it.
      * There was no figure an administrator could type that was both true and
      * accepted, so the day could not be closed at all.
      */
@@ -491,7 +491,7 @@ async function run(): Promise<void> {
       actorUserId: ADMIN
     });
 
-    assert.equal(result.dischargedPaise, toPaise(500), 'the day did not discharge Rs 500');
+    assert.equal(result.dischargedPaise, toPaise(500), 'the day did not discharge ₹500');
     assert.equal(ledger.balanceOf('PLATFORM_BANK'), toPaise(481.12), 'the bank is not what landed');
     assert.equal(gatewayFeesPaise(), toPaise(18.88), 'the day’s fees were not recorded');
     assert.equal(gatewayReceivablePaise(), 0, 'the gateway is still holding a settled day');
@@ -572,7 +572,7 @@ async function run(): Promise<void> {
 
     /*
      * The receivable is now zero, so the outstanding check would ALSO refuse this
-     * — with "the gateway is only holding Rs 0.00", which sends somebody looking
+     * — with "the gateway is only holding ₹0.00", which sends somebody looking
      * for a missing payment instead of telling them the settlement is already in
      * the books. The order of the two checks is the whole point.
      */
@@ -607,8 +607,8 @@ async function run(): Promise<void> {
      * careful choice and it was wrong: "gross" is not on Razorpay's settlement
      * row, and what its dashboard calls "collected" is payments BEFORE refunds.
      * An administrator copying that figure for a day with one refund would have
-     * typed Rs 800 against a Rs 484 settlement and booked a Rs 316 fee on a
-     * Rs 16 charge.
+     * typed ₹800 against a ₹484 settlement and booked a ₹316 fee on a
+     * ₹16 charge.
      */
     const result = recordGatewaySettlement({
       netPaise: toPaise(976.4),

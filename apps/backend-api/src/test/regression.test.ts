@@ -757,7 +757,7 @@ async function run() {
       method: 'POST',
       body: {
         restaurantId: freshRestaurantId,
-        rejections: [{ requestId: typo.id, rejectionReason: 'Rs 28000 looks like a typo for Rs 280.' }],
+        rejections: [{ requestId: typo.id, rejectionReason: '₹28000 looks like a typo for ₹280.' }],
         expectedRequestIds: batch.map((r: any) => r.id)
       }
     },

@@ -60,8 +60,8 @@ export interface RestaurantCharges {
    *
    * `null` means accept whatever they declared — no review needed for the
    * ordinary case. A number means an administrator has decided a different
-   * figure, which is the lever the owner asked for: a partner declaring Rs 40
-   * when Rs 25 is right must be correctable, and before this existed their
+   * figure, which is the lever the owner asked for: a partner declaring ₹40
+   * when ₹25 is right must be correctable, and before this existed their
    * declared figure was simply final.
    */
   partnerApprovedFee: number | null;
@@ -483,12 +483,12 @@ export function chargesView(charges: EffectiveCharges) {
     /** Said in words, because the point of the screen is that this is ours. */
     marginNote:
       charges.packagingMarkup > 0
-        ? `Customer pays Rs ${charges.customerPackagingFee}. Restaurant earns Rs ${charges.partnerPackagingFee}. You keep Rs ${charges.packagingMarkup}.`
-        : 'Customer pays Rs ' + charges.customerPackagingFee + '. All of it goes to the restaurant — you have added no markup.',
+        ? `Customer pays ₹${charges.customerPackagingFee}. Restaurant earns ₹${charges.partnerPackagingFee}. You keep ₹${charges.packagingMarkup}.`
+        : 'Customer pays ₹' + charges.customerPackagingFee + '. All of it goes to the restaurant — you have added no markup.',
     /** Named separately because it is a different decision from the markup. */
     approvalNote: charges.partnerFeeAdjusted
-      ? `They asked for Rs ${charges.partnerDeclaredFee}; you set Rs ${charges.partnerPackagingFee}.`
-      : `Paying what they asked for: Rs ${charges.partnerDeclaredFee}.`
+      ? `They asked for ₹${charges.partnerDeclaredFee}; you set ₹${charges.partnerPackagingFee}.`
+      : `Paying what they asked for: ₹${charges.partnerDeclaredFee}.`
   };
 }
 
@@ -507,8 +507,8 @@ export function chargesView(charges: EffectiveCharges) {
  * once never trusts the bill again. Each dish is inflated and rounded on its
  * own, so the line the customer read is the line they are charged.
  *
- * Rounded to whole rupees, because a menu showing Rs 137.50 for a dish the
- * kitchen priced at Rs 125 looks like a mistake rather than a price.
+ * Rounded to whole rupees, because a menu showing ₹137.50 for a dish the
+ * kitchen priced at ₹125 looks like a mistake rather than a price.
  */
 export function customerDishPrice(
   restaurantId: string,
@@ -560,20 +560,20 @@ export function typedPriceFor(restaurantId: string, itemId: string): number | nu
  * -------------------------------------------------------------------------
  * WHY THIS IS NOT customerDishPrice
  * -------------------------------------------------------------------------
- * Add-ons are marked up today, and a percentage scales naturally: a Rs 50 extra
- * becomes Rs 60 at 20% and the restaurant is paid its own Rs 50.
+ * Add-ons are marked up today, and a percentage scales naturally: a ₹50 extra
+ * becomes ₹60 at 20% and the restaurant is paid its own ₹50.
  *
  * An absolute typed price does not scale, and there is no add-on id to look a
  * price up by. Passing the add-ons total through customerDishPrice with the
- * DISH'S id would find the dish's typed price and return it -- so a Rs 50 slice
- * of cheese on a dish typed at Rs 240 would be charged Rs 240, and the dish and
+ * DISH'S id would find the dish's typed price and return it -- so a ₹50 slice
+ * of cheese on a dish typed at ₹240 would be charged ₹240, and the dish and
  * each of its extras would each cost the customer the dish's full price.
  *
  * Nothing on the bill would look wrong. It adds up. It would be found by a
  * customer paying it.
  *
- * So a typed price is converted to the RATIO it implies -- Rs 200 typed at
- * Rs 240 is 1.2 -- and the ratio is applied to the extras, giving Rs 60. That is
+ * So a typed price is converted to the RATIO it implies -- ₹200 typed at
+ * ₹240 is 1.2 -- and the ratio is applied to the extras, giving ₹60. That is
  * what the percentage model produces for the same dish, so the feature changes
  * what an administrator can EXPRESS rather than what the arithmetic means.
  *
@@ -583,22 +583,22 @@ export function typedPriceFor(restaurantId: string, itemId: string): number | nu
  * They are NOT identical for every number, and the first version of this comment
  * claimed they were. A typed price is a whole-rupee figure, so the ratio it
  * implies is the markup that was actually typed rather than the one intended:
- * a Rs 149 dish at 15% types as Rs 171, which is a ratio of 1.1477, not 1.15 --
- * so a Rs 37 extra is Rs 42 by the ratio and Rs 43 by the percentage. On a cheap
- * dish the gap is larger: Rs 10 typed to Rs 11 is a 10% markup whatever
+ * a ₹149 dish at 15% types as ₹171, which is a ratio of 1.1477, not 1.15 --
+ * so a ₹37 extra is ₹42 by the ratio and ₹43 by the percentage. On a cheap
+ * dish the gap is larger: ₹10 typed to ₹11 is a 10% markup whatever
  * percentage produced it.
  *
  * That divergence is the RIGHT behaviour, not a rounding bug to paper over. The
  * typed price is the more specific instruction, and an administrator who typed
- * Rs 11 against a Rs 10 dish has marked it up a tenth; applying a tenth to its
+ * ₹11 against a ₹10 dish has marked it up a tenth; applying a tenth to its
  * extras follows what they did. Following the restaurant percentage instead
  * would mean the extras obeying a number the administrator had just overridden.
  *
  * What WAS a defect is having two rounding conventions for one concept. The
  * percentage path returns whole rupees and the ratio path returned paise, so the
- * same dish produced Rs 14 one way and Rs 14.18 the other. Both now round to
+ * same dish produced ₹14 one way and ₹14.18 the other. Both now round to
  * whole rupees. A typed price itself is never rounded -- a human typed it, and
- * rounding Rs 239.50 up to Rs 240 would overrule them. The rule is: typed values
+ * rounding ₹239.50 up to ₹240 would overrule them. The rule is: typed values
  * are obeyed, derived values are rounded.
  */
 export function customerAddonsPrice(
@@ -622,8 +622,8 @@ export function customerAddonsPrice(
   if (typed !== null && base > 0) {
     const ratio = typed / base;
     // Whole rupees, the same convention as the percentage path below. Two
-    // conventions for one concept is how the same dish came back as Rs 14 from
-    // one path and Rs 14.18 from the other.
+    // conventions for one concept is how the same dish came back as ₹14 from
+    // one path and ₹14.18 from the other.
     return Math.round(extras * ratio);
   }
 
@@ -635,9 +635,9 @@ export function customerAddonsPrice(
 /**
  * Sets, or clears, the customer's price for one dish.
  *
- * Refuses a price BELOW the restaurant's own, naming both numbers. Typing Rs 150
- * against a Rs 200 dish means paying the restaurant Rs 200 while charging Rs 150
- * -- the platform losing Rs 50 a dish, with nothing on any screen to say so.
+ * Refuses a price BELOW the restaurant's own, naming both numbers. Typing ₹150
+ * against a ₹200 dish means paying the restaurant ₹200 while charging ₹150
+ * -- the platform losing ₹50 a dish, with nothing on any screen to say so.
  * Refused here rather than on the screen, because the screen is a convenience
  * and this is the control.
  *
@@ -652,9 +652,9 @@ export function customerAddonsPrice(
  * Two readings are offered because they answer different questions and an
  * administrator should pick rather than be given one silently:
  *
- *   RUPEE   Rs 200 -> Rs 260 with Rs 40 kept becomes Rs 300. The platform keeps
+ *   RUPEE   ₹200 -> ₹260 with ₹40 kept becomes ₹300. The platform keeps
  *           the same cash per order.
- *   PERCENT Rs 200 -> Rs 260 with 20% kept becomes Rs 312. The platform keeps
+ *   PERCENT ₹200 -> ₹260 with 20% kept becomes ₹312. The platform keeps
  *           the same share, so its margin grows with the dish.
  *
  * The rupee reading is the default. It is the smaller number, so defaulting to
@@ -696,7 +696,7 @@ export function marginPreservingPrice(input: {
      * What holding the rupee margin leaves as a PERCENTAGE, so the erosion is
      * visible at the moment of decision.
      *
-     * A margin held at Rs 40 across Rs 200 -> Rs 260 -> Rs 340 goes 20% to 15.4%
+     * A margin held at ₹40 across ₹200 -> ₹260 -> ₹340 goes 20% to 15.4%
      * to 11.8%. Nothing reports that, and it erodes fastest exactly when costs
      * rise fastest -- which is when the owner can least afford it. Holding rupees
      * is still the right default; drifting toward nothing without being told is
@@ -804,7 +804,7 @@ export function inflateMenuForCustomer<T extends { categories?: any[] }>(
             // Leaving add-ons raw would let a customer dodge the markup by
             // ordering a cheap base with expensive extras.
             // Scaled by the ratio the dish's own price implies, so an extra on
-            // a dish typed at Rs 240 is not itself charged Rs 240.
+            // a dish typed at ₹240 is not itself charged ₹240.
             priceDelta: customerAddonsPrice(restaurantId, item.id, item.price, option.priceDelta),
             partnerPriceDelta: Number(option.priceDelta) || 0
           }))
@@ -835,7 +835,7 @@ export const marginRupees = (paise: number) => toRupees(paise);
  * on that dish.
  *
  * Clearing rather than keeping is the safe direction. A typed price is absolute:
- * a kitchen going from Rs 200 to Rs 260 against a typed Rs 240 would have the
+ * a kitchen going from ₹200 to ₹260 against a typed ₹240 would have the
  * platform paying out more than it collects on every order. Losing the markup is
  * recoverable by typing it again; paying more than you charge is not.
  *

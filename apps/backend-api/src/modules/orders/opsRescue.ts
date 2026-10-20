@@ -174,7 +174,7 @@ export async function reassignTrip(
   }
 
   // Paid like a trip the rider took themselves: trip pay + pickup pay (owner, 20 Oct).
-  // This used to leave `riderPayout` unset, so a hand-assigned trip paid the rider Rs 0.
+  // This used to leave `riderPayout` unset, so a hand-assigned trip paid the rider ₹0.
   const pay = afterPickup
     ? { riderPayout: calculateTripPayout(order), riderPickupKm: 0, riderPickupPay: 0 }
     : await riderPayWithPickup(order, target.currentCoordinates);

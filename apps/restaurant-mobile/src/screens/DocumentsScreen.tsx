@@ -17,6 +17,7 @@ import { Card, SectionHeading, Button, Field, Pill, ErrorNote } from '../compone
 import { fetchDocuments, uploadDocument } from '../lib/partnerApi';
 import { chooseDocumentPhoto } from '../lib/photo';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 interface Props {
   restaurantId: string;
@@ -154,7 +155,7 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
 
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={c.brand} />}
       >
@@ -256,12 +257,12 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
           again from this screen, including a verified document that was renewed: the new one is checked, and
           the verified one keeps counting meanwhile.
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={!!target} transparent animationType="slide" onRequestClose={() => setTarget(null)}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
-            <ScrollView keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled">
               <View style={styles.sheetHead}>
                 <Camera size={20} color={c.brand} />
                 <Text style={styles.sheetTitle}>{target?.label}</Text>
@@ -312,7 +313,7 @@ export const DocumentsScreen: React.FC<Props> = ({ restaurantId }) => {
                 onPress={() => setTarget(null)}
                 style={{ marginTop: spacing.md, marginBottom: spacing.xl }}
               />
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

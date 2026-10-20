@@ -20,6 +20,7 @@ import { tokens, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
 import { StatementSheet, type StatementOwner } from '../components/StatementSheet';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -486,7 +487,7 @@ export const PayoutsScreen: React.FC = () => {
 
   return (
     <>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={dues.loading} onRefresh={reloadAll} />}
       >
@@ -1345,7 +1346,7 @@ export const PayoutsScreen: React.FC = () => {
             )}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Recording what the gateway actually paid in */}
       <Sheet

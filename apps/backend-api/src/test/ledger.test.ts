@@ -115,14 +115,14 @@ check('Rounding is symmetric about zero', () => {
   assert.equal(toPaise(-123.45), -12345);
 });
 
-check('Every two-decimal amount up to Rs 10,000 survives a round trip', () => {
+check('Every two-decimal amount up to ₹10,000 survives a round trip', () => {
   // The property that matters: converting to paise and back must be the
   // identity. One counterexample anywhere in this range is a paisa that
   // appears or vanishes on some order nobody has placed yet.
   for (let paise = 1; paise <= 1_000_000; paise += 7) {
     const roundTripped = toPaise(toRupees(paise));
     if (roundTripped !== paise) {
-      assert.fail(`Rs ${toRupees(paise)} converted to ${roundTripped} paise, not ${paise}`);
+      assert.fail(`₹${toRupees(paise)} converted to ${roundTripped} paise, not ${paise}`);
     }
   }
 });
@@ -134,9 +134,9 @@ check('A percentage of an amount rounds to the paisa', () => {
 });
 
 check('Paise format for a human', () => {
-  assert.equal(formatPaise(12345), 'Rs 123.45');
-  assert.equal(formatPaise(5), 'Rs 0.05');
-  assert.equal(formatPaise(100), 'Rs 1.00');
+  assert.equal(formatPaise(12345), '₹123.45');
+  assert.equal(formatPaise(5), '₹0.05');
+  assert.equal(formatPaise(100), '₹1.00');
 });
 
 /* ------------------------------------------------------------------ *
@@ -285,7 +285,7 @@ check('What the platform owes grows with a credit', () => {
   assert.equal(ledger.increasesWithDebit('TAX_GST_PAYABLE'), false);
 });
 
-check('A partner we owe Rs 360 reads as owed Rs 360, not in debt to us', () => {
+check('A partner we owe ₹360 reads as owed ₹360, not in debt to us', () => {
   // Getting this backwards reports a debt as a credit, which reads entirely
   // plausible on a screen and is the kind of mistake that survives a demo.
   assert.equal(ledger.balanceOf(accountFor('PARTNER_PAYABLE', 'rst_1')), 36000);
@@ -346,7 +346,7 @@ check('A randomised day of trading leaves the books balanced', () => {
   for (let i = 0; i < 300; i++) {
     const rst = `rst_${next(8)}`;
     const rdr = `rdr_${next(12)}`;
-    const total = (next(90000) + 10000); // Rs 100 to Rs 1000, in paise
+    const total = (next(90000) + 10000); // ₹100 to ₹1000, in paise
     const commission = percentOf(total, 15);
     const riderCut = percentOf(total, 8);
     const partnerCut = total - commission - riderCut;
@@ -468,18 +468,18 @@ check('A bill priced with no rates matches one priced with the defaults', () => 
 });
 
 check('The platform fee is exactly what was set when there is no GSTIN (owner, 1 Oct 2026)', () => {
-  // It used to be Rs 5.00 + 18% = Rs 5.90 regardless of registration, so a
-  // Rs 10 fee reached the customer as Rs 11.80. GST is added only when the
+  // It used to be ₹5.00 + 18% = ₹5.90 regardless of registration, so a
+  // ₹10 fee reached the customer as ₹11.80. GST is added only when the
   // caller passes a rate, which it does only with a GSTIN.
   const bill = calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }] });
   assert.equal(bill.platformFee, 5);
   assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], platformFeeGstPercent: 18 }).platformFee, 5.9);
 });
 
-check('Delivery is rider pay (Rs 12 a road km to 4 km, sliding to Rs 8 at 35 km, Rs 30 minimum) plus the markup (owner, 18 Oct 2026)', () => {
+check('Delivery is rider pay (₹12 a road km to 4 km, sliding to ₹8 at 35 km, ₹30 minimum) plus the markup (owner, 18 Oct 2026)', () => {
   assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 2 }).deliveryFee, 30, 'the minimum');
   assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 3 }).deliveryFee, 36);
-  assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 5.5 }).deliveryFee, 65, '5.5 km at Rs 11.81');
+  assert.equal(calculateOrderPricing({ items: [{ unitPrice: 100, quantity: 1 }], distanceKm: 5.5 }).deliveryFee, 65, '5.5 km at ₹11.81');
 });
 
 check('GST on food is still 5%', () => {
@@ -515,7 +515,7 @@ check('The rates handed to the engine are the rates it applies', () => {
   assert.equal(asDefault.packagingFee, 20, 'default packaging');
   assert.equal(asChanged.packagingFee, 45, 'packaging did not follow the rate it was given');
 
-  // 6 road km, 2 km into the slide to Rs 8 at 35 km: Rs 11.74 a km by default, Rs 23.90 from Rs 25 as changed.
+  // 6 road km, 2 km into the slide to ₹8 at 35 km: ₹11.74 a km by default, ₹23.90 from ₹25 as changed.
   assert.equal(asDefault.deliveryFee, 70, 'default delivery over 6km');
   assert.equal(asChanged.deliveryFee, 143, 'delivery did not follow the rates it was given');
 
@@ -539,8 +539,8 @@ check('The rates handed to the engine are the rates it applies', () => {
  * This check previously asserted the fee dropped to zero once the threshold was
  * lowered. That was correct about the old model and is the wrong question now,
  * so the assertion follows the behaviour rather than being softened to tolerate
- * it. Rs 30 is the base fee, and a 1km trip stays inside the 3km base distance,
- * so the undiscounted fee is Rs 30 and 40% off is Rs 18.
+ * it. ₹30 is the base fee, and a 1km trip stays inside the 3km base distance,
+ * so the undiscounted fee is ₹30 and 40% off is ₹18.
  */
 check('A member’s delivery discount is gated by the threshold', () => {
   const basket = {
@@ -553,14 +553,14 @@ check('A member’s delivery discount is gated by the threshold', () => {
   assert.equal(
     calculateOrderPricing(basket).deliveryFee,
     30,
-    'Rs 150 is below the Rs 199 default threshold, so the discount does not apply yet'
+    '₹150 is below the ₹199 default threshold, so the discount does not apply yet'
   );
 
   const applied = calculateOrderPricing({
     ...basket,
     rates: { ...DEFAULT_RATES, memberFreeDeliveryMinOrder: 100 }
   });
-  assert.equal(applied.deliveryFee, 18, '40% off Rs 30 once the basket clears the threshold');
+  assert.equal(applied.deliveryFee, 18, '40% off ₹30 once the basket clears the threshold');
   assert.equal(applied.membershipDeliverySaving, 12, 'and the saving is recorded');
   assert.notEqual(applied.deliveryFee, 0, 'clearing the threshold no longer makes delivery free');
 });

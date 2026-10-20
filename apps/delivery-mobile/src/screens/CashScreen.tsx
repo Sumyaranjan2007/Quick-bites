@@ -6,6 +6,7 @@ import { t } from '../theme';
 import { Card, SectionTitle, Pill, Button, EmptyState, LoadingBlock, ProgressBar, Divider } from '../components/ui';
 import { cashApi, type ApiContext, type CashStandingView, type CashDepositView } from '../lib/api';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * The cash a rider is carrying, and getting it off them.
@@ -167,7 +168,7 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   const tone = blocked ? t.color.danger : warn ? t.color.money : t.color.go;
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void load('refresh')} tintColor={t.color.brand} />
@@ -361,7 +362,7 @@ export const CashScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
           </Text>
         </>
       )}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

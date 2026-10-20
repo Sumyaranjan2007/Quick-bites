@@ -36,6 +36,7 @@ import {
 import { Modal } from './Modal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /* ------------------------------------------------------------------------- */
 /*                               Types and rules                             */
@@ -486,7 +487,7 @@ export const MenuBuilder: React.FC<MenuBuilderProps> = props => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
         <View style={s.card}>
           <Text style={s.cardTitle}>Read your printed menu with AI</Text>
           <Text style={s.cardBody}>
@@ -578,7 +579,7 @@ export const MenuBuilder: React.FC<MenuBuilderProps> = props => {
         </TouchableOpacity>
 
         <View style={{ height: 120 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={s.footer}>
         <Text style={s.footerText}>
@@ -694,7 +695,7 @@ const DishEditor: React.FC<{
     <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
       <View style={s.backdrop}>
         <View style={[s.sheet, { maxHeight: '92%' }]}>
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled">
             <Text style={s.sheetTitle}>{dish.name ? 'Edit dish' : 'New dish'}</Text>
             {d.flags.length > 0 && (
               <View style={s.flagBox}>
@@ -824,7 +825,7 @@ const DishEditor: React.FC<{
               </TouchableOpacity>
             )}
             <View style={{ height: 20 }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       </View>
     </Modal>

@@ -7,6 +7,7 @@ import { t } from '../theme';
 import { Button, Card, Divider, Pill, SectionTitle } from '../components/ui';
 import { dayAndTime, titleCase } from '../lib/format';
 import { api, type ApiContext, type SosAlert } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Safety & SOS.
@@ -79,7 +80,7 @@ export const SafetyScreen: React.FC<{ ctx: ApiContext; activeOrderId?: string }>
   };
 
   return (
-    <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
       <TouchableOpacity
         style={s.emergencyCard}
         activeOpacity={0.9}
@@ -181,7 +182,7 @@ export const SafetyScreen: React.FC<{ ctx: ApiContext; activeOrderId?: string }>
         Trips you could not finish because of an incident are excluded from your acceptance rate once operations
         close the report.
       </Text>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

@@ -40,6 +40,7 @@ import { haptic } from './src/lib/haptics';
 import { useIosScreenMotion } from './src/lib/useIosScreenMotion';
 import { registerForPush, unregisterForPush } from './src/lib/pushRegistration';
 import { startLiveSync } from './src/lib/liveSync';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 type Screen =
   | 'feed'
@@ -487,6 +488,7 @@ function AppRoot() {
         {currentScreen === 'cart' && (
           <CartAndCheckoutScreen
             cart={cart}
+            onAddToCart={handleAddToCart}
             onUpdateQuantity={handleUpdateQuantity}
             onBack={() => setCurrentScreen(selectedRestaurant ? 'detail' : 'feed')}
             onOrderPlaced={handleOrderPlaced}
@@ -725,11 +727,14 @@ export default function App() {
     {/* Required by useSafeAreaInsets. Without it every inset reads zero and
         the bottom row slides back under Android's navigation bar. */}
     <SafeAreaProvider>
+      {/* Keyboard never covers a field, Android edge-to-edge included (round 3, item 4). */}
+      <KeyboardProvider>
         <I18nProvider>
           <NotificationsProvider>
             <AppRoot />
           </NotificationsProvider>
         </I18nProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
     </ErrorBoundary>
   );

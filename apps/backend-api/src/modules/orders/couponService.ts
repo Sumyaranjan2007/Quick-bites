@@ -46,7 +46,7 @@ export const couponService = {
     if (coupon.minOrderValue && itemsTotal < coupon.minOrderValue) {
       return {
         valid: false,
-        reason: `Minimum order value of Rs ${coupon.minOrderValue} required for this coupon.`
+        reason: `Minimum order value of ₹${coupon.minOrderValue} required for this coupon.`
       };
     }
     if (coupon.usageLimit && (coupon.timesUsed || 0) >= coupon.usageLimit) {

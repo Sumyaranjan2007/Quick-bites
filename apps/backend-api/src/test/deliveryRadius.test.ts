@@ -7,7 +7,7 @@
  *     listed nor orderable. The list and checkout use the same circle.
  *   - A closed kitchen inside the radius stays in the list, marked not serving
  *     (the app words it "Not delivering currently").
- *   - Rider pay per km: full rate up to 4 km, sliding to Rs 8 at 35 km.
+ *   - Rider pay per km: full rate up to 4 km, sliding to ₹8 at 35 km.
  *   - Cash on delivery only up to 15 road km: the quote hides it and says why,
  *     and checkout refuses it.
  *   - The owner's 35 km is applied once to the live rates and never overwrites
@@ -131,7 +131,7 @@ try {
   it('...with no reason against it', () => assert.equal(near?.cashUnavailableReason, null));
   it('...and the rider pay follows the curve', () =>
     assert.equal(near?.bill?.riderPay, riderPayFor(near?.distanceKm, getActiveRates())));
-  it('...which is below the old flat Rs 12/km beyond 4 km', () =>
+  it('...which is below the old flat ₹12/km beyond 4 km', () =>
     assert.ok(near?.bill?.riderPay < Math.round(near?.distanceKm * 12), `${near?.bill?.riderPay} vs ${near?.distanceKm} km`));
 
   placeKitchen(0.12); // ~13 km straight, ~17 km by road

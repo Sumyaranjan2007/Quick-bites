@@ -27,7 +27,7 @@ export const CreateAccountSheet: React.FC<{
     setBusy(true);
     try {
       // Two literal bodies, so the body-contract check can read each one.
-      const result = kitchen
+      kitchen
         ? await api.post<any>('/admin/accounts/create', {
             kind: 'restaurant',
             fullName: f.fullName,
@@ -50,10 +50,17 @@ export const CreateAccountSheet: React.FC<{
             ...(f.password ? { password: f.password } : {}),
             ...(f.rc ? { vehicleRegistrationNumber: f.rc } : {})
           });
+      // Worded from what was sent (R2-10): the api client returns only `data`, never the server's message.
+      const typedPassword = Boolean(f.password);
       setF({ vehicleType: 'BIKE' });
       onCreated();
       onClose();
-      Alert.alert('Account created', result?.message || 'They got an email to set their own password.');
+      Alert.alert(
+        'Account created',
+        typedPassword
+          ? 'They can sign in now with the password you set. Give it to them in person or by phone.'
+          : 'They got an email to set their own password.'
+      );
     } catch (err: any) {
       Alert.alert('Not created', err?.message || 'Nothing was created.');
     } finally {

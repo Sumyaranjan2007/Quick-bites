@@ -8,7 +8,7 @@
  * name claimed because it shared a mutable fixture with another check:
  *
  *   - itemPricing: a later section rewrote the first restaurant's first dish to
- *     Rs 200, and that dish WAS the biryani two earlier checks asserted on.
+ *     ₹200, and that dish WAS the biryani two earlier checks asserted on.
  *   - itemPricing again: new checks changed `foodMarkupPercent` and two older
  *     ones inherited it.
  *   - riderTripPush, twice: two checks reused an order that riders had already

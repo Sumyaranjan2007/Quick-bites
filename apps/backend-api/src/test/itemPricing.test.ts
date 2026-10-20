@@ -27,8 +27,8 @@
  * -------------------------------------------------------------------------
  * Add-ons have no id of their own to look a price up by. Passing an add-ons
  * total through the dish's price resolution would find the dish's typed price
- * and return it -- so a Rs 50 slice of cheese on a dish typed at Rs 240 would be
- * charged Rs 240. The bill would add up. A customer would find it.
+ * and return it -- so a ₹50 slice of cheese on a dish typed at ₹240 would be
+ * charged ₹240. The bill would add up. A customer would find it.
  *
  * A typed price is therefore converted to the ratio it implies and the ratio is
  * applied to the extras, which reproduces exactly what the percentage model
@@ -70,7 +70,7 @@ let failed = 0;
  * FAILURE with a message saying why, not a silent pass.
  */
 /**
- * Where, if anywhere, a customer price of Rs 300 appears in a response: a number
+ * Where, if anywhere, a customer price of ₹300 appears in a response: a number
  * 300, a string that is exactly "300"/"300.00", or 300 written as money in text.
  * Returns the path to the first one, or null.
  */
@@ -133,8 +133,8 @@ check('With nothing set, the customer pays the kitchen price', () => {
 
 check('A restaurant percentage applies to a dish with no typed price', () => {
   setCharges(restaurantId, { foodMarkupPercent: 20 }, ADMIN, 'percentage only');
-  assert.equal(customerDishPrice(restaurantId, dish.id, 200), 240, '20% on Rs 200');
-  assert.equal(customerAddonsPrice(restaurantId, dish.id, 200, 50), 60, 'and on a Rs 50 extra');
+  assert.equal(customerDishPrice(restaurantId, dish.id, 200), 240, '20% on ₹200');
+  assert.equal(customerAddonsPrice(restaurantId, dish.id, 200, 50), 60, 'and on a ₹50 extra');
 });
 
 check('A TYPED price beats the percentage', () => {
@@ -150,14 +150,14 @@ check('A TYPED price beats the percentage', () => {
 });
 
 /*
- * The trap. Rs 260 typed against a Rs 200 dish implies a ratio of 1.3, so a
- * Rs 50 extra costs Rs 65 -- NOT Rs 260, which is what returning the dish's
+ * The trap. ₹260 typed against a ₹200 dish implies a ratio of 1.3, so a
+ * ₹50 extra costs ₹65 -- NOT ₹260, which is what returning the dish's
  * typed price for the add-ons would give.
  */
 check('AN ADD-ON IS SCALED BY THE RATIO, NOT CHARGED THE DISH PRICE', () => {
   const addons = customerAddonsPrice(restaurantId, dish.id, 200, 50);
   assert.notEqual(addons, 260, 'the add-on was charged the whole dish price');
-  assert.equal(addons, 65, 'Rs 50 at the 1.3 ratio Rs 200 -> Rs 260 implies');
+  assert.equal(addons, 65, '₹50 at the 1.3 ratio ₹200 -> ₹260 implies');
 });
 
 check('A dish typed at its percentage matches the percentage where the numbers permit', () => {
@@ -167,21 +167,21 @@ check('A dish typed at its percentage matches the percentage where the numbers p
   setItemPrice({ restaurantId, itemId: dish.id, restaurantPrice: 200, customerPrice: null, actorUserId: ADMIN });
   const percentAddons = customerAddonsPrice(restaurantId, dish.id, 200, 50);
 
-  assert.equal(typedAddons, percentAddons, 'Rs 200 at 20% is one of the cases that coincide exactly');
+  assert.equal(typedAddons, percentAddons, '₹200 at 20% is one of the cases that coincide exactly');
   assert.equal(typedAddons, 60);
 });
 
 /*
  * THE AWKWARD NUMBERS, chosen because the fixture above cannot reach this case.
  *
- * Rs 200 at 20% divides cleanly, so typed-at-the-percentage and the percentage
+ * ₹200 at 20% divides cleanly, so typed-at-the-percentage and the percentage
  * agree exactly -- and a suite built only on that number would assert continuity
  * while never testing it. That is the "fixture that cannot reach the case" shape.
  *
- * Rs 149 at 15% types as Rs 171, a ratio of 1.1477 rather than 1.15, so a Rs 37
- * extra is Rs 42 by the ratio and Rs 43 by the percentage. They DIFFER, and that
+ * ₹149 at 15% types as ₹171, a ratio of 1.1477 rather than 1.15, so a ₹37
+ * extra is ₹42 by the ratio and ₹43 by the percentage. They DIFFER, and that
  * is correct: the typed price is the more specific instruction, and an
- * administrator who typed Rs 171 marked the dish up by 14.77%. The extras
+ * administrator who typed ₹171 marked the dish up by 14.77%. The extras
  * following what was typed rather than a percentage that was overridden is the
  * intended behaviour.
  *
@@ -201,13 +201,13 @@ check('Both paths return whole rupees, whatever the numbers', () => {
   // The assertion that failed before the rounding was unified: this returned
   // 42.46, so one dish produced a paise figure and the other whole rupees.
   assert.ok(Number.isInteger(byRatio), `ratio path gave ${byRatio}, which is not a whole rupee`);
-  assert.equal(byRatio, 42, 'Rs 37 at the 1.1477 ratio Rs 149 -> Rs 171 actually implies');
+  assert.equal(byRatio, 42, '₹37 at the 1.1477 ratio ₹149 -> ₹171 actually implies');
 });
 
 check('The extras follow the markup that was TYPED, not the one configured', () => {
   /*
    * The property that makes the ratio right rather than merely workable, stated
-   * as something checkable. A Rs 10 dish typed at Rs 11 has been marked up a
+   * as something checkable. A ₹10 dish typed at ₹11 has been marked up a
    * tenth whatever the restaurant percentage says, and its extras follow that.
    */
   const CHEAP = 'dish_cheap_for_ratio';
@@ -215,7 +215,7 @@ check('The extras follow the markup that was TYPED, not the one configured', () 
   setItemPrice({ restaurantId, itemId: CHEAP, restaurantPrice: 10, customerPrice: 11, actorUserId: ADMIN });
 
   const extras = customerAddonsPrice(restaurantId, CHEAP, 10, 100);
-  assert.equal(extras, 110, 'Rs 100 of extras at the tenth the typed price implies');
+  assert.equal(extras, 110, '₹100 of extras at the tenth the typed price implies');
   assert.notEqual(extras, 105, 'the extras followed the 5% the typed price overrode');
 });
 
@@ -291,15 +291,15 @@ check('and it still does when the restaurant percentage is ZERO', () => {
  * So this places a real order through the assembled app and asserts all three
  * numbers from it, worked out by hand:
  *
- *   dish        Rs 320 at the kitchen, typed to Rs 400   -> ratio 1.25
- *   add-ons     Rs 150 + Rs 30 = Rs 180, at 1.25         -> Rs 225
- *   customer    400 + 225                                -> Rs 625
- *   restaurant  320 + 180                                -> Rs 500
- *   ours        625 - 500                                -> Rs 125
- *   commission  18% of 500 = Rs 90, NOT 18% of 625 = Rs 112.50
+ *   dish        ₹320 at the kitchen, typed to ₹400   -> ratio 1.25
+ *   add-ons     ₹150 + ₹30 = ₹180, at 1.25         -> ₹225
+ *   customer    400 + 225                                -> ₹625
+ *   restaurant  320 + 180                                -> ₹500
+ *   ours        625 - 500                                -> ₹125
+ *   commission  18% of 500 = ₹90, NOT 18% of 625 = ₹112.50
  *
  * That last line is the assertion worth the whole file. The wrong version
- * overcharges the restaurant Rs 22.50 on this one order and nothing anywhere
+ * overcharges the restaurant ₹22.50 on this one order and nothing anywhere
  * reports an error.
  */
 const PORT = 5221;
@@ -335,8 +335,8 @@ try {
    * This section sets up its own world from scratch, including the dish price.
    *
    * The unit checks above take the FIRST restaurant and its FIRST dish and
-   * rewrite that dish to Rs 200 -- and on the seeded data that dish is this
-   * biryani. So the order below priced a Rs 200 dish against Rs 320
+   * rewrite that dish to ₹200 -- and on the seeded data that dish is this
+   * biryani. So the order below priced a ₹200 dish against ₹320
    * expectations and four checks failed while the code was entirely correct.
    *
    * The lesson is not "reset state"; it is that a check asserting exact rupees
@@ -350,7 +350,7 @@ try {
   biryani.price = 320;
   memoryStore.menus.set(BIRYANI_RESTAURANT, biryaniMenu);
 
-  check('The dish this section prices costs Rs 320 at the kitchen', () => {
+  check('The dish this section prices costs ₹320 at the kitchen', () => {
     assert.equal(biryani.price, 320, 'every figure below is derived from this one');
   });
 
@@ -398,11 +398,11 @@ try {
   });
 
   check('THE CUSTOMER IS CHARGED THE TYPED PRICES', () => {
-    assert.equal(bill.itemsTotal, 625, 'Rs 400 typed plus Rs 225 of extras at the implied ratio');
+    assert.equal(bill.itemsTotal, 625, '₹400 typed plus ₹225 of extras at the implied ratio');
   });
 
   check('THE RESTAURANT IS OWED ITS OWN PRICES', () => {
-    assert.equal(bill.partnerItemsTotal, 500, 'Rs 320 plus Rs 180 of extras, unmarked');
+    assert.equal(bill.partnerItemsTotal, 500, '₹320 plus ₹180 of extras, unmarked');
   });
 
   check('and the two are NOT the same number', () => {
@@ -414,7 +414,7 @@ try {
 
   check('COMMISSION IS TAKEN ON THE RESTAURANT TOTAL, NOT THE CUSTOMER TOTAL', () => {
     assert.equal(bill.commissionPercent, 18);
-    assert.equal(bill.commissionAmount, 90, '18% of Rs 500 -- 18% of Rs 625 would be Rs 112.50');
+    assert.equal(bill.commissionAmount, 90, '18% of ₹500 -- 18% of ₹625 would be ₹112.50');
   });
 
   check('and the settlement is computed from the restaurant total', () => {
@@ -422,7 +422,7 @@ try {
     // the other terms are, it must never be derived from the customer's total.
     assert.ok(
       bill.restaurantNetPayout < bill.partnerItemsTotal,
-      `net ${bill.restaurantNetPayout} should be below the Rs 500 owed before deductions`
+      `net ${bill.restaurantNetPayout} should be below the ₹500 owed before deductions`
     );
     assert.ok(
       bill.restaurantNetPayout < bill.itemsTotal - 100,
@@ -493,12 +493,12 @@ async function partnerToken() {
     actorUserId: ADMIN
   });
 
-  check('The dish starts at Rs 200 with a Rs 240 customer price', () => {
+  check('The dish starts at ₹200 with a ₹240 customer price', () => {
     assert.equal(theirDish.price, 200);
-    assert.equal(typedPriceFor(rid, theirDish.id), 240, 'Rs 40 of margin stands on it');
+    assert.equal(typedPriceFor(rid, theirDish.id), 240, '₹40 of margin stands on it');
   });
 
-  /* ---------------- the partner asks for Rs 260 ---------------- */
+  /* ---------------- the partner asks for ₹260 ---------------- */
 
   const requested = await api(`/restaurants/${rid}/menu/requests`, {
     method: 'POST',
@@ -542,9 +542,9 @@ async function partnerToken() {
   });
 
   check('THE MARGIN IS HELD WITHOUT BEING ASKED FOR', () => {
-    // Rs 40 stood on the old price, so Rs 260 becomes Rs 300 -- not Rs 260 with
-    // the markup lost, and not Rs 240 which is now below what we pay out.
-    assert.equal(typedPriceFor(rid, theirDish.id), 300, 'the Rs 40 margin did not survive approval');
+    // ₹40 stood on the old price, so ₹260 becomes ₹300 -- not ₹260 with
+    // the markup lost, and not ₹240 which is now below what we pay out.
+    assert.equal(typedPriceFor(rid, theirDish.id), 300, 'the ₹40 margin did not survive approval');
   });
 
   check('and the response SAYS it did, rather than doing it silently', () => {
@@ -553,13 +553,13 @@ async function partnerToken() {
     assert.equal(held.chosenBy, 'MARGIN_DEFAULT');
     assert.equal(held.customerPrice, 300);
     assert.equal(held.marginRupees, 40, 'the margin kept is stated in rupees');
-    assert.equal(held.alternatives.percent, 312, '20% of Rs 260 offered as the other reading');
+    assert.equal(held.alternatives.percent, 312, '20% of ₹260 offered as the other reading');
   });
 
   check('The erosion is stated, so a margin cannot drift away unseen', () => {
     /*
-     * Holding Rs 40 is the right default and it erodes: 20% of Rs 200 is 15.38%
-     * of Rs 260, and 11.76% by the time the dish reaches Rs 340. It erodes
+     * Holding ₹40 is the right default and it erodes: 20% of ₹200 is 15.38%
+     * of ₹260, and 11.76% by the time the dish reaches ₹340. It erodes
      * fastest exactly when costs rise fastest. Nothing reports that unless the
      * approval says it, so the approval says it.
      */
@@ -604,7 +604,7 @@ async function partnerToken() {
 
     // And the figure itself, in case a field is ever named something else.
     const leak = customerPriceIn(partnerHistory.json);
-    assert.equal(leak, null, `the customer price Rs 300 appears in a partner response, at ${leak}`);
+    assert.equal(leak, null, `the customer price ₹300 appears in a partner response, at ${leak}`);
   });
 
   /*
@@ -614,14 +614,14 @@ async function partnerToken() {
    * caused teaches people to re-run until it is green.
    *
    * A price is: a number 300; a string that is exactly "300" or "300.00"; or 300
-   * written as money inside any text ("Customer pays Rs 300", "₹300"), because a
+   * written as money inside any text ("Customer pays ₹300", "₹300"), because a
    * message or narration is where a markup most easily leaks in words.
    */
   check('The markup detector finds the price in every form and ignores times and ids', () => {
     assert.equal(customerPriceIn({ createdAt: '2026-09-25T09:54:52.300Z', id: 'mr_1727300123', n: 1300 }), null);
     assert.ok(customerPriceIn({ amount: 300 }), 'a number 300');
     assert.ok(customerPriceIn({ nested: [{ v: '300.00' }] }), 'a string "300.00"');
-    assert.ok(customerPriceIn({ message: 'Customer pays Rs 300 for this' }), '"Rs 300" in text');
+    assert.ok(customerPriceIn({ message: 'Customer pays ₹300 for this' }), '"₹300" in text');
     assert.ok(customerPriceIn({ message: 'shown at ₹300.00 on the app' }), '"₹300.00" in text');
     assert.ok(customerPriceIn({ message: 'Rs.300' }), '"Rs.300" in text');
   });
@@ -638,14 +638,14 @@ async function partnerToken() {
 
   check('A price written around the approval queue CLEARS the stale markup', () => {
     /*
-     * The backstop. A typed price is absolute, so a kitchen going to Rs 400
-     * against a typed Rs 300 would have the platform paying out more than it
+     * The backstop. A typed price is absolute, so a kitchen going to ₹400
+     * against a typed ₹300 would have the platform paying out more than it
      * collects on every order. Losing the markup is recoverable by typing it
      * again; paying more than you charge is not.
      */
     assert.equal(typedPriceFor(rid, theirDish.id), 300);
     menuRepository.updateItem(rid, theirDish.id, { price: 400 } as any);
-    assert.equal(typedPriceFor(rid, theirDish.id), null, 'a Rs 300 customer price survived a Rs 400 cost');
+    assert.equal(typedPriceFor(rid, theirDish.id), null, 'a ₹300 customer price survived a ₹400 cost');
   });
 
   check('but a rename does not touch the markup', () => {
@@ -718,7 +718,7 @@ async function partnerToken() {
   check('One dish saves on its own', () => {
     assert.equal(savedA.status, 200, JSON.stringify(savedA.json).slice(0, 250));
     assert.equal(savedA.json.data.customerPrice, 360);
-    assert.equal(savedA.json.data.marginRupees, 60, 'Rs 360 against a Rs 300 kitchen price');
+    assert.equal(savedA.json.data.marginRupees, 60, '₹360 against a ₹300 kitchen price');
   });
 
   check('and the OTHER dish is untouched by that save', () => {

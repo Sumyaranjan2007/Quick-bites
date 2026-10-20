@@ -24,7 +24,7 @@
  * BALANCED IS NOT ENOUGH, AND SAYING WHY
  * -------------------------------------------------------------------------
  * `ledger.audit().balanced` only says every transaction had equal debits and
- * credits. A transaction that moves Rs 500 from the wrong account to the wrong
+ * credits. A transaction that moves ₹500 from the wrong account to the wrong
  * account balances perfectly. So the accounts are named and checked individually,
  * and `balanced` is the floor rather than the assertion.
  */
@@ -770,7 +770,7 @@ try {
     assert.equal(
       afterBonus.riderPayable,
       toPaise(120),
-      `the bonus left the rider owed ${formatPaise(afterBonus.riderPayable)} rather than Rs 120.00`
+      `the bonus left the rider owed ${formatPaise(afterBonus.riderPayable)} rather than ₹120.00`
     );
     assert.equal(secondRun.sent.status, 200,
       `the bonus payout failed: ${JSON.stringify(secondRun.sent.json).slice(0, 300)}`);

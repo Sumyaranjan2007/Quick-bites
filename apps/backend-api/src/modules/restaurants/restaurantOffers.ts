@@ -76,7 +76,7 @@ export function couponAppliesToRestaurant(coupon: Coupon, restaurant: Restaurant
  *
  * Used only to rank offers against each other, never shown. A percentage and a
  * flat amount are not comparable without a basket to apply them to, and
- * "40% off" beating "Rs 150 off" on a Rs 200 order would put the worse offer on
+ * "40% off" beating "₹150 off" on a ₹200 order would put the worse offer on
  * the card.
  *
  * `costForTwo` is the basket it assumes, because it is the only figure the
@@ -100,7 +100,7 @@ export function offerValueFor(coupon: Coupon, restaurant: Restaurant): number {
   return Math.min(coupon.discountValue, basket);
 }
 
-/** "50% OFF" or "Rs 100 OFF" - short enough to sit on a photograph. */
+/** "50% OFF" or "₹100 OFF" - short enough to sit on a photograph. */
 export function badgeLabel(coupon: Coupon): string {
   return coupon.discountType === 'PERCENTAGE'
     ? `${Math.round(coupon.discountValue)}% OFF`

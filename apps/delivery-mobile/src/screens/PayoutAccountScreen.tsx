@@ -6,6 +6,7 @@ import { t } from '../theme';
 import { Card, SectionTitle, Pill, Button, EmptyState, LoadingBlock, Divider } from '../components/ui';
 import { api, type ApiContext, type PayeeAccount, type PayeeAccountsResponse } from '../lib/api';
 import { useLiveSync } from '../lib/liveSync';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Where this rider's earnings are sent.
@@ -135,7 +136,7 @@ export const PayoutAccountScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
   if (loading) return <LoadingBlock label="Loading your payout account…" />;
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void load('refresh')} tintColor={t.color.brand} />
@@ -367,7 +368,7 @@ export const PayoutAccountScreen: React.FC<{ ctx: ApiContext }> = ({ ctx }) => {
         Quick Bites does not keep your account number. Once your bank confirms it, only the last four digits
         are stored so you can recognise it here.
       </Text>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

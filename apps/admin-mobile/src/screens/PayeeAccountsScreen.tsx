@@ -19,6 +19,7 @@ import {
 import { tokens, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -181,7 +182,7 @@ export const PayeeAccountsScreen: React.FC = () => {
 
   return (
     <>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.content}
         refreshControl={
           <RefreshControl
@@ -404,7 +405,7 @@ export const PayeeAccountsScreen: React.FC = () => {
             {renderCoverage('Restaurants', coverage.data?.restaurants)}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Sheet
         visible={!!deciding}

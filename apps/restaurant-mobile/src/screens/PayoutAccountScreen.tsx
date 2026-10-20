@@ -12,6 +12,7 @@ import {
   removePayeeAccount,
   type PayeeAccountView
 } from '../lib/partnerApi';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Where this kitchen's settlements are paid.
@@ -170,7 +171,7 @@ export const PayoutAccountScreen: React.FC = () => {
 
   return (
     <SafeScreen>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={s.content}
         refreshControl={
           <RefreshControl
@@ -186,7 +187,7 @@ export const PayoutAccountScreen: React.FC = () => {
       >
         <SectionHeading
           title="Payouts"
-          sub="The account Quick Bites sends your settlements to."
+          sub="The account Quick Bites sends this kitchen's settlements to. Each kitchen has its own payout account: if you own two, set one up from each kitchen."
         />
 
         {!!loadError && <ErrorNote message={loadError} onRetry={() => void load(true)} />}
@@ -416,7 +417,7 @@ export const PayoutAccountScreen: React.FC = () => {
           Quick Bites does not keep your account number. Once your bank confirms the account, only the last
           four digits are stored so you can recognise it here.
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeScreen>
   );
 };

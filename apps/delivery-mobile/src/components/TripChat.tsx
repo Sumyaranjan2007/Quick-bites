@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator
 } from 'react-native';
@@ -15,6 +14,8 @@ import { Modal } from './Modal';
 import { X, Send } from 'lucide-react-native';
 import { t } from '../theme';
 import { api, type ApiContext, type OrderMessage } from '../lib/api';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useKeyboardOffset } from '../lib/keyboardOffset';
 
 /**
  * The rider's half of the customer conversation.
@@ -58,6 +59,7 @@ export const TripChat: React.FC<Props> = ({
   canSend,
   selfUserId
 }) => {
+  const keyboardOffset = useKeyboardOffset();
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
@@ -143,7 +145,8 @@ export const TripChat: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={s.backdrop}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      {...keyboardOffset}
+          behavior="padding"
           style={s.sheet}
         >
           <View style={s.header}>

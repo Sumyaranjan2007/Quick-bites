@@ -10,7 +10,7 @@
  * the customer actually used. The ADMIN REFUND QUEUE — the one a human
  * operates, which handles every complaint and every goodwill gesture — called
  * `walletRepository.credit` unconditionally. It never looked at how the order
- * was paid. A customer who paid Rs 480 by UPI and complained received Rs 480 of
+ * was paid. A customer who paid ₹480 by UPI and complained received ₹480 of
  * Quick Bites credit, and the success message said so in as many words.
  *
  * So the path used by a machine was right and the path used by a person was

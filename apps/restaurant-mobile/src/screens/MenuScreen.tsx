@@ -8,6 +8,7 @@ import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from
 import { fetchMenu, setDishStock, setSectionAvailability, submitMenuRequest, fetchMenuRequests, readMenuPhoto, sendMenuBatch } from '../lib/partnerApi';
 import { pickDishPhoto, pickMenuPages } from '../lib/photo';
 import { MenuBuilder } from '../components/MenuBuilder';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 interface Props {
   restaurantId: string;
@@ -248,7 +249,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
 
   return (
     <View style={styles.screen}>
-      <ScrollView
+      <KeyboardAwareScrollView bottomOffset={24}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={c.brand} />}
       >
@@ -382,12 +383,12 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
           Turning a dish off takes it out of stock immediately. Adding a dish or changing a price needs approval,
           because it changes what customers are charged.
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <Modal visible={composerOpen} transparent animationType="slide" onRequestClose={() => setComposerOpen(false)}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
-            <ScrollView keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled">
               <Text style={styles.sheetTitle}>{editing ? 'Change this dish' : 'Request a new dish'}</Text>
               <Text style={styles.sheetBody}>
                 Our team checks new dishes before they go live, usually within a working day.
@@ -574,6 +575,12 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
               </View>
               {!!formErrors.isVeg && <Text style={[styles.rowError, { marginBottom: spacing.lg }]}>{formErrors.isVeg}</Text>}
 
+              {/* The first problem, next to the button, so a tap never looks dead (R2-17). */}
+              {Object.keys(formErrors).length > 0 && (
+                <Text style={[styles.rowError, { marginBottom: spacing.sm }]}>
+                  Not sent: {Object.values(formErrors)[0]}
+                </Text>
+              )}
               <Button label="Send for approval" onPress={send} busy={submitting} />
               <Button
                 label="Cancel"
@@ -581,7 +588,7 @@ export const MenuScreen: React.FC<Props> = ({ restaurantId, refreshSignal }) => 
                 onPress={() => setComposerOpen(false)}
                 style={{ marginTop: spacing.md, marginBottom: spacing.xl }}
               />
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

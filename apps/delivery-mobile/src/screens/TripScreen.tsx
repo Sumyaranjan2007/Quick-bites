@@ -28,6 +28,7 @@ import { callNumber, openDirections } from '../lib/maps';
 import { TripMap } from '../components/TripMap';
 import { CollectOnlineSheet } from '../components/CollectOnlineSheet';
 import type { ApiContext, Trip, TripStage } from '../lib/api';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 /**
  * Where the rider actually works.
@@ -163,7 +164,7 @@ export const TripScreen: React.FC<{
 
   if (!trip) {
     return (
-      <ScrollView contentContainerStyle={s.content} refreshControl={refreshControl}>
+      <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.content} refreshControl={refreshControl}>
         {!profileComplete ? (
           <EmptyState
             icon={<TriangleAlert size={34} color={t.color.money} />}
@@ -223,7 +224,7 @@ export const TripScreen: React.FC<{
             ))}
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   }
 
@@ -234,7 +235,7 @@ export const TripScreen: React.FC<{
   const atDoorstep = trip.stage === 'AT_DOORSTEP';
 
   return (
-    <ScrollView contentContainerStyle={s.content} refreshControl={refreshControl} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.content} refreshControl={refreshControl} keyboardShouldPersistTaps="handled">
       {/* Progress */}
       <View style={s.stageBar}>
         {STAGE_ORDER.map((stage, index) => (
@@ -517,7 +518,7 @@ export const TripScreen: React.FC<{
         orderId={trip.id}
         onPaid={() => setPaidOnline(true)}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

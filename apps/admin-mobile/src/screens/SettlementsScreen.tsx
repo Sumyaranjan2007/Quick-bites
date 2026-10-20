@@ -6,6 +6,7 @@ import { Card, Segmented, Badge, Loading, EmptyState, NoAccess, SectionTitle, Bu
 import { tokens, formatMoney, timeAgo } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { useResource } from '../lib/useResource';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -64,7 +65,7 @@ export const SettlementsScreen: React.FC = () => {
   const owing = shown.filter(r => r.outstanding > 0 || r.cashInHand > 0);
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView bottomOffset={24}
       contentContainerStyle={s.list}
       refreshControl={
         <RefreshControl refreshing={dues.loading} onRefresh={dues.reload} tintColor={c.brand.amber} />
@@ -183,7 +184,7 @@ export const SettlementsScreen: React.FC = () => {
           void dues.reload();
         }}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 };
 

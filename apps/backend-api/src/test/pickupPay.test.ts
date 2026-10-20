@@ -1,6 +1,6 @@
 /**
  * Pickup pay (owner, 20 Oct 2026): a rider more than 7 road km from the kitchen when
- * taking a trip is paid ALL of that distance x Rs 6, by Quick Bites, never on the bill.
+ * taking a trip is paid ALL of that distance x ₹6, by Quick Bites, never on the bill.
  * The same rider is paid twice (far, then near): the second payout is where defects hide.
  * Also: a trip Operations hands to a rider pays them (it used to freeze no pay at all).
  */
@@ -42,8 +42,8 @@ check('7 km or less earns no pickup pay', () => {
   assert.equal(pickupPayFor(7), 0);
   assert.equal(pickupPayFor(2.5), 0);
 });
-check('10 km away earns all 10 km x Rs 6 = Rs 60', () => assert.equal(pickupPayFor(10), 60));
-check('7.5 km earns Rs 45 (all of it, not only the part over 7)', () => assert.equal(pickupPayFor(7.5), 45));
+check('10 km away earns all 10 km x ₹6 = ₹60', () => assert.equal(pickupPayFor(10), 60));
+check('7.5 km earns ₹45 (all of it, not only the part over 7)', () => assert.equal(pickupPayFor(7.5), 45));
 check('the two numbers are the editable rates', () =>
   assert.equal(pickupPayFor(10, { ...getActiveRates(), riderPickupPayFromKm: 5, riderPickupPerKmFee: 8 }), 80));
 
@@ -104,7 +104,7 @@ try {
   rider.currentCoordinates = { latitude: kitchen.latitude + 0.09, longitude: kitchen.longitude };
   await reassignTrip(handed.id, { userId: 'usr_admin_01', name: 'Admin' } as any, { riderId: rider.id, reason: 'Assigned by operations for the check' });
   const storedHanded: any = memoryStore.orders.get(handed.id);
-  check('a hand-assigned trip freezes the rider pay (was Rs 0)', () =>
+  check('a hand-assigned trip freezes the rider pay (was ₹0)', () =>
     assert.equal(storedHanded.riderPayout, calculateTripPayout(storedHanded) + storedHanded.riderPickupPay));
   check('...with pickup pay when the rider was far', () => assert.ok(storedHanded.riderPickupPay > 42, String(storedHanded.riderPickupPay)));
 

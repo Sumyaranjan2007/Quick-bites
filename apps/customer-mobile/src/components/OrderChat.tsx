@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator
 } from 'react-native';
@@ -14,6 +13,8 @@ import { Modal } from './Modal';
 import { X, Send } from 'lucide-react-native';
 import { tokens } from '../theme/tokens';
 import { useOrderChat } from '../lib/useOrderChat';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useKeyboardOffset } from '../lib/keyboardOffset';
 
 const c = tokens.colors;
 
@@ -48,6 +49,7 @@ export const OrderChat: React.FC<Props> = ({
   canSend,
   currentUserId
 }) => {
+  const keyboardOffset = useKeyboardOffset();
   const { messages, loading, sending, error, send } = useOrderChat(orderId, apiUrl, token, canSend);
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<ScrollView | null>(null);
@@ -70,7 +72,8 @@ export const OrderChat: React.FC<Props> = ({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      {...keyboardOffset}
+          behavior="padding"
           style={styles.sheet}
         >
           <View style={styles.header}>

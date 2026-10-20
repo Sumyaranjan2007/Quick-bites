@@ -1,6 +1,6 @@
 import { FONT_FAMILY } from '../theme/tokens';
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { ShieldCheck, Sparkles } from 'lucide-react-native';
 import { Screen, Field, Button, Card } from '../components/ui';
 import { tokens } from '../theme/tokens';
@@ -8,6 +8,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { createClient } from '../lib/api';
 import { DEFAULT_API_URL, type SessionState } from '../lib/session';
 import { useHiddenSettings } from '../lib/useHiddenSettings';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const c = tokens.colors;
 
@@ -71,19 +72,63 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
   };
 
   /**
-   * Administrators recover their own account by changing ADMIN_PASSWORD on the
-   * host and redeploying — the bootstrap re-applies it at boot.
-   *
-   * There is deliberately no self-service reset for the account that can
-   * approve every partner and rider on the platform, and emailed codes are
-   * gone entirely: no mail provider was ever configured, so the old screen
-   * told people to check an inbox for a message that was never sent.
+   * Forgot password: a 6-digit code to the staff email, then a new password (owner H5, R2-9),
+   * the same server flow as Partner and Rider. Email now goes out through Brevo.
    */
+  // Literal paths and bodies, so the body-contract check can read each call.
+  const expectOk = async (res: Response) => {
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.success) throw new Error(payload?.error?.message || 'That did not go through. Try again.');
+  };
+  const sendCode = async () => {
+    if (!email.trim()) return setError('Enter your staff email.');
+    setBusy(true);
+    setError('');
+    try {
+      await expectOk(
+        await apiFetch(`${apiUrl}/auth/password/forgot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim().toLowerCase() })
+        })
+      );
+      setNotice('If that email has a staff account, a 6-digit code is on its way. It works for 10 minutes.');
+      setMode('reset');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const resetWithCode = async () => {
+    if (!/^\d{6}$/.test(resetCode.trim())) return setError('Enter the 6-digit code from the email.');
+    if (newPassword.length < 8) return setError('Choose a password of at least 8 characters.');
+    setBusy(true);
+    setError('');
+    try {
+      await expectOk(
+        await apiFetch(`${apiUrl}/auth/password/reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim().toLowerCase(), code: resetCode.trim(), newPassword })
+        })
+      );
+      setResetCode('');
+      setNewPassword('');
+      setPassword('');
+      setNotice('Password changed. Sign in with the new one.');
+      setMode('signin');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Screen>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView bottomOffset={24} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.brandBlock} onTouchEnd={registerTap}>
             <View style={s.brandMark}>
               <ShieldCheck size={30} color={c.brand.amber} />
@@ -120,15 +165,22 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
               </>
             ) : (
               <>
-                <Text style={s.stepTitle}>Locked out?</Text>
-                <Text style={s.stepBody}>
-                  Administrator access is set on the server. Change ADMIN_PASSWORD in the
-                  deployment environment and redeploy — the account is re-applied at boot.
-                  {'\n\n'}
-                  If you are a restaurant partner or a delivery rider, telephone operations:
-                  an administrator will set a temporary password for you, and the change is
-                  recorded against their name.
-                </Text>
+                <Text style={s.stepTitle}>{mode === 'forgot' ? 'Reset your password' : 'Enter the code'}</Text>
+                {mode === 'forgot' ? (
+                  <>
+                    <Field label="Staff email" value={email} onChangeText={setEmail} placeholder="you@quickbite.app" keyboardType="email-address" autoCapitalize="none" />
+                    {error ? <Text style={s.error}>{error}</Text> : null}
+                    <Button label="Email me a code" onPress={sendCode} loading={busy} size="lg" />
+                  </>
+                ) : (
+                  <>
+                    {notice ? <Text style={s.notice}>{notice}</Text> : null}
+                    <Field label="6-digit code" value={resetCode} onChangeText={setResetCode} placeholder="123456" keyboardType="numeric" />
+                    <Field label="New password" value={newPassword} onChangeText={setNewPassword} placeholder="At least 8 characters" secureTextEntry />
+                    {error ? <Text style={s.error}>{error}</Text> : null}
+                    <Button label="Set new password" onPress={resetWithCode} loading={busy} size="lg" />
+                  </>
+                )}
                 <TouchableOpacity onPress={() => setMode('signin')} style={s.linkRow}>
                   <Text style={s.link}>Back to sign in</Text>
                 </TouchableOpacity>
@@ -161,8 +213,8 @@ export const LoginScreen: React.FC<{ onSignedIn: (session: SessionState) => void
               <Text style={s.devPillText}>admin@quickbite.app / pass123</Text>
             </View>
           ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
     </Screen>
   );
 };
