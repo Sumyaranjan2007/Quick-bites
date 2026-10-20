@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
-import { Linking, Alert } from 'react-native';
+import { Linking, Alert, Animated } from 'react-native';
 import { Bike, Phone, ArrowLeft, Check, X, MessageCircle, Eye, EyeOff, Star } from 'lucide-react-native';
 import { Card, KeyboardLift } from '../components/ui';
 import { LiveOrderMap } from '../components/LiveOrderMap';
@@ -240,21 +240,36 @@ export const OrderTrackingScreen: React.FC<Props> = ({
    */
   const serverEta = tracking?.eta;
   const [nowMs, setNowMs] = useState(() => Date.now());
+  // Seconds only while the 2-minute cancel countdown shows; the arrival time moves a minute at a time (round 5 B).
+  const acceptedAtMs = Date.parse(order?.acceptedAt || '');
+  const cancelTicking = Number.isFinite(acceptedAtMs) && nowMs < acceptedAtMs + 120_000;
   useEffect(() => {
     if (isClosed) return;
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    const timer = setInterval(() => setNowMs(Date.now()), cancelTicking ? 1000 : 15_000);
     return () => clearInterval(timer);
-  }, [isClosed]);
+  }, [isClosed, cancelTicking]);
+  /*
+   * THE ARRIVAL TIME (owner, 21 Oct 2026): nothing before the kitchen accepts; then the kitchen's time + the bike ride,
+   * in whole minutes that hold still and fade in when they change (no ticking clock). With the rider carrying the food,
+   * the rider's live minutes (as the map's "3 min"). Past the promise: "+N min" in red, growing.
+   */
   const awaitingAccept = status === 'ORDER_PLACED' || status === 'PAYMENT_PENDING';
-  const target = Date.parse(serverEta?.promisedAt || serverEta?.arrivingAt || '');
-  const hasClock = !isClosed && !awaitingAccept && Number.isFinite(target);
-  const lateBy = hasClock && nowMs > target ? Math.ceil((nowMs - target) / 60_000) : 0;
-  const left = hasClock ? Math.max(0, Math.round((target - nowMs) / 1000)) : 0;
+  const promise = Date.parse(serverEta?.promisedAt || '');
+  const liveMinutes = typeof serverEta?.minutesRemaining === 'number' ? serverEta.minutesRemaining : null;
+  const hasClock = !isClosed && !awaitingAccept && (Number.isFinite(promise) || liveMinutes !== null);
+  const lateBy = hasClock && Number.isFinite(promise) && nowMs > promise ? Math.ceil((nowMs - promise) / 60_000) : 0;
+  const minutesLeft =
+    carryingNow && liveMinutes !== null ? liveMinutes : Number.isFinite(promise) ? Math.max(1, Math.ceil((promise - nowMs) / 60_000)) : liveMinutes;
   const etaText = !hasClock
     ? '—'
     : lateBy > 0
       ? t('tracking.lateBy', { minutes: lateBy })
-      : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      : t('tracking.etaMinutes', { minutes: minutesLeft ?? 1 });
+  const etaFade = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    etaFade.setValue(0.2);
+    Animated.timing(etaFade, { toValue: 1, duration: 900, useNativeDriver: true }).start();
+  }, [etaText, etaFade]);
 
   const etaCaption = (() => {
     switch (serverEta?.basis) {
@@ -286,7 +301,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
   // button later would offer something that can only fail.
   // After the kitchen accepts, 2 minutes; then only support can (owner, 20 Oct; the server enforces it too).
   const cookingStarted = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'].includes(status);
-  const acceptedMs = Date.parse(order?.acceptedAt || '');
+  const acceptedMs = acceptedAtMs;
   const cancelLeft = cookingStarted && Number.isFinite(acceptedMs) ? Math.max(0, Math.round((acceptedMs + 120_000 - nowMs) / 1000)) : null;
   const canCancel =
     ['PAYMENT_PENDING', 'ORDER_PLACED'].includes(status) || (cookingStarted && status !== 'READY_FOR_PICKUP' && (cancelLeft ?? 0) > 0);
@@ -449,7 +464,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
               <Text style={[styles.etaLabel, lateBy > 0 && { color: c.semantic.error }]}>
                 {(lateBy > 0 ? t('tracking.late') : t('tracking.eta')).toUpperCase()}
               </Text>
-              <Text style={[styles.etaValue, lateBy > 0 && { color: c.semantic.error }]}>{etaText}</Text>
+              <Animated.Text style={[styles.etaValue, lateBy > 0 && { color: c.semantic.error }, { opacity: etaFade }]}>{etaText}</Animated.Text>
             </View>
           )}
         </View>

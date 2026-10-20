@@ -485,8 +485,10 @@ await (async () => {
     assert.equal(road.durationMinutes, 21);
     assert.ok(calls[0].url.includes('routes.googleapis.com/directions/v2:computeRoutes'), calls[0]?.url);
     assert.equal(calls[0].headers['X-Goog-Api-Key'], 'g-test-key');
-    assert.equal(calls[0].body.travelMode, 'DRIVE', 'Essentials rate (B2-1)');
-    assert.equal(calls[0].body.routingPreference, 'TRAFFIC_UNAWARE', 'Essentials rate (B2-1)');
+    // Round 5 (owner, 21 Oct): the motorbike route and its shorter-distance alternative, without traffic.
+    assert.equal(calls[0].body.travelMode, 'TWO_WHEELER');
+    assert.deepEqual(calls[0].body.requestedReferenceRoutes, ['SHORTER_DISTANCE']);
+    assert.equal(calls[0].body.routingPreference, 'TRAFFIC_UNAWARE');
     assert.ok(!calls[0].url.includes('g-test-key'), 'the key goes in a header, never the URL');
     offGoogle();
   });
@@ -542,9 +544,44 @@ await (async () => {
     offGoogle();
   });
 
+  await check('Round 5: of Google\'s fastest and shorter routes, the SHORTEST prices the trip, with its own line', async () => {
+    useGoogle();
+    stubGoogle(() => ({
+      body: {
+        routes: [
+          { distanceMeters: 9800, duration: '900s', polyline: { encodedPolyline: 'LONG' }, routeLabels: ['DEFAULT_ROUTE'] },
+          { distanceMeters: 6100, duration: '1080s', polyline: { encodedPolyline: 'SHORT' }, routeLabels: ['SHORTER_DISTANCE'] }
+        ]
+      }
+    }));
+    const road = await roadDistance(A, B);
+    assert.equal(road.distanceKm, 6.1);
+    assert.equal(road.durationMinutes, 18);
+    assert.equal(await roadPath(A, B), 'SHORT', 'the map draws the route that was priced');
+    offGoogle();
+  });
+
+  await check('Round 5: no motorbike route there: the car request, still the shortest', async () => {
+    useGoogle();
+    const calls = stubGoogle((_url, body) =>
+      body.travelMode === 'TWO_WHEELER' ? { body: {} } : { body: { routes: [{ distanceMeters: 7000, duration: '700s' }, { distanceMeters: 6500, duration: '800s' }] } }
+    );
+    const road = await roadDistance(A, B);
+    assert.equal(road.distanceKm, 6.5);
+    assert.deepEqual(calls.map(c => c.body.travelMode), ['TWO_WHEELER', 'DRIVE']);
+    offGoogle();
+  });
+
+  await check('Round 5: a "route" shorter than the straight line is bad data and is not used', async () => {
+    useGoogle();
+    stubGoogle(() => ({ body: { routes: [{ distanceMeters: 1200, duration: '300s' }, { distanceMeters: 6300, duration: '900s' }] } }));
+    assert.equal((await roadDistance(A, B)).distanceKm, 6.3);
+    offGoogle();
+  });
+
   await check('The tracking map gets the road line from Google, and nothing without Google', async () => {
     useGoogle();
-    const calls = stubGoogle(() => ({ body: { routes: [{ polyline: { encodedPolyline: '_p~iF~ps|U_ulLnnqC' } }] } }));
+    const calls = stubGoogle(() => ({ body: { routes: [{ distanceMeters: 6420, duration: '1260s', polyline: { encodedPolyline: '_p~iF~ps|U_ulLnnqC' } }] } }));
     assert.equal(await roadPath(A, B), '_p~iF~ps|U_ulLnnqC');
     assert.match(String(calls[0]?.headers?.['X-Goog-FieldMask']), /polyline/);
     offGoogle();

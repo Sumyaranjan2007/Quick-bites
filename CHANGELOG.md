@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 21 Oct 2026: Round 5, shortest route, honest arrival time, kitchen ticket like a POS bill
+
+**For the owner:** a delivery is now measured on the **shortest motorbike route Google knows** (Google's own fastest and shorter-distance routes, the shorter one wins), and that one route sets the delivery fee, the rider's pay, the arrival time and the line on the map, so a 1 km kitchen is no longer charged and paid as 5.5 km. The customer sees no time until the kitchen accepts, then the kitchen's time + the bike ride, nothing added; the minutes hold still and fade in when they change, and turn into a red "+N min" when late. The kitchen ticket from the Partner website now prints from the page in big bold monospace on a page exactly as long as the ticket, so the printer stops and cuts like the restaurant's own bill. Cost: Google's motorbike route costs about ₹0.85 a lookup instead of ₹0.40 (repeats cached 6 h). Orders already placed keep their fee and pay. **Only you:** the one-time printer setting on the restaurant PC (plan, section C4). Plan (standalone, for any AI): `docs/plans/round5-route-time-ticket-2026-10-21.md`.
+
+- A: `modules/places/routingService.ts` `callGoogleRoute` asks `TWO_WHEELER` (then `DRIVE`) with `requestedReferenceRoutes: ['SHORTER_DISTANCE']`; `shortestRoute` keeps the shortest (a route shorter than 90 % of the straight line is discarded); distance, time and polyline cached together; `roadPath` returns the same route's line; matrix asks `TWO_WHEELER`.
+- B: `Order.routeMinutes` (Google's ride time, frozen at checkout); `modules/orders/eta.ts` `rideMinutes` replaces `travelMinutes` (no handling minutes on the promise or quote); customer `OrderTrackingScreen` shows whole minutes with a fade, the rider's live minutes once they carry the food, red "+N min" past the promise.
+- C: `modules/orders/kitchenTicket.ts`: one list of lines, drawn as PDF (phone app) and HTML (`GET /api/orders/:id/kitchen-ticket?format=html`, `@page` exactly the ticket's size); bigger sizes. Partner website `lib/invoice.web.ts` prints the HTML in a hidden frame (no PDF tab).
+- Checks: `routing` (+3), `honestEta` (owner's case 15 + 4 = 19), `kitchenTicket` (+8 HTML checks); each mutated and caught. Website print path tried on the private QA server.
+
+---
+
 ## [Unreleased] 20 Oct 2026: AI dish pictures in Operations; secret Operations web address
 
 **For the owner:** Operations (app and website) can now make a demo picture for a dish: "Generate demo image" in the dish editor, "Generate demo images for dishes without a photo" in the Menu Builder, and "Generate pictures for dishes without one" on a kitchen's live menu and in Approvals (the pictures show on the request cards to check before approving). A dish name drawn once is reused for every kitchen, never paid for twice (~₹4 per new picture with Gemini). When the AI's limit runs out it says so and stops; after you add or change the key on Railway, Resume carries on from the next dish. A real photo uploaded later simply replaces it. The Operations website can live at a secret address: set `ADMIN_WEB_PATH` on Railway and `/admin` stops answering. **You must add on Railway:** `GEMINI_API_KEYS` (from Google AI Studio, billing on) and `ADMIN_WEB_PATH`.

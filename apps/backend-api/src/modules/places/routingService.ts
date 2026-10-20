@@ -79,6 +79,8 @@ export interface RoadDistance {
    * configured, not reachable, or had no route to offer.
    */
   source: 'GOOGLE' | 'MAPBOX' | 'ESTIMATED';
+  /** Google's road line for this same route (single-pair answers), for the tracking map. */
+  polyline?: string;
 }
 
 /* -------------------------------------------------------------------------- *
@@ -256,10 +258,22 @@ export async function roadDistanceMatrix(
   return results.map((r, i) => r ?? estimateByRoad(from, destinations[i]));
 }
 
-/** The single-pair case, which is what checkout actually asks. */
+/**
+ * The single-pair case, which is what checkout, the quote and pickup pay ask: the SHORTEST route (above), cached on its
+ * own key so a restaurant list's matrix answer (fastest, no line) never prices an order.
+ */
 export async function roadDistance(from: Coordinates, to: Coordinates): Promise<RoadDistance> {
-  const [only] = await roadDistanceMatrix(from, [to]);
-  return only;
+  if (routingProvider() !== 'GOOGLE' || !valid(from) || !valid(to)) {
+    const [only] = await roadDistanceMatrix(from, [to]);
+    return only;
+  }
+  const k = `route|${key(from, to)}`;
+  const hit = readCache(k);
+  if (hit) return hit;
+  const [measured] = (await callGoogleRoute(from, to)) || [null];
+  if (!measured) return estimateByRoad(from, to);
+  writeCache(k, measured);
+  return measured;
 }
 
 async function callDirections(from: Coordinates, to: Coordinates): Promise<(RoadDistance | null)[] | null> {
@@ -460,24 +474,55 @@ const toRoad = (metres: number, secs: number): RoadDistance | null =>
     ? { distanceKm: round2(metres / 1000), durationMinutes: Math.max(1, Math.ceil(secs / 60)), source: 'GOOGLE' }
     : null;
 
+/**
+ * THE SHORTEST REAL ROUTE (owner, 21 Oct 2026, round 5 A).
+ *
+ * `routes[0]` of a DRIVE request is Google's fastest CAR route: in Harohalli it went round by the highway (5.5 km) where
+ * a motorbike rides 1 km through town, and the fee, the rider's pay and the map all used it. Now: the MOTORBIKE route
+ * plus Google's shorter-distance alternative (`requestedReferenceRoutes`), and the shortest of them; a car request only
+ * when there is no motorbike route. A road shorter than 90 % of the straight line is bad data and is ignored.
+ * The polyline comes with it, so the line on the map is the route that was priced.
+ * Docs: developers.google.com/maps/documentation/routes/shorter-distance-routes, .../route_two_wheel
+ */
+export function shortestRoute(routes: any[], from: Coordinates, to: Coordinates): RoadDistance | null {
+  const straight = calculateDistanceKm(from.latitude, from.longitude, to.latitude, to.longitude) * 1000;
+  let best: RoadDistance | null = null;
+  for (const route of routes || []) {
+    const metres = Number(route?.distanceMeters);
+    if (!Number.isFinite(metres) || metres < straight * 0.9) continue;
+    const road = toRoad(metres, seconds(route.duration));
+    if (!road) continue;
+    const line = route?.polyline?.encodedPolyline;
+    if (typeof line === 'string' && line) road.polyline = line;
+    if (!best || road.distanceKm < best.distanceKm) best = road;
+  }
+  return best;
+}
+
 async function callGoogleRoute(from: Coordinates, to: Coordinates): Promise<(RoadDistance | null)[] | null> {
-  const body = await googlePost(GOOGLE_ROUTE, 'routes.distanceMeters,routes.duration', {
-    origin: latLng(from),
-    destination: latLng(to),
-    travelMode: 'DRIVE',
-    routingPreference: 'TRAFFIC_UNAWARE'
-  });
-  if (!body) return null;
-  const route = body.routes?.[0];
-  // No route is a real answer about this pair: fall back for it alone.
-  return [route ? toRoad(Number(route.distanceMeters), seconds(route.duration)) : null];
+  let refused = true;
+  for (const travelMode of ['TWO_WHEELER', 'DRIVE']) {
+    const body = await googlePost(GOOGLE_ROUTE, 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.routeLabels', {
+      origin: latLng(from),
+      destination: latLng(to),
+      travelMode,
+      routingPreference: 'TRAFFIC_UNAWARE',
+      requestedReferenceRoutes: ['SHORTER_DISTANCE']
+    });
+    if (!body) continue;
+    refused = false;
+    const best = shortestRoute(body.routes, from, to);
+    if (best) return [best];
+  }
+  // No route at all is a real answer about this pair: fall back for it alone.
+  return refused ? null : [null];
 }
 
 async function callGoogleMatrix(from: Coordinates, destinations: Coordinates[]): Promise<(RoadDistance | null)[] | null> {
   const body = await googlePost(GOOGLE_MATRIX, 'originIndex,destinationIndex,distanceMeters,duration,condition', {
     origins: [{ waypoint: latLng(from) }],
     destinations: destinations.map(d => ({ waypoint: latLng(d) })),
-    travelMode: 'DRIVE',
+    travelMode: 'TWO_WHEELER',
     routingPreference: 'TRAFFIC_UNAWARE'
   });
   if (!Array.isArray(body)) return null;
@@ -546,12 +591,6 @@ export function isOffRoute(encoded: string, at: Coordinates, metres = 150): bool
 
 export async function roadPath(from: Coordinates, to: Coordinates): Promise<string | null> {
   if (routingProvider() !== 'GOOGLE') return null;
-  const body = await googlePost(GOOGLE_ROUTE, 'routes.polyline.encodedPolyline', {
-    origin: latLng(from),
-    destination: latLng(to),
-    travelMode: 'DRIVE',
-    routingPreference: 'TRAFFIC_UNAWARE'
-  });
-  const line = body?.routes?.[0]?.polyline?.encodedPolyline;
-  return typeof line === 'string' && line ? line : null;
+  // The same shortest route the fee and the pay were measured on (cached together), not a second, different one.
+  return (await roadDistance(from, to)).polyline ?? null;
 }

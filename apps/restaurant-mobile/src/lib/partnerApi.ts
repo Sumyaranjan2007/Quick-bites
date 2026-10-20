@@ -769,9 +769,9 @@ export function invoiceRequest(range: { from?: string; to?: string; orderId?: st
 }
 
 /** The kitchen ticket (B10): the order to print for the kitchen, no prices, 80 or 58 mm roll. */
-export function kitchenTicketRequest(orderId: string, width: 80 | 58) {
+export function kitchenTicketRequest(orderId: string, width: 80 | 58, format: 'pdf' | 'html' = 'pdf') {
   return {
-    url: `${apiUrl}/orders/${encodeURIComponent(orderId)}/kitchen-ticket?width=${width}`,
+    url: `${apiUrl}/orders/${encodeURIComponent(orderId)}/kitchen-ticket?width=${width}&format=${format}`,
     headers: (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
   };
 }

@@ -84,9 +84,14 @@ function riderToKitchenMinutes(order: Order): number {
 
 const TERMINAL: OrderStatus[] = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
 
-function travelMinutes(distanceKm: number): number {
-  const hours = distanceKm / config.DELIVERY_SPEED_KMPH;
-  return hours * 60 + config.DELIVERY_HANDLING_MINUTES;
+/**
+ * The bike ride, and nothing else (owner, 21 Oct 2026, round 5 B): Google's own ride time for the priced route when
+ * we have it, else distance at the configured speed. The 6 "handling" minutes added here before made a 15-minute
+ * kitchen read as 43 minutes; they now count only while a ready meal waits for its rider (READY below).
+ */
+function rideMinutes(distanceKm: number, googleMinutes?: number): number {
+  const google = Number(googleMinutes);
+  return Number.isFinite(google) && google > 0 ? google : (distanceKm / config.DELIVERY_SPEED_KMPH) * 60;
 }
 
 function distanceBetween(from?: Coordinates | null, to?: Coordinates | null): number | null {
@@ -104,13 +109,18 @@ export function promiseAtAcceptance(order: Order, acceptedAtMs: number): string 
   const km = Number(order.distanceKm) || distanceBetween(order.restaurantCoordinates, order.deliveryCoordinates);
   if (km === null || !Number.isFinite(km)) return undefined;
   const cook = Number(order.preparationMinutes) || kitchenPrepMinutes(order.restaurantId, itemCount(order));
-  return new Date(acceptedAtMs + Math.ceil(cook + travelMinutes(km)) * 60_000).toISOString();
+  return new Date(acceptedAtMs + Math.ceil(cook + rideMinutes(km, order.routeMinutes)) * 60_000).toISOString();
 }
 
 /** Minutes to the door if ordered now, for the quote and the restaurant cards (before any order exists). */
-export function quotedMinutes(restaurantId: string, items: Order['items'], distanceKm: number | null | undefined): number | null {
+export function quotedMinutes(
+  restaurantId: string,
+  items: Order['items'],
+  distanceKm: number | null | undefined,
+  googleMinutes?: number
+): number | null {
   if (!Number.isFinite(Number(distanceKm))) return null;
-  return Math.ceil(kitchenPrepMinutes(restaurantId, itemCount({ items })) + travelMinutes(Number(distanceKm)));
+  return Math.ceil(kitchenPrepMinutes(restaurantId, itemCount({ items })) + rideMinutes(Number(distanceKm), googleMinutes));
 }
 
 export function estimateArrival(order: Order, now: Date = new Date()): EtaEstimate {
@@ -153,7 +163,8 @@ export function estimateArrival(order: Order, now: Date = new Date()): EtaEstima
     return none;
   }
 
-  const travel = travelMinutes(distanceKm);
+  // Google's ride time belongs to the kitchen-to-door route; from the rider's live position it is distance at speed.
+  const travel = rideMinutes(distanceKm, riderHasFood ? undefined : order.routeMinutes);
   let minutes: number;
   let basis: EtaEstimate['basis'];
 

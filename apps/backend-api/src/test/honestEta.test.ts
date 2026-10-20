@@ -93,7 +93,8 @@ try {
     updatedAt: new Date().toISOString()
   };
   const placed = estimateArrival({ ...base, status: 'ORDER_PLACED' });
-  const travel = (5 / config.DELIVERY_SPEED_KMPH) * 60 + config.DELIVERY_HANDLING_MINUTES;
+  // The ride only: no handling minutes on the promise (owner, 21 Oct, round 5 B).
+  const travel = (5 / config.DELIVERY_SPEED_KMPH) * 60;
   it('Before the kitchen accepts, no time at all (owner, 20 Oct)', () => {
     assert.equal(placed.minutesRemaining, null);
     assert.equal(placed.basis, 'AWAITING_ACCEPT');
@@ -113,6 +114,11 @@ try {
   const overdue = estimateArrival(cooking, new Date(acceptedAt + (Math.ceil(10 + travel) + 3) * 60_000));
   it('Past the promise: +3 min late', () => assert.equal(overdue.lateMinutes, 3));
   it('On time: not late', () => assert.equal(sixLater.lateMinutes, 0));
+  // The owner's case (21 Oct): kitchen 15 min, Google's bike ride 4 min -> 19 min, not 43.
+  const owners: any = { ...base, status: 'ACCEPTED', acceptedAt: new Date(acceptedAt).toISOString(), preparationMinutes: 15, routeMinutes: 4 };
+  owners.promisedArrivalAt = promiseAtAcceptance(owners, acceptedAt);
+  it('Promise = kitchen time + Google ride time, nothing added (round 5 B)', () =>
+    assert.equal(estimateArrival(owners, new Date(acceptedAt)).minutesRemaining, 19));
   const farRide = (30 / config.DELIVERY_SPEED_KMPH) * 60;
   const readyWaiting = estimateArrival({ ...base, status: 'READY_FOR_PICKUP', riderId: rider.id });
   it('Food ready: the wait is the rider reaching the kitchen', () =>

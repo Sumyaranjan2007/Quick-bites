@@ -21,7 +21,7 @@ import type { LanguageCode } from '@quick-bites/shared-types';
 import { visibleContact, shapeOrderForViewer, viewerFor } from '../modules/orders/contactVisibility.ts';
 import { isCallMaskingConfigured, placeMaskedCall } from '../modules/orders/callMasking.ts';
 import { isContactable } from '../modules/orders/contactVisibility.ts';
-import { renderKitchenTicket } from '../modules/orders/kitchenTicket.ts';
+import { renderKitchenTicket, renderKitchenTicketHtml } from '../modules/orders/kitchenTicket.ts';
 import { resolveAccess } from '../modules/admin/permissions.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { customerCancelUntil, customerCancelWindowOver } from '../modules/orders/cancellationFee.ts';
@@ -193,7 +193,7 @@ orderRouter.get('/:id', authMiddleware(), async (req, res, next) => {
 orderRouter.get(
   '/:id/kitchen-ticket',
   authMiddleware(),
-  validate({ query: z.object({ width: z.enum(['80', '58']).optional() }) }),
+  validate({ query: z.object({ width: z.enum(['80', '58']).optional(), format: z.enum(['pdf', 'html']).optional() }) }),
   async (req, res, next) => {
     try {
       const order = await orderRepository.findById(req.params.id);
@@ -207,10 +207,16 @@ orderRouter.get(
       const accepted = Boolean(order.acceptedAt) || !['PAYMENT_PENDING', 'ORDER_PLACED', 'CANCELLED', 'REFUNDED'].includes(order.status);
       if (!accepted) throw new AppError('Accept the order first; the ticket prints after Accept.', 409, 'NOT_ACCEPTED');
 
+      const width = req.query.width === '58' ? 58 : 80;
+      res.setHeader('Cache-Control', 'no-store');
+      // The website prints this HTML from its own page, sized to the ticket (round 5 C); the phone app keeps the PDF.
+      if (req.query.format === 'html') {
+        res.type('text/html').send(renderKitchenTicketHtml(order, width));
+        return;
+      }
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="QuickBites-ticket-${order.orderNumber}.pdf"`);
-      res.setHeader('Cache-Control', 'no-store');
-      res.send(renderKitchenTicket(order, req.query.width === '58' ? 58 : 80));
+      res.send(renderKitchenTicket(order, width));
     } catch (err) {
       next(err);
     }

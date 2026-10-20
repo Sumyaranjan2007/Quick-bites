@@ -537,7 +537,7 @@ export const orderService = {
       couponError,
       restaurantIsOpen: isKitchenServing(restaurant) && restaurant.status === 'ACTIVE',
       /** Minutes to the door if ordered now: the kitchen's own cooking time + the ride (B3). */
-      estimatedDeliveryMinutes: quotedMinutes(restaurant.id, pricedItems as any, tripDistanceKm),
+      estimatedDeliveryMinutes: quotedMinutes(restaurant.id, pricedItems as any, tripDistanceKm, measured && measured.source !== 'ESTIMATED' ? measured.durationMinutes : undefined),
       // Old app versions read only this flag, so it already folds in the distance limit.
       acceptsCash: acceptsCash(restaurant) && !cashTooFarReason(tripDistanceKm, Boolean(measured) || !hasRealLocation(restaurant)),
       /** Why cash is not offered, in words for the customer; null when it is. */
@@ -825,6 +825,8 @@ export const orderService = {
       restaurantCoordinates: restaurant.coordinates,
       restaurantPhone: restaurant.phone,
       distanceKm: tripDistanceKm,
+      // The ride time of the route that was priced: the customer's promise uses it (round 5 B).
+      ...(measured && measured.source !== 'ESTIMATED' ? { routeMinutes: measured.durationMinutes } : {}),
       status: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'ORDER_PLACED' : 'PAYMENT_PENDING',
       paymentStatus: input.paymentMethod === 'CASH_ON_DELIVERY' ? 'PENDING' : 'PENDING',
       paymentMethod: input.paymentMethod,

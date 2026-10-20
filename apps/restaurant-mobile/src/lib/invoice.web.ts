@@ -4,20 +4,29 @@
  */
 import { invoiceRequest, kitchenTicketRequest } from './partnerApi';
 
-/** The kitchen ticket opens in a new tab, where the browser's Print sends it to the kitchen printer. */
+/**
+ * The kitchen ticket prints from this page (round 5 C): the server's HTML ticket, its page exactly the ticket's size,
+ * in a hidden frame and the browser's Print. The PDF in a new tab went through the PDF viewer, which shrank the ticket
+ * to the printer's default page and fed the whole page out of a receipt printer.
+ */
 export async function openKitchenTicket(orderId: string, width: 80 | 58): Promise<string> {
-  const { url, headers } = kitchenTicketRequest(orderId, width);
-  const tab = window.open('', '_blank'); // opened now, inside the tap, so pop-up blockers allow it
+  const { url, headers } = kitchenTicketRequest(orderId, width, 'html');
   const res = await fetch(url, { headers }).catch(() => null);
   if (!res || !res.ok) {
-    tab?.close();
     const body = res ? await res.json().catch(() => null) : null;
     throw new Error(body?.error?.message || 'Could not reach Quick Bites. Check your connection and try again.');
   }
-  const href = URL.createObjectURL(await res.blob());
-  if (tab) tab.location.href = href;
-  else window.location.assign(href);
-  return 'The ticket is open in a new tab: press Print there.';
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  frame.onload = () => {
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+    setTimeout(() => frame.remove(), 60_000); // print() returns at once in some browsers; the dialog still needs the frame
+  };
+  frame.srcdoc = await res.text();
+  document.body.appendChild(frame);
+  return 'Choose the kitchen printer in the print window. First time: set Margins to None and Scale to 100.';
 }
 
 export async function downloadInvoice(

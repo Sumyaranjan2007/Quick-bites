@@ -19,6 +19,7 @@ import { memoryStore } from '../db/client.ts';
 import { config } from '../config/env.ts';
 import { resetAuthRateLimit } from '../middlewares/rateLimiter.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
+import { wrapMono } from '../modules/orders/kitchenTicket.ts';
 
 let passed = 0;
 let failed = 0;
@@ -47,7 +48,7 @@ async function get(pathname: string, token?: string) {
   const buf = Buffer.from(await res.arrayBuffer());
   let json: any = null;
   try { json = JSON.parse(buf.toString('utf8')); } catch { /* a PDF */ }
-  return { status: res.status, type: res.headers.get('content-type') || '', disposition: res.headers.get('content-disposition') || '', pdf: buf.toString('latin1'), json };
+  return { status: res.status, type: res.headers.get('content-type') || '', disposition: res.headers.get('content-disposition') || '', pdf: buf.toString('latin1'), html: buf.toString('utf8'), cache: res.headers.get('cache-control') || '', json };
 }
 async function login(email: string) {
   resetAuthRateLimit();
@@ -58,6 +59,10 @@ async function login(email: string) {
 }
 /** The text drawn on the page: every `(…) Tj` string in the content stream. */
 const textOf = (pdf: string) => [...pdf.matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map(m => m[1].replace(/\\(.)/g, '$1')).join('\n');
+/** The text of the HTML ticket: one line a <div>, a rule a line of its own. */
+const htmlText = (html: string) =>
+  html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<hr>/g, '\n---\n').replace(/<\/div>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+const pageSize = (html: string) => /@page \{ size: (\d+)mm (\d+)mm; margin: 0; \}/.exec(html);
 const mediaWidth = (pdf: string) => Number(/\/MediaBox \[0 0 ([\d.]+) /.exec(pdf)?.[1]);
 
 const PRICES = [349, 698, 40, 129, 867, 912.5, 25];
@@ -109,7 +114,7 @@ try {
   it('80 mm wide by default', () => assert.equal(mediaWidth(t.pdf).toFixed(1), (80 * 72 / 25.4).toFixed(1)));
   it('Order number, kitchen name, quantity-first dishes and their options', () => {
     assert.match(text, /QB-500001/);
-    assert.match(text, /BANGALORE BIRYANI HOUSE/);
+    assert.match(text, /BANGALORE BIRYANI\s+HOUSE/); // 15 pt bold: a long name wraps inside the roll
     assert.match(text, /2 x Chicken Dum Biryani/);
     assert.match(text, /Large/);
     assert.match(text, /Extra raita/);
@@ -139,6 +144,44 @@ try {
   const odd = await get(`${TICKET}?width=70`, partner);
   it('Any other width is refused', () => assert.equal(odd.status, 400));
 
+  console.log('\n-- The website ticket (HTML, round 5 C): a page exactly the size of the ticket');
+  const web = await get(`${TICKET}?format=html`, partner);
+  const webText = htmlText(web.html);
+  it('HTML on request, never cached', () => {
+    assert.equal(web.status, 200);
+    assert.match(web.type, /text\/html/);
+    assert.match(web.cache, /no-store/);
+  });
+  it('The page is 80 mm wide and exactly as tall as the ticket, no margins (the printer stops and cuts there)', () => {
+    const size = pageSize(web.html);
+    assert.equal(size?.[1], '80');
+    assert.ok(Number(size?.[2]) > 60 && Number(size?.[2]) < 250, size?.[2]);
+  });
+  it('Bold monospace like a POS bill, dishes at 14 pt and the order number at 26 pt', () => {
+    assert.match(web.html, /font-family: 'Courier New', Courier, monospace/);
+    assert.match(web.html, /font-size:14pt;[^"]*font-weight:700;[^"]*">2 x Chicken Dum Biryani/);
+    assert.match(web.html, /font-size:26pt;[^"]*">QB-500001/);
+  });
+  it('The same lines as the PDF', () => {
+    for (const line of ['QB-500001', 'BANGALORE BIRYANI HOUSE', '2 x Chicken Dum Biryani', 'Large', 'Extra raita', '1 x Masala Dosa', 'Items: 3', '5 3 7 1', 'Customer: Priya\n', 'Not a bill']) {
+      assert.ok(webText.includes(line), line);
+    }
+    assert.doesNotMatch(webText, /Sharma/);
+  });
+  it('No price, phone, address, payment method or delivery code on it either', () => {
+    assert.doesNotMatch(webText, /Rs|₹/);
+    for (const p of PRICES) assert.doesNotMatch(webText, new RegExp(`(^|[^\\d.])${String(p).replace('.', '\\.')}([^\\d.]|$)`, 'm'), `price ${p} printed`);
+    for (const secret of ['90000', 'Temple', 'Harohalli', 'RAZORPAY', 'Online', 'Cash', '8642', '8 6 4 2']) assert.ok(!webText.includes(secret), `${secret} printed`);
+  });
+  const webNarrow = await get(`${TICKET}?format=html&width=58`, partner);
+  it('58 mm on request', () => assert.equal(pageSize(webNarrow.html)?.[1], '58'));
+  it('A long dish name wraps inside the roll, never cut off at the edge', () => {
+    const lines = wrapMono('2 x Hyderabadi Chicken Dum Biryani Family Pack Special', 20);
+    assert.ok(lines.length > 1 && lines.every(l => l.length <= 20), JSON.stringify(lines));
+    assert.equal(lines.join(' '), '2 x Hyderabadi Chicken Dum Biryani Family Pack Special');
+    assert.ok(wrapMono('Supercalifragilisticexpialidocious', 10).every(l => l.length <= 10));
+  });
+
   const long = { ...order, id: 'ord_ticket_long', items: Array.from({ length: 30 }, (_, i) => ({ dishId: `d${i}`, name: `Dish number ${i}`, quantity: 1, unitPrice: 1, totalPrice: 1 })) };
   memoryStore.orders.set(long.id, long);
   const tall = await get(`/orders/${long.id}/kitchen-ticket`, partner);
@@ -147,6 +190,9 @@ try {
     assert.ok(Number(/\/MediaBox \[0 0 [\d.]+ ([\d.]+)\]/.exec(tall.pdf)?.[1]) > Number(/\/MediaBox \[0 0 [\d.]+ ([\d.]+)\]/.exec(t.pdf)?.[1]));
     assert.match(textOf(tall.pdf), /Dish number 29/);
   });
+  const tallWeb = await get(`/orders/${long.id}/kitchen-ticket?format=html`, partner);
+  it('The website page grows with the items too', () =>
+    assert.ok(Number(pageSize(tallWeb.html)?.[2]) > Number(pageSize(web.html)?.[2]) + 100));
 
   console.log('\n-- Who may print it');
   order.status = 'ORDER_PLACED';

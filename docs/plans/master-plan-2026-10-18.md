@@ -4,6 +4,14 @@
 
 ## START HERE — any new session (AI or developer) continues from this file
 
+> ### ▶▶▶ ROUND 5 — 21 Oct 2026 (newest; overrides the blocks below where they differ)
+>
+> **The owner is the tester now** (the Tester session was deleted 21 Oct). Round 5 fixed three things the owner found
+> on a live order: the route (shortest Google motorbike route for fee, pay, time and map), the customer's arrival time
+> (kitchen time + ride, still, red "+N min" when late) and the kitchen ticket (prints like a POS bill and stops).
+> Standalone plan with root causes and checks: **[`round5-route-time-ticket-2026-10-21.md`](round5-route-time-ticket-2026-10-21.md)**.
+> Built, pushed, and in **build 45** (APK + AAB, all four apps) for the owner to test. Next: whatever the owner reports.
+>
 > ### ▶▶ ROUND 3 — 20 Oct 2026 evening (overrides the block below where they differ)
 >
 > The owner gave 11 new items and restarted the loop: **work list = [`round3-owner-items-2026-10-20.md`](round3-owner-items-2026-10-20.md)**

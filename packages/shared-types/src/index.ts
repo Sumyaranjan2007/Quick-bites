@@ -707,6 +707,8 @@ export interface Order {
   restaurantPhone?: string;
   /** Kitchen-to-doorstep distance in km, used for the rider's payout and ETA. */
   distanceKm?: number;
+  /** Google's bike ride time for that same shortest route, frozen at checkout (round 5 B). */
+  routeMinutes?: number;
   /** What the rider is paid for this trip, fixed when the trip is claimed. */
   riderPayout?: number;
   /** Road km from the rider to the kitchen when they took the trip (owner, 20 Oct 2026). */
