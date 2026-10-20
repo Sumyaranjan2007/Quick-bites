@@ -132,4 +132,4 @@ mutated: fails), `profitGuards`, `helpChat`, `features` updated to the rule.
 | B | Honest arrival time; still, fades, red when late | ✅ 21 Oct |
 | C | Kitchen ticket prints like a POS bill and stops | ✅ 21 Oct |
 | D | Customer cancels only before the kitchen accepts (2-min window removed) | ✅ 21 Oct |
-| — | APK + AAB for the owner's test | see CHANGELOG |
+| — | APK + AAB for the owner's test | ✅ build 46, 21 Oct (`build/apk`, `build/aab`, archive `v46-route-time-ticket-cancel-2026-10-21`) |

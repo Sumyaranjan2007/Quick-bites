@@ -11,7 +11,7 @@
 > (kitchen time + ride, still, red "+N min" when late) and the kitchen ticket (prints like a POS bill and stops);
 > and (D) the customer cancels only before the kitchen accepts again (2-minute window removed).
 > Standalone plan with root causes and checks: **[`round5-route-time-ticket-2026-10-21.md`](round5-route-time-ticket-2026-10-21.md)**.
-> Built, pushed, and in **build 45** (APK + AAB, all four apps) for the owner to test. Next: whatever the owner reports.
+> Built, pushed, and in **build 46** (APK + AAB, all four apps; 45 was a stopped build, never released), archived in `quick-bites-release-archive/v46-route-time-ticket-cancel-2026-10-21/`, for the owner to test. Next: whatever the owner reports.
 >
 > ### ▶▶ ROUND 3 — 20 Oct 2026 evening (overrides the block below where they differ)
 >
