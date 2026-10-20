@@ -16,6 +16,16 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Checks: `routing` (+3), `honestEta` (owner's case 15 + 4 = 19), `kitchenTicket` (+8 HTML checks); each mutated and caught. Website print path tried on the private QA server.
 
 ---
+## [Unreleased] 20 Oct 2026: iPhone build 43 (matches Android customer build 43)
+
+**For the owner:** the iPhone app is built from today's code (same features as the Android customer app, Google Maps with the iOS key) as **1.4.0 build 43**. It builds and opens in the Simulator: home without sign-in, Google map, restaurant page, cart, sign-in with "Not now".
+
+- `apps/customer-mobile/app.json`: iOS `buildNumber` 39 -> 43; `withRazorpayXcode26` removed from plugins (iPhone only; the Android config is unchanged).
+- `packages/config/expo-plugins/withRazorpayXcode26.js` deleted: `react-native-razorpay` 3.0.0 imports WebKit and `RazorpayCore-Swift.h` itself, and the plugin's pre-include broke the New Architecture build (its flags became a list; with the list fixed, the header failed before WebKit).
+- `docs/app-store/IOS.md`: build-failure notes updated.
+- Checked: Release Simulator build of build 43 succeeded on Xcode 26.5; `check-secrets` clean. Not yet checked: a signed-in order, push and UPI on a real iPhone.
+
+---
 
 ## [Unreleased] 20 Oct 2026: AI dish pictures in Operations; secret Operations web address
 
