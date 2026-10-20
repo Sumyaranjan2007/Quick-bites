@@ -157,12 +157,10 @@ does not compile as C++20 under Xcode 26 ("call to consteval function … is not
 expression" inside `Pods/fmt`). The `withFmtCxx17` plugin in `app.json` compiles that one
 library as C++17, which fixes it on both EAS and a Mac.
 
-The same Xcode then fails at the **last** step, linking, with `Undefined symbols:
-__OBJC_PROTOCOL_$_ExternalWalletSelectionProtocol` (and `…PaymentCompletionProtocolWithData`).
-`react-native-razorpay` imports only `Razorpay-Swift.h`, which forward-declares those two
-protocols, and the new compiler no longer produces them from a forward declaration. The
-`withRazorpayXcode26` plugin pre-includes `RazorpayCore-Swift.h` (where they are defined) for
-that one pod. Both plugins are in `app.json` and survive `expo prebuild --clean`.
+The old `withRazorpayXcode26` plugin (for `react-native-razorpay` 2.x, which imported only
+`Razorpay-Swift.h`) was removed on 20 Oct 2026: `react-native-razorpay` 3.0.0 imports WebKit and
+`RazorpayCore-Swift.h` itself, and the plugin's pre-include then broke the build (before WebKit:
+"unknown type name 'WKNavigationActionPolicy'"). `withFmtCxx17` stays in `app.json`.
 
 If the build log shows other compile
 errors inside React Native or a library (not in our code), tell the developer: the fix then

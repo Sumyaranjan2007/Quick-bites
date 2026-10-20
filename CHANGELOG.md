@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 20 Oct 2026: iPhone build 43 (matches Android customer build 43)
+
+**For the owner:** the iPhone app is built from today's code (same features as the Android customer app, Google Maps with the iOS key) as **1.4.0 build 43**. It builds and opens in the Simulator: home without sign-in, Google map, restaurant page, cart, sign-in with "Not now".
+
+- `apps/customer-mobile/app.json`: iOS `buildNumber` 39 -> 43; `withRazorpayXcode26` removed from plugins (iPhone only; the Android config is unchanged).
+- `packages/config/expo-plugins/withRazorpayXcode26.js` deleted: `react-native-razorpay` 3.0.0 imports WebKit and `RazorpayCore-Swift.h` itself, and the plugin's pre-include broke the New Architecture build (its flags became a list; with the list fixed, the header failed before WebKit).
+- `docs/app-store/IOS.md`: build-failure notes updated.
+- Checked: Release Simulator build of build 43 succeeded on Xcode 26.5; `check-secrets` clean. Not yet checked: a signed-in order, push and UPI on a real iPhone.
+
 ## [Unreleased] 20 Oct 2026: AI dish pictures in Operations; secret Operations web address
 
 **For the owner:** Operations (app and website) can now make a demo picture for a dish: "Generate demo image" in the dish editor, "Generate demo images for dishes without a photo" in the Menu Builder, and "Generate pictures for dishes without one" on a kitchen's live menu and in Approvals (the pictures show on the request cards to check before approving). A dish name drawn once is reused for every kitchen, never paid for twice (~₹4 per new picture with Gemini). When the AI's limit runs out it says so and stops; after you add or change the key on Railway, Resume carries on from the next dish. A real photo uploaded later simply replaces it. The Operations website can live at a secret address: set `ADMIN_WEB_PATH` on Railway and `/admin` stops answering. **You must add on Railway:** `GEMINI_API_KEYS` (from Google AI Studio, billing on) and `ADMIN_WEB_PATH`.
