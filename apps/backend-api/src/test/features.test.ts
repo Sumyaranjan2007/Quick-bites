@@ -598,7 +598,6 @@ async function run() {
 
   // The one that matters: money was taken, and the order is cancelled.
   const paid = await placeOrder({ paymentMethod: 'WALLET' });
-  await orderRepository.updateStatus(paid.id, 'ACCEPTED', 20);
   const paidRecord = (await orderRepository.findById(paid.id))!;
   paidRecord.paymentStatus = 'PAID';
   await orderRepository.save(paidRecord);

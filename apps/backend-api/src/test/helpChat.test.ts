@@ -148,8 +148,8 @@ try {
     assert.match(onTheWay.json.data.answer, /can no longer be cancelled in the app/));
   const cooking = putOrder({ status: 'PREPARING' });
   const cancelCooking = await api(`/support/help/CANCEL?orderId=${cooking.id}`, {}, customer);
-  it('"Cancel" while cooking: can cancel, a charge may apply (refund policy)', () =>
-    assert.match(cancelCooking.json.data.answer, /cancel .*cancellation charge may apply/s));
+  it('"Cancel" while cooking: not in the app any more, a person helps (owner, 21 Oct)', () =>
+    assert.match(cancelCooking.json.data.answer, /already cooking .*can no longer be cancelled in the app.*Talk to a person/s));
 
   const delivered = putOrder({ status: 'DELIVERED', deliveredAt: new Date().toISOString() });
   const refund = await refundRepository.create({

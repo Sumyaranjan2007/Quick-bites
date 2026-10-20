@@ -94,6 +94,17 @@ to the end of that default page. The PDF itself also used small sizes (body 10 p
 5. Still **no prices** on the kitchen ticket (owner decision B10, 18 Oct): it is the kitchen's order slip, not the
    customer's bill.
 
+## D. Cancelling: back to the old rule (owner, 21 Oct, added during the build)
+
+The owner: "once the restaurant accepts the order they can't cancel it; remove the new 2 min timer". The customer may
+cancel in the app only **before the kitchen accepts** (full refund, as before round 3); after that the screen shows "Ask
+support to cancel" and the server refuses with `CUSTOMER_CANCEL_WINDOW_OVER`. One function decides it,
+`customerCancelWindowOver` (`modules/orders/cancellationFee.ts`): accepted (time recorded, or status ACCEPTED /
+PREPARING / READY_FOR_PICKUP) means closed. The kitchen and Operations still cancel as before. Side effect: the
+late-cancel fee and the "late cash cancels" limit only ever applied to a customer cancelling after accept, so they no
+longer do anything (settings left in place). Checks: `orderClock` (just accepted: refused; before accept: allowed;
+mutated: fails), `profitGuards`, `helpChat`, `features` updated to the rule.
+
 ## What does not change (and why it is safe)
 
 - **Live tracking:** the rider's fixes, sockets, moving bike, trail and re-centre are untouched; only the polyline source
@@ -120,4 +131,5 @@ to the end of that default page. The PDF itself also used small sizes (body 10 p
 | A | Shortest motorbike route for fee, pay, time and map | ✅ 21 Oct |
 | B | Honest arrival time; still, fades, red when late | ✅ 21 Oct |
 | C | Kitchen ticket prints like a POS bill and stops | ✅ 21 Oct |
+| D | Customer cancels only before the kitchen accepts (2-min window removed) | ✅ 21 Oct |
 | — | APK + AAB for the owner's test | see CHANGELOG |

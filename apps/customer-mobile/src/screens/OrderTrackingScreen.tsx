@@ -42,7 +42,7 @@ interface Props {
   apiUrl?: string;
   token?: string;
   currentUserId?: string;
-  /** Opens Help, for a cancel the app no longer allows (2 min after the kitchen accepts). */
+  /** Opens Help, for a cancel the app no longer allows (once the kitchen accepts). */
   onAskSupport?: () => void;
 }
 
@@ -240,14 +240,12 @@ export const OrderTrackingScreen: React.FC<Props> = ({
    */
   const serverEta = tracking?.eta;
   const [nowMs, setNowMs] = useState(() => Date.now());
-  // Seconds only while the 2-minute cancel countdown shows; the arrival time moves a minute at a time (round 5 B).
-  const acceptedAtMs = Date.parse(order?.acceptedAt || '');
-  const cancelTicking = Number.isFinite(acceptedAtMs) && nowMs < acceptedAtMs + 120_000;
+  // The arrival time moves a minute at a time (round 5 B), so a check every 15 s is enough.
   useEffect(() => {
     if (isClosed) return;
-    const timer = setInterval(() => setNowMs(Date.now()), cancelTicking ? 1000 : 15_000);
+    const timer = setInterval(() => setNowMs(Date.now()), 15_000);
     return () => clearInterval(timer);
-  }, [isClosed, cancelTicking]);
+  }, [isClosed]);
   /*
    * THE ARRIVAL TIME (owner, 21 Oct 2026): nothing before the kitchen accepts; then the kitchen's time + the bike ride,
    * in whole minutes that hold still and fade in when they change (no ticking clock). With the rider carrying the food,
@@ -299,13 +297,10 @@ export const OrderTrackingScreen: React.FC<Props> = ({
 
   // Cancellable exactly while the server's state machine allows it. Showing the
   // button later would offer something that can only fail.
-  // After the kitchen accepts, 2 minutes; then only support can (owner, 20 Oct; the server enforces it too).
+  // Only until the kitchen accepts; after that only support can (owner, 21 Oct; the server enforces it too).
   const cookingStarted = ['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'].includes(status);
-  const acceptedMs = acceptedAtMs;
-  const cancelLeft = cookingStarted && Number.isFinite(acceptedMs) ? Math.max(0, Math.round((acceptedMs + 120_000 - nowMs) / 1000)) : null;
-  const canCancel =
-    ['PAYMENT_PENDING', 'ORDER_PLACED'].includes(status) || (cookingStarted && status !== 'READY_FOR_PICKUP' && (cancelLeft ?? 0) > 0);
-  const askSupportToCancel = cookingStarted && !canCancel;
+  const canCancel = ['PAYMENT_PENDING', 'ORDER_PLACED'].includes(status);
+  const askSupportToCancel = cookingStarted;
 
   // What cancelling NOW costs and returns (U1). Asked every time the sheet
   // opens, because the answer changes the moment the kitchen starts cooking.
@@ -474,11 +469,7 @@ export const OrderTrackingScreen: React.FC<Props> = ({
             to find becomes a phone call to the restaurant. */}
         {canCancel && (
           <TouchableOpacity style={styles.cancelLink} onPress={openCancel} activeOpacity={0.75}>
-            <Text style={styles.cancelLinkText}>
-              {cancelLeft !== null
-                ? t('tracking.cancelLeft', { time: `${Math.floor(cancelLeft / 60)}:${String(cancelLeft % 60).padStart(2, '0')}` })
-                : t('tracking.cancelOrder')}
-            </Text>
+            <Text style={styles.cancelLinkText}>{t('tracking.cancelOrder')}</Text>
           </TouchableOpacity>
         )}
         {askSupportToCancel && !!onAskSupport && (

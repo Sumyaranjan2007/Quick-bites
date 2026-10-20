@@ -1,6 +1,6 @@
 /**
- * The order clock (owner, 20 Oct 2026): the customer may cancel in the app for 2 minutes
- * after the kitchen accepts, then only through support; riders are offered the trip at
+ * The order clock: the customer may cancel in the app only until the kitchen accepts
+ * (owner, 21 Oct 2026, back to the old rule), then only through support; riders are offered the trip at
  * 10 minutes of cooking left (at once for a shorter cook, or when the food is Ready).
  */
 import assert from 'node:assert/strict';
@@ -66,7 +66,7 @@ await new Promise(r => setTimeout(r, 300));
 resetAuthRateLimit();
 
 try {
-  console.log('\n-- The customer may cancel for 2 minutes after the kitchen accepts');
+  console.log('\n-- The customer may cancel only until the kitchen accepts (owner, 21 Oct)');
   const token = (await api('/auth/login', { method: 'POST', body: { email: 'customer@quickbite.app', password: 'pass123' } })).json?.data?.token;
   const reason = (await api('/orders/cancellation-reasons', {}, token)).json?.data?.reasons?.[0]?.code;
   const order = (status: any, acceptedMinutesAgo?: number) =>
@@ -79,18 +79,17 @@ try {
   const cancel = (id: string) =>
     api(`/orders/${id}/status`, { method: 'PUT', body: { status: 'CANCELLED', cancellationReasonCode: reason } }, token);
 
-  const fresh = order('ACCEPTED', 1);
-  const quote = (await api(`/orders/${fresh.id}/cancellation-quote`, {}, token)).json?.data;
-  check('1 min after accept: the quote says cancel is open and until when', () => {
-    assert.equal(quote?.canCancel, true);
-    assert.ok(Date.parse(quote?.cancelUntil) > Date.now(), String(quote?.cancelUntil));
+  const fresh = order('ACCEPTED', 0);
+  const freshQuote = (await api(`/orders/${fresh.id}/cancellation-quote`, {}, token)).json?.data;
+  const freshCancel = await cancel(fresh.id);
+  check('Just accepted (0 min): no in-app cancel any more, the 2-minute window is gone', () => {
+    assert.equal(freshQuote?.canCancel, false);
+    assert.equal(freshCancel.json?.error?.code, 'CUSTOMER_CANCEL_WINDOW_OVER', `status ${freshCancel.status}`);
   });
-  const okCancel = await cancel(fresh.id);
-  check('...and the cancel goes through', () => assert.equal(okCancel.status, 200, JSON.stringify(okCancel.json).slice(0, 200)));
 
   const late = order('PREPARING', 3);
   const lateQuote = (await api(`/orders/${late.id}/cancellation-quote`, {}, token)).json?.data;
-  check('3 min after accept: the quote says no, and sends them to support (R3-8)', () => {
+  check('Cooking: the quote says no, and sends them to support (R3-8)', () => {
     assert.equal(lateQuote?.canCancel, false);
     assert.match(String(lateQuote?.message), /Ask support/);
   });

@@ -290,20 +290,13 @@ try {
   await setRates({ cancelQuoteLiveOnPhones: 1, cancelFeePercentAfterAccept: 50 });
   const late = await paidOrder();
   await api(`/orders/${late.id}/status`, { method: 'PUT', body: { status: 'ACCEPTED', preparationMinutes: 20 } }, partner.token);
+  // Owner, 21 Oct 2026: once the kitchen accepts, the customer cannot cancel in the app at all (support can), so the
+  // fee is never charged to them; the setting stays but has nothing to act on.
   const quote = await api(`/orders/${late.id}/cancellation-quote`, {}, customer.token);
-  const total = Number(late.bill.totalAmount);
-  it('The customer is told the fee before cancelling', () => {
-    assert.equal(quote.status, 200);
-    assert.equal(quote.json.data.fee, Math.round(total * 50) / 100);
-  });
-  const payableBefore = ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT_ID));
   const lateCancel = await api(`/orders/${late.id}/status`, { method: 'PUT', body: { status: 'CANCELLED', cancellationReasonCode: 'CHANGED_MY_MIND' } }, customer.token);
-  it('and is refunded the bill less the fee', () => {
-    assert.equal(lateCancel.status, 200, `status ${lateCancel.status}: ${JSON.stringify(lateCancel.json).slice(0, 200)}`);
-    assert.equal(lateCancel.json.data.refund.amount, Math.round((total - quote.json.data.fee) * 100) / 100);
-  });
-  it('and the kitchen is paid from the fee for food it started', () => {
-    assert.ok(ledger.balanceOf(accountFor('PARTNER_PAYABLE', RESTAURANT_ID)) > payableBefore);
+  it('After the kitchen accepts, the customer cannot cancel in the app (no fee is ever taken)', () => {
+    assert.equal(quote.json.data.canCancel, false);
+    assert.equal(lateCancel.json?.error?.code, 'CUSTOMER_CANCEL_WINDOW_OVER', `status ${lateCancel.status}`);
   });
   it('and the books still balance', () => {
     assert.equal(ledger.audit().balanced, true);
@@ -326,14 +319,11 @@ try {
   await setRates({ codCancelLimit: 1 });
   const codLate = orderOf(await place('CASH_ON_DELIVERY', {}, other.token));
   await api(`/orders/${codLate.id}/status`, { method: 'PUT', body: { status: 'ACCEPTED', preparationMinutes: 20 } }, partner.token);
-  await api(`/orders/${codLate.id}/status`, { method: 'PUT', body: { status: 'CANCELLED', cancellationReasonCode: 'CHANGED_MY_MIND' } }, other.token);
+  const codLateCancel = await api(`/orders/${codLate.id}/status`, { method: 'PUT', body: { status: 'CANCELLED', cancellationReasonCode: 'CHANGED_MY_MIND' } }, other.token);
   const codAgain = await place('CASH_ON_DELIVERY', {}, other.token);
-  const onlineAgain = await place('RAZORPAY_SANDBOX', {}, other.token);
-  it('After the limit of late cash cancels, cash is switched off for that customer', () => {
-    assert.equal(errCode(codAgain), 'COD_DISABLED_FOR_ACCOUNT', `status ${codAgain.status}`);
-  });
-  it('Control: they can still order and pay online', () => {
-    assert.equal(onlineAgain.status, 201, `status ${onlineAgain.status}`);
+  it('A late cash cancel cannot happen any more (refused after accept), so cash stays on', () => {
+    assert.equal(codLateCancel.json?.error?.code, 'CUSTOMER_CANCEL_WINDOW_OVER');
+    assert.equal(codAgain.status, 201, `status ${codAgain.status}`);
   });
   await setRates({ codCancelLimit: 0 });
 

@@ -24,7 +24,7 @@ import { isContactable } from '../modules/orders/contactVisibility.ts';
 import { renderKitchenTicket, renderKitchenTicketHtml } from '../modules/orders/kitchenTicket.ts';
 import { resolveAccess } from '../modules/admin/permissions.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
-import { customerCancelUntil, customerCancelWindowOver } from '../modules/orders/cancellationFee.ts';
+import { customerCancelWindowOver } from '../modules/orders/cancellationFee.ts';
 
 export const orderRouter = Router();
 
@@ -111,9 +111,7 @@ orderRouter.get('/:id/cancellation-quote', authMiddleware('customer'), async (re
         canCancel:
           canTransition(order.status, 'CANCELLED') &&
           !CUSTOMER_CANNOT_CANCEL_FROM.includes(order.status) &&
-          !customerCancelWindowOver(order),
-        /** When the in-app cancel closes (2 min after the kitchen accepts); null before it accepts. */
-        cancelUntil: customerCancelUntil(order)
+          !customerCancelWindowOver(order)
       },
       meta: { timestamp: new Date().toISOString(), correlationId: req.correlationId }
     });

@@ -14,8 +14,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - B: `Order.routeMinutes` (Google's ride time, frozen at checkout); `modules/orders/eta.ts` `rideMinutes` replaces `travelMinutes` (no handling minutes on the promise or quote); customer `OrderTrackingScreen` shows whole minutes with a fade, the rider's live minutes once they carry the food, red "+N min" past the promise.
 - C: `modules/orders/kitchenTicket.ts`: one list of lines, drawn as PDF (phone app) and HTML (`GET /api/orders/:id/kitchen-ticket?format=html`, `@page` exactly the ticket's size); bigger sizes. Partner website `lib/invoice.web.ts` prints the HTML in a hidden frame (no PDF tab).
 - Checks: `routing` (+3), `honestEta` (owner's case 15 + 4 = 19), `kitchenTicket` (+8 HTML checks); each mutated and caught. Website print path tried on the private QA server.
+- D (owner, later on 21 Oct): **the customer can cancel only until the kitchen accepts**, as before round 3; the 2-minute window after accept and its countdown are gone ("Ask support to cancel" after accept). `cancellationFee.ts` `customerCancelWindowOver`, customer `OrderTrackingScreen`, help reply. The late-cancel fee and late-cash-cancel limit no longer apply to anyone. Checks `orderClock`, `profitGuards`, `helpChat`, `features` updated; mutated and caught.
 
 ---
+
 ## [Unreleased] 20 Oct 2026: iPhone build 43 (matches Android customer build 43)
 
 **For the owner:** the iPhone app is built from today's code (same features as the Android customer app, Google Maps with the iOS key) as **1.4.0 build 43**. It builds and opens in the Simulator: home without sign-in, Google map, restaurant page, cart, sign-in with "Not now".

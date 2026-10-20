@@ -8,7 +8,8 @@
 >
 > **The owner is the tester now** (the Tester session was deleted 21 Oct). Round 5 fixed three things the owner found
 > on a live order: the route (shortest Google motorbike route for fee, pay, time and map), the customer's arrival time
-> (kitchen time + ride, still, red "+N min" when late) and the kitchen ticket (prints like a POS bill and stops).
+> (kitchen time + ride, still, red "+N min" when late) and the kitchen ticket (prints like a POS bill and stops);
+> and (D) the customer cancels only before the kitchen accepts again (2-minute window removed).
 > Standalone plan with root causes and checks: **[`round5-route-time-ticket-2026-10-21.md`](round5-route-time-ticket-2026-10-21.md)**.
 > Built, pushed, and in **build 45** (APK + AAB, all four apps) for the owner to test. Next: whatever the owner reports.
 >

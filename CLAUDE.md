@@ -119,8 +119,9 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 - **Pickup pay** (owner, 20 Oct 2026): a rider more than **7 km** (road) from the restaurant when
   they take the trip gets **all** that pickup distance × **₹6** (10 km = ₹60), paid by Quick Bites,
   never on the customer's bill; frozen on the order. Restaurant → customer pay stays as above.
-- **Order clock** (owner, 20 Oct): customer may cancel in the app for **2 min** after the kitchen
-  accepts, then only through support; no time shown before accept, then cook time + ride time
+- **Order clock** (owner, 20 Oct; cancel rule changed 21 Oct): the customer may cancel in the app **only until the
+  kitchen accepts** (the 2-minute window after accept is gone), then only through support. The late-cancel fee and
+  the "late cash cancels" limit therefore never apply to customers any more (settings kept, inactive); no time shown before accept, then cook time + ride time
   (restaurant → customer), "+N min" when late; riders are offered the trip at **10 min** of cooking left.
 - **Delivery radius** (18 Oct): one circle on the map, **35 km** by default, set by admins
   (`maxDeliveryKm`); kitchens no longer choose their own. The restaurant list and checkout use

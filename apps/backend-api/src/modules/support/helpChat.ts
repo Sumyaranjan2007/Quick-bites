@@ -291,9 +291,7 @@ export async function answerFor(topicId: string, asker: Asker, order: Order | nu
         if (customerCancelWindowOver(order)) {
           return `The restaurant is already cooking order #${order.orderNumber}, so it can no longer be cancelled in the app. Tap Talk to a person and we will help.`;
         }
-        return ['PAYMENT_PENDING', 'ORDER_PLACED'].includes(order.status)
-          ? `You can cancel order #${order.orderNumber} from its screen. Before the kitchen accepts, the refund is full.`
-          : `You can cancel order #${order.orderNumber} from its screen for 2 minutes after the kitchen accepts. A cancellation charge may apply; it is shown before you confirm, and the rest is refunded in full.`;
+        return `You can cancel order #${order.orderNumber} from its screen until the kitchen accepts it, with a full refund.`;
       case 'ACCOUNT':
         return 'Your name, email and phone are in Profile. You can delete your account from Profile at once; past orders stay on record without your details.';
     }
