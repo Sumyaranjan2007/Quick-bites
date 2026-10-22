@@ -69,8 +69,12 @@ clearly first, then do the work** (they complained when an answer was buried).
   modules write the store directly: `docs/DATA_MODEL.md` lists every writer per collection.
 - **Hosting:** Railway, project **endearing-ambition**, environment **production**: the
   backend service (Dockerfile) + a Postgres service. Pushing `main` deploys.
-  **Live URL:** `https://quick-bites-production.up.railway.app` (`/health`, `/api/...`,
-  public pages `/privacy`, `/terms`, `/delete-account`, websites `/partner`, `/admin`).
+  **Live URL:** `https://quick-bites-production.up.railway.app` = the **server address** for the apps (`/api/...`),
+  Razorpay's webhook, `/health`, and the Operations website (secret `ADMIN_WEB_PATH`; never on the public domain).
+  **Public website:** `https://www.quickbitesresturants.in` (same server): home, `/privacy`, `/terms`,
+  `/delete-account`, Partner website `/partner`. Since 22 Oct a browser opening those pages on the Railway address is
+  sent there with a 301 (`routes/webApps.ts` `isRailwayHost`); never move the apps' API off the Railway address
+  without a new app build (it is baked into every app's `src/config.ts`).
 - **Services:** Razorpay (payments) + RazorpayX (payouts); **Google Maps** (since 18 Oct: in-app maps via
   `react-native-maps`, server road distance/address search via `GOOGLE_MAPS_SERVER_KEY`; Mapbox remains only
   as the server's fallback while its token is set); Meilisearch (search); Firebase Cloud Messaging (push);

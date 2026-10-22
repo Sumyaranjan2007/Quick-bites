@@ -48,6 +48,25 @@ export const webApps = Router();
  */
 export const isPublicSiteHost = (host?: string) => /(^|\.)quickbitesresturants\.in(:\d+)?$/i.test(String(host || ''));
 
+/*
+ * THE RAILWAY ADDRESS IS NOT A WEBSITE ANY MORE (owner, 22 Oct 2026: "we have the main website now").
+ * A browser opening the home page, the legal pages or the Partner website on *.up.railway.app is sent
+ * to the same page on www.quickbitesresturants.in (the same server). Everything else on the Railway
+ * address keeps answering there, because the apps, Razorpay and Railway use it: /api, /health, the
+ * webhook, "/" asked for as JSON, and the Operations website, which never opens on the public domain.
+ */
+const PUBLIC_SITE = 'https://www.quickbitesresturants.in';
+const WEBSITE_PAGE = /^\/(privacy|terms|delete-account|robots\.txt|sitemap\.xml|partner(\/.*)?)?$/;
+export const isRailwayHost = (host?: string) => /\.up\.railway\.app(:\d+)?$/i.test(String(host || ''));
+
+webApps.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (!isRailwayHost(req.headers.host) || !WEBSITE_PAGE.test(req.path)) return next();
+  // "/" asked for as JSON is the API status that probes read, not the home page.
+  if (req.path === '/' && req.accepts(['html', 'json']) === 'json') return next();
+  res.redirect(301, PUBLIC_SITE + req.originalUrl);
+});
+
 webApps.use('/admin', (req, res, next) => {
   if (isPublicSiteHost(req.headers.host)) return res.status(404).type('text/plain').send('Not found');
   // With a secret address set, the console's page file is not served here either: the static

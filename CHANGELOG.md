@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 22 Oct 2026: The Railway address is no longer a website
+
+**For the owner:** opening `quick-bites-production.up.railway.app` in a browser now goes straight to **www.quickbitesresturants.in** (home, Privacy, Terms, Delete account, Partner website: same page, permanent redirect). The address itself cannot be switched off: all four apps, Razorpay's payment messages and Railway's health check use it, and the Operations website lives only there (never on the public domain, your rule). Those keep working exactly as before. **Only you:** if Play Console's privacy-policy or account-deletion links still use the Railway address, change them to `https://www.quickbitesresturants.in/privacy` and `/delete-account` (the redirect covers them meanwhile).
+
+- `routes/webApps.ts`: GET/HEAD on `*.up.railway.app` for `/`, `/privacy`, `/terms`, `/delete-account`, `/robots.txt`, `/sitemap.xml`, `/partner…` → 301 to the same path on www; `/` asked for as JSON, `/api`, `/health`, the webhook and the Operations site untouched. Check in `webApps` (3 new); redirect removed → fails.
+
+---
+
 ## [Unreleased] 22 Oct 2026: Operations website only at its secret address
 
 **For the owner:** with the secret Operations address set (`ADMIN_WEB_PATH`), `/admin` already said "not found", but `/admin/index.html` still opened the Operations sign-in page. Now that answers "not found" too; only the secret address opens it. Staff passwords always guarded it; this keeps the address itself hidden. The Partner website is unchanged.

@@ -38,8 +38,12 @@ each step unblocks the next.
 4. **Read and decide** `docs/plans/launch-readiness-2026-10-22.md` (load measured, safe updates, attacks, payments):
    capacity fixes before launch; a Railway **staging** environment; Cloudflare in front; a second sign-in step for staff;
    rules against fake cash orders.
-5. **Railway settings to the dashboard before 15 Nov** (Railway stops reading `railway.json` on 1 Dec): `docs/ops/OPS_GUIDE.md` §2.1a.
-6. Still open from before: Razorpay **live** keys; rotate Groq key, `ADMIN_PASSWORD`, MSG91 OTP-widget token;
+5. **Play Console links (since 22 Oct the Railway address redirects to the main website):** if the store
+   listing's privacy-policy or account-deletion link uses `quick-bites-production.up.railway.app`, change it to
+   `https://www.quickbitesresturants.in/privacy` and `https://www.quickbitesresturants.in/delete-account`. Never
+   remove or rename the Railway service or its address: every app talks to it.
+6. **Railway settings to the dashboard before 15 Nov** (Railway stops reading `railway.json` on 1 Dec): `docs/ops/OPS_GUIDE.md` §2.1a.
+7. Still open from before: Razorpay **live** keys; rotate Groq key, `ADMIN_PASSWORD`, MSG91 OTP-widget token;
    `ALLOW_PLATFORM_RESET=false`; back up the keystore folder off this PC.
 
 ### 00. Play Console — what is left (17 October 2026) — do these first

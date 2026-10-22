@@ -9,6 +9,7 @@
  * falls through to the ordinary 404.
  */
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -75,6 +76,41 @@ try {
     assert.doesNotMatch(missing.body, /admin app/);
   });
   it('An app that was not built falls through to the ordinary 404', () => assert.equal(unbuilt.status, 404));
+
+  // The Railway address is not a website any more (owner, 22 Oct 2026): pages go to the main site,
+  // the apps' API, health, the webhook and the JSON status stay. Sent with the Railway host header.
+  const onRailway = (p: string, init: { method?: string; accept?: string } = {}) =>
+    new Promise<{ status: number; location: string }>((resolve, reject) => {
+      const req = http.request(
+        { host: '127.0.0.1', port: PORT, path: p, method: init.method || 'GET', headers: { host: 'quick-bites-production.up.railway.app', accept: init.accept || 'text/html' } },
+        res => {
+          res.resume();
+          resolve({ status: res.statusCode || 0, location: String(res.headers.location || '') });
+        }
+      );
+      req.on('error', reject);
+      req.end(init.method === 'POST' ? '{}' : undefined);
+    });
+  const home = await onRailway('/');
+  const privacy = await onRailway('/privacy');
+  const partnerDeep = await onRailway('/partner/orders?x=1');
+  const status = await onRailway('/', { accept: 'application/json' });
+  const health = await onRailway('/health');
+  const apiCall = await onRailway('/api/restaurants');
+  const hook = await onRailway('/api/payments/webhook', { method: 'POST' });
+  it('On the Railway address the home, legal and Partner pages move to www.quickbitesresturants.in for good', () => {
+    assert.equal(home.status, 301);
+    assert.equal(home.location, 'https://www.quickbitesresturants.in/');
+    assert.equal(privacy.location, 'https://www.quickbitesresturants.in/privacy');
+    assert.equal(partnerDeep.location, 'https://www.quickbitesresturants.in/partner/orders?x=1');
+  });
+  it('...while the apps, Railway and Razorpay keep using it: API, health, webhook, JSON status', () => {
+    for (const [name, r] of [['status', status], ['health', health], ['api', apiCall], ['webhook', hook]] as const) {
+      assert.notEqual(r.status, 301, `${name} was redirected`);
+    }
+    assert.equal(health.status, 200);
+  });
+  it('...and on our own address nothing is redirected', () => assert.notEqual(root.status, 301));
 } finally {
   server.close();
   fs.rmSync(dir, { recursive: true, force: true });
