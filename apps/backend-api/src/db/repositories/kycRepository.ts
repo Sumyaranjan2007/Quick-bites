@@ -1,4 +1,5 @@
 import { memoryStore, triggerAutoSave } from '../client.ts';
+import { auditRepository } from './auditRepository.ts';
 import type { KycDocument } from '@quick-bites/shared-types';
 
 const newestFirst = (a: KycDocument, b: KycDocument) =>
@@ -47,11 +48,28 @@ export class KycRepository {
     return doc;
   }
 
-  /** Drops a waiting upload that a newer one replaces (it was never reviewed). */
-  async dropUnreviewed(id: string): Promise<void> {
-    if (memoryStore.kycDocuments.get(id)?.status !== 'PENDING') return;
+  /**
+   * Drops a waiting upload that a newer one replaces (it was never reviewed). Its
+   * type and number stay in the audit log (review K1d), so a document sent and
+   * swapped before anyone looked still leaves a trace; the photo itself does not.
+   */
+  async dropUnreviewed(id: string, by?: { id: string; fullName?: string; role?: string }): Promise<void> {
+    const doc = memoryStore.kycDocuments.get(id);
+    if (doc?.status !== 'PENDING') return;
     memoryStore.kycDocuments.delete(id);
     triggerAutoSave();
+    void auditRepository
+      .record({
+        actorUserId: by?.id || 'unknown',
+        actorName: by?.fullName || 'Uploader',
+        actorRole: by?.role || 'unknown',
+        action: 'DOCUMENT_REPLACED_BEFORE_REVIEW',
+        entityType: 'KYC_DOCUMENT',
+        entityId: id,
+        summary: `${doc.entityName || doc.entityId}: ${doc.documentType}${doc.documentNumber ? ` ${doc.documentNumber}` : ''} replaced before review`,
+        before: { documentType: doc.documentType, documentNumber: doc.documentNumber, entityType: doc.entityType, entityId: doc.entityId, submittedAt: doc.submittedAt }
+      })
+      .catch(() => undefined);
   }
 
   async getPendingDocuments(): Promise<KycDocument[]> {

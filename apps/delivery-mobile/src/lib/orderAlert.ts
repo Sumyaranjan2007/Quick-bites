@@ -59,7 +59,6 @@ export async function prepareOrderAlerts(): Promise<void> {
   }
 
   try {
-    await Notifications.requestPermissionsAsync();
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync(NEW_ORDER_CHANNEL, {
         name: 'New delivery offers',
@@ -81,6 +80,10 @@ export async function prepareOrderAlerts(): Promise<void> {
         enableVibrate: false
       });
     }
+    // Asked AFTER the channels exist (round 6): Android 13+ shows the "Allow notifications?"
+    // window only once the app has a channel, so asking first showed nothing on a fresh install.
+    const permission = await Notifications.getPermissionsAsync();
+    if (!permission.granted && permission.canAskAgain) await Notifications.requestPermissionsAsync();
   } catch {
     // Without notification permission the in-app alert still works.
   }

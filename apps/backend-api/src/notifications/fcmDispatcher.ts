@@ -34,6 +34,8 @@ export interface PushNotificationPayload {
   androidTag?: string;
   /** Data only, no visible notification. The only way to withdraw one. */
   dataOnly?: boolean;
+  /** The app to reach when the channel does not say (a help chat's app, round 6): its signed-in role. */
+  appRole?: string;
   sentAt: string;
 }
 
@@ -85,8 +87,8 @@ const CHANNEL_ROLE: Record<string, string> = {
   [CHANNEL.ORDER_UPDATES]: 'customer'
 };
 
-export function forApp<T extends { role?: string }>(devices: T[], channelId?: string): T[] {
-  const role = channelId ? CHANNEL_ROLE[channelId] : undefined;
+export function forApp<T extends { role?: string }>(devices: T[], channelId?: string, appRole?: string): T[] {
+  const role = appRole || (channelId ? CHANNEL_ROLE[channelId] : undefined);
   const matching = role ? devices.filter(d => d.role === role) : devices;
   return matching.length > 0 ? matching : devices;
 }
@@ -101,6 +103,8 @@ class FcmNotificationDispatcher {
     };
 
     this.dispatchHistory.push(record);
+    // Kept for the suites and the admin view; capped so it never grows for the life of the process.
+    if (this.dispatchHistory.length > 500) this.dispatchHistory.splice(0, this.dispatchHistory.length - 500);
 
     /*
      * THIS USED TO BE THE WHOLE NOTIFICATION SYSTEM.
@@ -146,7 +150,7 @@ class FcmNotificationDispatcher {
    */
   private async deliver(record: PushNotificationPayload): Promise<void> {
     try {
-      const devices = forApp(await deviceTokenRepository.listForUser(record.userId), record.androidChannelId);
+      const devices = forApp(await deviceTokenRepository.listForUser(record.userId), record.androidChannelId, record.appRole);
       if (devices.length === 0) return;
 
       const message: PushMessage = {

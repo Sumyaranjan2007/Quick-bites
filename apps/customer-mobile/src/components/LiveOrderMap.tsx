@@ -220,6 +220,8 @@ const NativeOrderMap: React.FC<{
         fit={following ? framed : undefined}
         scrollEnabled={interactive}
         onDrag={onDrag}
+        // Pinch and double-tap zoom stop the following too (round 6): it used to undo the zoom on every fix.
+        onUserMove={onDrag}
       >
         {trail.length >= 2 ? <MapRoute id="trail" points={trail} colour="rgba(176,40,48,0.35)" width={5} /> : null}
         {/* A wide light casing under a darker line: reads as a road route on any background. */}

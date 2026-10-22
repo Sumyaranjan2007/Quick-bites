@@ -50,7 +50,8 @@ export const HelpChat: React.FC<{ apiUrl?: string; token?: string; onSent?: () =
       reply: async (id, body) =>
         (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/reply`, { method: 'POST', headers, body: JSON.stringify({ body }) }))).ticket,
       resolve: async id =>
-        (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/resolve`, { method: 'POST', headers }))).ticket
+        (await data(await apiFetch(`${apiUrl}/support/tickets/${id}/resolve`, { method: 'POST', headers }))).ticket,
+      read: async id => data(await apiFetch(`${apiUrl}/support/tickets/${id}/read`, { method: 'POST', headers }))
     };
   }, [apiUrl, token, onSent, orderId]);
 

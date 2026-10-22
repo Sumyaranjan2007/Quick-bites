@@ -117,7 +117,9 @@ it('every route left without a body schema reads no body (S13)', () => {
     // 20 Oct 2026: the rider opened a trip Operations gave them (assigned-trip alarm).
     'POST /api/riders/orders/:id/acknowledge',
     // 20 Oct 2026: carry on with an AI picture job after a new key was added.
-    'POST /api/admin/ai-images/jobs/:id/resume'
+    'POST /api/admin/ai-images/jobs/:id/resume',
+    // 22 Oct 2026: "Seen" in the live help chat, both sides (round 6).
+    'POST /api/support/tickets/:id/read', 'POST /api/admin/support/tickets/:id/read'
   ]);
   const unexpected = server.unvalidatedAt
     .map(r => r.replace('/api/v1/', '/api/'))

@@ -5,7 +5,10 @@ import { ChevronDown, ChevronUp, LifeBuoy, Phone, Mail, MessageSquare, LogOut } 
 import { c, radii, spacing } from '../theme';
 import { Card, SectionHeading, Button, Field, Pill, ErrorNote, EmptyState } from '../components/ui';
 import { HelpChat } from '../components/HelpChat';
-import { fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion, fetchMyAccount } from '../lib/partnerApi';
+import { fetchSupportTickets, changePassword, updateProfile, fetchBusinessIdentity, requestAccountDeletion, fetchMyAccount, currentToken } from '../lib/partnerApi';
+import { AppPermissions } from '../components/AppPermissions';
+import { registerForPush } from '../lib/pushRegistration';
+import * as Location from 'expo-location';
 import { PasswordField } from '../components/ui';
 import { useLiveSync } from '../lib/liveSync';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
@@ -18,6 +21,9 @@ interface Props {
   onSignOut: () => void;
   /** Keeps this device signed in after a password change (U2). */
   onTokenRefreshed?: (token: string) => void;
+  /** Bumped when a help-chat push is tapped: the chat opens (round 6). */
+  openChat?: number;
+  onChatOpened?: () => void;
 }
 
 /*
@@ -29,6 +35,9 @@ function contactFrom(identity: any): { phone: string; email: string } {
   const digits = String(identity?.contactPhone || '').replace(/\D/g, '').slice(-10);
   return { phone: digits.length === 10 ? `+91${digits}` : '', email: String(identity?.contactEmail || '').trim() };
 }
+
+/** Location for the permissions card: one constant, so the card does not re-check on every render. */
+const LOCATION_PERMISSION = { get: () => Location.getForegroundPermissionsAsync(), request: () => Location.requestForegroundPermissionsAsync() };
 
 /** Must match the server's TicketSchema enum exactly — an unknown value is a 400. */
 const CATEGORIES = [
@@ -74,7 +83,7 @@ const FAQS = [
  * to go. Answers to the common questions come first because most are answerable
  * without us; the contact routes are underneath for when they are not.
  */
-export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, ownerId, onSignOut, onTokenRefreshed }) => {
+export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, ownerName, ownerId, onSignOut, onTokenRefreshed, openChat, onChatOpened }) => {
   // A deletion request keeps the sign-in (owner Q2), so its status is shown here.
   const [deletionAskedAt, setDeletionAskedAt] = useState<string | null>(null);
   useEffect(() => {
@@ -157,6 +166,12 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
 
   // Help is one chat, opened full screen like the Rider app's (owner, 20 Oct).
   const [chatOpen, setChatOpen] = useState(false);
+  useEffect(() => {
+    if (!openChat) return;
+    setChatOpen(true);
+    onChatOpened?.(); // once: opening Help later shows the Help Centre as before
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openChat]);
 
   const load = useCallback(async (mode: 'initial' | 'refresh') => {
     if (mode === 'refresh') setRefreshing(true);
@@ -242,6 +257,25 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
             {expanded === i && <Text style={styles.faqA}>{faq.a}</Text>}
           </TouchableOpacity>
         ))}
+
+        {/* The phone's real permissions, each fixable from here (owner, 22 Oct 2026). */}
+        <View style={{ marginTop: spacing.xl }}>
+          <AppPermissions
+            alwaysShow
+            items={['notifications', 'camera', 'location', 'battery']}
+            channels={['kitchen-orders', 'payments']}
+            location={LOCATION_PERMISSION}
+            why={{
+              notifications: 'So a new order rings even when the app is closed or the phone is locked.',
+              camera: 'To photograph dishes and your documents.',
+              location: "To pin your kitchen on the map so riders find it.",
+              battery: 'Otherwise the phone may delay order alerts to save battery.'
+            }}
+            onNotificationsAllowed={() => currentToken() && void registerForPush(currentToken())}
+            font={FONT_FAMILY}
+            colours={{ brand: c.brand, text: c.text, muted: c.textMuted, border: c.border, card: c.surface, ok: c.success, danger: c.danger }}
+          />
+        </View>
 
         <Card style={{ marginTop: spacing.xl }}>
           <SectionHeading title="Account" sub={ownerEmail} />

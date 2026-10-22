@@ -12,8 +12,12 @@ import {
   Image,
   RefreshControl,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
+  LayoutAnimation,
+  Linking
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GUIDE_DONE_KEY, locationGuideStep } from '../lib/locationGuide';
 import { Modal } from '../components/Modal';
 import { tokens } from '../theme/tokens';
 import { Card, Chip, RatingBadge, Pill, EmptyState, Skeleton, SectionHeader } from '../components/ui';
@@ -219,8 +223,19 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   };
   // A spot just chosen from the map or GPS, offered to save with a name (round 3, item 10).
   const [toSave, setToSave] = useState<PickedLocation | null>(null);
-  const { detect, detecting } = useDeviceLocation();
+  const { detect, detecting, error: locationError } = useDeviceLocation();
   const { height: windowHeight } = useWindowDimensions();
+  /*
+   * The first-time location guide (owner, 22 Oct 2026): once per phone, for a signed-in customer
+   * with no saved address. Until storage is read it counts as finished, so it never flashes at
+   * someone who has used the app before.
+   */
+  const [guideDone, setGuideDone] = useState(true);
+  const [pickedForGuide, setPickedForGuide] = useState<PickedLocation | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(GUIDE_DONE_KEY).then(v => setGuideDone(v === 'yes'), () => setGuideDone(false));
+  }, []);
 
   // Whether the saved addresses were really read: offline is not "you have none" (R2-8).
   const [addressesLoaded, setAddressesLoaded] = useState(false);
@@ -231,6 +246,8 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
       const data = await res.json();
       setAddressesLoaded(Boolean(data.success));
       if (data.success && Array.isArray(data.data?.addresses) && data.data.addresses.length) {
+        // Someone with an address never needs the first-time guide on this phone.
+        AsyncStorage.setItem(GUIDE_DONE_KEY, 'yes').catch(() => undefined);
         const list: SavedAddress[] = data.data.addresses;
         setSavedAddresses(list);
         // Whatever the customer last chose, then their default, then the first
@@ -398,6 +415,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
   };
 
   const browseFrom = (picked: PickedLocation) => {
+    setPickedForGuide(picked);
     setBrowsingFrom(picked.coordinates);
     if (picked.addressLine) {
       const parts = picked.addressLine.split(',').map(x => x.trim()).filter(Boolean);
@@ -414,6 +432,15 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
     if (token) setTimeout(() => setToSave(picked), 450);
   };
 
+  const guideStep = locationGuideStep({
+    signedIn: Boolean(token),
+    addressesLoaded,
+    savedCount: savedAddresses.length,
+    picked: Boolean(pickedForGuide),
+    guideDone,
+    justSaved
+  });
+
   const useCurrentLocation = async () => {
     const place = await detect();
     if (place) browseFrom(place as PickedLocation);
@@ -421,6 +448,16 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 
   const savedAddress = async (id: string) => {
     setToSave(null);
+    if (guideStep === 'find' || guideStep === 'save') {
+      // Step 3 for a moment, then the guide folds away for good and Home is as always.
+      setJustSaved(true);
+      setTimeout(() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setGuideDone(true);
+        setJustSaved(false);
+        AsyncStorage.setItem(GUIDE_DONE_KEY, 'yes').catch(() => undefined);
+      }, 2000);
+    }
     if (id) onChooseAddress?.(id);
     await loadLocality();
     setState('loading');
@@ -615,7 +652,7 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
 
       {/* First visit (owner, 20 Oct, item 11; R3-17): the top third asks for the address first; until then
           Quick Bites' picks show below; once saved, the kitchens within the radius set by admins. */}
-      {!origin && savedAddresses.length === 0 && (!token || addressesLoaded) && state !== 'error' && (
+      {!token && !origin && savedAddresses.length === 0 && state !== 'error' && (
           <View style={[styles.firstVisit, { minHeight: Math.round(windowHeight / 3) }]}>
             <MapPin size={28} color={c.primary[600]} />
             <Text style={styles.firstVisitTitle}>Save your address first</Text>
@@ -628,6 +665,59 @@ export const DiscoveryFeedScreen: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
       )}
+
+      {/* First-time guide (owner, 22 Oct 2026): a signed-in customer with no address is walked through it once. */}
+      {guideStep !== 'hidden' && state !== 'error' ? (
+        <View style={[styles.firstVisit, { minHeight: Math.round(windowHeight / 3) }]}>
+          <Text style={styles.firstVisitTitle}>Welcome to Quick Bites!{'\n'}Let's set where to deliver</Text>
+          <View style={styles.guideSteps}>
+            {['Find you', 'Save address', 'Restaurants near you'].map((label, n) => {
+              const current = guideStep === 'find' ? 0 : guideStep === 'save' ? 1 : 2;
+              const done = n < current || guideStep === 'done';
+              return (
+                <View key={label} style={styles.guideStep}>
+                  <View style={[styles.guideDot, (done || n === current) && styles.guideDotOn]}>
+                    <Text style={[styles.guideDotText, (done || n === current) && { color: c.text.inverse }]}>{done ? '✓' : n + 1}</Text>
+                  </View>
+                  <Text style={[styles.guideLabel, n === current && styles.guideLabelOn]} numberOfLines={2}>
+                    {label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+          {guideStep === 'find' ? (
+            <>
+              <Text style={styles.firstVisitBody}>Restaurants show real distances and times once we know where you are.</Text>
+              <TouchableOpacity style={[styles.chooseOnMap, styles.guideButton]} onPress={() => void useCurrentLocation()} activeOpacity={0.85} disabled={detecting}>
+                <Text style={styles.chooseOnMapText}>{detecting ? 'Finding you…' : 'Use my current location'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.firstVisitLink} onPress={() => setMapOpen(true)} activeOpacity={0.8}>
+                <Text style={styles.firstVisitLinkText}>Pick on map instead</Text>
+              </TouchableOpacity>
+              {locationError ? (
+                <TouchableOpacity onPress={() => void Linking.openSettings()} activeOpacity={0.8}>
+                  <Text style={styles.guideError}>{locationError} Tap here to open Settings.</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          ) : guideStep === 'save' ? (
+            <>
+              <Text style={styles.firstVisitBody}>
+                We found you{locality ? ` near ${locality}` : ''}. Add your house or flat number and save it.
+              </Text>
+              <TouchableOpacity style={[styles.chooseOnMap, styles.guideButton]} onPress={() => setToSave(pickedForGuide)} activeOpacity={0.85}>
+                <Text style={styles.chooseOnMapText}>Add house / flat & save</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.firstVisitLink} onPress={() => setMapOpen(true)} activeOpacity={0.8}>
+                <Text style={styles.firstVisitLinkText}>Choose a different spot</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.firstVisitBody}>All set! Showing restaurants that deliver to {locality || 'you'}.</Text>
+          )}
+        </View>
+      ) : null}
 
       {/* Hero */}
       <Text style={styles.heroTitle}>
@@ -1070,6 +1160,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8
   },
+  guideSteps: { flexDirection: 'row', alignSelf: 'stretch', justifyContent: 'space-between', marginVertical: 6 },
+  guideStep: { flex: 1, alignItems: 'center', gap: 4 },
+  guideDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.primary[500], alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface.card },
+  guideDotOn: { backgroundColor: c.primary[500] },
+  guideDotText: { fontFamily: tokens.font.family, fontSize: 12, fontWeight: '800', color: c.primary[600] },
+  guideLabel: { fontFamily: tokens.font.family, fontSize: 11, color: c.text.secondary, textAlign: 'center' },
+  guideLabelOn: { color: c.text.primary, fontWeight: '800' },
+  guideButton: { paddingHorizontal: 24, alignSelf: 'stretch', justifyContent: 'center' },
+  guideError: { fontFamily: tokens.font.family, fontSize: 13, color: c.semantic.error, textAlign: 'center', marginTop: 4 },
   firstVisitTitle: { fontFamily: tokens.font.family, fontSize: 20, fontWeight: '800', color: c.text.primary, textAlign: 'center' },
   firstVisitBody: { fontFamily: tokens.font.family, fontSize: 14, color: c.text.secondary, textAlign: 'center', marginBottom: 6 },
   firstVisitLink: { paddingVertical: 10, minHeight: 44, justifyContent: 'center' },

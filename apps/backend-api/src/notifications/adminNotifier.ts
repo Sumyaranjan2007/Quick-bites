@@ -416,6 +416,20 @@ export function notifyAdminsSupportTicketOpened(input: {
   });
 }
 
+/** The person wrote again in a live help chat (round 6): Operations must know without watching the list. */
+export function notifyAdminsSupportMessage(input: { ticketId: string; raisedBy: string; preview: string }): Promise<string[]> {
+  return notifyAdmins({
+    permission: 'support.tickets.manage',
+    title: 'New message in a help chat',
+    body: `${input.raisedBy}: ${input.preview}`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'support',
+    subject: input.ticketId,
+    type: 'ADMIN_SUPPORT_MESSAGE',
+    category: 'CUSTOMER_CARE'
+  });
+}
+
 /**
  * A rider has declared cash they are bringing in.
  *

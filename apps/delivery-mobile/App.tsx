@@ -117,6 +117,8 @@ function DeliveryApp() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  // The account's email for Profile: the rider record has none (review J-C12).
+  const [email, setEmail] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -130,7 +132,7 @@ function DeliveryApp() {
 
   // A tapped notification opens what it is about (owner, 19 Oct 2026).
   useNotificationTaps(data => {
-    if (data.type === 'SUPPORT_REPLY') return setSubScreen('help');
+    if (data.type === 'SUPPORT_REPLY' || data.type === 'SUPPORT_RESOLVED') return setSubScreen('help');
     setSubScreen(null);
     setTab(data.type === 'PAYOUT_PAID' ? 'earnings' : 'home');
   }, Boolean(token));
@@ -195,9 +197,11 @@ function DeliveryApp() {
         setApiUrl(session.apiUrl);
         setToken(session.token);
         setUserId(session.userId);
+        setEmail(session.email || '');
         // Not awaited: the app must reach its home screen whether or not a
-        // push service answers.
-        void registerForPush(session.apiUrl, session.token);
+        // push service answers. After the channels exist (round 6): Android 13+
+        // shows the permission window only then, and registering before it was refused.
+        void prepareOrderAlerts().then(() => registerForPush(session.apiUrl, session.token));
       }
       setBooting(false);
     })();
@@ -210,8 +214,9 @@ function DeliveryApp() {
       const result = await api.login(apiUrl, email.trim(), password);
       setToken(result.token);
       setUserId(result.user.id);
+      setEmail(result.user.email || '');
       await saveSession({ token: result.token, userId: result.user.id, email: result.user.email, apiUrl });
-      void registerForPush(apiUrl, result.token);
+      void prepareOrderAlerts().then(() => registerForPush(apiUrl, result.token));
     } catch (err: any) {
       setLoginError(err.message);
     } finally {
@@ -899,6 +904,8 @@ function DeliveryApp() {
             onChangePassword={handleChangePassword}
             onLogout={handleLogout}
             onDeleteAccount={handleDeleteAccount}
+            email={email}
+            onNotificationsAllowed={() => token && void registerForPush(apiUrl, token)}
           />
         );
     }

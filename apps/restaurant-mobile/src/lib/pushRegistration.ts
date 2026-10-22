@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 import { currentApiUrl } from './partnerApi';
@@ -23,13 +23,32 @@ import { currentApiUrl } from './partnerApi';
  */
 
 let lastRegistered: string | null = null;
+let lastRegisteredAt = 0;
+/*
+ * Registered again when the app comes back to the front (round 6): a person who
+ * allowed notifications in Settings is reachable at once, not after a restart,
+ * and a token the server marked dead is sent again within 12 hours.
+ */
+let latest: Parameters<typeof registerForPush> | null = null;
+let listening = false;
+const RESEND_MS = 12 * 3_600_000;
+let askedThisRun = false;
 
 export async function registerForPush(token: string): Promise<void> {
+  latest = [token];
+  if (!listening) {
+    listening = true;
+    AppState.addEventListener('change', state => {
+      if (state === 'active' && latest) void registerForPush(...latest);
+    });
+  }
   try {
     const permission = await Notifications.getPermissionsAsync();
     let granted = permission.granted;
 
-    if (!granted && permission.canAskAgain) {
+    // Asked once per app start: coming back to the front never pops the window again.
+    if (!granted && permission.canAskAgain && !askedThisRun) {
+      askedThisRun = true;
       granted = (await Notifications.requestPermissionsAsync()).granted;
     }
     // Refused is a decision, not a failure. Asking again on every launch is
@@ -43,7 +62,7 @@ export async function registerForPush(token: string): Promise<void> {
     // Registering is idempotent on the server, but skipping the request when
     // nothing has changed keeps a launch from making a needless round trip on
     // a kitchen's mobile data.
-    if (value === lastRegistered) return;
+    if (value === lastRegistered && Date.now() - lastRegisteredAt < RESEND_MS) return;
 
     const res = await fetch(`${currentApiUrl()}/devices`, {
       method: 'POST',
@@ -56,7 +75,10 @@ export async function registerForPush(token: string): Promise<void> {
       })
     });
 
-    if (res.ok) lastRegistered = value;
+    if (res.ok) {
+      lastRegistered = value;
+      lastRegisteredAt = Date.now();
+    }
   } catch {
     // Deliberately silent. See above: with no Firebase project this throws on
     // every launch, and it is not something a partner can act on.
@@ -71,6 +93,7 @@ export async function registerForPush(token: string): Promise<void> {
  */
 export async function unregisterForPush(token: string): Promise<void> {
   try {
+    latest = null;
     if (!lastRegistered) return;
     await fetch(`${currentApiUrl()}/devices/${encodeURIComponent(lastRegistered)}`, {
       method: 'DELETE',

@@ -131,10 +131,15 @@ function PartnerApp() {
   const [restaurant, setRestaurant] = useState<any | null>(null);
 
   const [tab, setTab] = useState<Tab>('dashboard');
+  // A help-chat push opens the chat itself, not the Help Centre front page (round 6).
+  const [chatAsked, setChatAsked] = useState(0);
 
   // A tapped notification opens what it is about (owner, 19 Oct 2026).
   useNotificationTaps(data => {
-    if (data.type === 'SUPPORT_REPLY') setTab('help');
+    if (data.type === 'SUPPORT_REPLY' || data.type === 'SUPPORT_RESOLVED') {
+      setTab('help');
+      setChatAsked(n => n + 1);
+    }
     else if (data.type === 'PAYOUT_PAID') setTab('settlements');
     else if (data.orderId) setTab('orders');
   }, Boolean(token));
@@ -518,6 +523,8 @@ function PartnerApp() {
         {tab === 'documents' && <DocumentsScreen restaurantId={restaurant.id} />}
         {tab === 'help' && (
           <HelpCentreScreen
+            openChat={chatAsked}
+            onChatOpened={() => setChatAsked(0)}
             restaurantName={restaurant.name}
             ownerEmail={user?.email}
             ownerName={user?.fullName}

@@ -6,6 +6,8 @@ import { Card, Button, Field, KeyValue, Divider, Badge, SectionTitle } from '../
 import { tokens, humanise } from '../theme/tokens';
 import { useSession } from '../lib/session';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { AppPermissions } from '../components/AppPermissions';
+import { registerForPush } from '../lib/pushRegistration';
 
 const c = tokens.colors;
 
@@ -18,7 +20,7 @@ const c = tokens.colors;
  * answer without anyone having to ask a Super Admin.
  */
 export const ProfileScreen: React.FC = () => {
-  const { api, user, roleName, permissions, permissionCatalogue, isSuperAdmin, signOut, apiUrl, refreshAccess, replaceToken } =
+  const { api, user, roleName, permissions, permissionCatalogue, isSuperAdmin, signOut, apiUrl, refreshAccess, replaceToken, token } =
     useSession();
 
   const [editing, setEditing] = useState(false);
@@ -154,6 +156,28 @@ export const ProfileScreen: React.FC = () => {
           <Button label="Sign out" variant="danger" icon={<LogOut size={16} color={c.state.danger} />} onPress={confirmSignOut} />
         </Card>
       ) : null}
+
+      {/* The phone's real permissions, each fixable from here (owner, 22 Oct 2026). Hidden on the website. */}
+      <AppPermissions
+        alwaysShow
+        items={['notifications', 'camera']}
+        channels={['admin-urgent', 'admin-attention']}
+        why={{
+          notifications: 'So an SOS, a stuck order or a waiting help chat reaches you with the app closed.',
+          camera: 'To photograph dishes and documents.'
+        }}
+        onNotificationsAllowed={() => token && void registerForPush(apiUrl, token)}
+        font={FONT_FAMILY}
+        colours={{
+          brand: tokens.colors.brand.maroon,
+          text: tokens.colors.text.primary,
+          muted: tokens.colors.text.muted,
+          border: tokens.colors.border.medium,
+          card: tokens.colors.bg.card,
+          ok: tokens.colors.state.success,
+          danger: tokens.colors.state.danger
+        }}
+      />
 
       <SectionTitle title="What your role allows" subtitle="Enforced by the server, not just hidden in this app." />
       <Card>

@@ -22,7 +22,7 @@ commit that fixes it.
 | D1 | `CLAUDE.md` §2: repositories are the only writers | many routes and modules write the store directly (`docs/DATA_MODEL.md`) | fixed in `CLAUDE.md` §2 (17 Oct) |
 | D2 | `CLAUDE.md` §5: 84 backend suites | 87 (`docs/TESTING.md`) | fixed in `CLAUDE.md`, `AGENTS.md`, `COMMANDS.md` (17 Oct) |
 | D3 | `SIGNING_KEYS.md` top note and `OWNER_ACTIONS.md` Part 0 B.4: use PEPK / "an existing key" | owner decided Google-managed app signing on 16 Oct (`CLAUDE.md` §6) | fixed in both documents (17 Oct) |
-| D4 | `riderPerKm` suite header: "Rs 10 a road km" | default is ₹12 (`packages/shared-types/src/index.ts:1908`) | open: a comment inside a test file (code edit needs the owner's OK) |
+| D4 | `riderPerKm` suite header: "Rs 10 a road km" | default is ₹12 (`packages/shared-types/src/index.ts:1908`) | fixed 22 Oct (round 6): header says the live default and that the suite sets its own rates |
 
 ## Housekeeping
 

@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Vibration } from 'react-native';
 import { haptic } from './haptics';
 import { Audio } from 'expo-av';
@@ -43,9 +44,19 @@ const NotificationsContext = createContext<NotificationsValue>({
   clear: () => {}
 });
 
+const CHIME_KEY = 'qb.inAppChime.v1';
+
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabledState] = useState(true);
+  // Remembered (round 6): the switch used to turn itself back on at every launch.
+  useEffect(() => {
+    AsyncStorage.getItem(CHIME_KEY).then(v => v === 'off' && setEnabledState(false)).catch(() => undefined);
+  }, []);
+  const setEnabled = useCallback((on: boolean) => {
+    setEnabledState(on);
+    AsyncStorage.setItem(CHIME_KEY, on ? 'on' : 'off').catch(() => undefined);
+  }, []);
   const soundRef = useRef<Audio.Sound | null>(null);
   const loadingRef = useRef(false);
 
@@ -106,7 +117,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       markAllRead,
       clear
     }),
-    [notifications, enabled, notify, markAllRead, clear]
+    [notifications, enabled, setEnabled, notify, markAllRead, clear]
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

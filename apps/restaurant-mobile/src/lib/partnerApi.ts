@@ -20,6 +20,9 @@ export interface ApiResult<T> {
 let apiUrl = DEFAULT_API_URL;
 let token = '';
 
+/** The signed-in session's token (the permissions card registers this phone for pushes with it). */
+export const currentToken = (): string => token;
+
 export function configureApi(nextUrl: string, nextToken: string): void {
   if (nextUrl) apiUrl = nextUrl;
   token = nextToken;
@@ -439,6 +442,11 @@ export function replySupportTicket(id: string, body: string) {
 
 export function resolveSupportTicket(id: string) {
   return request<{ ticket: any }>(`/support/tickets/${id}/resolve`, { method: 'POST' }, 'That did not go through. Try again.');
+}
+
+/** The partner has seen the chat (Operations sees "Seen", round 6). */
+export function markSupportTicketRead(id: string) {
+  return request<{ ticket: any }>(`/support/tickets/${id}/read`, { method: 'POST' });
 }
 
 // ---------------------------------------------------------------------------

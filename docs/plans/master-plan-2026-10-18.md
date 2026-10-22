@@ -4,7 +4,14 @@
 
 ## START HERE — any new session (AI or developer) continues from this file
 
-> ### ▶▶▶ ROUND 5 — 21 Oct 2026 (newest; overrides the blocks below where they differ)
+> ### ▶▶▶▶ ROUND 6 — 22 Oct 2026 (newest; BUILT 22 Oct, build 47)
+>
+> Live help chat that stays open until solved (WhatsApp-like, Operations chat screen), notifications fixed in Partner/Rider
+> and a "Phone permissions" card in every app, a one-time location guide for new customers, the Android zoom snap-back on
+> the live tracking map, bugs, a manual security review (the Claude Security scan could not run: no Workflow tool), and the
+> old leftovers re-checked against the code. Standalone plan: **[`round6-help-chat-notifications-location-2026-10-22.md`](round6-help-chat-notifications-location-2026-10-22.md)**.
+>
+> ### ▶▶▶ ROUND 5 — 21 Oct 2026 (overrides the blocks below where they differ)
 >
 > **The owner is the tester now** (the Tester session was deleted 21 Oct). Round 5 fixed three things the owner found
 > on a live order: the route (shortest Google motorbike route for fee, pay, time and map), the customer's arrival time

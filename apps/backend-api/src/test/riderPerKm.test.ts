@@ -1,5 +1,6 @@
 /**
  * ₹10 a road km, and one figure from quote to payout (owner, 1 Oct 2026).
+ * The live default is ₹12 now (sliding to ₹8, owner 18 Oct); this suite sets its own rates.
  *
  * The owner's rules:
  *   - a rider earns ₹10 for every km of road from the restaurant to the

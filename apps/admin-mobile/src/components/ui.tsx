@@ -552,6 +552,8 @@ type SheetProps = {
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** A chat (round 6): the list stays at its newest line as it grows. */
+  scrollToEnd?: boolean;
 };
 
 export const Sheet: React.FC<SheetProps> = props => (
@@ -569,8 +571,9 @@ export const Sheet: React.FC<SheetProps> = props => (
   </Modal>
 );
 
-const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, footer }) => {
+const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, footer, scrollToEnd }) => {
   const keyboardOffset = useKeyboardOffset();
+  const list = React.useRef<ScrollView>(null);
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   // The space left above the keyboard: the sheet slid under the status bar when it ignored it (R3-19).
@@ -606,9 +609,11 @@ const SheetPanel: React.FC<SheetProps> = ({ onClose, title, subtitle, children, 
           </TouchableOpacity>
         </View>
         <ScrollView
+          ref={list}
           style={s.sheetBody}
           contentContainerStyle={{ paddingBottom: tokens.space[5] }}
           keyboardShouldPersistTaps="handled"
+          onContentSizeChange={scrollToEnd ? () => list.current?.scrollToEnd({ animated: false }) : undefined}
         >
           {children}
         </ScrollView>

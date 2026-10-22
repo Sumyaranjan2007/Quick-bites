@@ -31,6 +31,11 @@ import { titleCase } from '../lib/format';
 import { choosePhoto } from '../lib/photo';
 import type { DashboardResponse } from '../lib/api';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { AppPermissions } from '../components/AppPermissions';
+import * as Location from 'expo-location';
+
+/** Location for the permissions card: one constant, so the card does not re-check on every render. */
+const LOCATION_PERMISSION = { get: () => Location.getForegroundPermissionsAsync(), request: () => Location.requestForegroundPermissionsAsync() };
 
 /**
  * Who the rider is, as the platform and the customer see them.
@@ -53,6 +58,9 @@ export const ProfileScreen: React.FC<{
   onLogout: () => void;
   /** Delete account: closes it now; Quick Bites deletes it once nothing is owed. */
   onDeleteAccount: (password: string) => Promise<boolean>;
+  /** The signed-in account's email (the rider record has none). */
+  email?: string;
+  onNotificationsAllowed?: () => void;
 }> = ({
   data,
   refreshing,
@@ -65,7 +73,9 @@ export const ProfileScreen: React.FC<{
   onOpenHelp,
   onChangePassword,
   onLogout,
-  onDeleteAccount
+  onDeleteAccount,
+  email,
+  onNotificationsAllowed
 }) => {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -243,7 +253,7 @@ export const ProfileScreen: React.FC<{
             <Divider />
             <Row label="Phone" value={rider.phone} />
             <Divider />
-            <Row label="Email" value={rider.email} />
+            <Row label="Email" value={email || rider.email} />
             <Divider />
             <Row label="Vehicle" value={rider.vehicleType} />
             <Divider />
@@ -253,6 +263,26 @@ export const ProfileScreen: React.FC<{
           </>
         )}
       </Card>
+
+      {/* The phone's real permissions, each fixable from here (owner, 22 Oct 2026). */}
+      <View style={{ marginTop: t.space[6] }}>
+        <AppPermissions
+          alwaysShow
+          items={['location', 'notifications', 'camera', 'battery']}
+          channels={['new-orders', 'payments']}
+          location={LOCATION_PERMISSION}
+          batteryKey="qb.rider.batteryAsked.v1"
+          why={{
+            location: 'To get nearby orders and show customers where their food is.',
+            notifications: 'So a new order rings even when the app is closed.',
+            camera: 'To photograph your documents.',
+            battery: 'Otherwise the phone stops your location while you ride.'
+          }}
+          onNotificationsAllowed={onNotificationsAllowed}
+          font={FONT_FAMILY}
+          colours={{ brand: t.color.brand, text: t.color.text, muted: t.color.textMuted, border: t.color.border, card: t.color.surface, ok: t.color.goText, danger: t.color.danger }}
+        />
+      </View>
 
       {/* Links */}
       <SectionTitle style={{ marginTop: t.space[6] }}>More</SectionTitle>

@@ -97,7 +97,7 @@ kycRouter.post('/submit', validate({ body: SubmitKycSchema }), async (req, res, 
     await assertControlsEntity(req, entityType, entityId);
 
     const { replacesId, dropId } = replacing(await kycRepository.findByEntity(entityType, entityId), documentType);
-    if (dropId) await kycRepository.dropUnreviewed(dropId);
+    if (dropId) await kycRepository.dropUnreviewed(dropId, req.user);
     const doc = await kycRepository.submitDocument({
       ...(replacesId ? { replacesId } : {}),
       entityType,

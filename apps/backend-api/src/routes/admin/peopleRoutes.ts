@@ -1041,6 +1041,9 @@ peopleRoutes.post(
  * stays one flow. Needs the "manage" permission for that kind of account.
  */
 // Owner, 19 Oct 2026: Operations may set the password; left empty, the 24-hour email code (L11) as before.
+/** When a password an admin typed stops working (review C1): the person must choose their own within a week. */
+const temporaryUntil = () => new Date(Date.now() + 7 * 24 * 3_600_000).toISOString();
+
 const AdminSetPassword = z.string().min(8, 'The password needs at least 8 characters.').max(128).optional();
 const CreateAccountSchema = z.discriminatedUnion('kind', [
   PartnerRegistrationSchema.omit({ password: true }).extend({ kind: z.literal('restaurant'), password: AdminSetPassword }),
@@ -1080,7 +1083,8 @@ peopleRoutes.post(
         role,
         roles: [role],
         createdByAdmin: req.user!.id,
-        ...(body.password ? { passwordHash: await bcrypt.hash(body.password, 10) } : {})
+        // A password typed by an admin is temporary: it stops working after 7 days (review C1).
+        ...(body.password ? { passwordHash: await bcrypt.hash(body.password, 10), passwordTemporaryUntil: temporaryUntil() } : {})
       } as any);
       const record = kitchen ? await openRestaurant(user, body) : await openRiderRecord(user, body);
 
@@ -1238,6 +1242,7 @@ peopleRoutes.post(
 
       await userRepository.update(user.id, {
         passwordHash: await bcrypt.hash(req.body.temporaryPassword, 10),
+        passwordTemporaryUntil: temporaryUntil(),
         // Whoever had the old password (a lost phone, an ex-employee) is signed
         // out now, not in a week when their token expires.
         tokenVersion: (Number((user as any).tokenVersion) || 0) + 1

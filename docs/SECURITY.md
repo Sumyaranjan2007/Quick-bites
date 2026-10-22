@@ -319,3 +319,16 @@ nothing secret ever ships in the app; every rule is enforced on the server; map 
 locked to our packages and certificates; Play Integrity makes scripted fake clients expensive;
 rate limits and audit logs make abuse visible. Code shrinking (R8) and Hermes bytecode make the
 app harder to read, not unreadable: never rely on them for security.
+
+## Round 6 (22 Oct 2026) — manual review; the Claude Security scan could not run (no Workflow tool)
+
+| # | Sev | Finding | Status |
+|---|---|---|---|
+| F1 | Med-low | Help-ticket and refund-request `attachments` accepted any string; Operations renders them as image URIs (`RefundsScreen.tsx:202`), so a link made the admin's phone fetch a stranger's server | **fixed** 22 Oct: `isPhotoData` on both (`supportRouter.ts`); check in `helpLiveChat` |
+| F3 | Low | Admin-set temporary passwords never expired (review C1) | **fixed** 22 Oct: 7 days (`passwordTemporaryUntil`) |
+| F4 | Low | An unreviewed document replaced before review left no trace (K1d) | **fixed** 22 Oct: audit line |
+| F5 | Low | No cap on help-chat messages | **fixed** 22 Oct: 20 a minute (429) |
+| F6 | Info | `liveSync` takes ids from a request body: any signed-in user can make another account's app re-read (no data leaks; debounced) | **accepted** |
+| F7 | — | Whole-repository Claude Security scan | **waiting**: needs the Workflow tool (owner: Dynamic workflows in `/config`, if offered) |
+
+Launch-level threats (DDoS shield, staff second factor, fake cash orders, refund confirmation, chargebacks): `docs/plans/launch-readiness-2026-10-22.md` §3.

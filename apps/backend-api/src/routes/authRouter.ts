@@ -201,10 +201,18 @@ authRouter.post('/login', authRateLimiterMiddleware, validate({ body: LoginBodyS
           : 'This account has been blocked. Contact Quick Bites support.'
       });
     }
+    // A password Operations set lasts 7 days (review C1); after that only "Forgot password" works.
+    if (user && (user as any).passwordTemporaryUntil && Date.parse((user as any).passwordTemporaryUntil) < Date.now()) {
+      return res.status(401).json({
+        success: false,
+        // A plain string, like the other answers here: the apps show it as it is.
+        error: 'This temporary password has expired. Use "Forgot password" to set your own.'
+      });
+    }
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: role 
+        error: role
           ? // In plain words, no internal role name (T-9).
             `Wrong email or password, or this is not a ${({ restaurant_owner: 'Partner', rider: 'Rider', admin: 'Operations' } as Record<string, string>)[role] || 'Quick Bites'} account.`
           : 'Wrong email or password.'

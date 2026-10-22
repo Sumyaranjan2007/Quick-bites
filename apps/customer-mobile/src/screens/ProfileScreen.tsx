@@ -14,6 +14,9 @@ import {
   Platform
 } from 'react-native';
 import { Modal } from '../components/Modal';
+import { AppPermissions } from '../components/AppPermissions';
+import { registerForPush } from '../lib/pushRegistration';
+import * as Location from 'expo-location';
 import {
   ArrowLeft,
   User,
@@ -70,6 +73,9 @@ interface Props {
  * Deleting the account is in the app, as Google Play requires (U6), at the very
  * bottom and behind the password, so it is never one careless tap away.
  */
+/** Location for the permissions card: one constant, so the card does not re-check on every render. */
+const LOCATION_PERMISSION = { get: () => Location.getForegroundPermissionsAsync(), request: () => Location.requestForegroundPermissionsAsync() };
+
 export const ProfileScreen: React.FC<Props> = ({
   onBack,
   onOpenOrders,
@@ -88,6 +94,7 @@ export const ProfileScreen: React.FC<Props> = ({
   const { t, language, setLanguage } = useTranslation();
 
   const [addresses, setAddresses] = useState<any[] | null>(null);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
 
   // The profile showed initials and offered no way to change them. A photo is
   // held on the account as a data URI and sent through the customer router.
@@ -543,10 +550,18 @@ export const ProfileScreen: React.FC<Props> = ({
           sub={activeLanguage ? `${activeLanguage.native} · ${activeLanguage.label}` : 'English'}
           onPress={() => setLangOpen(true)}
         />
+        {/* The phone's real permissions, each fixable from here (owner, 22 Oct 2026). */}
         <Row
           icon={<Bell size={18} color={c.accent[600]} />}
-          title={t('profile.notifications')}
-          sub={t('profile.notificationsSub')}
+          title="Phone permissions"
+          sub="Notifications, location and camera for Quick Bites"
+          onPress={() => setPermissionsOpen(true)}
+        />
+        {/* Only the chime inside the app; the phone's notifications are under Phone permissions. */}
+        <Row
+          icon={<Bell size={18} color={c.accent[600]} />}
+          title="Sound in the app"
+          sub="A chime when your order moves while the app is open"
           right={
             <Switch
               value={notificationsEnabled}
@@ -652,6 +667,42 @@ export const ProfileScreen: React.FC<Props> = ({
       </TouchableOpacity>
 
       <Text style={styles.version}>Quick Bites · Harohalli, Kanakapura Road</Text>
+
+      <Modal visible={permissionsOpen} animationType="slide" transparent onRequestClose={() => setPermissionsOpen(false)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Phone permissions</Text>
+              <TouchableOpacity hitSlop={10} onPress={() => setPermissionsOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
+                <X size={19} color={c.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            <AppPermissions
+              alwaysShow
+              title="What Quick Bites may use"
+              items={['notifications', 'location', 'camera']}
+              channels={['order-updates']}
+              location={LOCATION_PERMISSION}
+              why={{
+                notifications: 'So you hear when your order is accepted, on its way and at your door.',
+                location: 'To find restaurants that deliver to where you are.',
+                camera: 'To send a photo of a problem with your order.'
+              }}
+              onNotificationsAllowed={() => apiUrl && token && void registerForPush(apiUrl, token)}
+              font={tokens.font.family}
+              colours={{
+                brand: c.primary[500],
+                text: c.text.primary,
+                muted: c.text.muted,
+                border: c.border.subtle,
+                card: c.surface.card,
+                ok: c.semantic.success,
+                danger: c.semantic.error
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Delete account (U6) */}
       <Modal visible={deleteOpen} animationType="slide" transparent onRequestClose={() => setDeleteOpen(false)}>

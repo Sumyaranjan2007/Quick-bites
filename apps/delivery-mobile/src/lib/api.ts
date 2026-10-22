@@ -418,6 +418,11 @@ export const api = {
     return request<{ ticket: any }>(ctx, `/support/tickets/${id}/resolve`, { method: 'POST' });
   },
 
+  /** The rider has seen the chat (Operations sees "Seen", round 6). */
+  readSupportTicket(ctx: ApiContext, id: string) {
+    return request<{ ticket: any }>(ctx, `/support/tickets/${id}/read`, { method: 'POST' });
+  },
+
   /** Opens a refund/return case, e.g. a rider reporting a spilled order. */
   raiseRefundRequest(
     ctx: ApiContext,

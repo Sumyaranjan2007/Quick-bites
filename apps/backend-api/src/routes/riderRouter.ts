@@ -481,7 +481,7 @@ riderRouter.post('/documents', validate({ body: DocumentUploadSchema }), async (
     // again; the approved one stands until then, so a swapped-in licence is never
     // trusted unseen, and its number reaches the profile only on approval.
     const { replacesId, dropId } = replacing(await kycRepository.findByEntity('RIDER', rider.id), documentType);
-    if (dropId) await kycRepository.dropUnreviewed(dropId);
+    if (dropId) await kycRepository.dropUnreviewed(dropId, req.user);
 
     const doc = await kycRepository.submitDocument({
       ...(replacesId ? { replacesId } : {}),

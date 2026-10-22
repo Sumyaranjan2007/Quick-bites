@@ -139,7 +139,7 @@ function AppRoot() {
 
   // A tapped notification opens what it is about (owner, 19 Oct 2026).
   useNotificationTaps(data => {
-    if (data.type === 'SUPPORT_REPLY') return setCurrentScreen('support');
+    if (data.type === 'SUPPORT_REPLY' || data.type === 'SUPPORT_RESOLVED') return setCurrentScreen('support');
     if (!data.orderId) return;
     const live = liveOrders.find(o => o.orderId === data.orderId);
     if (live) openLiveOrder(live);

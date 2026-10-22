@@ -8,7 +8,7 @@ import {
   fetchSupportTickets,
   fetchSupportTicket,
   raiseSupportTicket,
-  replySupportTicket, resolveSupportTicket,
+  replySupportTicket, resolveSupportTicket, markSupportTicketRead,
   type ApiResult
 } from '../lib/partnerApi';
 import { SupportChat, type ChatApi } from './SupportChat';
@@ -35,7 +35,8 @@ export const HelpChat: React.FC<{ onSent?: () => void; historyFooter?: React.Rea
         return made;
       },
       reply: async (id, body) => (await data(replySupportTicket(id, body))).ticket,
-      resolve: async id => (await data(resolveSupportTicket(id))).ticket
+      resolve: async id => (await data(resolveSupportTicket(id))).ticket,
+      read: id => markSupportTicketRead(id)
     }),
     [onSent]
   );

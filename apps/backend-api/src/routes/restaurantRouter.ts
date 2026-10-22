@@ -1120,7 +1120,7 @@ restaurantRouter.post(
       // Any document may be replaced (owner, 18 Oct 2026): a renewed licence, a
       // better photo. The approved one keeps standing until the new one is checked.
       const { replacesId, dropId } = replacing(await kycRepository.findByEntity('RESTAURANT', restaurant.id), documentType);
-      if (dropId) await kycRepository.dropUnreviewed(dropId);
+      if (dropId) await kycRepository.dropUnreviewed(dropId, req.user);
 
       const doc = await kycRepository.submitDocument({
         ...(replacesId ? { replacesId } : {}),

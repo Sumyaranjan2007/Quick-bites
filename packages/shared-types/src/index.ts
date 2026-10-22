@@ -1410,6 +1410,11 @@ export interface SupportTicket {
   /** Who closed it: the person themself ("My issue is solved") or Operations (round 3). */
   resolvedBy?: 'USER' | 'STAFF';
   assignedToUserId?: string;
+  /** Live chat (round 6): the newest message, who wrote it, and when each side last read the chat. */
+  lastMessageAt?: string;
+  lastMessageBy?: 'USER' | 'STAFF';
+  staffReadAt?: string;
+  userReadAt?: string;
 }
 
 /* ========================================================================== *

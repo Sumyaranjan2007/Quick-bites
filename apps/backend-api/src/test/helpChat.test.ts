@@ -276,11 +276,6 @@ try {
   const oldApp = await ticket(partner, { message: 'An old app sends only the old fields', category: 'OTHER' });
   it('Old apps (no help fields) still create tickets', () => assert.equal(oldApp.status, 201));
 
-  for (let i = 0; i < 4; i++) await ticket(customer, { message: `Another question number ${i}` });
-  const flood = await ticket(customer, { message: 'One question too many' });
-  it('More than 5 tickets in an hour is refused', () => assert.equal(flood.json?.error?.code, 'TOO_MANY_TICKETS', `status ${flood.status}`));
-  it('...with 429', () => assert.equal(flood.status, 429));
-
   console.log('\n-- Replies in the same thread');
   const own = await api(`/support/tickets/${made.id}/reply`, { method: 'POST', body: { body: 'Any news?' } }, customer);
   it('The person\'s own reply leaves the ticket OPEN (it is not staff work)', () => assert.equal(own.json?.data?.ticket?.status, 'OPEN'));
@@ -316,6 +311,23 @@ try {
     assert.ok(thread.json?.data?.ticket?.replies?.some((r: any) => r.body === 'The rider is two minutes away.')));
   const notMine = await api(`/support/tickets/${made.id}`, {}, rider);
   it('...and nobody else can', () => assert.equal(notMine.status, 404));
+
+  console.log('\n-- New chats per hour');
+  // One live chat at a time (round 6): a request while one is open joins it, so each chat is
+  // solved before the next and the hourly limit on NEW chats is what is tested.
+  const solveOpen = async () => {
+    for (const t of (await api('/support/tickets', {}, customer)).json?.data?.tickets || []) {
+      if (['OPEN', 'IN_PROGRESS'].includes(t.status)) await api(`/support/tickets/${t.id}/resolve`, { method: 'POST' }, customer);
+    }
+  };
+  let flood: any = null;
+  for (let i = 0; i < 6 && flood?.status !== 429; i++) {
+    await solveOpen();
+    flood = await ticket(customer, { message: `Another question number ${i}` });
+  }
+  it('More than 5 tickets in an hour is refused', () => assert.equal(flood.json?.error?.code, 'TOO_MANY_TICKETS', `status ${flood.status}`));
+  it('...with 429', () => assert.equal(flood.status, 429));
+
 } finally {
   // Wait for the close: exiting while it is in flight crashes Node on Windows (UV_HANDLE_CLOSING).
   await new Promise(r => server.close(() => r(null)));

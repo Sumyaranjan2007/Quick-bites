@@ -127,6 +127,8 @@ export const userRepository = {
     const existing = memoryStore.users.get(id);
     if (!existing) return null;
     const updated = { ...existing, ...updates };
+    // A password the person chose themselves ends a temporary one's 7-day limit (review C1).
+    if ('passwordHash' in updates && !('passwordTemporaryUntil' in updates)) delete (updated as any).passwordTemporaryUntil;
     memoryStore.users.set(id, updated);
     triggerAutoSave();
     // Blocking, or retiring every token, must also end connections already

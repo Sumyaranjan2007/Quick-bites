@@ -11,12 +11,13 @@ import { z } from 'zod';
 import { authMiddleware } from '../middlewares/auth.ts';
 import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
-import { supportRepository } from '../db/repositories/supportRepository.ts';
+import { supportRepository, withChatFields } from '../db/repositories/supportRepository.ts';
 import { refundRepository } from '../db/repositories/refundRepository.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { userRepository } from '../db/repositories/userRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
-import { notifyAdminsSupportTicketOpened, notifyAdminsRefundRaised } from '../notifications/adminNotifier.ts';
+import { notifyAdminsSupportTicketOpened, notifyAdminsRefundRaised, notifyAdminsSupportMessage } from '../notifications/adminNotifier.ts';
+import { isPhotoData } from '../utils/imageInput.ts';
 import { refundableRemaining } from '../modules/payments/refundCap.ts';
 import { askerFor, isPartyTo, topicsFor, topicFor, matchTopic, orderInQuestion, orderCard, answerFor, helpChatFor } from '../modules/support/helpChat.ts';
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -30,7 +31,8 @@ const TicketSchema = z.object({
   category: z.enum(['ORDER', 'PAYMENT', 'DELIVERY', 'ACCOUNT', 'RESTAURANT', 'OTHER']),
   message: z.string().trim().min(10, 'Describe the problem so support can act on it.').max(2000),
   orderId: z.string().optional(),
-  attachments: z.array(z.string().max(400000)).max(4).optional(),
+  // Photos only (round 6, F1): Operations shows each one as a picture, so a link would make their phone fetch a stranger's server.
+  attachments: z.array(z.string().max(400000).refine(isPhotoData, 'Attach a photo (JPG, PNG or WebP).')).max(4).optional(),
   // Help chat (B8): the topics the person went through before "Talk to us".
   // Only the ids: the answers are rebuilt here, never taken from the app.
   helpTopics: z.array(z.string().max(40)).max(10).optional(),
@@ -92,6 +94,11 @@ supportRouter.post(
 
 const TICKETS_PER_HOUR = 5;
 const DOUBLE_TAP_MS = 2 * 60_000;
+const MESSAGES_PER_MINUTE = 20;
+
+/** Operations hears that the person wrote again (round 6); the notifier sends one per chat per ten minutes. */
+const tellOperations = (ticket: { id: string; raisedByName: string }, body: string) =>
+  void notifyAdminsSupportMessage({ ticketId: ticket.id, raisedBy: ticket.raisedByName || 'Somebody', preview: body.replace(/\s+/g, ' ').slice(0, 60) });
 
 /** POST /api/support/tickets — raise a complaint from any of the apps. */
 supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res, next) => {
@@ -116,13 +123,26 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
     if (req.body.helpTopics?.length && !order) order = await orderInQuestion(asker);
     const helpChat = req.body.helpTopics?.length ? await helpChatFor(req.body.helpTopics, asker, order) : undefined;
 
+    // One live chat per person per app (round 6): while one is open, a new request is a message in it.
+    const open = await supportRepository.openFor(req.user!.id, req.user!.role);
+    if (open) {
+      const latest = open.replies.filter(r => r.byUserId === req.user!.id).pop();
+      const said = latest ? latest : { body: open.message, at: open.createdAt };
+      // A double tap sends the same words twice: kept once.
+      const repeat = said.body === req.body.message && Date.now() - Date.parse(said.at) < DOUBLE_TAP_MS;
+      const ticket = repeat ? open : await supportRepository.reply(open.id, { userId: req.user!.id, name: user?.fullName || req.user!.fullName, role: req.user!.role }, req.body.message);
+      if (!repeat) tellOperations(open, req.body.message);
+      res.json({ success: true, data: { ticket: withChatFields(ticket!), reused: true }, message: 'Added to your open chat with Quick Bites.' });
+      return;
+    }
+
     const mine = await supportRepository.listByUser(req.user!.id);
     // A double tap on "Talk to us" is one question, not two tickets.
     const repeat = mine.find(t =>
       t.message === req.body.message && t.orderId === order?.id &&
       Date.now() - new Date(t.createdAt).getTime() < DOUBLE_TAP_MS);
     if (repeat) {
-      res.json({ success: true, data: { ticket: repeat }, message: 'Our support team has your request and will reply shortly.' });
+      res.json({ success: true, data: { ticket: withChatFields(repeat) }, message: 'Our support team has your request and will reply shortly.' });
       return;
     }
     if (mine.filter(t => Date.now() - new Date(t.createdAt).getTime() < 3_600_000).length >= TICKETS_PER_HOUR) {
@@ -160,7 +180,7 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
 
     res.status(201).json({
       success: true,
-      data: { ticket },
+      data: { ticket: withChatFields(ticket) },
       message: 'Our support team has your request and will reply shortly.'
     });
   } catch (err) {
@@ -171,7 +191,7 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
 /** GET /api/support/tickets — the signed-in user's own tickets. */
 supportRouter.get('/tickets', async (req, res, next) => {
   try {
-    res.json({ success: true, data: { tickets: await supportRepository.listByUser(req.user!.id) } });
+    res.json({ success: true, data: { tickets: (await supportRepository.listByUser(req.user!.id)).map(withChatFields) } });
   } catch (err) {
     next(err);
   }
@@ -182,7 +202,7 @@ supportRouter.get('/tickets/:id', async (req, res, next) => {
   try {
     const ticket = await supportRepository.findById(req.params.id);
     if (!ticket || ticket.raisedByUserId !== req.user!.id) throw new AppError('Ticket not found.', 404, 'TICKET_NOT_FOUND');
-    res.json({ success: true, data: { ticket } });
+    res.json({ success: true, data: { ticket: withChatFields(ticket) } });
   } catch (err) {
     next(err);
   }
@@ -197,13 +217,22 @@ supportRouter.post('/tickets/:id/reply', validate({ body: ReplySchema }), async 
     if (ticket.raisedByUserId !== req.user!.id) {
       throw new AppError('You can only reply to your own ticket.', 403, 'NOT_YOUR_TICKET');
     }
+    if (ticket.status === 'CLOSED') {
+      throw new AppError('This chat is closed. Write in Help to start a new one.', 409, 'CHAT_CLOSED');
+    }
+    // A flood is not a conversation (round 6, F5).
+    const lastMinute = ticket.replies.filter(r => r.byUserId === req.user!.id && Date.now() - Date.parse(r.at) < 60_000).length;
+    if (lastMinute >= MESSAGES_PER_MINUTE) {
+      throw new AppError('You are sending messages very fast. Wait a moment.', 429, 'TOO_MANY_MESSAGES');
+    }
 
     const updated = await supportRepository.reply(
       ticket.id,
       { userId: req.user!.id, name: req.user!.fullName, role: req.user!.role },
       req.body.body
     );
-    res.json({ success: true, data: { ticket: updated } });
+    tellOperations(ticket, req.body.body);
+    res.json({ success: true, data: { ticket: withChatFields(updated!) } });
   } catch (err) {
     next(err);
   }
@@ -214,7 +243,18 @@ supportRouter.post('/tickets/:id/resolve', async (req, res, next) => {
   try {
     const ticket = await supportRepository.findById(req.params.id);
     if (!ticket || ticket.raisedByUserId !== req.user!.id) throw new AppError('Ticket not found.', 404, 'TICKET_NOT_FOUND');
-    res.json({ success: true, data: { ticket: await supportRepository.resolveByRaiser(ticket.id) } });
+    res.json({ success: true, data: { ticket: withChatFields((await supportRepository.resolveByRaiser(ticket.id))!) } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /api/support/tickets/:id/read — the person has seen the chat (Operations sees "Seen"). */
+supportRouter.post('/tickets/:id/read', async (req, res, next) => {
+  try {
+    const ticket = await supportRepository.findById(req.params.id);
+    if (!ticket || ticket.raisedByUserId !== req.user!.id) throw new AppError('Ticket not found.', 404, 'TICKET_NOT_FOUND');
+    res.json({ success: true, data: { ticket: withChatFields((await supportRepository.markRead(ticket.id, 'USER'))!) } });
   } catch (err) {
     next(err);
   }
@@ -235,7 +275,7 @@ const RefundRequestSchema = z.object({
   ]),
   description: z.string().trim().min(10, 'Describe what went wrong.').max(1000),
   requestedAmount: z.number().positive().max(1000000).optional(),
-  attachments: z.array(z.string().max(400000)).max(4).optional()
+  attachments: z.array(z.string().max(400000).refine(isPhotoData, 'Attach a photo (JPG, PNG or WebP).')).max(4).optional()
 });
 
 /**

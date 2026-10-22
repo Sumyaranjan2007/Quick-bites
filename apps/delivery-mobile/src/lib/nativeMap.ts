@@ -90,6 +90,12 @@ export interface MapCanvasProps {
   showUserLocation?: boolean;
   /** Fired while the user drags the map (the picker lifts its pin). */
   onDrag?: () => void;
+  /**
+   * Fired when the PERSON moves the camera in any way: drag, pinch, double-tap
+   * (Google's own "gesture" reason). On Android `onDrag` misses pinch and
+   * double-tap zoom, so a map following the rider snapped the zoom back (round 6).
+   */
+  onUserMove?: () => void;
 }
 
 export const MapCanvas: React.FC<MapCanvasProps> = ({
@@ -101,7 +107,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
   onSettle,
   scrollEnabled = true,
   showUserLocation = false,
-  onDrag
+  onDrag,
+  onUserMove
 }) => {
   const ref = useRef<any>(null);
   const points = (fit || []).filter(plottable);
@@ -135,6 +142,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({
         provider: RNMaps.PROVIDER_GOOGLE,
         customMapStyle: MAP_STYLE,
         onPanDrag: onDrag,
+        onRegionChangeStart: onUserMove
+          ? (event: any) => {
+              if (event?.nativeEvent?.isGesture) onUserMove();
+            }
+          : undefined,
         style: StyleSheet.absoluteFill,
         initialRegion: regionFor(plottable(target) ? target : centre, spanMetres),
         onMapReady: frame,

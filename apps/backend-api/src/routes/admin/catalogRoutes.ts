@@ -1114,6 +1114,16 @@ catalogRoutes.post(
         // Re-checked here: the number may have been blocked since it was sent.
         assertNotBanned({ fssai: outcome.apply.fssaiLicenseNumber, gstin: outcome.apply.gstin, phone: outcome.apply.phone }, restaurant.ownerId);
         await restaurantRepository.applyProfile(restaurant.id, outcome.apply);
+        // A new licence number turns the verified badge off until its licence is approved (review K2d): say why.
+        if (outcome.apply.fssaiLicenseNumber !== undefined || outcome.apply.gstin !== undefined) {
+          void fcmDispatcher.sendPushNotification({
+            userId: restaurant.ownerId,
+            title: 'Your new licence number is saved',
+            body: 'Upload the licence for the new number in More → Docs to keep your verified badge.',
+            appRole: 'restaurant_owner',
+            data: { type: 'PROFILE_EDIT_DECIDED' }
+          });
+        }
       }
 
       const reviewed = await profileEditRepository.recordReview(edit.id, {

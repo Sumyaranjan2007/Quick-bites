@@ -22,6 +22,10 @@ export type Ticket = {
   createdAt: string;
   updatedAt?: string;
   replies: Array<{ byUserId: string; byName: string; body: string; at: string }>;
+  /** Live chat (round 6): newest message, and whether each side has seen it. */
+  lastMessageAt?: string;
+  staffReadAt?: string;
+  unreadForUser?: boolean;
 };
 export interface ChatApi {
   help(): Promise<{ greeting: string; topics: Topic[]; order?: { id: string; orderNumber: string } | null }>;
@@ -33,6 +37,8 @@ export interface ChatApi {
   reply(id: string, body: string): Promise<Ticket>;
   /** The person says their issue is solved: the chat moves to History. */
   resolve(id: string): Promise<Ticket>;
+  /** The person has seen the chat (Operations sees "Seen"). */
+  read(id: string): Promise<unknown>;
 }
 export interface ChatColours {
   brand: string;
@@ -46,8 +52,10 @@ export interface ChatColours {
 
 type Line = { from: 'me' | 'bot' | 'staff'; text: string; at?: string; sending?: boolean };
 const OPEN = ['OPEN', 'IN_PROGRESS'];
-const RESUME_MS = 7 * 24 * 3_600_000;
-const CONNECTED = 'You are talking to the Quick Bites team. Write here and we will reply in this chat.';
+// Only these end a chat (round 6): anything else, including an answer that could not be read, keeps it open.
+const DONE = ['RESOLVED', 'CLOSED'];
+const CONNECTED =
+  'You are talking to the Quick Bites team. This chat stays open until it is solved: you can close the app and come back any time.';
 
 const clock = (iso?: string) => {
   if (!iso) return '';
@@ -83,6 +91,10 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Until the person's chats are read, nothing may start a second one (round 6).
+  const [loaded, setLoaded] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const readUpTo = useRef('');
   const scroll = useRef<ScrollView>(null);
   const keyboardOffset = useKeyboardOffset();
   const s = styles(c, font);
@@ -90,28 +102,39 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   const say = (line: Line) => setLines(prev => [...prev, { at: new Date().toISOString(), ...line }]);
   const fresh = (hello = greeting) => [{ from: 'bot', text: `${hello} Type your question, or pick one below.` } as Line];
 
-  // Opens on the person's chat still in progress, if any; otherwise a fresh one.
+  // Opens on the person's open chat, however old (it stays until solved); otherwise a fresh one.
   useEffect(() => {
     (async () => {
       try {
-        const [help, list] = await Promise.all([api.help(), api.tickets().catch(() => [] as Ticket[])]);
+        setError(null);
+        const [help, list] = await Promise.all([api.help(), api.tickets()]);
         setTopics(help.topics);
         setGreeting(help.greeting);
         setAbout(help.order || null);
         setMine(list);
-        const open = list.find(t => OPEN.includes(t.status) && Date.now() - Date.parse(t.createdAt) < RESUME_MS);
+        const open = list.find(t => OPEN.includes(t.status));
         if (open) {
           setTicket(open);
           setLines([{ from: 'bot', text: CONNECTED }, ...threadOf(open)]);
         } else {
           setLines([...fresh(help.greeting), ...(help.order ? [{ from: 'bot', text: `About order #${help.order.orderNumber}.` } as Line] : [])]);
         }
+        setLoaded(true);
       } catch {
-        setError('Help could not be loaded. Check your connection.');
+        // Not "you have no chats": an open chat may be there, so nothing starts until it is read.
+        setError('Your chats could not be loaded. Check your connection and tap Retry.');
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
+
+  // "Seen" for Operations: once per new staff message, only while the chat is on screen.
+  useEffect(() => {
+    if (tab !== 'chat' || !ticket?.unreadForUser || !ticket.lastMessageAt || readUpTo.current === ticket.lastMessageAt) return;
+    readUpTo.current = ticket.lastMessageAt;
+    void api.read(ticket.id).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ticket?.id, ticket?.lastMessageAt, ticket?.unreadForUser]);
 
   /** The chat ends (solved by the person or by staff): it goes to History and a new one starts. */
   const endChat = (closed: Ticket, note: string) => {
@@ -128,12 +151,13 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
     if (!ticket) return;
     try {
       const latest = await api.ticket(ticket.id);
-      if (!OPEN.includes(latest.status)) {
-        endChat(latest, 'Quick Bites marked your request as solved. It is in History. Write here any time to start a new chat.');
+      if (DONE.includes(latest?.status)) {
+        endChat(latest, 'Quick Bites marked this chat as solved. It is in History. Write here any time to start a new chat.');
         return;
       }
-      if (latest.replies.length === ticket.replies.length) return;
+      if (!latest?.replies) return;
       setTicket(latest);
+      if (latest.replies.length === ticket.replies.length) return;
       setLines([{ from: 'bot', text: CONNECTED }, ...threadOf(latest)]);
     } catch {
       /* kept as it is; the next change or the fallback below retries */
@@ -180,7 +204,7 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
 
   const send = () => {
     const words = text.trim();
-    if (!words || busy) return;
+    if (!words || busy || !loaded) return;
     setText('');
     // Shown at once, like any messenger; ticked when the server has it.
     say({ from: 'me', text: words, sending: Boolean(ticket) });
@@ -225,7 +249,10 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
       endChat(closed, 'Glad it is sorted. This chat is in History.');
     });
 
-  const history = mine.filter(t => !OPEN.includes(t.status));
+  const history = mine.filter(t => DONE.includes(t.status));
+  // "Seen" under my last message once Operations has read past it.
+  const lastMine = ticket ? lines.reduce((at, l) => (l.from === 'me' && l.at ? l.at : at), '') : '';
+  const seen = Boolean(ticket?.staffReadAt && lastMine && ticket.staffReadAt >= lastMine);
 
   const bubble = (line: Line, i: number) => (
     <View key={i} style={[s.bubble, line.from === 'me' ? s.mine : s.theirs]}>
@@ -234,7 +261,7 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
       {line.at ? (
         <Text style={[s.meta, line.from === 'me' && { color: 'rgba(255,255,255,0.8)' }]}>
           {clock(line.at)}
-          {line.from === 'me' && ticket ? (line.sending ? '  ·  sending' : '  ✓') : ''}
+          {line.from === 'me' && ticket ? (line.sending ? '  ·  sending' : seen && line.at === lastMine ? '  ✓✓ Seen' : '  ✓') : ''}
         </Text>
       ) : null}
     </View>
@@ -334,6 +361,11 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
           </View>
         ) : null}
         {error ? <Text style={s.error}>{error}</Text> : null}
+        {!loaded && error ? (
+          <TouchableOpacity style={s.chip} onPress={() => setAttempt(n => n + 1)} accessibilityRole="button">
+            <Text style={s.chipText}>Retry</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
       <View style={s.inputRow}>
         <TextInput
@@ -345,7 +377,7 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
           multiline
           maxLength={2000}
         />
-        <TouchableOpacity style={[s.send, (!text.trim() || busy) && { opacity: 0.5 }]} onPress={send} disabled={!text.trim() || busy}>
+        <TouchableOpacity style={[s.send, (!text.trim() || busy || !loaded) && { opacity: 0.5 }]} onPress={send} disabled={!text.trim() || busy || !loaded}>
           {busy ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={s.sendText}>Send</Text>}
         </TouchableOpacity>
       </View>
