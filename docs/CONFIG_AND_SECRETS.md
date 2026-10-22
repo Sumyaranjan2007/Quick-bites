@@ -25,7 +25,7 @@ server). Local values: root `.env` (gitignored); names in `.env.example`. Most a
 | `OTP_TTL_MINUTES`, `OTP_MAX_ATTEMPTS`, `OTP_RESEND_COOLDOWN_SECONDS` | `config/env.ts:188-190` | defaults (TTL 5; live uses 10) |
 | `OTP_REVIEW_PHONE`, `OTP_REVIEW_CODE` | `config/env.ts:184-185` | store reviewers cannot sign in |
 | `OTP_FIXED_CODE`, `OTP_ALLOW_FIXED_IN_PRODUCTION` | `config/env.ts:166`, `:176` | fallback shared code; production refuses an obvious code |
-| `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID` | `otpDrivers.ts:91-92` | SMS codes (old app versions) |
+| `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID` | `otpDrivers.ts:91-92` | SMS codes. Today only when no email is involved (old app versions); `otpService.ts:163-198` sends email first. Template ID to use: `6ac278e24b79348aee059012` (MSG91 OTP template QUICK_BITES, sender QKBTES, Airtel DLT; not secret). Switch planned once the DLT template is approved (CLAUDE.md §7 item 5) |
 | `TWOFACTOR_API_KEY`, `TWOFACTOR_TEMPLATE` | `otpDrivers.ts:209-212` | unused; remove from Railway |
 | `PUBLIC_BASE_URL`, `RAILWAY_PUBLIC_DOMAIN` | `routes/authRouter.ts:721-722` | confirm-link host falls back to the live URL |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | `config/env.ts:103-112` | no online payment; **live still on test keys (2 Oct)** |

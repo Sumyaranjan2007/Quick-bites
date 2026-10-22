@@ -49,6 +49,16 @@ riders, customers, deletion requests `:702-747`), `platformRoutes` 3 (settings, 
 Permissions are defined in `modules/admin/permissions.ts`; types `AdminPermission` in
 `packages/shared-types/src/index.ts:1035`.
 
+### Round 6 and launch-readiness additions (22 Oct 2026)
+
+- Help chat: `POST /api/support/tickets` joins the person's open chat in this app (`supportRepository.openFor`, `reused: true`);
+  `POST /api/support/tickets/:id/read`, `POST /api/admin/support/tickets/:id/read`; `GET /api/admin/support/tickets?status=ACTIVE`
+  (unread first, `preview`, kitchen/rider, `counts.unread`); replies capped 20/min (429 `TOO_MANY_MESSAGES`), closed chat 409
+  `CHAT_CLOSED`; every ticket answer goes through `withChatFields` (`lastMessageAt/By`, `unreadForStaff/User`).
+- Razorpay webhook (`routes/paymentRouter.ts`): `refund.processed|failed` and `payment.dispute.*` → `modules/payments/gatewayEvents.ts`.
+- Temporary passwords expire after 7 days (`passwordTemporaryUntil`, `authRouter.ts` `/login`, set in `admin/peopleRoutes.ts`).
+- Per-IP limit 6,000/min (`middlewares/rateLimiter.ts`); `/health` `eventLoopDelayMs`.
+
 ## Modules (business logic)
 
 | Folder | Holds |

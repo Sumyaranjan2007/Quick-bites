@@ -8,7 +8,7 @@ Verified on 17 Oct 2026 at commit `3caa076`. Server paths under `apps/backend-ap
 
 | Piece | Where |
 |---|---|
-| Apps register their token on launch and after sign-in | `apps/<app>/src/lib/pushRegistration.ts` → `POST /api/devices` (`routes/deviceRouter.ts:35`); stored in `deviceTokens` (one row per installed app, with `role` and `platform`) |
+| Apps register their token on launch, after sign-in and (since 22 Oct, round 6) whenever the app comes back to the front (re-posted at most every 12 h; the permission window is asked at most once per app start) | `apps/<app>/src/lib/pushRegistration.ts` → `POST /api/devices` (`routes/deviceRouter.ts:35`); stored in `deviceTokens` (one row per installed app, with `role` and `platform`) |
 | Who gets what, which channel | `notifications/fcmDispatcher.ts` (`CHANNEL` ids `:56-72`, dispatcher instance `:737`) |
 | Android sends through FCM | `notifications/fcmTransport.ts` (needs `FCM_SERVICE_ACCOUNT_JSON`) |
 | iPhone sends through Apple (FCM rejects iPhone tokens) | `notifications/apnsTransport.ts` (`sendToApns` `:107`; needs `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, bundle `in.quickbites.app`) |
@@ -26,11 +26,23 @@ Verified on 17 Oct 2026 at commit `3caa076`. Server paths under `apps/backend-ap
 | `payments` | Partner `orderAlert.ts:91`, Rider `orderAlert.ts:77` | – | quiet |
 | `default` | none (system fallback) | – | – |
 
-`forApp(devices, channelId)` (`fcmDispatcher.ts:88-91`) sends a channel's push only to devices
-signed in with that channel's role, falling back to every device when none matches — so one
+`forApp(devices, channelId, appRole?)` (`fcmDispatcher.ts:88-91`) sends a channel's push only to devices
+signed in with that channel's role (or the payload's `appRole`, round 6: help-chat pushes ring only in the app the chat is in), falling back to every device when none matches — so one
 person with Customer and Partner apps gets kitchen alarms only in the Partner app. Renaming a
 channel in an app means changing `CHANNEL` here too. Channel sound/importance is fixed when the
 app first creates it; the custom alarm sound survives builds via `packages/config/expo-plugins/withKeptNotificationSound.js`.
+
+### Permission order and the permissions card (round 6, 22 Oct 2026)
+
+- Partner and Rider `orderAlert.ts` `prepareOrderAlerts()` create their channels FIRST, then ask permission (only if
+  `!granted && canAskAgain`): Android 13+ shows the window only once a channel exists. The Rider registers for pushes only
+  after `prepareOrderAlerts()` (`delivery-mobile/App.tsx`). Checked by `helpLiveChat`.
+- `src/components/AppPermissions.tsx` (identical in all four apps): each permission's real state (Allowed / Off / Blocked /
+  Muted channel) and one button; a blocked one shows our dialog and opens the app's notification page
+  (`android.settings.APP_NOTIFICATION_SETTINGS`) or the muted channel's page; phones never re-show their own window once
+  blocked. Placed in Customer Profile → Phone permissions, Partner Help Centre, Rider Profile, Operations Profile.
+- Help chat pushes: `SUPPORT_REPLY`, `SUPPORT_RESOLVED` (to the person, their app only), `ADMIN_SUPPORT_MESSAGE` (to staff
+  with `support.tickets.manage`, one per chat per 10 min), `ADMIN_CHARGEBACK`, `ADMIN_REFUND_STUCK` from a failed Razorpay refund.
 
 ## Live tracking: rider GPS → server → customer map
 

@@ -14,6 +14,34 @@ each step unblocks the next.
 
 ## Part 0 — Your list for the Play Store launch (5 October 2026)
 
+### 000. Today's list (22 October 2026) — newest first
+
+1. **Test build 47** (all four apps, `build/apk/`, archive `quick-bites-release-archive/v47-live-help-permissions-location-2026-10-22/`):
+   help chat in Customer, Partner and Rider apps with Operations replying (both sides update by themselves; close the app,
+   sign out and in — the chat is still there; Resolve moves it to History); "Phone permissions" in each profile; a brand-new
+   customer account sees the 3-step location guide once; pinch-zoom on the full-screen live map stays where you put it;
+   a fresh Partner/Rider install asks "Allow notifications?".
+2. **SMS sign-in codes (MSG91 + Airtel DLT)** — where it stands:
+   - Done: Airtel entity (PE) ID `1001628927790259595`; header `QKBTES` registered; PE-TM chain ACTIVE with MSG91
+     (TM ID `1302157225275643280`); MSG91 sender ID `QKBTES` mapped to the PE ID; MSG91 OTP template `QUICK_BITES`
+     (ID `6ac278e24b79348aee059012`).
+   - Submitted 22 Oct, waiting: Airtel content template "QUICK BITES LOGIN OTP" (Service Implicit, Food and Beverages,
+     variable Numeric): `Your OTP for signing in to [QUICK BITES] is {#numeric#}. It is valid for 10 minutes. Do not share this OTP with anyone.`
+   - When approved: copy its ID (starts 1007) → MSG91 → OTP → Templates → ⋮ QUICK_BITES → Edit → DLT Template ID → Save →
+     **Test DLT** with your number. If rejected, send the reason (MSG91 suggests trying once as Service Explicit).
+   - Then tell the builder: a small server change sends phone codes by SMS (email as backup); then on Railway
+     `MSG91_AUTH_KEY` (from MSG91, never in chat), `MSG91_TEMPLATE_ID=6ac278e24b79348aee059012`, `OTP_PROVIDER=msg91` → Deploy.
+   - Why: Brevo's free plan sends 300 emails a day; launch-day sign-ups would stop after 300.
+3. **Razorpay → Settings → Webhooks** → edit the existing webhook → also tick `refund.processed`, `refund.failed`,
+   `payment.dispute.created`, `payment.dispute.won`, `payment.dispute.lost`, `payment.dispute.closed`. Failed refunds and
+   chargebacks then reach Operations.
+4. **Read and decide** `docs/plans/launch-readiness-2026-10-22.md` (load measured, safe updates, attacks, payments):
+   capacity fixes before launch; a Railway **staging** environment; Cloudflare in front; a second sign-in step for staff;
+   rules against fake cash orders.
+5. **Railway settings to the dashboard before 15 Nov** (Railway stops reading `railway.json` on 1 Dec): `docs/ops/OPS_GUIDE.md` §2.1a.
+6. Still open from before: Razorpay **live** keys; rotate Groq key, `ADMIN_PASSWORD`, MSG91 OTP-widget token;
+   `ALLOW_PLATFORM_RESET=false`; back up the keystore folder off this PC.
+
 ### 00. Play Console — what is left (17 October 2026) — do these first
 
 Customer is with Google for review; Partner and Rider are uploaded. Google's reviewers sign in
@@ -75,7 +103,7 @@ kept so riders and restaurants can call. A and J below are no longer needed.
 Google Play / Apple reviewers: give them the reviewer phone number (any email)
 and `OTP_REVIEW_CODE` — no email is sent for that number.
 
-### A. Make SMS sign-in codes arrive (no longer needed — see 0)
+### A. Make SMS sign-in codes arrive (old, Jio portal; superseded by 000 item 2 — Airtel DLT, 22 Oct)
 
 Right now customers ask for a code, MSG91 accepts it, and **no SMS arrives**.
 MSG91's own log says **"DLT Template id not found"**: your QUICK_BITES template

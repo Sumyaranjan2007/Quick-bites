@@ -2,7 +2,7 @@
 
 > **Where files live and where new files go:** [`docs/FOLDER_MAP.md`](docs/FOLDER_MAP.md) — read it before creating, moving or saving any file. Index of all maps: [`docs/README.md`](docs/README.md).
 
-**Last updated:** 21 October 2026 (round 5: shortest Google motorbike route for fee/pay/time/map, honest arrival time, kitchen ticket printed like a POS bill — `docs/plans/round5-route-time-ticket-2026-10-21.md`; the owner is the tester now · **A new session starts at `docs/plans/master-plan-2026-10-18.md` → START HERE** (newest block first) · earlier, 20 Oct: everything built through Stage H; the Tester ↔ builder loop is on round 2 (build 39, findings R2-1…R2-22, part 1 fixed in `080437a`); APK + AAB are built from the short-path worktree `D:\qbx`; dev tools live in `D:\dev-data`; owner 20 Oct: do not act on a Tester report until the owner says so · earlier, 19 Oct: Owner uploaded/tested Build 36 AABs to Play Console Closed Testing; instructions for Claude: keep building and working without stopping · earlier: Jury round 1 build 36 reviews, APK build 36, dev tools moved to D:\dev-data · earlier: 18 October 2026 B4 one-rider dispatch + B3 honest ETA; B8 help chat, B10 kitchen ticket, B7 person record and Stage F L2/L4/R6) · **Last release:** versionCode 46 (1.4.0), all four apps, built 21 Oct (round 5; earlier: 36 on 19 Oct) (Customer `in.quickbites.app`, Partner `com.quickbite.partner`, Rider `in.quickbite.rider`, Operations `com.quickbite.admin`) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
+**Last updated:** 22 October 2026 (round 6 BUILT and live, build 47 for the owner to test: help chat stays open until solved (WhatsApp-like, Operations chat screen), notifications fixed in Partner/Rider + a "Phone permissions" card in every app, one-time location guide for new customers, Android zoom fix on the live map — `docs/plans/round6-help-chat-notifications-location-2026-10-22.md`; **launch readiness** (load measured: the store re-checks every document on each money write and chokes ~2–3 months after launch; safe updates; attacks; every payment state) — `docs/plans/launch-readiness-2026-10-22.md`, first server fixes live (refund failed/processed + chargeback webhooks, per-IP 6,000/min, event-loop delay on /health), the rest waits for the owner's discussion; **SMS sign-in codes**: MSG91 + Airtel DLT nearly ready, see §7 item 5 · earlier, 21 Oct: round 5: shortest Google motorbike route for fee/pay/time/map, honest arrival time, kitchen ticket printed like a POS bill — `docs/plans/round5-route-time-ticket-2026-10-21.md`; the owner is the tester now · **A new session starts at `docs/plans/master-plan-2026-10-18.md` → START HERE** (newest block first) · earlier, 20 Oct: everything built through Stage H; the Tester ↔ builder loop is on round 2 (build 39, findings R2-1…R2-22, part 1 fixed in `080437a`); APK + AAB are built from the short-path worktree `D:\qbx`; dev tools live in `D:\dev-data`; owner 20 Oct: do not act on a Tester report until the owner says so · earlier, 19 Oct: Owner uploaded/tested Build 36 AABs to Play Console Closed Testing; instructions for Claude: keep building and working without stopping · earlier: Jury round 1 build 36 reviews, APK build 36, dev tools moved to D:\dev-data · earlier: 18 October 2026 B4 one-rider dispatch + B3 honest ETA; B8 help chat, B10 kitchen ticket, B7 person record and Stage F L2/L4/R6) · **Last release:** versionCode 47 (1.4.0), all four apps, built 22 Oct (round 6; earlier: 46 on 21 Oct, 36 on 19 Oct) (Customer `in.quickbites.app`, Partner `com.quickbite.partner`, Rider `in.quickbite.rider`, Operations `com.quickbite.admin`) · **Live:** whatever is on `main` (every push deploys; check `/health` uptime after a push)
 
 This file is the single starting point. Claude Code loads it automatically. Read it, then
 `OWNER_ACTIONS.md` Part 0 (what is waiting on the owner) and the top three entries of
@@ -89,13 +89,13 @@ clearly first, then do the work** (they complained when an answer was buried).
 | **`D:\dev-data\`** (19 Oct 2026, C: was full) | Android SDK, emulators, Gradle and npm caches, temp, and the keystore vault. User environment variables `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `ANDROID_AVD_HOME`, `GRADLE_USER_HOME`, `QB_KEYSTORE_VAULT` point here. **Build APKs from the short-path worktree `D:\qbx`** (New Architecture paths pass 260 characters in the project folder): `docs/FOLDER_MAP.md`. Keep nothing new on C:. |
 | **`D:\my all projects\quick-bites-release-archive\`** | Archived signed APKs per release. |
 | **Expo (expo.dev) → project → Environment variables** | `MAPBOX_PUBLIC_TOKEN`, `MAPBOX_DOWNLOAD_TOKEN` (secret) for iPhone cloud builds (EAS). Not needed for Android. |
-| **The owner's own accounts** | Railway, GitHub, MSG91, the DLT portal (Jio TrueConnect), Razorpay, Google Play Console, Firebase, Mapbox, Groq, Apple Developer / App Store Connect, Expo. Only the owner signs in to these. |
+| **The owner's own accounts** | Railway, GitHub, MSG91, the DLT portal (**Airtel** DLT, used since Oct; Jio TrueConnect drafts are old), Razorpay, Google Play Console, Firebase, Mapbox, Groq, Apple Developer / App Store Connect, Expo. Only the owner signs in to these. |
 
 ### Production variables
 
 Every variable by **name**, where the code reads it and what breaks without it:
 **`docs/CONFIG_AND_SECRETS.md`**. Live state to remember: `OTP_PROVIDER=email` (Brevo) since
-11 Oct; `OTP_TTL_MINUTES=10`; Razorpay live still on `rzp_test_` keys (2 Oct); APNs set 13 Oct;
+11 Oct (Brevo's free plan: 300 emails a day, a launch-day limit; codes are moving to SMS, §7 item 5); `OTP_TTL_MINUTES=10`; Razorpay live still on `rzp_test_` keys (2 Oct); APNs set 13 Oct;
 `ALLOW_PLATFORM_RESET` must be false/absent at launch; `TWOFACTOR_*` unused (remove).
 
 Build-time (local `.env`, baked into APKs on purpose, protected by package + SHA-1
@@ -164,7 +164,7 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 ## 5. Daily commands
 
 ```bash
-node scripts/run-backend-tests.mjs                 # THE gate: 93 backend suites, ~110 s, takes a machine-wide lock
+node scripts/run-backend-tests.mjs                 # THE gate: 112 backend suites, ~4 min, takes a machine-wide lock
 node scripts/check-secrets.mjs                     # no secrets in tracked files
 npx turbo typecheck                                # all workspaces
 node scripts/check-i18n.mjs ; node scripts/check-apk-secrets.mjs
@@ -247,8 +247,21 @@ Waiting on the owner (details in `OWNER_ACTIONS.md` Part 0, item 00):
 3. Razorpay live keys before production; `ALLOW_PLATFORM_RESET=false`; new `ADMIN_PASSWORD`;
    rotate the Groq key; back up the keystore folder off this PC.
 4. **D-U-N-S number**, then switch the account to Organization.
-5. **SMS** (only for old app versions): MSG91 "DLT Template id not found"; DLT drafts in
-   `build/play-store/DLT/` (gitignored).
+5. **SMS sign-in codes (22 Oct, in progress, owner):** Airtel DLT: entity (PE) ID `1001628927790259595`, header
+   `QKBTES` registered (non-promotional, permanent), PE-TM chain ACTIVE with MSG91's TM ID `1302157225275643280`.
+   MSG91: sender ID `QKBTES` mapped to that PE ID; OTP template `QUICK_BITES` (MSG91 template ID
+   `6ac278e24b79348aee059012`, not secret) text "Your OTP for signing in to [QUICK BITES] is ##OTP##. It is valid for 10
+   minutes. Do not share this OTP with anyone." The DLT content template (Service Implicit, Food and Beverages, same text
+   with `{#numeric#}`, name "QUICK BITES LOGIN OTP") was **submitted 22 Oct, awaiting approval**. Next: paste its 1007…
+   ID into MSG91 → OTP → Templates → QUICK_BITES → Test DLT; then **code change (not built yet, owner to confirm)**:
+   today the server sends codes by EMAIL whenever the account/app has an email (`modules/auth/otpService.ts:163-198`),
+   so `OTP_PROVIDER=msg91` alone keeps current apps on email; send phone codes by SMS when MSG91 is configured, email as
+   fallback; then Railway `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID`, `OTP_PROVIDER=msg91`. Owner said: no daily email cap.
+8. **Razorpay dashboard → Webhooks:** tick `refund.processed`, `refund.failed`, `payment.dispute.*` on the existing
+   webhook (server handles them since 22 Oct, `modules/payments/gatewayEvents.ts`).
+9. **Launch readiness decisions** (`docs/plans/launch-readiness-2026-10-22.md` §4): capacity fixes C1–C3 before launch,
+   staging environment, Cloudflare, staff second factor, fake-COD rules. Claude Security's real scan needs the Workflow
+   tool (not available in the 22 Oct session; enable "Dynamic workflows" in `/config` if offered).
 6. A CA: GST collected without a GSTIN, and record retention (5 years in the Privacy Policy vs
    72 months under GST).
 7. Firebase: keep the old `com.quickbite.app` / `com.quickbite.rider` / `in.quickbites.rider`
@@ -344,7 +357,11 @@ tunnel, seeded `pass123` accounts, wallets and Google Maps — all since removed
 
 **Main skills (owner, 18 Oct 2026): every coding session on this project invokes `seniordev` and
 `cleancode` first** (Skill tool) and follows them: shortest working diff, reuse before writing,
-surgical changes, one runnable check per non-trivial logic.
+surgical changes, one runnable check per non-trivial logic. **Since 22 Oct also
+`agent-skills:using-agent-skills`** (addyosmani). Added 22 Oct (user level): plugins `humanizer`,
+`hyperframes` (video), `nateherk-design` (Scrollcraft), `claude-security`, the
+`claude-plugins-official` marketplace (for new projects); 44 `gws-*` Google Workspace skills +
+`gws` CLI; `playwright-cli` skill + CLI; Apify MCP (`https://mcp.apify.com`, sign in once via /mcp).
 
 In `C:\Users\priya\.claude\skills\`: `seniordev` (minimal-code "lazy senior dev", from
 Ponytail), `ui-ux-designer` (design library + React Native UI rules, from UI/UX Pro Max),
