@@ -50,6 +50,9 @@ export const isPublicSiteHost = (host?: string) => /(^|\.)quickbitesresturants\.
 
 webApps.use('/admin', (req, res, next) => {
   if (isPublicSiteHost(req.headers.host)) return res.status(404).type('text/plain').send('Not found');
+  // With a secret address set, the console's page file is not served here either: the static
+  // files below would hand out /admin/index.html and undo the secret (22 Oct 2026). Bundles stay.
+  if (config.ADMIN_WEB_PATH && /\.html?$/i.test(req.path)) return res.status(404).type('text/plain').send('Not found');
   next();
 });
 

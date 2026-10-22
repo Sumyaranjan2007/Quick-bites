@@ -165,6 +165,17 @@ try {
       assert.equal(secret.status, 200);
       assert.match(String(secret.headers.get('x-robots-tag')), /noindex/);
     });
+    // The side door (22 Oct 2026): the page FILE must not be handed out by the static server either.
+    const sideDoor = await realFetch(`http://127.0.0.1:${PORT}/admin/index.html`);
+    await sideDoor.text(); // read, or the open connection keeps the server from closing
+    check('/admin/index.html does not serve the console page either', () => assert.equal(sideDoor.status, 404));
+    const bundleDir = path.resolve('web/admin/_expo/static/js/web');
+    const bundle = fs.existsSync(bundleDir) ? fs.readdirSync(bundleDir).find(f => f.endsWith('.js')) : undefined;
+    if (bundle) {
+      const code = await realFetch(`http://127.0.0.1:${PORT}/admin/_expo/static/js/web/${bundle}`);
+      await code.arrayBuffer();
+      check('...while its code bundle still loads for the secret address', () => assert.equal(code.status, 200));
+    }
   } else {
     console.log('[SKIP] web/admin not built here: run scripts/build-web.mjs to check the secret address');
   }

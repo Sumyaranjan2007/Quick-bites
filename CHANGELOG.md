@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ---
 
+## [Unreleased] 22 Oct 2026: Operations website only at its secret address
+
+**For the owner:** with the secret Operations address set (`ADMIN_WEB_PATH`), `/admin` already said "not found", but `/admin/index.html` still opened the Operations sign-in page. Now that answers "not found" too; only the secret address opens it. Staff passwords always guarded it; this keeps the address itself hidden. The Partner website is unchanged.
+
+- `routes/webApps.ts`: the `/admin` guard refuses `.html` files when `ADMIN_WEB_PATH` is set (code bundles still load for the secret address). Check in `aiImages` (side door 404, bundle 200); guard removed → fails.
+
+---
+
 ## [Unreleased] 22 Oct 2026: Launch readiness, first safe fixes (server only)
 
 **For the owner:** four fixes from `docs/plans/launch-readiness-2026-10-22.md` that change nothing in any app. (1) When Razorpay **fails a refund after accepting it** (a closed card, a bank refusing it), the refund case is marked and Operations gets "A refund could not be sent" to settle it by hand; before, the customer was told "refunded" and nobody knew. A refund that completes is marked done. (2) A **chargeback** (a customer's bank disputing a payment) is marked on its order with the deadline and Operations is told, again when it is won or lost. (3) The per-network request limit is 6,000 a minute (was 1,500), so a busy Jio/Airtel tower full of customers is never refused; each account keeps its own limit. (4) `/health` shows how long work waits for the server (`eventLoopDelayMs`), the first sign of slowness. **Only you:** in the Razorpay dashboard → Webhooks, also tick `refund.processed`, `refund.failed` and the `payment.dispute.*` events on the existing webhook. Not done on purpose: the daily cap on sign-in emails (codes move to SMS), and the big capacity changes (money saving, indexes, old orders out of memory) wait for our discussion.
