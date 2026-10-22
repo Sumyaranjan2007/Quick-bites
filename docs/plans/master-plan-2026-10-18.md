@@ -10,6 +10,7 @@
 > and a "Phone permissions" card in every app, a one-time location guide for new customers, the Android zoom snap-back on
 > the live tracking map, bugs, a manual security review (the Claude Security scan could not run: no Workflow tool), and the
 > old leftovers re-checked against the code. Standalone plan: **[`round6-help-chat-notifications-location-2026-10-22.md`](round6-help-chat-notifications-location-2026-10-22.md)**.
+> **Build 47** (APK + AAB, all four apps, 22 Oct) archived in `quick-bites-release-archive/v47-live-help-permissions-location-2026-10-22/`, for the owner to test. Launch readiness (load, updates, attacks, payments): [`launch-readiness-2026-10-22.md`](launch-readiness-2026-10-22.md), first safe server fixes built; the rest waits for the owner's discussion.
 >
 > ### ▶▶▶ ROUND 5 — 21 Oct 2026 (overrides the blocks below where they differ)
 >
