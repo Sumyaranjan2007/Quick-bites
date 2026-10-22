@@ -4,6 +4,16 @@ import { placesStatus } from '../modules/places/placesService.ts';
 import { routingStatus } from '../modules/places/routingService.ts';
 import { pushIsConfigured } from '../notifications/fcmTransport.ts';
 import { apnsIsConfigured } from '../notifications/apnsTransport.ts';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+
+/*
+ * How long work waits for the one JavaScript thread (launch readiness C5): the first
+ * sign of the server choking, seen here before customers feel it. Over the last
+ * 5 minutes or less (the window restarts every 5 minutes).
+ */
+const loopDelay = monitorEventLoopDelay({ resolution: 20 });
+loopDelay.enable();
+setInterval(() => loopDelay.reset(), 5 * 60_000).unref();
 
 /**
  * The provider's own refusal text stays in the server log, not on this page,
@@ -23,6 +33,7 @@ export function getHealth(req: Request, res: Response): void {
     status: 'HEALTHY',
     timestamp: new Date().toISOString(),
     uptimeSeconds,
+    eventLoopDelayMs: { p50: Math.round(loopDelay.percentile(50) / 1e6), p99: Math.round(loopDelay.percentile(99) / 1e6), max: Math.round(loopDelay.max / 1e6) },
     environment: config.NODE_ENV,
     demoMode: config.DEMO_MODE,
     services: {

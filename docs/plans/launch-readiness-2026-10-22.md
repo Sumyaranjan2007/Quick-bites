@@ -3,7 +3,7 @@
 > **Where files live:** [`docs/FOLDER_MAP.md`](../FOLDER_MAP.md). Hosting facts: [`docs/ops/OPS_GUIDE.md`](../ops/OPS_GUIDE.md).
 > Companion to the feature plan [`round6-help-chat-notifications-location-2026-10-22.md`](round6-help-chat-notifications-location-2026-10-22.md).
 
-**Status:** research and discussion, **nothing built**. Every number below was measured on 22 Oct 2026 on this PC
+**Status:** research and discussion. **Built 22 Oct:** C4 (push history capped, round 6), C5 (`eventLoopDelayMs` on `/health`), C6 (per-IP 6,000/min), S6 (refund processed/failed webhooks), S7 (chargebacks). Owner: tick those webhook events in Razorpay. S5 dropped by the owner (codes move to SMS). The rest waits for the discussion. Every number below was measured on 22 Oct 2026 on this PC
 (commit `bf86b17`) by running the real server code, or read from the code at the line given. Railway's machines
 are roughly comparable per core; treat the numbers as ±50 %, the trend as exact.
 

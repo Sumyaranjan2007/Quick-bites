@@ -68,14 +68,15 @@ it('Anonymous requests still have a per-address limit', () => {
 });
 
 resetRequestRateLimit();
-const floodTokens = Array.from({ length: 40 }, (_, i) => token(`usr_flood_${i}`));
+// 6,000 a minute per address (launch readiness C6: a busy carrier address); 160 accounts so no account's own 100 runs out first.
+const floodTokens = Array.from({ length: 160 }, (_, i) => token(`usr_flood_${i}`));
 let floodOk = 0;
 const floodStarted = Date.now();
-for (let i = 0; i < 2000; i++) if (hit('203.0.113.9', floodTokens[i % 40])) floodOk++;
-// The address bucket refills at 25 a second while the loop runs.
-const refill = Math.ceil(((Date.now() - floodStarted) / 1000) * 25) + 1;
+for (let i = 0; i < 8000; i++) if (hit('203.0.113.9', floodTokens[i % 160])) floodOk++;
+// The address bucket refills at 100 a second while the loop runs.
+const refill = Math.ceil(((Date.now() - floodStarted) / 1000) * 100) + 1;
 it('and one address cannot flood the server with many accounts', () => {
-  assert.ok(floodOk >= 1500 && floodOk <= 1500 + refill, `${floodOk} requests got through from one address`);
+  assert.ok(floodOk >= 6000 && floodOk <= 6000 + refill, `${floodOk} requests got through from one address`);
 });
 
 resetRequestRateLimit();

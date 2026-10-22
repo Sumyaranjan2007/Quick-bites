@@ -668,6 +668,27 @@ export function notifyAdminsRefundStuck(input: {
   });
 }
 
+/** A cardholder's bank disputed a payment (launch readiness S7): it has a deadline to answer. */
+export function notifyAdminsChargeback(input: {
+  disputeId: string;
+  orderNumber?: string;
+  status: string;
+  amountLabel: string;
+  respondBy?: string;
+}): Promise<string[]> {
+  const when = input.respondBy ? ` Answer by ${new Date(input.respondBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} in the Razorpay dashboard.` : '';
+  return notifyAdmins({
+    permission: 'finance.refunds.manage',
+    title: input.status === 'CREATED' ? 'A payment was disputed (chargeback)' : `Chargeback ${input.status.toLowerCase().replace(/_/g, ' ')}`,
+    body: `${input.amountLabel}${input.orderNumber ? ` on #${input.orderNumber}` : ''}.${when}`,
+    channel: ADMIN_CHANNEL.ATTENTION,
+    open: 'refunds',
+    subject: `${input.disputeId}:${input.status}`,
+    type: 'ADMIN_CHARGEBACK',
+    category: 'MONEY'
+  });
+}
+
 /**
  * Somebody new has signed up and is waiting to be let in.
  *

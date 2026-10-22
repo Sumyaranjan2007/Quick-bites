@@ -42,6 +42,7 @@ const SUITES = [
   'helpHistory',
   'helpLiveChat',
   'locationGuide',
+  'gatewayEvents',
   'aiImages',
   'db',
   'orders',

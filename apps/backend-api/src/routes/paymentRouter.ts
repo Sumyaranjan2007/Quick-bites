@@ -31,6 +31,7 @@ import { validate } from '../middlewares/validate.ts';
 import { AppError } from '../utils/AppError.ts';
 import { razorpayAdapter, isRazorpayConfigured } from '../modules/payments/razorpayAdapter.ts';
 import { bookCapture } from '../modules/payments/capture.ts';
+import { recordGatewayRefundOutcome, recordDispute } from '../modules/payments/gatewayEvents.ts';
 import { orderRepository } from '../db/repositories/orderRepository.ts';
 import { orderService } from '../modules/orders/orderService.ts';
 import { memoryStore, triggerAutoSave } from '../db/client.ts';
@@ -239,6 +240,12 @@ paymentRouter.post('/webhook', async (req, res, next) => {
           await settleLateDoorPayment(order, qrPayment?.id, Number(qrPayment?.amount) || 0);
         }
       }
+    } else if (eventType === 'refund.processed' || eventType === 'refund.failed') {
+      // A refund Razorpay accepted earlier finished or failed (launch readiness S6).
+      recordGatewayRefundOutcome(payload?.payload?.refund?.entity, eventType === 'refund.failed');
+    } else if (eventType.startsWith('payment.dispute.')) {
+      // A chargeback opened or moved on (launch readiness S7).
+      recordDispute(eventType, payload?.payload?.dispute?.entity);
     } else if (eventType === 'payment.failed' && quickBitesOrderId) {
       console.log(JSON.stringify({
         level: 'WARN',

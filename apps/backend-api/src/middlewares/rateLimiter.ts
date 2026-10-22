@@ -149,8 +149,10 @@ export function resetRequestRateLimit(): void {
  */
 const USER_CAPACITY = CAPACITY;
 const USER_REFILL = REFILL_RATE;
-const ADDRESS_CAPACITY = 1500; // per minute, per IP, all traffic
-const ADDRESS_REFILL = 1500 / 60;
+// Per minute, per IP, all traffic. 6,000 (was 1,500, launch readiness C6): a busy Jio/Airtel
+// tower puts hundreds of phones behind one address; the per-account bucket is the real guard.
+const ADDRESS_CAPACITY = 6000;
+const ADDRESS_REFILL = 6000 / 60;
 const ANON_CAPACITY = 300; // per minute, per IP, requests with no valid token
 const ANON_REFILL = 300 / 60;
 const userBuckets = new Map<string, TokenBucket>();
