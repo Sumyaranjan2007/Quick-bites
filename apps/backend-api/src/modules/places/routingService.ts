@@ -101,7 +101,8 @@ export interface RoadDistance {
  */
 export function estimateByRoad(from: Coordinates, to: Coordinates): RoadDistance {
   const straight = calculateDistanceKm(from.latitude, from.longitude, to.latitude, to.longitude);
-  const distanceKm = round2(straight * config.ROAD_DISTANCE_FACTOR);
+  // Never above the fair-distance cap (owner, 23 Oct 2026): a Google outage must not bill more than Google would.
+  const distanceKm = round2(straight * Math.min(config.ROAD_DISTANCE_FACTOR, config.ROAD_DETOUR_CAP));
   return {
     distanceKm,
     durationMinutes: Math.max(1, Math.ceil((distanceKm / config.DELIVERY_SPEED_KMPH) * 60)),

@@ -155,6 +155,8 @@ await (async () => {
       `expected the ~5km Cubbon-Koramangala gap to scale up, got ${estimate.distanceKm}`
     );
     assert.ok(estimate.distanceKm <= 5 * 3, 'the factor is clamped at 3');
+    const straight = calculateDistanceKm(A.latitude, A.longitude, B.latitude, B.longitude);
+    assert.ok(estimate.distanceKm <= Math.round(straight * config.ROAD_DETOUR_CAP * 100) / 100, 'the estimate bills above the fair-distance cap');
   });
 
   /* ------------------------------------------------------------------ *

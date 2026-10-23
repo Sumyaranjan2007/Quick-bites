@@ -130,7 +130,8 @@ MSG91 OTP-widget token. The MSG91 Authkey now on Railway was never posted in cha
 - **Fair distance** (owner, 23 Oct 2026): the billed road distance is never more than **1.25 × the straight line**
   between the kitchen's and the customer's pins (800 m → at most 1 km): Google's shortest legal route U-turns on
   Harohalli's divided roads. One number, `ROAD_DETOUR_CAP` on Railway (5 = off); the owner raises the per-km rate
-  instead. `fairDistance` in `modules/places/routingService.ts` (fee, rider pay, time, cash limit, pickup pay).
+  instead. `fairDistance` in `modules/places/routingService.ts` (fee, rider pay, time, cash limit, pickup pay); the
+  straight-line estimate (Google down, the restaurant list's km) never exceeds the same cap.
 - **New-kitchen rates** (owner, 23 Oct 2026): every kitchen that registers starts at **10 % food markup, ₹5 platform
   fee, 2 % commission, 5 % GST on food**, everything else 0 (`NEW_KITCHEN_CHARGES`, `restaurantCharges.ts`); kitchens
   registered before keep their rates; all editable in Operations → Money → Inflation → Per restaurant.
