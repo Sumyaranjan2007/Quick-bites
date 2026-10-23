@@ -156,7 +156,7 @@
     "android": {
       "package": "in.quickbites.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 47,
+      "versionCode": 48,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
