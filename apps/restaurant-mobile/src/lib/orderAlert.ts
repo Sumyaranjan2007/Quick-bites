@@ -36,7 +36,13 @@ import { Platform, Vibration } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 
-const NEW_ORDER_CHANNEL = 'kitchen-orders';
+/*
+ * Rings on the ALARM volume (owner, 23 Oct 2026: the sound in every scenario): heard with the phone on silent or
+ * vibrate, and through Do Not Disturb, which lets alarms through. A new id because Android never changes a channel's
+ * sound once it exists; builds up to 47 used `kitchen-orders` (the notification volume, silent on a muted phone).
+ */
+const NEW_ORDER_CHANNEL = 'kitchen-alarm';
+const OLD_ORDER_CHANNEL = 'kitchen-orders';
 
 /** Rings until acknowledged rather than once and gone. */
 const MAX_LOOPS = 10;
@@ -78,12 +84,18 @@ export async function prepareOrderAlerts(): Promise<void> {
         name: 'New orders',
         importance: Notifications.AndroidImportance.MAX,
         sound: 'new_order.wav',
+        audioAttributes: {
+          usage: Notifications.AndroidAudioUsage.ALARM,
+          contentType: Notifications.AndroidAudioContentType.SONIFICATION
+        },
         vibrationPattern: VIBRATION_PATTERN,
         lightColor: '#F5A623',
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         enableVibrate: true,
         bypassDnd: false
       });
+      // One "New orders" in the phone's settings: the server sends this build's pushes to the alarm channel.
+      await Notifications.deleteNotificationChannelAsync(OLD_ORDER_CHANNEL).catch(() => undefined);
       // R2: payouts and other money news. Quiet and normal importance, so a
       // payment never sounds like an order the rider or kitchen must rush to.
       // The id matches CHANNEL.PAYMENTS in the server's fcmDispatcher.

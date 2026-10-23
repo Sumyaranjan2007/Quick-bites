@@ -107,6 +107,9 @@ supportRouter.post('/tickets', validate({ body: TicketSchema }), async (req, res
     const asker = await askerFor(req.user!);
     let order = null;
 
+    // Builds 42-47 sent the help TOPIC as the order ("PAYOUTS"), so every "Talk to a person" after a topic failed with
+    // "That order could not be found" (round 7 B1). A topic id is never an order id; drop once no phone runs those builds.
+    if (topicsFor(asker.audience).some(t => t.id === req.body.orderId)) req.body.orderId = undefined;
     if (req.body.orderId) {
       order = await orderRepository.findById(req.body.orderId);
       if (!order) throw new AppError('That order could not be found.', 404, 'ORDER_NOT_FOUND');

@@ -17,6 +17,7 @@ import { resetAuthRateLimit, resetRequestRateLimit } from '../middlewares/rateLi
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
 import { riderRepository } from '../db/repositories/riderRepository.ts';
 import { kycRepository } from '../db/repositories/kycRepository.ts';
+import { effectiveCharges } from '../modules/payments/restaurantCharges.ts';
 
 console.log('====================================================');
 console.log('     RUNNING ONBOARDING & APPROVAL TESTS            ');
@@ -125,6 +126,14 @@ async function run() {
 
   const created = newRestaurantId ? await restaurantRepository.findById(newRestaurantId) : null;
   check('The restaurant exists but is pending', created?.status === 'PENDING_APPROVAL', String(created?.status));
+
+  // Owner, 23 Oct 2026: every new kitchen starts at 10% food markup, Rs 5 platform fee, 2% commission, 5% GST on food.
+  const preset = newRestaurantId ? effectiveCharges(newRestaurantId) : null;
+  check('and starts with the new-kitchen rates (10% markup, Rs 5 fee, 2% commission, 5% GST, nothing else)',
+    preset?.foodMarkupPercent === 10 && preset?.platformFee === 5 && preset?.commissionPercent === 2 &&
+      preset?.gstFoodPercent === 5 && preset?.packagingMarkup === 0 && preset?.extraCharge === 0 &&
+      preset?.platformGstPercent === null && preset?.partnerFeeAdjusted === false,
+    JSON.stringify(preset));
 
   // ------------------------------------------------------------------
   console.log('\n--- A pending restaurant cannot trade ---');

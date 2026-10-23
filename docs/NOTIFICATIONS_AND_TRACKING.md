@@ -20,11 +20,14 @@ Verified on 17 Oct 2026 at commit `3caa076`. Server paths under `apps/backend-ap
 
 | Channel id | Created by | Server role (`forApp`) | Sound |
 |---|---|---|---|
-| `kitchen-orders` | `apps/restaurant-mobile/src/lib/orderAlert.ts:39,78` | `restaurant_owner` | MAX importance, `new_order.wav` |
+| `kitchen-alarm` | `apps/restaurant-mobile/src/lib/orderAlert.ts` (build 48+) | `restaurant_owner` | MAX importance, `new_order.wav` on the ALARM volume (silent/vibrate/DND); deletes `kitchen-orders` |
+| `kitchen-orders` | Partner builds up to 47 | `restaurant_owner` | MAX importance, `new_order.wav`, notification volume; the server sends it only to phones whose registration has no build ≥ 48 (`channelFor`, `buildOf` in `fcmDispatcher.ts`) |
 | `new-orders` | `apps/delivery-mobile/src/lib/orderAlert.ts:20,64` | `rider` | looping alarm |
 | `order-updates` | `apps/customer-mobile/src/lib/pushRegistration.ts:44` | `customer` | high importance |
 | `payments` | Partner `orderAlert.ts:91`, Rider `orderAlert.ts:77` | – | quiet |
 | `default` | none (system fallback) | – | – |
+
+**Kitchen re-ring (23 Oct 2026):** while an order is ORDER_PLACED the sweeper (`ringKitchenAgain`, `orderSweeper.ts`) sends `remindRestaurantNewOrder` once a minute, tag `kitchen:<orderId>` (replaces the order's notification and rings again), until accepted or auto-cancelled. The Partner website shows "Click here to turn on the new-order sound" until the page has been clicked (`useSoundLocked.web.ts`).
 
 `forApp(devices, channelId, appRole?)` (`fcmDispatcher.ts:88-91`) sends a channel's push only to devices
 signed in with that channel's role (or the payload's `appRole`, round 6: help-chat pushes ring only in the app the chat is in), falling back to every device when none matches — so one

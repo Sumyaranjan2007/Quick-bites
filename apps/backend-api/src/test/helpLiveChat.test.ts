@@ -101,6 +101,13 @@ try {
     assert.ok(partnerChat?.id);
     assert.notEqual(partnerChat.id, customerAppChat.id);
   });
+  // Builds 42-47 sent the help topic as the order (round 7 B1): "That order could not be found" for every partner.
+  const topicAsOrder = await raise(partner, 'I need help with: Payouts. When am I paid?', { helpTopics: ['PAYOUTS'], orderId: 'PAYOUTS' });
+  const notMine = await raise(partner, 'About this order please.', { orderId: 'ord_somebody_else_entirely' });
+  check('A help topic sent as the order is ignored, not refused; a real unknown order still is', () => {
+    assert.equal(topicAsOrder.status, 200, JSON.stringify(topicAsOrder.json).slice(0, 200));
+    assert.equal(notMine.json?.error?.code, 'ORDER_NOT_FOUND');
+  });
 
   console.log('\n-- Seen, both ways');
   const iRead = await api(`/support/tickets/${first.id}/read`, { method: 'POST' }, customer);
@@ -183,6 +190,10 @@ try {
     assert.ok(!/RESUME_MS/.test(code));
     assert.ok(/DONE\.includes\(/.test(code));
     assert.ok(!/tickets\(\)\.catch\(\(\) => \[\]/.test(code));
+  });
+  check('"Talk to a person" sends the order Help was opened about, never the help topic (round 7 B1)', () => {
+    assert.ok(!/const about = asked/.test(code));
+    assert.ok(/const topic = asked\[asked\.length - 1\]/.test(code));
   });
 
   console.log('\n-- Notifications ask after the channels exist; one permissions card; zoom stops following');

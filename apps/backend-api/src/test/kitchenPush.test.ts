@@ -33,6 +33,9 @@ import { createApp } from '../app.ts';
 import { seedDatabase } from '../db/seed.ts';
 import { fcmDispatcher } from '../notifications/fcmDispatcher.ts';
 import { restaurantRepository } from '../db/repositories/restaurantRepository.ts';
+import { orderRepository } from '../db/repositories/orderRepository.ts';
+import { sweepStaleOrders } from '../modules/orders/orderSweeper.ts';
+import { channelFor } from '../notifications/fcmDispatcher.ts';
 
 const PORT = 5209;
 const API = `http://127.0.0.1:${PORT}/api`;
@@ -199,6 +202,30 @@ try {
     total === undefined || !body.includes(String(total)),
     `body was: ${body}`);
   check('but it does say how big the order is', /\d+\s+items?/.test(body), body);
+
+  // ----------------------------------------------------------------
+  console.log('\n-- A closed app is rung again every minute until somebody accepts (owner, 23 Oct 2026)');
+
+  const createdAt = Date.parse((await orderRepository.findById(order.id))!.createdAt);
+  const reminders = () => fcmDispatcher.getSentNotifications().filter(n => n.title === 'New order waiting' && n.orderId === order.id);
+  fcmDispatcher.clearHistory();
+  await sweepStaleOrders(new Date(createdAt + 61_000));
+  check('After a minute without an accept, the kitchen is rung again', reminders().length === 1,
+    `reminders: ${reminders().length}`);
+  check('on the same notification as the order (it replaces it and rings)', reminders()[0]?.androidTag === `kitchen:${order.id}` &&
+    toKitchen?.androidTag === `kitchen:${order.id}`, `${reminders()[0]?.androidTag} / ${toKitchen?.androidTag}`);
+  check('addressed to the owner, saying when it is cancelled', reminders()[0]?.userId === owner?.ownerId &&
+    /cancelled in \d+ min/.test(reminders()[0]?.body || ''), reminders()[0]?.body);
+  await sweepStaleOrders(new Date(createdAt + 90_000));
+  check('but not more than once a minute', reminders().length === 1, `reminders: ${reminders().length}`);
+  await sweepStaleOrders(new Date(createdAt + 125_000));
+  check('and again the minute after', reminders().length === 2, `reminders: ${reminders().length}`);
+
+  console.log('\n-- Build 48 rings on the alarm volume; older Partner builds keep their channel');
+  check('A build-48 phone gets the alarm channel', channelFor('kitchen-alarm', '1.4.0 (48)') === 'kitchen-alarm');
+  check('A phone that registered before build 48 ("1.4.0") gets the old channel it has',
+    channelFor('kitchen-alarm', '1.4.0') === 'kitchen-orders' && channelFor('kitchen-alarm', undefined) === 'kitchen-orders');
+  check('Other channels are never redirected', channelFor('new-orders', '1.4.0') === 'new-orders' && channelFor('payments', '1.4.0 (12)') === 'payments');
 
   // ----------------------------------------------------------------
   console.log('\n-- Cancelling tells the kitchen too');

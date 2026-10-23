@@ -27,7 +27,6 @@ import {
   Globe,
   Bell,
   ChevronRight,
-  Lock,
   LogOut,
   Check,
   X,
@@ -58,7 +57,7 @@ interface Props {
   token?: string;
   user?: any;
   onUserUpdated?: (user: any) => void;
-  /** A password change retires every older token and returns this device a new one (U2). */
+  /** An email change retires every older token and returns this device a new one (U2). */
   onTokenRefreshed?: (token: string) => void;
   onLogout?: () => void;
   notificationsEnabled: boolean;
@@ -71,7 +70,7 @@ interface Props {
  * Organised by what the person is trying to do - their activity, their account,
  * their preferences, then help - rather than as one flat list of switches.
  * Deleting the account is in the app, as Google Play requires (U6), at the very
- * bottom and behind the password, so it is never one careless tap away.
+ * bottom and behind a code, so it is never one careless tap away.
  */
 /** Location for the permissions card: one constant, so the card does not re-check on every render. */
 const LOCATION_PERMISSION = { get: () => Location.getForegroundPermissionsAsync(), request: () => Location.requestForegroundPermissionsAsync() };
@@ -131,7 +130,6 @@ export const ProfileScreen: React.FC<Props> = ({
   const [vibrate, setVibrate] = useState(hapticsEnabled());
   const [emailStep, setEmailStep] = useState<'idle' | 'request' | 'confirm'>('idle');
   const [newEmail, setNewEmail] = useState('');
-  const [emailPassword, setEmailPassword] = useState('');
   const [emailCode, setEmailCode] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [needsOwnerCode, setNeedsOwnerCode] = useState(false);
@@ -151,7 +149,7 @@ export const ProfileScreen: React.FC<Props> = ({
         await apiFetch(`${apiUrl}/auth/contact/request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ kind: 'email', value: newEmail.trim(), ...(emailPassword ? { currentPassword: emailPassword } : {}) })
+          body: JSON.stringify({ kind: 'email', value: newEmail.trim() })
         })
       );
       setNeedsOwnerCode(Boolean(data?.needsOwnerCode));
@@ -177,7 +175,6 @@ export const ProfileScreen: React.FC<Props> = ({
       if (data?.user) onUserUpdated?.(data.user);
       setEmailStep('idle');
       setNewEmail('');
-      setEmailPassword('');
       setEmailCode('');
       setOwnerCode('');
     } catch (err: any) {
@@ -193,23 +190,15 @@ export const ProfileScreen: React.FC<Props> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
 
-  // Changing a password without losing the session: the current password is
-  // required, so an unlocked phone left on a table cannot lock its owner out.
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   /*
-   * A customer who signed up with a phone code has no password. Asking them
-   * for one meant "Password is incorrect" for ever, so no real customer could
-   * delete their account. They confirm with a code sent to their phone instead,
-   * and never see a "Change password" row for a password they do not have.
-   * The address check covers sessions signed in before the server said so.
+   * No passwords in the Customer app (owner, 23 Oct 2026): it signs in with a code, so deleting the account and
+   * changing the email are confirmed with a code too. A password an account has from the Partner or Rider app is
+   * changed there. (The old "has no password" test broke once a saved profile dropped `hasPassword`.)
    */
-  const passwordless =
-    user?.hasPassword === false || String(user?.email || '').endsWith('@phone.quickbite.app');
   const [deleteCode, setDeleteCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [codeBusy, setCodeBusy] = useState(false);
@@ -248,8 +237,8 @@ export const ProfileScreen: React.FC<Props> = ({
 
   const deleteAccount = async () => {
     if (!apiUrl || !token) return;
-    if (passwordless ? !deleteCode.trim() : !deletePassword) {
-      setDeleteError(passwordless ? 'Enter the code sent to your email.' : 'Enter your password to confirm.');
+    if (!deleteCode.trim()) {
+      setDeleteError('Enter the code sent to your email.');
       return;
     }
     setDeleteBusy(true);
@@ -258,7 +247,7 @@ export const ProfileScreen: React.FC<Props> = ({
       const res = await apiFetch(`${apiUrl}/auth/me`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(passwordless ? { code: deleteCode.trim() } : { password: deletePassword })
+        body: JSON.stringify({ code: deleteCode.trim() })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
@@ -266,7 +255,6 @@ export const ProfileScreen: React.FC<Props> = ({
         return;
       }
       setDeleteOpen(false);
-      setDeletePassword('');
       setDeleteCode('');
       onLogout?.();
     } catch {
@@ -276,47 +264,6 @@ export const ProfileScreen: React.FC<Props> = ({
     }
   };
   const [policiesOpen, setPoliciesOpen] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordBusy, setPasswordBusy] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordDone, setPasswordDone] = useState(false);
-
-  const changePassword = async () => {
-    setPasswordError(null);
-    if (!currentPassword) {
-      setPasswordError('Enter your current password.');
-      return;
-    }
-    if (newPassword.length < 8) {
-      setPasswordError('Your new password needs at least 8 characters.');
-      return;
-    }
-    setPasswordBusy(true);
-    try {
-      const res = await apiFetch(`${apiUrl}/auth/change-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword, newPassword })
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        setPasswordError(parseApiError(data, 'Your password could not be changed.').message);
-        return;
-      }
-      // Kept before anything else: every other token is now retired.
-      if (data?.data?.token) onTokenRefreshed?.(data.data.token);
-      setCurrentPassword('');
-      setNewPassword('');
-      setPasswordDone(true);
-      setPasswordOpen(false);
-      setTimeout(() => setPasswordDone(false), 4000);
-    } catch {
-      setPasswordError('Could not reach Quick Bites. Check your connection and try again.');
-    } finally {
-      setPasswordBusy(false);
-    }
-  };
 
   useEffect(() => {
     setFullName(user?.fullName ?? '');
@@ -592,25 +539,6 @@ export const ProfileScreen: React.FC<Props> = ({
         />
       </Card>
 
-      {/* Security: only for an account that has a password to change. */}
-      {!passwordless && (
-        <>
-          <Text style={styles.sectionLabel}>Security</Text>
-          <Card style={styles.group}>
-            <Row
-              icon={<Lock size={18} color={c.primary[500]} />}
-              title="Change password"
-              sub={passwordDone ? 'Your password was changed' : 'Update the password you sign in with'}
-              onPress={() => {
-                setPasswordError(null);
-                setPasswordOpen(true);
-              }}
-              last
-            />
-          </Card>
-        </>
-      )}
-
       {/* Help */}
       <Text style={styles.sectionLabel}>{t('profile.support')}</Text>
       <Card style={styles.group}>
@@ -656,7 +584,6 @@ export const ProfileScreen: React.FC<Props> = ({
         style={styles.deleteLink}
         onPress={() => {
           setDeleteError(null);
-          setDeletePassword('');
           setDeleteCode('');
           setCodeSent(false);
           setDeleteOpen(true);
@@ -720,49 +647,33 @@ export const ProfileScreen: React.FC<Props> = ({
                 the restaurant's tax records without your name, phone or address. If an order is on its way, wait until
                 it is delivered.
               </Text>
-              {passwordless ? (
-                <>
-                  <Text style={styles.label}>
-                    {codeSent ? 'Code sent to your email' : 'We will email you a code to confirm'}
-                  </Text>
-                  <TextInput
-                    style={styles.input}
-                    value={deleteCode}
-                    onChangeText={setDeleteCode}
-                    textContentType="oneTimeCode"
-                    keyboardType="number-pad"
-                    maxLength={8}
-                    placeholder={codeSent ? 'Enter the code' : 'Tap "Send code" first'}
-                    placeholderTextColor={c.text.muted}
-                  />
-                  <TouchableOpacity onPress={sendDeleteCode} disabled={codeBusy} activeOpacity={0.8}>
-                    <Text style={styles.codeLink}>
-                      {codeBusy ? 'Sending…' : codeSent ? 'Send the code again' : 'Send code'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.label}>Password</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={deletePassword}
-                    onChangeText={setDeletePassword}
-                    secureTextEntry
-                    placeholder="Your password, to confirm"
-                    placeholderTextColor={c.text.muted}
-                  />
-                </>
-              )}
+              <Text style={styles.label}>
+                {codeSent ? 'Code sent to your email' : 'We will email you a code to confirm'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={deleteCode}
+                onChangeText={setDeleteCode}
+                textContentType="oneTimeCode"
+                keyboardType="number-pad"
+                maxLength={8}
+                placeholder={codeSent ? 'Enter the code' : 'Tap "Send code" first'}
+                placeholderTextColor={c.text.muted}
+              />
+              <TouchableOpacity onPress={sendDeleteCode} disabled={codeBusy} activeOpacity={0.8}>
+                <Text style={styles.codeLink}>
+                  {codeBusy ? 'Sending…' : codeSent ? 'Send the code again' : 'Send code'}
+                </Text>
+              </TouchableOpacity>
               {!!deleteError && <Text style={styles.error}>{deleteError}</Text>}
               <TouchableOpacity
                 style={[
                   styles.primaryBtn,
                   styles.dangerBtn,
-                  (deleteBusy || (passwordless && !codeSent)) && { opacity: 0.5 }
+                  (deleteBusy || !codeSent) && { opacity: 0.5 }
                 ]}
                 onPress={deleteAccount}
-                disabled={deleteBusy || (passwordless && !codeSent)}
+                disabled={deleteBusy || !codeSent}
                 activeOpacity={0.88}
               >
                 {deleteBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Delete my account</Text>}
@@ -817,16 +728,6 @@ export const ProfileScreen: React.FC<Props> = ({
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
-                  {!passwordless && (
-                    <TextInput
-                      style={styles.input}
-                      value={emailPassword}
-                      onChangeText={setEmailPassword}
-                      placeholder="Your password, to confirm it is you"
-                      placeholderTextColor={c.text.muted}
-                      secureTextEntry
-                    />
-                  )}
                   <TouchableOpacity style={styles.secondaryInline} onPress={() => void requestEmailChange()} disabled={emailBusy}>
                     <Text style={styles.secondaryInlineText}>{emailBusy ? 'Sending…' : 'Send the code'}</Text>
                   </TouchableOpacity>
@@ -868,61 +769,6 @@ export const ProfileScreen: React.FC<Props> = ({
                 activeOpacity={0.88}
               >
                 {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>{t('common.save')}</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardLift>
-      </Modal>
-
-      {/* Change password */}
-      <Modal visible={passwordOpen} animationType="slide" transparent onRequestClose={() => setPasswordOpen(false)}>
-        <KeyboardLift>
-          <View style={styles.backdrop}>
-            <View style={styles.sheet}>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>Change password</Text>
-                <TouchableOpacity hitSlop={10} onPress={() => setPasswordOpen(false)} style={styles.closeBtn} activeOpacity={0.8}>
-                  <X size={19} color={c.text.secondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.label}>Current password</Text>
-              <TextInput
-                style={styles.input}
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                secureTextEntry
-                placeholder="Your password now"
-                placeholderTextColor={c.text.muted}
-              />
-
-              <Text style={styles.label}>New password</Text>
-              <TextInput
-                style={styles.input}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-                placeholder="At least 8 characters"
-                placeholderTextColor={c.text.muted}
-              />
-
-              <Text style={styles.helper}>
-                You stay signed in on this phone. Use the new password the next time you sign in anywhere else.
-              </Text>
-
-              {!!passwordError && <Text style={styles.error}>{passwordError}</Text>}
-
-              <TouchableOpacity
-                style={[styles.primaryBtn, passwordBusy && { opacity: 0.5 }]}
-                onPress={changePassword}
-                disabled={passwordBusy}
-                activeOpacity={0.88}
-              >
-                {passwordBusy ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.primaryBtnText}>Change password</Text>
-                )}
               </TouchableOpacity>
             </View>
           </View>

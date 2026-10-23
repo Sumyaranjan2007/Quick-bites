@@ -126,6 +126,16 @@ try {
     assert.equal(user(codeUser.id).email, 'codeonly.new@example.com');
   });
 
+  console.log('\n-- Email, account with a password, from the Customer app (owner, 23 Oct 2026: no passwords there)');
+  const riderUser: any = Array.from(memoryStore.users.values()).find((u: any) => u.email === 'rider@quickbite.app');
+  await api('/auth/otp/request', { method: 'POST', body: { phone: riderUser.phone } });
+  const asCustomer = (await api('/auth/otp/verify', { method: 'POST', body: { phone: riderUser.phone, code: config.OTP_FIXED_CODE } })).json?.data?.token;
+  const fromCustomerApp = await request({ kind: 'email', value: 'rider.new@example.com' }, asCustomer);
+  it('A Customer-app session proves it owns a password account by codes, never the password', () => {
+    assert.equal(fromCustomerApp.json?.data?.needsOwnerCode, true, JSON.stringify(fromCustomerApp.json).slice(0, 200));
+    assert.ok(last().ownerCode);
+  });
+
   console.log('\n-- Blocked identities');
   memoryStore.users.set('usr_banned_tmp', { id: 'usr_banned_tmp', email: 'banned.person@gmail.com', role: 'customer' } as any);
   banAccount('usr_banned_tmp');

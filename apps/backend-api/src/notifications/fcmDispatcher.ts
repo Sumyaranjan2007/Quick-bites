@@ -56,8 +56,10 @@ export interface PushNotificationPayload {
  * inline at the call site.
  */
 const CHANNEL = {
-  /** apps/restaurant-mobile/src/lib/orderAlert.ts — MAX importance, new_order.wav. */
-  KITCHEN: 'kitchen-orders',
+  /** apps/restaurant-mobile/src/lib/orderAlert.ts — MAX importance, new_order.wav, on the ALARM volume (build 48+). */
+  KITCHEN: 'kitchen-alarm',
+  /** The same alarm on the notification volume, the only one Partner builds up to 47 have. */
+  KITCHEN_OLD: 'kitchen-orders',
   /** apps/delivery-mobile/src/lib/orderAlert.ts. */
   RIDER: 'new-orders',
   /**
@@ -74,6 +76,14 @@ const CHANNEL = {
   DEFAULT: 'default'
 } as const;
 
+/** The first Partner build with the alarm channel; its registration says "1.4.0 (48)". */
+const KITCHEN_ALARM_BUILD = 48;
+/** The build number in a registration's appVersion, 0 when it has none (builds up to 47 sent only "1.4.0"). */
+export const buildOf = (appVersion?: string): number => Number(/\((\d+)\)\s*$/.exec(appVersion || '')?.[1] || 0);
+/** The channel a phone really has: a Partner build before 48 has only the old kitchen channel (round 7). */
+export const channelFor = (channelId: string, appVersion?: string): string =>
+  channelId === CHANNEL.KITCHEN && buildOf(appVersion) < KITCHEN_ALARM_BUILD ? CHANNEL.KITCHEN_OLD : channelId;
+
 /*
  * One person can be a customer and a partner or rider (owner, 17 Oct 2026),
  * with one app for each role. Each device is registered with the role its app
@@ -83,6 +93,7 @@ const CHANNEL = {
  */
 const CHANNEL_ROLE: Record<string, string> = {
   [CHANNEL.KITCHEN]: 'restaurant_owner',
+  [CHANNEL.KITCHEN_OLD]: 'restaurant_owner',
   [CHANNEL.RIDER]: 'rider',
   [CHANNEL.ORDER_UPDATES]: 'customer'
 };
@@ -177,8 +188,12 @@ class FcmNotificationDispatcher {
       // iPhone tokens are APNs tokens; FCM would reject them and mark them dead.
       const tokensFor = (ios: boolean) =>
         devices.filter(d => (d.platform === 'IOS') === ios).map(d => d.token);
+      // A Partner phone that registered before build 48 has no alarm channel: it keeps the old one (round 7).
+      const old = (d: { appVersion?: string }) => channelFor(message.androidChannelId!, d.appVersion) === CHANNEL.KITCHEN_OLD;
+      const android = devices.filter(d => d.platform !== 'IOS');
       const outcomes = await Promise.all([
-        sendToTokens(tokensFor(false), message),
+        sendToTokens(android.filter(d => !old(d)).map(d => d.token), message),
+        sendToTokens(android.filter(old).map(d => d.token), { ...message, androidChannelId: CHANNEL.KITCHEN_OLD }),
         sendToApns(tokensFor(true), message)
       ]);
 
@@ -364,7 +379,26 @@ class FcmNotificationDispatcher {
        */
       body: `#${orderNumber} — ${itemCount} ${itemCount === 1 ? 'item' : 'items'}. Accept it to start the clock.`,
       data: { type: 'RESTAURANT_NEW_ORDER', orderId, orderNumber },
-      androidChannelId: CHANNEL.KITCHEN
+      androidChannelId: CHANNEL.KITCHEN,
+      // One entry per order: the reminders below replace it, and ring again as they do.
+      androidTag: `kitchen:${orderId}`
+    });
+  }
+
+  /**
+   * Rings the kitchen again while an order waits to be accepted (owner, 23 Oct 2026). A closed app heard ONE chime and
+   * the order was cancelled after ORDER_ACCEPT_TIMEOUT_MINUTES. Sent by the order sweeper once a minute.
+   */
+  async remindRestaurantNewOrder(ownerUserId: string, orderId: string, orderNumber: string, minutesLeft: number) {
+    return this.sendPushNotification({
+      userId: ownerUserId,
+      orderId,
+      orderNumber,
+      title: 'New order waiting',
+      body: `#${orderNumber} is not accepted yet. It is cancelled in ${minutesLeft} min if nobody accepts it.`,
+      data: { type: 'RESTAURANT_NEW_ORDER', orderId, orderNumber },
+      androidChannelId: CHANNEL.KITCHEN,
+      androidTag: `kitchen:${orderId}`
     });
   }
 

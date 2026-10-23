@@ -234,6 +234,13 @@ export const config = {
   ROAD_DISTANCE_FACTOR: numberFromEnv(process.env.ROAD_DISTANCE_FACTOR, 1.3, 1, 3),
 
   /**
+   * The most a delivery is billed, as a multiple of the straight line (owner, 23 Oct 2026: an 800 m trip costs at
+   * most 1 km). Google's shortest legal route U-turns on divided roads; see `fairDistance` in routingService.ts.
+   * 5 switches it off.
+   */
+  ROAD_DETOUR_CAP: numberFromEnv(process.env.ROAD_DETOUR_CAP, 1.25, 1.1, 5),
+
+  /**
    * Whether this deployment will allow its data to be deleted wholesale.
    *
    * Off unless switched on deliberately, and meant to be switched off again

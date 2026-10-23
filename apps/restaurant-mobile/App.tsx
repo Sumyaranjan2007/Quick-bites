@@ -29,6 +29,7 @@ import {
   startOrderAlert,
   announceOrder
 } from './src/lib/orderAlert';
+import { useSoundLocked } from './src/lib/useSoundLocked';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { SettlementsScreen } from './src/screens/SettlementsScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -48,7 +49,7 @@ import { loadStoredSession, saveStoredSession, clearStoredSession } from './src/
 import { DEFAULT_API_URL } from './src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { startLiveSync, useLiveSync } from './src/lib/liveSync';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { KeyboardProvider, useKeyboardState } from 'react-native-keyboard-controller';
 
 type Tab =
   | 'dashboard'
@@ -173,6 +174,9 @@ function PartnerApp() {
 
   /** Incremented on every live event, so screens can refresh without remounting. */
   const [refreshSignal, setRefreshSignal] = useState(0);
+  // Help's chat ends at the screen's edge while typing, so its box sits on the keyboard (round 7 B2).
+  const soundLocked = useSoundLocked();
+  const keyboardOpen = useKeyboardState(state => state.isVisible);
 
   const loadProfile = useCallback(async (ownerId: string, quiet = false) => {
     if (!quiet) setLoadingProfile(true);
@@ -480,6 +484,12 @@ function PartnerApp() {
         </View>
       )}
 
+      {soundLocked && (
+        <TouchableOpacity style={styles.soundLocked} accessibilityRole="button">
+          <Text style={styles.soundLockedText}>🔔 Click here to turn on the new-order sound</Text>
+        </TouchableOpacity>
+      )}
+
       {groupOf(tab).tabs.length > 1 && (
         <View style={styles.subTabs} accessibilityRole="tablist">
           {groupOf(tab).tabs.map(t => {
@@ -539,6 +549,7 @@ function PartnerApp() {
         )}
       </View>
 
+      {tab === 'help' && keyboardOpen ? null : (
       <View style={styles.tabBar} accessibilityRole="tablist">
         {GROUPS.map(g => {
           const Icon = g.icon;
@@ -560,6 +571,7 @@ function PartnerApp() {
           );
         })}
       </View>
+      )}
     </SafeScreen>
   );
 }
@@ -610,6 +622,8 @@ const styles = StyleSheet.create({
   kitchenLocked: { backgroundColor: 'transparent', borderColor: c.warning, opacity: 0.85 },
   kitchenToggleText: { fontFamily: FONT_FAMILY, fontSize: 13, fontWeight: '800', color: c.textSoft },
   body: { flex: 1 },
+  soundLocked: { backgroundColor: c.brand, paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
+  soundLockedText: { color: '#FFFFFF', fontFamily: FONT_FAMILY, fontWeight: '700', textAlign: 'center' },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: c.surface,

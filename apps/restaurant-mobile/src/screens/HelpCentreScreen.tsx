@@ -263,7 +263,7 @@ export const HelpCentreScreen: React.FC<Props> = ({ restaurantName, ownerEmail, 
           <AppPermissions
             alwaysShow
             items={['notifications', 'camera', 'location', 'battery']}
-            channels={['kitchen-orders', 'payments']}
+            channels={['kitchen-alarm', 'payments']}
             location={LOCATION_PERMISSION}
             why={{
               notifications: 'So a new order rings even when the app is closed or the phone is locked.',

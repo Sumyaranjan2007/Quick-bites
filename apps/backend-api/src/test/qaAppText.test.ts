@@ -136,10 +136,10 @@ it('The rider cannot be offered "release trip" after pickup', () => {
   const before = trip.slice(Math.max(0, at - 200), at);
   assert.ok(/headingToRestaurant \|\| atRestaurant/.test(before), 'release is not gated on the pickup stage');
 });
-it('A phone-only customer is never asked for a password to delete, nor shown "Change password"', () => {
+it('A customer is never asked for a password: delete by code, no "Change password" (owner, 23 Oct 2026)', () => {
   const profile = code('customer-mobile/src/screens/ProfileScreen.tsx');
-  assert.ok(/passwordless \? \{ code: /.test(profile), 'the delete request never sends a code');
-  assert.ok(/!passwordless && \(/.test(profile), 'the Change password row is not hidden');
+  assert.ok(/JSON\.stringify\(\{ code: deleteCode\.trim\(\) \}\)/.test(profile), 'the delete request never sends a code');
+  assert.ok(!/Change password|currentPassword|secureTextEntry/.test(profile), 'a password field or "Change password" is still there');
 });
 
 // ---------------------------------------------------------------------

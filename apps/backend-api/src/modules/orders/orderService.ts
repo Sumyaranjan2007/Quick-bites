@@ -76,7 +76,7 @@ import { offerTripToNearbyRiders } from './tripOffers.ts';
  * It does not touch `emitOrderCreated`. That socket is the in-app alarm, it
  * works, and it is a separate channel for a tablet that is awake.
  */
-async function tellTheKitchen(
+export async function tellTheKitchen(
   restaurantId: string,
   send: (ownerUserId: string) => Promise<unknown>
 ): Promise<void> {

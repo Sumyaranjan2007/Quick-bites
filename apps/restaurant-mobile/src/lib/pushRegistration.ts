@@ -70,8 +70,9 @@ export async function registerForPush(token: string): Promise<void> {
       body: JSON.stringify({
         token: value,
         platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
-        // The version actually installed, so support can see who is out of date.
-        appVersion: Constants.expoConfig?.version || 'unknown'
+        // The version and build actually installed: support sees who is out of date, and from build 48 the server
+        // rings this phone on the alarm channel (round 7).
+        appVersion: `${Constants.expoConfig?.version || 'unknown'} (${Constants.expoConfig?.android?.versionCode ?? '?'})`
       })
     });
 

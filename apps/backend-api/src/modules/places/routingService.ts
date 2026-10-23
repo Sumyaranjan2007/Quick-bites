@@ -265,15 +265,30 @@ export async function roadDistanceMatrix(
 export async function roadDistance(from: Coordinates, to: Coordinates): Promise<RoadDistance> {
   if (routingProvider() !== 'GOOGLE' || !valid(from) || !valid(to)) {
     const [only] = await roadDistanceMatrix(from, [to]);
-    return only;
+    return valid(from) && valid(to) ? fairDistance(only, from, to) : only;
   }
   const k = `route|${key(from, to)}`;
   const hit = readCache(k);
   if (hit) return hit;
   const [measured] = (await callGoogleRoute(from, to)) || [null];
   if (!measured) return estimateByRoad(from, to);
-  writeCache(k, measured);
-  return measured;
+  const fair = fairDistance(measured, from, to);
+  writeCache(k, fair);
+  return fair;
+}
+
+/**
+ * FAIR DISTANCE (owner, 23 Oct 2026, round 7 A): an 800 m trip is billed at most 1 km. Google's shortest route is the
+ * shortest LEGAL one: across Harohalli's divided roads and one-way streets it rides to the next U-turn (800 m became
+ * 5 km); a rider cuts across. So a route longer than ROAD_DETOUR_CAP x the straight line is priced at the cap, its time
+ * scaled, and its line dropped (the map draws the straight line). The owner raises the per-km rate instead.
+ * seniordev: a ratio, not a rider-realistic router; plan round7 A5 (self-hosted Valhalla) if riders lose out.
+ */
+export function fairDistance(road: RoadDistance, from: Coordinates, to: Coordinates): RoadDistance {
+  const capKm = round2(calculateDistanceKm(from.latitude, from.longitude, to.latitude, to.longitude) * config.ROAD_DETOUR_CAP);
+  if (road.source === 'ESTIMATED' || road.distanceKm <= capKm) return road;
+  console.log(JSON.stringify({ level: 'INFO', timestamp: new Date().toISOString(), event: 'ROUTE_DETOUR_CAPPED', roadKm: road.distanceKm, cappedKm: capKm }));
+  return { distanceKm: capKm, durationMinutes: Math.max(1, Math.ceil((road.durationMinutes * capKm) / road.distanceKm)), source: road.source };
 }
 
 async function callDirections(from: Coordinates, to: Coordinates): Promise<(RoadDistance | null)[] | null> {

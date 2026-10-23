@@ -313,6 +313,20 @@ const BOUNDS: Record<string, { min: number; max: number; unit: string; label: st
 export const CHARGE_BOUNDS = BOUNDS;
 
 /**
+ * Every kitchen that registers starts with these (owner, 23 Oct 2026), shown and changed in Operations → Money →
+ * Inflation → Per restaurant. The packaging the kitchen declares stays theirs (null = what they asked for); no GST on
+ * our own charges until there is a GSTIN. Kitchens registered before keep whatever they had.
+ */
+export const NEW_KITCHEN_CHARGES = {
+  foodMarkupPercent: 10,
+  platformFee: 5,
+  commissionPercent: 2,
+  gstFoodPercent: 5,
+  packagingMarkup: 0,
+  extraCharge: 0
+} as const;
+
+/**
  * Sets one restaurant's charges.
  *
  * Only the keys present are changed; a key set to `null` goes back to following

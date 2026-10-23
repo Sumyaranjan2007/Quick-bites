@@ -16,6 +16,7 @@
  */
 import assert from 'node:assert';
 import { config } from '../config/env.ts';
+import { calculateDistanceKm } from '../db/client.ts';
 import {
   roadDistance,
   roadDistanceMatrix,
@@ -163,10 +164,10 @@ await (async () => {
   await check('Configured: a measured road distance is reported as GOOGLE', async () => {
     (config as any).MAPBOX_ACCESS_TOKEN = 'test-key';
     clearRoutingCache();
-    stubFetch(matrixBody([okElement(7400, 1320)]));
+    stubFetch(matrixBody([okElement(7000, 1320)]));
     const result = await roadDistance(A, B);
     assert.equal(result.source, 'MAPBOX');
-    assert.equal(result.distanceKm, 7.4);
+    assert.equal(result.distanceKm, 7);
     assert.equal(result.durationMinutes, 22);
     restore();
   });
@@ -179,7 +180,7 @@ await (async () => {
     // same answer as the previous check's exact 1320s — so an exact-multiple
     // fixture cannot tell ceil from floor, and this test could not fail for the
     // reason it exists.
-    stubFetch(matrixBody([okElement(9000, 1330)]));
+    stubFetch(matrixBody([okElement(7000, 1330)]));
     const uneven = await roadDistance(A, B);
     assert.equal(uneven.durationMinutes, 23, 'part of a minute is still a minute of riding');
     restore();
@@ -587,6 +588,17 @@ await (async () => {
     offGoogle();
     (config as any).GOOGLE_MAPS_SERVER_KEY = '';
     assert.equal(await roadPath(A, B), null);
+  });
+
+  await check('Round 7: a U-turn detour is billed at most 1.25x the straight line, with its time scaled and no line', async () => {
+    useGoogle();
+    const capKm = Math.round(calculateDistanceKm(A.latitude, A.longitude, B.latitude, B.longitude) * 1.25 * 100) / 100;
+    stubGoogle(() => ({ body: { routes: [{ distanceMeters: 20000, duration: '2400s', polyline: { encodedPolyline: 'UTURN' } }] } }));
+    const road = await roadDistance(A, B);
+    assert.equal(road.distanceKm, capKm, '800 m costs at most 1 km (owner, 23 Oct)');
+    assert.equal(road.durationMinutes, Math.ceil((40 * capKm) / 20));
+    assert.equal(await roadPath(A, B), null, 'the map draws the straight line, not the detour that was not priced');
+    offGoogle();
   });
 
   console.log(`\n  ${passed} passed, ${failed} failed`);

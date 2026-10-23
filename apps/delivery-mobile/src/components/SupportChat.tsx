@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLiveSync } from '../lib/liveSync';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { useKeyboardOffset } from '../lib/keyboardOffset';
+import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Help as a real chat (owner, 19-20 Oct 2026). The person types; a ready answer
@@ -96,7 +97,11 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   const [attempt, setAttempt] = useState(0);
   const readUpTo = useRef('');
   const scroll = useRef<ScrollView>(null);
-  const keyboardOffset = useKeyboardOffset();
+  // The box rides on the keyboard (round 7 B2): a spacer as tall as the part of the keyboard over the chat, which ends
+  // `bottom` above the screen's edge. No screen-position maths: the measured offset left Send under the keyboard.
+  const keyboard = useReanimatedKeyboardAnimation();
+  const { bottom } = useSafeAreaInsets();
+  const lift = useAnimatedStyle(() => ({ height: Math.max(0, -keyboard.height.value - bottom) }));
   const s = styles(c, font);
 
   const say = (line: Line) => setLines(prev => [...prev, { at: new Date().toISOString(), ...line }]);
@@ -174,11 +179,11 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
 
   const connect = async (lastWords?: string) => {
     const words = [...typed, ...(lastWords ? [lastWords] : [])].join('\n');
-    const about = asked[asked.length - 1];
-    const message = words.length >= 10 ? words : `I need help with: ${about?.label || 'something else'}. ${words}`.trim();
+    const topic = asked[asked.length - 1];
+    const message = words.length >= 10 ? words : `I need help with: ${topic?.label || 'something else'}. ${words}`.trim();
     const made = await api.raise({
-      subject: (about?.label || words.split('\n')[0] || 'Help').slice(0, 120).padEnd(3, '.'),
-      category: about?.category || 'OTHER',
+      subject: (topic?.label || words.split('\n')[0] || 'Help').slice(0, 120).padEnd(3, '.'),
+      category: topic?.category || 'OTHER',
       message: message.slice(0, 2000),
       helpTopics: asked.map(t => t.id),
       platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'web' ? 'web' : 'android',
@@ -324,14 +329,14 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
   }
 
   return (
-    <KeyboardAvoidingView
-      {...keyboardOffset} style={s.root} behavior="padding">
+    <View style={s.root}>
       {tabs}
       <ScrollView
         ref={scroll}
         contentContainerStyle={s.thread}
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
+        onLayout={() => scroll.current?.scrollToEnd({ animated: false })}
       >
         {lines.map(bubble)}
         {offerPerson && !ticket ? (
@@ -381,7 +386,8 @@ export const SupportChat: React.FC<{ api: ChatApi; colours: ChatColours; font?: 
           {busy ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={s.sendText}>Send</Text>}
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+      <Reanimated.View style={lift} />
+    </View>
   );
 };
 

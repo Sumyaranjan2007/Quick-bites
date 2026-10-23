@@ -33,6 +33,7 @@ server). Local values: root `.env` (gitignored); names in `.env.example`. Most a
 | `PAYEE_ACCOUNT_KEY` | `modules/payments/payeeAccountNumbers.ts:27` | full bank numbers cannot be encrypted/stored |
 | `GOOGLE_MAPS_SERVER_KEY` | `config/env.ts` (master plan B2, 18 Oct) | road distance/time from Google's Routes API when set (two-wheeler, traffic); without it Mapbox (if its token is set), else the estimate. Owner creates it in Google Cloud (`docs/ops/OPS_GUIDE.md`) |
 | `MAPBOX_ACCESS_TOKEN`, `ROAD_DISTANCE_FACTOR`, `PLACES_REGION` | `config/env.ts:349`, `:234`, `:362` | straight-line distance fallback; address search off (Mapbox stays until the Google key is set and the apps move in Stage C) |
+| `ROAD_DETOUR_CAP` | `config/env.ts` (next to `ROAD_DISTANCE_FACTOR`) | the most a delivery is billed, × the straight line (default 1.25: 800 m → 1 km; 5 = off; owner 23 Oct 2026) |
 | `MEILISEARCH_HOST`, `MEILISEARCH_API_KEY` | `config/env.ts:90-91` | built-in search used instead |
 | `FCM_SERVICE_ACCOUNT_JSON` | `config/env.ts:378` | no Android push |
 | `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`, `APNS_HOST` | `config/env.ts:386-390` | no iPhone push (set 13 Oct) |

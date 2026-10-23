@@ -27,6 +27,7 @@ import type { UserRole } from '@quick-bites/shared-types';
 import { CUISINE_TYPES } from '@quick-bites/shared-types';
 import { UNSET_COORDINATES } from '../modules/restaurants/restaurantLocation.ts';
 import { notifyAdminsNewSignup } from '../notifications/adminNotifier.ts';
+import { setCharges, NEW_KITCHEN_CHARGES } from '../modules/payments/restaurantCharges.ts';
 
 export const authRouter = Router();
 
@@ -880,6 +881,7 @@ export async function openRestaurant(user: { id: string }, body: Record<string, 
     cuisineTags: [],
     isOpen: false
   } as any);
+  setCharges(restaurant.id, NEW_KITCHEN_CHARGES, 'system', 'New-kitchen defaults');
 
   console.log(JSON.stringify({
     level: 'INFO',
@@ -1638,7 +1640,8 @@ authRouter.post('/contact/request', authMiddleware(), authRateLimiterMiddleware,
     assertNotBanned({ email: value });
 
     // Proof that this is the account's owner, not only someone holding a session.
-    const ownerByCode = !user.passwordHash;
+    // The Customer app has no passwords (owner, 23 Oct 2026): its session proves ownership by a code, as code-only accounts do.
+    const ownerByCode = !user.passwordHash || req.user!.scope === 'customer';
     if (!ownerByCode) {
       const ok = req.body.currentPassword && (await userRepository.verifyCredentials(user.email, req.body.currentPassword));
       if (!ok) throw new AppError('Enter your current password to change your email.', 401, 'INVALID_PASSWORD');

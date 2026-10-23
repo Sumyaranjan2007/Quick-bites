@@ -31,7 +31,7 @@ import { orderRepository } from '../../db/repositories/orderRepository.ts';
 import { riderRepository } from '../../db/repositories/riderRepository.ts';
 import { fcmDispatcher } from '../../notifications/fcmDispatcher.ts';
 import { auditRepository } from '../../db/repositories/auditRepository.ts';
-import { orderService } from './orderService.ts';
+import { orderService, tellTheKitchen } from './orderService.ts';
 import { emitOpsAlert, emitMenuUpdated, refreshOrderRoom } from '../../sockets/socketServer.ts';
 import { reopenSectionsDue } from '../restaurants/menuSections.ts';
 import { pruneExpiredConfirmLinks } from '../auth/confirmLinks.ts';
@@ -101,6 +101,22 @@ function minutesSince(iso: string | undefined, now: Date): number {
   return (now.getTime() - then) / 60000;
 }
 
+/** When each waiting order last rang its kitchen; in memory, so a restart rings once early, which is harmless. */
+const lastRang = new Map<string, number>();
+
+/**
+ * A closed Partner app heard ONE chime, and the order was cancelled after ORDER_ACCEPT_TIMEOUT_MINUTES (owner, 23 Oct
+ * 2026: the sound in every scenario). The kitchen is rung again once a minute until somebody accepts; the push replaces
+ * the same notification, so the shade holds one entry that keeps ringing.
+ */
+async function ringKitchenAgain(order: Order, now: Date, waited: number): Promise<void> {
+  const last = lastRang.get(order.id) ?? Date.parse(order.createdAt);
+  if (now.getTime() - last < 60_000) return;
+  lastRang.set(order.id, now.getTime());
+  const left = Math.max(1, Math.ceil(config.ORDER_ACCEPT_TIMEOUT_MINUTES - waited));
+  await tellTheKitchen(order.restaurantId, owner => fcmDispatcher.remindRestaurantNewOrder(owner, order.id, order.orderNumber, left));
+}
+
 /**
  * A single pass. Exported separately from the interval so that a test can run
  * exactly one sweep at a chosen instant, which is the only way to check the
@@ -124,10 +140,16 @@ export async function sweepStaleOrders(now: Date = new Date()): Promise<SweepRes
 
   const orders = await orderRepository.listAwaitingAction();
   result.scanned = orders.length;
+  const waiting = new Set(orders.filter(o => o.status === 'ORDER_PLACED').map(o => o.id));
+  for (const id of lastRang.keys()) if (!waiting.has(id)) lastRang.delete(id);
 
   for (const order of orders) {
     if (order.status === 'ORDER_PLACED') {
-      if (minutesSince(order.createdAt, now) < config.ORDER_ACCEPT_TIMEOUT_MINUTES) continue;
+      const waited = minutesSince(order.createdAt, now);
+      if (waited < config.ORDER_ACCEPT_TIMEOUT_MINUTES) {
+        await ringKitchenAgain(order, now, waited);
+        continue;
+      }
 
       try {
         await orderService.cancelOrder(order.id, SYSTEM_ACTOR, 'RESTAURANT_DID_NOT_RESPOND');

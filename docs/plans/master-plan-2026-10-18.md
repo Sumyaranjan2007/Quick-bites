@@ -4,7 +4,15 @@
 
 ## START HERE — any new session (AI or developer) continues from this file
 
-> ### ▶▶▶▶ ROUND 6 — 22 Oct 2026 (newest; BUILT 22 Oct, build 47)
+> ### ▶▶▶▶▶ ROUND 7 — 23 Oct 2026 (newest; BUILT, build 48)
+>
+> The owner's build-47 findings: an 800 m home billed as ~5 km (Google's shortest *legal* route U-turns on Harohalli's
+> divided roads → fair-distance cap, 1.25 × straight line, owner), new-kitchen rates (10 % markup, ₹5, 2 %, 5 % GST), the kitchen alarm (every minute while unaccepted, alarm volume from build 48), Help's "That order could not be found" (topic id sent as the
+> order id since 20 Oct), the keyboard covering the help-chat box in all apps, and "Change password" in the Customer app.
+> Standalone plan with evidence and checks: **[`round7-fair-distance-help-chat-password-2026-10-23.md`](round7-fair-distance-help-chat-password-2026-10-23.md)**.
+> Next build: **48**.
+>
+> ### ▶▶▶▶ ROUND 6 — 22 Oct 2026 (BUILT 22 Oct, build 47)
 >
 > Live help chat that stays open until solved (WhatsApp-like, Operations chat screen), notifications fixed in Partner/Rider
 > and a "Phone permissions" card in every app, a one-time location guide for new customers, the Android zoom snap-back on
