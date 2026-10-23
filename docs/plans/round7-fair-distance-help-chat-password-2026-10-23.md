@@ -64,7 +64,7 @@ the cache so the raw Google answer stays cached and the rule can change without 
 /**
  * FAIR DISTANCE (owner, 23 Oct 2026, round 7 A). Google's shortest route is the shortest LEGAL one: across a divided
  * road or a one-way street it rides to the next U-turn (800 m became 5 km in Harohalli); a rider cuts across. A route
- * longer than ROAD_DETOUR_CAP x the straight line is priced at the cap, its time scaled, and its line dropped.
+ * longer than ROAD_DETOUR_CAP x the straight line is PRICED at the cap; the map line and time stay Google's route.
  * seniordev: a ratio, not a rider-realistic router; self-hosted Valhalla (ignore_oneways) if the cap bites often (A5).
  */
 export function fairDistance(road: RoadDistance, from: Coordinates, to: Coordinates): RoadDistance {
@@ -78,11 +78,12 @@ export function fairDistance(road: RoadDistance, from: Coordinates, to: Coordina
 - `config/env.ts`: `ROAD_DETOUR_CAP: numberFromEnv(process.env.ROAD_DETOUR_CAP, 1.25, 1.1, 5)` (owner chose 1.25; 2 was the first proposal) next to `ROAD_DISTANCE_FACTOR`
   (5 = effectively off). Railway variable; changing it restarts the server. No customer location goes into the log.
 - **Why 1.25 (owner, 23 Oct):** "an 800 m trip costs at most 1 km". It sits near the normal road-vs-straight ratio (1.2–1.4), so most trips are billed close to 1.25 × the straight line and every U-turn detour (4–6×) is cut. Riders on genuinely winding roads are paid for slightly less than they ride; the owner raises the per-km rate in Operations to keep pay fair. The ₹30 minimum still covers every trip up to 2.5 km.
-- **What it touches:** the quote and checkout fee, the frozen `riderPay`, `routeMinutes` (arrival time), the cash
-  limit (15 km), pickup pay. The restaurant list (straight × 1.3) and the radius (straight line) are already below it.
-- **Map line when capped:** no polyline is returned, so `roadPath` gives `null` and the tracking map draws its
-  existing straight-line fallback (as when Google is down). This keeps "the line is the priced route" honest and
-  stops the off-route re-draw (`orderRouter.ts:355-365`) from asking Google again and again for the same detour.
+- **What it touches (as built, owner 23 Oct: "it works as it was, just more accurate in the bills and rider pay"):**
+  only the money — the quote and checkout fee, the frozen `riderPay`, the cash limit (15 km), pickup pay, also when
+  Google is down. Built as `return { ...road, distanceKm: capKm }`.
+- **Unchanged:** the customer's map draws Google's real route, the arrival time (`routeMinutes`) is that route's time,
+  live tracking and the off-route re-draw work as before, and the restaurant list's estimate stays straight × 1.3.
+  (The first draft above scaled the time and dropped the line; the owner chose to keep both.)
 
 **Check (one, in `src/test/routing.test.ts`):** Google mocked to return a single 4 960 m route for two points 0.88 km
 apart → `roadDistance` returns `round2(0.88 × 2)` km, no `polyline`, minutes scaled; a 1.2 km route for the same pair

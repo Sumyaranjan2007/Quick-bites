@@ -101,8 +101,7 @@ export interface RoadDistance {
  */
 export function estimateByRoad(from: Coordinates, to: Coordinates): RoadDistance {
   const straight = calculateDistanceKm(from.latitude, from.longitude, to.latitude, to.longitude);
-  // Never above the fair-distance cap (owner, 23 Oct 2026): a Google outage must not bill more than Google would.
-  const distanceKm = round2(straight * Math.min(config.ROAD_DISTANCE_FACTOR, config.ROAD_DETOUR_CAP));
+  const distanceKm = round2(straight * config.ROAD_DISTANCE_FACTOR);
   return {
     distanceKm,
     durationMinutes: Math.max(1, Math.ceil((distanceKm / config.DELIVERY_SPEED_KMPH) * 60)),
@@ -272,7 +271,8 @@ export async function roadDistance(from: Coordinates, to: Coordinates): Promise<
   const hit = readCache(k);
   if (hit) return hit;
   const [measured] = (await callGoogleRoute(from, to)) || [null];
-  if (!measured) return estimateByRoad(from, to);
+  // Google down: the estimate, billed under the same cap (a bill never above ROAD_DETOUR_CAP x the straight line).
+  if (!measured) return fairDistance(estimateByRoad(from, to), from, to);
   const fair = fairDistance(measured, from, to);
   writeCache(k, fair);
   return fair;
@@ -281,15 +281,16 @@ export async function roadDistance(from: Coordinates, to: Coordinates): Promise<
 /**
  * FAIR DISTANCE (owner, 23 Oct 2026, round 7 A): an 800 m trip is billed at most 1 km. Google's shortest route is the
  * shortest LEGAL one: across Harohalli's divided roads and one-way streets it rides to the next U-turn (800 m became
- * 5 km); a rider cuts across. So a route longer than ROAD_DETOUR_CAP x the straight line is priced at the cap, its time
- * scaled, and its line dropped (the map draws the straight line). The owner raises the per-km rate instead.
+ * 5 km); a rider cuts across. So a route longer than ROAD_DETOUR_CAP x the straight line is PRICED at the cap; the map
+ * line and the time stay Google's real route (owner, 23 Oct: the bill is the short distance, the customer's map and
+ * tracking show the real road). The owner raises the per-km rate instead.
  * seniordev: a ratio, not a rider-realistic router; plan round7 A5 (self-hosted Valhalla) if riders lose out.
  */
 export function fairDistance(road: RoadDistance, from: Coordinates, to: Coordinates): RoadDistance {
   const capKm = round2(calculateDistanceKm(from.latitude, from.longitude, to.latitude, to.longitude) * config.ROAD_DETOUR_CAP);
-  if (road.source === 'ESTIMATED' || road.distanceKm <= capKm) return road;
-  console.log(JSON.stringify({ level: 'INFO', timestamp: new Date().toISOString(), event: 'ROUTE_DETOUR_CAPPED', roadKm: road.distanceKm, cappedKm: capKm }));
-  return { distanceKm: capKm, durationMinutes: Math.max(1, Math.ceil((road.durationMinutes * capKm) / road.distanceKm)), source: road.source };
+  if (road.distanceKm <= capKm) return road;
+  if (road.source !== 'ESTIMATED') console.log(JSON.stringify({ level: 'INFO', timestamp: new Date().toISOString(), event: 'ROUTE_DETOUR_CAPPED', roadKm: road.distanceKm, cappedKm: capKm }));
+  return { ...road, distanceKm: capKm };
 }
 
 async function callDirections(from: Coordinates, to: Coordinates): Promise<(RoadDistance | null)[] | null> {

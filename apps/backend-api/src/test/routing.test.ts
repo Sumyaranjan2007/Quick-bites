@@ -155,8 +155,6 @@ await (async () => {
       `expected the ~5km Cubbon-Koramangala gap to scale up, got ${estimate.distanceKm}`
     );
     assert.ok(estimate.distanceKm <= 5 * 3, 'the factor is clamped at 3');
-    const straight = calculateDistanceKm(A.latitude, A.longitude, B.latitude, B.longitude);
-    assert.ok(estimate.distanceKm <= Math.round(straight * config.ROAD_DETOUR_CAP * 100) / 100, 'the estimate bills above the fair-distance cap');
   });
 
   /* ------------------------------------------------------------------ *
@@ -531,6 +529,10 @@ await (async () => {
     const road = await roadDistance(A, B);
     assert.equal(road.source, 'ESTIMATED');
     assert.equal(routingStatus().lastRefusal?.status, 'HTTP_403');
+    // Round 7: a bill made while Google is down is under the same cap; the list's estimate (x1.3) is unchanged.
+    const straight = calculateDistanceKm(A.latitude, A.longitude, B.latitude, B.longitude);
+    assert.ok(road.distanceKm <= Math.round(straight * config.ROAD_DETOUR_CAP * 100) / 100, `billed ${road.distanceKm} km above the cap`);
+    assert.equal(estimateByRoad(A, B).distanceKm, Math.round(straight * config.ROAD_DISTANCE_FACTOR * 100) / 100);
     const calls = stubGoogle(() => ({ body: { routes: [{ distanceMeters: 6420, duration: '1260s' }] } }));
     const again = await roadDistance(A, B);
     assert.equal(again.source, 'GOOGLE', 'the estimate was cached and pinned');
@@ -592,14 +594,14 @@ await (async () => {
     assert.equal(await roadPath(A, B), null);
   });
 
-  await check('Round 7: a U-turn detour is billed at most 1.25x the straight line, with its time scaled and no line', async () => {
+  await check("Round 7: a U-turn detour is billed at most 1.25x the straight line; the map and time stay Google's route", async () => {
     useGoogle();
     const capKm = Math.round(calculateDistanceKm(A.latitude, A.longitude, B.latitude, B.longitude) * 1.25 * 100) / 100;
     stubGoogle(() => ({ body: { routes: [{ distanceMeters: 20000, duration: '2400s', polyline: { encodedPolyline: 'UTURN' } }] } }));
     const road = await roadDistance(A, B);
     assert.equal(road.distanceKm, capKm, '800 m costs at most 1 km (owner, 23 Oct)');
-    assert.equal(road.durationMinutes, Math.ceil((40 * capKm) / 20));
-    assert.equal(await roadPath(A, B), null, 'the map draws the straight line, not the detour that was not priced');
+    assert.equal(road.durationMinutes, 40, "the arrival time is the real route's");
+    assert.equal(await roadPath(A, B), 'UTURN', "the customer's map draws Google's real route (owner, 23 Oct)");
     offGoogle();
   });
 
